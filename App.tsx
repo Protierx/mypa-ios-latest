@@ -37,6 +37,7 @@ function HomeStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Hub" component={HubScreen} />
+      <Stack.Screen name="Inbox" component={InboxScreen} />
       <Stack.Screen name="Wallet" component={WalletScreen} />
       <Stack.Screen name="Challenges" component={ChallengesScreen} />
       <Stack.Screen name="Settings" component={SettingsScreen} />
