@@ -98,7 +98,7 @@ export function HubScreen({ onNavigate, onVoiceClick, navigation }: HubScreenPro
         'streak': 'Streak',
         'level': 'Level',
         'plan': 'Plan',
-        'sort': 'Sort',
+        'sort': 'TaskSorting',
         'challenges': 'Challenges',
         'wallet': 'Wallet',
         'reset': 'Reset',

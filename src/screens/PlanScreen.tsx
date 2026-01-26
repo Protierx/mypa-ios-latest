@@ -17,6 +17,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle } from 'react-native-svg';
+import { useNavigation } from '@react-navigation/native';
 
 interface PlanScreenProps {
   onNavigate?: (screen: string) => void;
@@ -242,6 +243,7 @@ const SwipeableTask = ({
 };
 
 export function PlanScreen({ onNavigate }: PlanScreenProps) {
+  const navigation = useNavigation<any>();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showCalendar, setShowCalendar] = useState(false);
@@ -267,6 +269,20 @@ export function PlanScreen({ onNavigate }: PlanScreenProps) {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   const [focusSessions, setFocusSessions] = useState<FocusSession[]>([]);
+
+  // Navigate handler that uses prop or navigation
+  const handleNavigate = (screen: string) => {
+    if (onNavigate) {
+      onNavigate(screen);
+    } else {
+      // Map screen names to actual navigation routes
+      const routeMap: { [key: string]: string } = {
+        'sort': 'TaskSorting',
+      };
+      const route = routeMap[screen] || screen;
+      navigation.navigate('Home', { screen: route });
+    }
+  };
   const [focusStats, setFocusStats] = useState<FocusStats>(DEFAULT_STATS);
   const [showAbandonConfirm, setShowAbandonConfirm] = useState(false);
   const [showSessionSummary, setShowSessionSummary] = useState<FocusSession | null>(null);
@@ -676,7 +692,7 @@ export function PlanScreen({ onNavigate }: PlanScreenProps) {
                 </Text> focus tasks
               </Text>
             </View>
-            <TouchableOpacity style={styles.dumpBtn} onPress={() => onNavigate?.('sort')}>
+            <TouchableOpacity style={styles.dumpBtn} onPress={() => handleNavigate('sort')}>
               <MaterialCommunityIcons name="sparkles" size={14} color="#64748B" />
               <Text style={styles.dumpBtnText}>Dump</Text>
             </TouchableOpacity>
@@ -858,7 +874,7 @@ export function PlanScreen({ onNavigate }: PlanScreenProps) {
               <TouchableOpacity style={styles.emptyPrimary} onPress={() => setIsAdding(true)}>
                 <Text style={styles.emptyPrimaryText}>Add Task</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.emptySecondary} onPress={() => onNavigate?.('sort')}>
+              <TouchableOpacity style={styles.emptySecondary} onPress={() => handleNavigate('sort')}>
                 <MaterialCommunityIcons name="sparkles" size={16} color="#7C3AED" />
                 <Text style={styles.emptySecondaryText}>Brain Dump</Text>
               </TouchableOpacity>
