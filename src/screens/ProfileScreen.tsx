@@ -26,6 +26,7 @@ import {
   Crown,
   Star,
 } from 'lucide-react-native';
+import { useAuth } from '../contexts/AuthContext';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -43,6 +44,7 @@ interface Achievement {
 }
 
 export function ProfileScreen({ navigation }: ProfileScreenProps) {
+  const { logout } = useAuth();
   const [showAchievements, setShowAchievements] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
@@ -415,9 +417,9 @@ export function ProfileScreen({ navigation }: ProfileScreenProps) {
                 <Text style={styles.logoutCancelText}>Cancel</Text>
               </Pressable>
               <Pressable
-                onPress={() => {
+                onPress={async () => {
                   setShowLogoutConfirm(false);
-                  handleNavigate('hub');
+                  await logout();
                 }}
                 style={({ pressed }) => [
                   styles.logoutConfirmButton,

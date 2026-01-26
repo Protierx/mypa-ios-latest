@@ -12,9 +12,14 @@ import {
   KeyboardAvoidingView,
   Platform,
   Modal,
+  Alert,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
+import * as Speech from 'expo-speech';
 import { colors } from '../styles/colors';
+import { processVoiceCommand, executeVoiceCommand, VoiceCommand } from '../services/voice';
+import { api } from '../services/api';
 
 const { width, height } = Dimensions.get('window');
 
@@ -45,10 +50,31 @@ export function ListeningScreen({ visible, onClose }: ListeningScreenProps) {
   const pulseAnim3 = useRef(new Animated.Value(1)).current;
   const floatAnim = useRef(new Animated.Value(0)).current;
   
-  const [transcripts, setTranscripts] = useState<Transcript[]>([
-    { id: 1, text: "Hey MYPA! What's on my schedule today?", isUser: true, time: "Just now" },
-    { id: 2, text: "Good morning! You have 4 tasks today. Your first meeting is at 10 AM - Team standup.", isUser: false, time: "Just now" },
-  ]);
+  const [transcripts, setTranscripts] = useState<Transcript[]>([]);
+
+  // Greet user when screen opens
+  useEffect(() => {
+    if (visible && transcripts.length === 0) {
+      const greeting = getGreeting();
+      setTranscripts([{
+        id: 1,
+        text: greeting,
+        isUser: false,
+        time: "Just now"
+      }]);
+      Speech.speak(greeting, {
+        language: 'en-US',
+        rate: 1.0,
+      });
+    }
+  }, [visible]);
+  
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good morning! How can I help you today?";
+    if (hour < 17) return "Good afternoon! What would you like to do?";
+    return "Good evening! How can I assist you?";
+  };
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -108,25 +134,68 @@ export function ListeningScreen({ visible, onClose }: ListeningScreenProps) {
     };
   }, []);
 
+  const navigation = useNavigation();
+  const [isProcessing, setIsProcessing] = useState(false);
+  
+  // Process AI command and execute navigation/actions
+  const handleAICommand = async (text: string) => {
+    setIsProcessing(true);
+    
+    try {
+      // Process the command through AI
+      const command = await processVoiceCommand(text);
+      
+      // Execute the command (navigate, create task, etc.)
+      const result = await executeVoiceCommand(command, navigation);
+      
+      // Add AI response to transcripts
+      setTranscripts(prev => [...prev, {
+        id: prev.length + 1,
+        text: result.message,
+        isUser: false,
+        time: "Just now"
+      }]);
+      
+      // Speak the response
+      Speech.speak(result.message, {
+        language: language === 'English' ? 'en-US' : 
+                  language === 'Spanish' ? 'es-ES' :
+                  language === 'French' ? 'fr-FR' : 'ar-SA',
+        rate: speed === 'Slow' ? 0.7 : speed === 'Fast' ? 1.3 : 1.0,
+      });
+      
+      // If command was successful and navigates away, close the listening screen
+      if (result.success && command.action === 'navigate') {
+        setTimeout(() => onClose(), 500);
+      }
+      
+    } catch (error) {
+      console.error('AI command error:', error);
+      setTranscripts(prev => [...prev, {
+        id: prev.length + 1,
+        text: "Sorry, I couldn't process that request. Please try again.",
+        isUser: false,
+        time: "Just now"
+      }]);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleSendText = () => {
     if (!textMessage.trim()) return;
     
+    const userText = textMessage.trim();
     setTranscripts(prev => [...prev, {
       id: prev.length + 1,
-      text: textMessage,
+      text: userText,
       isUser: true,
       time: "Just now"
     }]);
     setTextMessage('');
     
-    setTimeout(() => {
-      setTranscripts(prev => [...prev, {
-        id: prev.length + 1,
-        text: "Got it! I'll help you with that. Is there anything else?",
-        isUser: false,
-        time: "Just now"
-      }]);
-    }, 1500);
+    // Process through AI
+    handleAICommand(userText);
   };
 
   const SettingsModal = () => (

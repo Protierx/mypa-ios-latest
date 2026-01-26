@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, StatusBar, Image } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, StatusBar, Image, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 
+import { AuthProvider, useAuth } from './src/contexts/AuthContext';
+import { LoginScreen } from './src/screens/LoginScreen';
 import { HubScreen } from './src/screens/HubScreen';
 import { PlanScreen } from './src/screens/PlanScreen';
 import { InboxScreen } from './src/screens/InboxScreen';
@@ -14,7 +16,7 @@ import { ChallengesScreen } from './src/screens/ChallengesScreen';
 import { CirclesScreen } from './src/screens/CirclesScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { TasksScreen } from './src/screens/TasksScreen';
-import { ListeningScreen } from './src/screens/ListeningScreen';
+import { VoiceAssistantScreen } from './src/screens/VoiceAssistantScreen';
 import { StreakScreen } from './src/screens/StreakScreen';
 import { LevelScreen } from './src/screens/LevelScreen';
 import { EditProfileScreen } from './src/screens/EditProfileScreen';
@@ -167,7 +169,35 @@ function CustomTabBar({ state, descriptors, navigation, onVoicePress }: CustomTa
 }
 
 export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
+  );
+}
+
+function AppContent() {
+  const { user, loading } = useAuth();
   const [showListening, setShowListening] = useState(false);
+
+  // Show loading screen while checking auth
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Image
+          source={require('./assets/mypa-orb.png')}
+          style={styles.loadingOrb}
+          resizeMode="contain"
+        />
+        <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 20 }} />
+      </View>
+    );
+  }
+
+  // Show login screen if not authenticated
+  if (!user) {
+    return <LoginScreen />;
+  }
 
   return (
     <NavigationContainer>
@@ -188,7 +218,7 @@ export default function App() {
         <Tab.Screen name="Profile" component={ProfileStack} />
       </Tab.Navigator>
       
-      <ListeningScreen 
+      <VoiceAssistantScreen 
         visible={showListening} 
         onClose={() => setShowListening(false)} 
       />
@@ -277,5 +307,15 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#8B5CF6',
     marginTop: 2,
+  },
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingOrb: {
+    width: 100,
+    height: 100,
   },
 });
