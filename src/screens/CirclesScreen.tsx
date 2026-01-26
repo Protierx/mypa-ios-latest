@@ -1,244 +1,1658 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   ScrollView,
-  TouchableOpacity,
-  SafeAreaView,
+  Pressable,
   TextInput,
+  StyleSheet,
+  Dimensions,
+  Animated,
+  Modal,
+  Alert,
+  Easing,
 } from 'react-native';
-import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
-import { colors } from '../styles/colors';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  Users,
+  Plus,
+  Flame,
+  Search,
+  X,
+  Check,
+  ChevronRight,
+  Sparkles,
+  Zap,
+  Bell,
+  MoreHorizontal,
+  UserPlus,
+  Settings,
+  Trash2,
+  Dumbbell,
+  Briefcase,
+  BookOpen,
+} from 'lucide-react-native';
 
-interface Circle {
-  id: string;
-  name: string;
-  description: string;
-  members: number;
-  activity: string;
-  iconName: string;
-  color: string;
-  lastActive: string;
-  unreadCount?: number;
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+interface CirclesScreenProps {
+  onNavigate?: (screen: string) => void;
+  onModalStateChange?: (isOpen: boolean) => void;
+  navigation?: any;
 }
 
-const myCircles: Circle[] = [
-  { id: '1', name: 'Morning Runners', description: 'Early morning running group', members: 28, activity: 'Very Active', iconName: 'run', color: '#F43F5E', lastActive: '5 min ago', unreadCount: 3 },
-  { id: '2', name: 'Wellness Warriors', description: 'Mental health & self-care', members: 45, activity: 'Active', iconName: 'spa', color: '#8B5CF6', lastActive: '1 hour ago' },
-  { id: '3', name: 'Tech Team', description: 'Work colleagues & friends', members: 12, activity: 'Moderate', iconName: 'laptop', color: '#3B82F6', lastActive: '2 hours ago', unreadCount: 1 },
-  { id: '4', name: 'Family Circle', description: 'Close family members', members: 8, activity: 'Active', iconName: 'people', color: '#EC4899', lastActive: '30 min ago' },
-  { id: '5', name: 'Book Club', description: 'Monthly book discussions', members: 15, activity: 'Moderate', iconName: 'book', color: '#F59E0B', lastActive: '1 day ago' },
-];
+interface CircleMember {
+  initial: string;
+  posted: boolean;
+}
 
-const suggestedCircles: Circle[] = [
-  { id: '6', name: 'Healthy Eaters', description: 'Share recipes & meal prep tips', members: 156, activity: 'Very Active', iconName: 'nutrition', color: '#10B981', lastActive: '' },
-  { id: '7', name: 'Meditation Masters', description: 'Daily mindfulness practice', members: 89, activity: 'Active', iconName: 'brain', color: '#8B5CF6', lastActive: '' },
-];
+interface Circle {
+  id: number;
+  name: string;
+  members: CircleMember[];
+  challenge: string;
+  posted: number;
+  total: number;
+  streak: number;
+  lastActivity: string;
+  inviteCode: string;
+  inviteLink: string;
+  privacy?: 'public' | 'private';
+}
 
-export function CirclesScreen({ navigation }: any) {
+// Generate a random invite code (e.g., MYPA-7K2P)
+function generateInviteCode(): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let code = '';
+  for (let i = 0; i < 4; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return `MYPA-${code}`;
+}
+
+export function CirclesScreen({ onNavigate, onModalStateChange, navigation }: CirclesScreenProps) {
   const [searchQuery, setSearchQuery] = useState('');
+  const [filterChip, setFilterChip] = useState<'all' | 'active' | 'your-turn'>('all');
+  const [joinModalOpen, setJoinModalOpen] = useState(false);
+  const [joinCode, setJoinCode] = useState('');
+  const [joinError, setJoinError] = useState('');
+  const [joinSuccess, setJoinSuccess] = useState(false);
+  const [expandedCard, setExpandedCard] = useState<number | null>(null);
+  const [longPressedCard, setLongPressedCard] = useState<number | null>(null);
+  const longPressTimer = useRef<NodeJS.Timeout | null>(null);
 
-  const renderCircleIcon = (iconName: string, color: string) => {
-    switch (iconName) {
-      case 'run':
-        return <MaterialCommunityIcons name="run" size={24} color={color} />;
-      case 'spa':
-        return <MaterialCommunityIcons name="spa" size={24} color={color} />;
-      case 'laptop':
-        return <Ionicons name="laptop" size={24} color={color} />;
-      case 'people':
-        return <Ionicons name="people" size={24} color={color} />;
-      case 'book':
-        return <Ionicons name="book" size={24} color={color} />;
-      case 'nutrition':
-        return <Ionicons name="nutrition" size={24} color={color} />;
-      case 'brain':
-        return <MaterialCommunityIcons name="brain" size={24} color={color} />;
-      default:
-        return <Ionicons name="people-circle" size={24} color={color} />;
+  const [circles, setCircles] = useState<Circle[]>([
+    {
+      id: 1,
+      name: 'Morning Warriors',
+      members: [
+        { initial: 'A', posted: true },
+        { initial: 'B', posted: true },
+        { initial: 'C', posted: false },
+        { initial: 'D', posted: true },
+      ],
+      challenge: '30-day fitness streak',
+      posted: 3,
+      total: 4,
+      streak: 12,
+      lastActivity: '24m ago',
+      inviteCode: 'MYPA-7K2P',
+      inviteLink: 'https://mypa.app/invite/MYPA-7K2P',
+    },
+    {
+      id: 2,
+      name: 'Product Team',
+      members: [
+        { initial: 'J', posted: true },
+        { initial: 'M', posted: true },
+        { initial: 'S', posted: false },
+      ],
+      challenge: 'Daily standup attendance',
+      posted: 2,
+      total: 3,
+      streak: 8,
+      lastActivity: '12m ago',
+      inviteCode: 'MYPA-9F4L',
+      inviteLink: 'https://mypa.app/invite/MYPA-9F4L',
+    },
+    {
+      id: 3,
+      name: 'Book Club',
+      members: [
+        { initial: 'E', posted: true },
+        { initial: 'R', posted: false },
+        { initial: 'L', posted: true },
+        { initial: 'K', posted: false },
+        { initial: 'P', posted: true },
+      ],
+      challenge: 'Read 15min daily',
+      posted: 3,
+      total: 5,
+      streak: 5,
+      lastActivity: '2h ago',
+      inviteCode: 'MYPA-2X8Q',
+      inviteLink: 'https://mypa.app/invite/MYPA-2X8Q',
+    },
+  ]);
+
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newMembers, setNewMembers] = useState('');
+  const [newPrivacy, setNewPrivacy] = useState<'public' | 'private'>('public');
+  const [justJoinedCircle, setJustJoinedCircle] = useState<string | null>(null);
+
+  // Animation values
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  const scaleAnim = useRef(new Animated.Value(0.95)).current;
+  const cardAnimations = useRef<Animated.Value[]>([]).current;
+
+  // Initialize card animations
+  useEffect(() => {
+    circles.forEach((_, index) => {
+      if (!cardAnimations[index]) {
+        cardAnimations[index] = new Animated.Value(0);
+      }
+    });
+  }, [circles]);
+
+  // Entry animation
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 300,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Stagger card animations
+    circles.forEach((_, index) => {
+      if (cardAnimations[index]) {
+        Animated.timing(cardAnimations[index], {
+          toValue: 1,
+          duration: 300,
+          delay: index * 50,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: true,
+        }).start();
+      }
+    });
+  }, []);
+
+  // Navigation helper
+  const handleNavigate = (screen: string) => {
+    if (onNavigate) {
+      onNavigate(screen);
+    } else if (navigation) {
+      const routeMap: { [key: string]: string } = {
+        'circle-home': 'CircleHome',
+      };
+      const route = routeMap[screen] || screen;
+      navigation.navigate(route);
     }
   };
 
+  // Check for pending circle actions from Inbox
+  useEffect(() => {
+    const checkForPendingAction = async () => {
+      try {
+        const pendingAction = await AsyncStorage.getItem('pendingCircleAction');
+        if (pendingAction) {
+          const action = JSON.parse(pendingAction);
+          if (action.action === 'join' && action.circleName) {
+            const existingCircle = circles.find(c =>
+              c.name.toLowerCase().includes(action.circleName.toLowerCase())
+            );
+
+            if (existingCircle) {
+              setCircles(prev =>
+                prev.map(c => {
+                  if (c.id === existingCircle.id) {
+                    if (!c.members.some(m => m.initial === 'Y')) {
+                      return {
+                        ...c,
+                        members: [...c.members, { initial: 'Y', posted: false }],
+                        total: c.total + 1,
+                      };
+                    }
+                  }
+                  return c;
+                })
+              );
+              setJustJoinedCircle(existingCircle.name);
+            } else {
+              const inviteCode = generateInviteCode();
+              const newCircle: Circle = {
+                id: Math.max(0, ...circles.map(c => c.id)) + 1,
+                name: action.circleName,
+                members: [{ initial: 'Y', posted: false }],
+                challenge: '',
+                posted: 0,
+                total: 1,
+                streak: 0,
+                lastActivity: 'just now',
+                inviteCode: inviteCode,
+                inviteLink: `https://mypa.app/invite/${inviteCode}`,
+              };
+              setCircles(prev => [newCircle, ...prev]);
+              setJustJoinedCircle(action.circleName);
+            }
+
+            await AsyncStorage.removeItem('pendingCircleAction');
+
+            setTimeout(() => setJustJoinedCircle(null), 3000);
+          }
+        }
+      } catch (e) {
+        console.error('Error processing pending circle action', e);
+      }
+    };
+
+    checkForPendingAction();
+  }, []);
+
+  // Update parent about modal state
+  useEffect(() => {
+    const isAnyModalOpen = joinModalOpen || createOpen || longPressedCard !== null;
+    onModalStateChange?.(isAnyModalOpen);
+  }, [joinModalOpen, createOpen, longPressedCard, onModalStateChange]);
+
+  // Handle long press for card actions
+  const handlePressIn = (circleId: number) => {
+    longPressTimer.current = setTimeout(() => {
+      setLongPressedCard(circleId);
+    }, 500);
+  };
+
+  const handlePressOut = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
+
+  function handleCreateCircle() {
+    if (!newName.trim()) return;
+
+    const nextId = Math.max(0, ...circles.map(c => c.id)) + 1;
+    const memberInitials = newMembers
+      .split(',')
+      .map(s => s.trim().charAt(0).toUpperCase())
+      .filter(Boolean);
+
+    const inviteCode = generateInviteCode();
+    const newCircle: Circle = {
+      id: nextId,
+      name: newName.trim(),
+      members: memberInitials.length
+        ? memberInitials.map(initial => ({ initial, posted: false }))
+        : [{ initial: 'A', posted: false }],
+      challenge: '',
+      posted: 0,
+      total: memberInitials.length || 1,
+      streak: 0,
+      lastActivity: 'just now',
+      privacy: newPrivacy,
+      inviteCode: inviteCode,
+      inviteLink: `https://mypa.app/invite/${inviteCode}`,
+    };
+
+    setCircles([newCircle, ...circles]);
+    setNewName('');
+    setNewMembers('');
+    setNewPrivacy('public');
+    setCreateOpen(false);
+  }
+
+  function handleJoinCircle() {
+    if (!joinCode.trim()) return;
+
+    setJoinError('');
+    const normalizedCode = joinCode.trim().toUpperCase();
+    const foundCircle = circles.find(c => c.inviteCode === normalizedCode);
+
+    if (!foundCircle) {
+      setJoinError('Invalid code. Please check and try again.');
+      return;
+    }
+
+    const alreadyMember = foundCircle.members.some(m => m.initial === 'U');
+    if (alreadyMember) {
+      setJoinError('You are already a member of this circle.');
+      return;
+    }
+
+    const updatedCircles = circles.map(c => {
+      if (c.id === foundCircle.id) {
+        return {
+          ...c,
+          members: [...c.members, { initial: 'U', posted: false }],
+          total: c.total + 1,
+        };
+      }
+      return c;
+    });
+
+    setCircles(updatedCircles);
+    setJoinSuccess(true);
+    setJoinCode('');
+
+    setTimeout(() => {
+      setJoinSuccess(false);
+      setJoinModalOpen(false);
+    }, 1500);
+  }
+
+  // Calculate filtered circles based on search and filter
+  let filteredCircles = [...circles];
+
+  if (searchQuery.trim()) {
+    const query = searchQuery.toLowerCase();
+    filteredCircles = filteredCircles.filter(circle =>
+      circle.name.toLowerCase().includes(query)
+    );
+  }
+
+  if (filterChip === 'active') {
+    filteredCircles = filteredCircles.filter(c => c.posted > 0);
+  } else if (filterChip === 'your-turn') {
+    filteredCircles = filteredCircles.filter(c => c.posted < c.total);
+  }
+
+  const totalStreaks = circles.reduce((sum, c) => sum + c.streak, 0);
+  const totalPosted = circles.reduce((sum, c) => sum + c.posted, 0);
+  const totalMembers = Math.max(1, circles.reduce((sum, c) => sum + c.total, 0));
+  const activePercentage = Math.round((totalPosted / totalMembers) * 100);
+
+  const getCircleIcon = (index: number) => {
+    const icons = [Dumbbell, Briefcase, BookOpen];
+    const Icon = icons[index % 3];
+    return <Icon color="#fff" size={24} />;
+  };
+
+  const getCircleGradient = (index: number): [string, string] => {
+    const gradients: [string, string][] = [
+      ['#8b5cf6', '#9333ea'],
+      ['#f43f5e', '#ec4899'],
+      ['#10b981', '#14b8a6'],
+    ];
+    return gradients[index % 3];
+  };
+
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-            <Ionicons name="arrow-back" size={20} color="#475569" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Circles</Text>
-          <TouchableOpacity style={styles.addButton}>
-            <Ionicons name="add" size={20} color="#FFFFFF" />
-          </TouchableOpacity>
-        </View>
+    <View style={styles.container}>
+      <LinearGradient
+        colors={['#f8fafc', '#f1f5f9', '#f8fafc']}
+        style={StyleSheet.absoluteFillObject}
+      />
 
-        {/* Search Bar */}
-        <View style={styles.searchContainer}>
-          <View style={styles.searchBar}>
-            <Ionicons name="search" size={18} color="#94A3B8" />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search circles..."
-              placeholderTextColor="#94A3B8"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-          </View>
-        </View>
-
-        {/* Stats Row */}
-        <View style={styles.statsRow}>
-          <View style={styles.statCard}>
-            <View style={[styles.statIconContainer, { backgroundColor: '#EDE9FE' }]}>
-              <Ionicons name="people" size={20} color="#8B5CF6" />
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Header */}
+          <View style={styles.header}>
+            <View>
+              <Text style={styles.headerTitle}>Circles</Text>
+              <Text style={styles.headerSubtitle}>
+                {circles.length} circles • {totalMembers} members
+              </Text>
             </View>
-            <Text style={styles.statValue}>5</Text>
-            <Text style={styles.statLabel}>My Circles</Text>
-          </View>
-          <View style={styles.statCard}>
-            <View style={[styles.statIconContainer, { backgroundColor: '#DBEAFE' }]}>
-              <Ionicons name="person-add" size={20} color="#3B82F6" />
+            <View style={styles.headerButtons}>
+              <Pressable
+                onPress={() => setJoinModalOpen(true)}
+                style={({ pressed }) => [
+                  styles.joinButton,
+                  pressed && styles.buttonPressed,
+                ]}
+              >
+                <BlurView intensity={40} tint="light" style={styles.joinButtonBlur}>
+                  <Text style={styles.joinButtonText}>Join</Text>
+                </BlurView>
+              </Pressable>
+              <Pressable
+                onPress={() => setCreateOpen(true)}
+                style={({ pressed }) => [
+                  styles.createButton,
+                  pressed && styles.buttonPressed,
+                ]}
+              >
+                <Plus color="#fff" size={20} strokeWidth={2.5} />
+              </Pressable>
             </View>
-            <Text style={styles.statValue}>108</Text>
-            <Text style={styles.statLabel}>Connections</Text>
           </View>
-          <View style={styles.statCard}>
-            <View style={[styles.statIconContainer, { backgroundColor: '#FEF3C7' }]}>
-              <Ionicons name="chatbubbles" size={20} color="#F59E0B" />
-            </View>
-            <Text style={styles.statValue}>23</Text>
-            <Text style={styles.statLabel}>New Posts</Text>
-          </View>
-        </View>
 
-        {/* Create Button */}
-        <TouchableOpacity style={styles.createButton}>
-          <Ionicons name="add-circle" size={20} color="#FFFFFF" />
-          <Text style={styles.createButtonText}>Create New Circle</Text>
-        </TouchableOpacity>
-
-        {/* My Circles */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>My Circles</Text>
-          <Text style={styles.sectionCount}>{myCircles.length}</Text>
-        </View>
-
-        {myCircles.map((circle) => (
-          <TouchableOpacity key={circle.id} style={styles.circleCard} onPress={() => navigation?.navigate('CircleHome')}>
-            <View style={[styles.circleIcon, { backgroundColor: circle.color + '20' }]}>
-              {renderCircleIcon(circle.iconName, circle.color)}
-            </View>
-            <View style={styles.circleInfo}>
-              <View style={styles.circleNameRow}>
-                <Text style={styles.circleName}>{circle.name}</Text>
-                {circle.unreadCount && (
-                  <View style={styles.unreadBadge}>
-                    <Text style={styles.unreadText}>{circle.unreadCount}</Text>
+          {/* Quick Stats Row */}
+          <View style={styles.statsContainer}>
+            <BlurView intensity={40} tint="light" style={styles.statsBlur}>
+              <View style={styles.statsContent}>
+                <View style={styles.statsLeft}>
+                  <View style={styles.statItem}>
+                    <View style={[styles.statIcon, { backgroundColor: '#fff7ed' }]}>
+                      <Flame color="#f97316" size={16} />
+                    </View>
+                    <View>
+                      <Text style={styles.statValue}>{totalStreaks}</Text>
+                      <Text style={styles.statLabel}>Streaks</Text>
+                    </View>
                   </View>
+                  <View style={styles.statItem}>
+                    <View style={[styles.statIcon, { backgroundColor: '#ecfdf5' }]}>
+                      <Zap color="#10b981" size={16} />
+                    </View>
+                    <View>
+                      <Text style={[styles.statValue, { color: '#059669' }]}>
+                        {activePercentage}%
+                      </Text>
+                      <Text style={styles.statLabel}>Active</Text>
+                    </View>
+                  </View>
+                </View>
+
+                {circles.some(c => c.posted < c.total) && (
+                  <Pressable
+                    onPress={() => Alert.alert('Nudge', 'Nudge sent!')}
+                    style={({ pressed }) => [
+                      styles.nudgeButton,
+                      pressed && styles.buttonPressed,
+                    ]}
+                  >
+                    <Bell color="#d97706" size={16} />
+                    <Text style={styles.nudgeText}>Nudge</Text>
+                  </Pressable>
                 )}
               </View>
-              <Text style={styles.circleDescription}>{circle.description}</Text>
-              <View style={styles.circleMeta}>
-                <View style={styles.membersInfo}>
-                  <Ionicons name="people-outline" size={14} color="#64748B" />
-                  <Text style={styles.circleMembers}>{circle.members}</Text>
-                </View>
-                <View style={[styles.activityBadge, { 
-                  backgroundColor: circle.activity === 'Very Active' ? '#ECFDF5' : 
-                                   circle.activity === 'Active' ? '#EDE9FE' : '#F1F5F9' 
-                }]}>
-                  <View style={[styles.activityDot, { 
-                    backgroundColor: circle.activity === 'Very Active' ? '#10B981' : 
-                                     circle.activity === 'Active' ? '#8B5CF6' : '#94A3B8' 
-                  }]} />
-                  <Text style={[styles.activityText, { 
-                    color: circle.activity === 'Very Active' ? '#059669' : 
-                           circle.activity === 'Active' ? '#7C3AED' : '#64748B' 
-                  }]}>{circle.activity}</Text>
-                </View>
-              </View>
-            </View>
-            <View style={styles.circleRight}>
-              <Text style={styles.lastActive}>{circle.lastActive}</Text>
-              <Ionicons name="chevron-forward" size={16} color="#94A3B8" />
-            </View>
-          </TouchableOpacity>
-        ))}
+            </BlurView>
+          </View>
 
-        {/* Suggested Circles */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Suggested for You</Text>
-          <TouchableOpacity>
-            <Text style={styles.seeAll}>See All</Text>
-          </TouchableOpacity>
+          {/* Search & Filter Row */}
+          <View style={styles.searchFilterRow}>
+            <View style={styles.searchContainer}>
+              <Search
+                color="#94a3b8"
+                size={16}
+                style={styles.searchIcon}
+              />
+              <TextInput
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholder="Search"
+                placeholderTextColor="#94a3b8"
+                style={styles.searchInput}
+              />
+              {searchQuery.length > 0 && (
+                <Pressable
+                  onPress={() => setSearchQuery('')}
+                  style={styles.clearButton}
+                >
+                  <X color="#94a3b8" size={16} />
+                </Pressable>
+              )}
+            </View>
+
+            <View style={styles.filterChips}>
+              {[
+                { id: 'all', label: 'All' },
+                { id: 'active', label: 'Active' },
+                { id: 'your-turn', label: 'Pending' },
+              ].map(tab => (
+                <Pressable
+                  key={tab.id}
+                  onPress={() => setFilterChip(tab.id as any)}
+                  style={[
+                    styles.filterChip,
+                    filterChip === tab.id && styles.filterChipActive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.filterChipText,
+                      filterChip === tab.id && styles.filterChipTextActive,
+                    ]}
+                  >
+                    {tab.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+
+          {/* Circles List */}
+          <View style={styles.circlesList}>
+            {filteredCircles.length === 0 ? (
+              <View style={styles.emptyState}>
+                <BlurView intensity={40} tint="light" style={styles.emptyStateBlur}>
+                  <View style={styles.emptyIconContainer}>
+                    <Users color="#94a3b8" size={32} />
+                  </View>
+                  <Text style={styles.emptyTitle}>No circles found</Text>
+                  <Text style={styles.emptySubtitle}>
+                    Create or join a circle to get started
+                  </Text>
+                  <Pressable
+                    onPress={() => setCreateOpen(true)}
+                    style={({ pressed }) => [
+                      styles.emptyButton,
+                      pressed && styles.buttonPressed,
+                    ]}
+                  >
+                    <Text style={styles.emptyButtonText}>Create Circle</Text>
+                  </Pressable>
+                </BlurView>
+              </View>
+            ) : (
+              filteredCircles.map((circle, index) => {
+                const isExpanded = expandedCard === circle.id;
+                const isJustJoined = justJoinedCircle === circle.name;
+
+                return (
+                  <Animated.View
+                    key={circle.id}
+                    style={[
+                      styles.circleCard,
+                      isJustJoined && styles.circleCardHighlight,
+                      {
+                        opacity: cardAnimations[index] || 1,
+                        transform: [
+                          {
+                            translateY: cardAnimations[index]
+                              ? cardAnimations[index].interpolate({
+                                  inputRange: [0, 1],
+                                  outputRange: [20, 0],
+                                })
+                              : 0,
+                          },
+                        ],
+                      },
+                    ]}
+                  >
+                    <BlurView intensity={60} tint="light" style={styles.circleCardBlur}>
+                      {/* Just Joined Banner */}
+                      {isJustJoined && (
+                        <LinearGradient
+                          colors={['#10b981', '#14b8a6']}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 0 }}
+                          style={styles.joinedBanner}
+                        >
+                          <Check color="#fff" size={16} />
+                          <Text style={styles.joinedBannerText}>
+                            Successfully joined!
+                          </Text>
+                        </LinearGradient>
+                      )}
+
+                      {/* Main Card Content */}
+                      <Pressable
+                        onPress={() => {
+                          if (isExpanded) {
+                            handleNavigate('circle-home');
+                          } else {
+                            setExpandedCard(isExpanded ? null : circle.id);
+                          }
+                        }}
+                        onPressIn={() => handlePressIn(circle.id)}
+                        onPressOut={handlePressOut}
+                        style={({ pressed }) => [
+                          styles.circleCardContent,
+                          pressed && !isExpanded && styles.cardPressed,
+                        ]}
+                      >
+                        <View style={styles.circleRow}>
+                          {/* Circle Avatar */}
+                          <LinearGradient
+                            colors={getCircleGradient(index)}
+                            style={styles.circleAvatar}
+                          >
+                            {getCircleIcon(index)}
+                          </LinearGradient>
+
+                          {/* Circle Info */}
+                          <View style={styles.circleInfo}>
+                            <View style={styles.circleTitleRow}>
+                              <Text style={styles.circleName} numberOfLines={1}>
+                                {circle.name}
+                              </Text>
+                              {circle.streak >= 7 && (
+                                <View style={styles.streakBadge}>
+                                  <Flame color="#f97316" size={12} />
+                                  <Text style={styles.streakBadgeText}>
+                                    {circle.streak}
+                                  </Text>
+                                </View>
+                              )}
+                            </View>
+                            <Text style={styles.circleSubtitle}>
+                              {circle.total} members • {circle.lastActivity}
+                            </Text>
+                          </View>
+
+                          {/* Status & Arrow */}
+                          <View style={styles.circleStatus}>
+                            <View
+                              style={[
+                                styles.statusBadge,
+                                circle.posted === circle.total
+                                  ? styles.statusBadgeDone
+                                  : styles.statusBadgePending,
+                              ]}
+                            >
+                              {circle.posted === circle.total ? (
+                                <View style={styles.statusDoneContent}>
+                                  <Sparkles color="#059669" size={12} />
+                                  <Text style={styles.statusDoneText}>Done</Text>
+                                </View>
+                              ) : (
+                                <Text style={styles.statusPendingText}>
+                                  {circle.posted}/{circle.total}
+                                </Text>
+                              )}
+                            </View>
+                            <ChevronRight
+                              color="#cbd5e1"
+                              size={20}
+                              style={{
+                                transform: [{ rotate: isExpanded ? '90deg' : '0deg' }],
+                              }}
+                            />
+                          </View>
+                        </View>
+
+                        {/* Member Progress Bar */}
+                        <View style={styles.progressRow}>
+                          <View style={styles.progressBar}>
+                            <View
+                              style={[
+                                styles.progressFill,
+                                circle.posted === circle.total
+                                  ? styles.progressFillDone
+                                  : styles.progressFillPending,
+                                {
+                                  width: `${(circle.posted / circle.total) * 100}%`,
+                                },
+                              ]}
+                            />
+                          </View>
+                          <View style={styles.memberAvatars}>
+                            {circle.members.slice(0, 4).map((member, i) => (
+                              <View
+                                key={i}
+                                style={[
+                                  styles.memberAvatar,
+                                  member.posted
+                                    ? styles.memberAvatarPosted
+                                    : styles.memberAvatarPending,
+                                  { marginLeft: i > 0 ? -6 : 0 },
+                                ]}
+                              >
+                                <Text
+                                  style={[
+                                    styles.memberInitial,
+                                    member.posted
+                                      ? styles.memberInitialPosted
+                                      : styles.memberInitialPending,
+                                  ]}
+                                >
+                                  {member.initial}
+                                </Text>
+                              </View>
+                            ))}
+                            {circle.members.length > 4 && (
+                              <View
+                                style={[
+                                  styles.memberAvatar,
+                                  styles.memberAvatarMore,
+                                  { marginLeft: -6 },
+                                ]}
+                              >
+                                <Text style={styles.memberMoreText}>
+                                  +{circle.members.length - 4}
+                                </Text>
+                              </View>
+                            )}
+                          </View>
+                        </View>
+                      </Pressable>
+
+                      {/* Expanded Quick Actions */}
+                      {isExpanded && (
+                        <Animated.View style={styles.expandedActions}>
+                          <View style={styles.expandedButtonsRow}>
+                            <Pressable
+                              onPress={() => handleNavigate('circle-home')}
+                              style={({ pressed }) => [
+                                styles.openCircleButton,
+                                pressed && styles.buttonPressed,
+                              ]}
+                            >
+                              <Text style={styles.openCircleText}>Open Circle</Text>
+                            </Pressable>
+                            <Pressable
+                              onPress={() =>
+                                Alert.alert(
+                                  'Invite Code',
+                                  `Share this code: ${circle.inviteCode}`
+                                )
+                              }
+                              style={({ pressed }) => [
+                                styles.actionButton,
+                                pressed && styles.buttonPressed,
+                              ]}
+                            >
+                              <UserPlus color="#475569" size={16} />
+                            </Pressable>
+                            <Pressable
+                              onPress={() => setLongPressedCard(circle.id)}
+                              style={({ pressed }) => [
+                                styles.actionButton,
+                                pressed && styles.buttonPressed,
+                              ]}
+                            >
+                              <MoreHorizontal color="#475569" size={16} />
+                            </Pressable>
+                          </View>
+                        </Animated.View>
+                      )}
+                    </BlurView>
+                  </Animated.View>
+                );
+              })
+            )}
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+
+      {/* Long Press Action Sheet Modal */}
+      <Modal
+        visible={longPressedCard !== null}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setLongPressedCard(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <Pressable
+            style={styles.modalBackdrop}
+            onPress={() => setLongPressedCard(null)}
+          />
+          <Animated.View style={styles.actionSheet}>
+            <View style={styles.actionSheetHandle} />
+
+            <Pressable
+              onPress={() => {
+                handleNavigate('circle-home');
+                setLongPressedCard(null);
+              }}
+              style={({ pressed }) => [
+                styles.actionSheetItem,
+                pressed && styles.actionSheetItemPressed,
+              ]}
+            >
+              <View style={[styles.actionSheetIcon, { backgroundColor: '#f5f3ff' }]}>
+                <Users color="#7c3aed" size={20} />
+              </View>
+              <View style={styles.actionSheetText}>
+                <Text style={styles.actionSheetTitle}>Open Circle</Text>
+                <Text style={styles.actionSheetSubtitle}>
+                  View posts and activity
+                </Text>
+              </View>
+            </Pressable>
+
+            <Pressable
+              onPress={() => {
+                const circle = circles.find(c => c.id === longPressedCard);
+                if (circle) {
+                  Alert.alert('Invite Code', `Share this code: ${circle.inviteCode}`);
+                }
+                setLongPressedCard(null);
+              }}
+              style={({ pressed }) => [
+                styles.actionSheetItem,
+                pressed && styles.actionSheetItemPressed,
+              ]}
+            >
+              <View style={[styles.actionSheetIcon, { backgroundColor: '#eff6ff' }]}>
+                <UserPlus color="#3b82f6" size={20} />
+              </View>
+              <View style={styles.actionSheetText}>
+                <Text style={styles.actionSheetTitle}>Invite Members</Text>
+                <Text style={styles.actionSheetSubtitle}>Share invite code</Text>
+              </View>
+            </Pressable>
+
+            <Pressable
+              onPress={() => {
+                Alert.alert('Settings', 'Circle settings');
+                setLongPressedCard(null);
+              }}
+              style={({ pressed }) => [
+                styles.actionSheetItem,
+                pressed && styles.actionSheetItemPressed,
+              ]}
+            >
+              <View style={[styles.actionSheetIcon, { backgroundColor: '#f1f5f9' }]}>
+                <Settings color="#475569" size={20} />
+              </View>
+              <View style={styles.actionSheetText}>
+                <Text style={styles.actionSheetTitle}>Settings</Text>
+                <Text style={styles.actionSheetSubtitle}>
+                  Notifications & privacy
+                </Text>
+              </View>
+            </Pressable>
+
+            <Pressable
+              onPress={() => {
+                Alert.alert(
+                  'Leave Circle',
+                  'Are you sure you want to leave this circle?',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Leave',
+                      style: 'destructive',
+                      onPress: () => {
+                        setCircles(circles.filter(c => c.id !== longPressedCard));
+                        setLongPressedCard(null);
+                      },
+                    },
+                  ]
+                );
+              }}
+              style={({ pressed }) => [
+                styles.actionSheetItem,
+                pressed && styles.actionSheetItemPressedDanger,
+              ]}
+            >
+              <View style={[styles.actionSheetIcon, { backgroundColor: '#fef2f2' }]}>
+                <Trash2 color="#dc2626" size={20} />
+              </View>
+              <View style={styles.actionSheetText}>
+                <Text style={[styles.actionSheetTitle, { color: '#dc2626' }]}>
+                  Leave Circle
+                </Text>
+                <Text style={styles.actionSheetSubtitle}>
+                  Remove yourself from this circle
+                </Text>
+              </View>
+            </Pressable>
+          </Animated.View>
         </View>
+      </Modal>
 
-        {suggestedCircles.map((circle) => (
-          <TouchableOpacity key={circle.id} style={styles.circleCard}>
-            <View style={[styles.circleIcon, { backgroundColor: circle.color + '20' }]}>
-              {renderCircleIcon(circle.iconName, circle.color)}
+      {/* Create Circle Modal */}
+      <Modal
+        visible={createOpen}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setCreateOpen(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <Pressable
+            style={styles.modalBackdrop}
+            onPress={() => setCreateOpen(false)}
+          />
+          <View style={styles.createModal}>
+            <View style={styles.modalHandle} />
+            <Text style={styles.modalTitle}>Create Circle</Text>
+
+            <Text style={styles.inputLabel}>Name</Text>
+            <TextInput
+              value={newName}
+              onChangeText={setNewName}
+              placeholder="e.g. Weekend Runners"
+              placeholderTextColor="#94a3b8"
+              style={styles.modalInput}
+            />
+
+            <Text style={styles.inputLabel}>Invite Members</Text>
+            <TextInput
+              value={newMembers}
+              onChangeText={setNewMembers}
+              placeholder="Alex, Sam, Priya"
+              placeholderTextColor="#94a3b8"
+              style={styles.modalInput}
+            />
+
+            <Text style={styles.inputLabel}>Privacy</Text>
+            <View style={styles.privacyRow}>
+              <Pressable
+                onPress={() => setNewPrivacy('public')}
+                style={[
+                  styles.privacyButton,
+                  newPrivacy === 'public' && styles.privacyButtonActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.privacyButtonText,
+                    newPrivacy === 'public' && styles.privacyButtonTextActive,
+                  ]}
+                >
+                  Public
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setNewPrivacy('private')}
+                style={[
+                  styles.privacyButton,
+                  newPrivacy === 'private' && styles.privacyButtonActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.privacyButtonText,
+                    newPrivacy === 'private' && styles.privacyButtonTextActive,
+                  ]}
+                >
+                  Private
+                </Text>
+              </Pressable>
             </View>
-            <View style={styles.circleInfo}>
-              <Text style={styles.circleName}>{circle.name}</Text>
-              <Text style={styles.circleDescription}>{circle.description}</Text>
-              <View style={styles.circleMeta}>
-                <View style={styles.membersInfo}>
-                  <Ionicons name="people-outline" size={14} color="#64748B" />
-                  <Text style={styles.circleMembers}>{circle.members} members</Text>
+
+            <Pressable
+              onPress={handleCreateCircle}
+              disabled={!newName.trim()}
+              style={({ pressed }) => [
+                styles.createSubmitButton,
+                !newName.trim() && styles.createSubmitButtonDisabled,
+                pressed && styles.buttonPressed,
+              ]}
+            >
+              <Text style={styles.createSubmitText}>Create Circle</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Join Circle Modal */}
+      <Modal
+        visible={joinModalOpen}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => {
+          setJoinModalOpen(false);
+          setJoinError('');
+          setJoinCode('');
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <Pressable
+            style={styles.modalBackdrop}
+            onPress={() => {
+              setJoinModalOpen(false);
+              setJoinError('');
+              setJoinCode('');
+            }}
+          />
+          <View style={styles.joinModal}>
+            <View style={styles.modalHandle} />
+
+            {joinSuccess ? (
+              <View style={styles.joinSuccessContainer}>
+                <View style={styles.joinSuccessIcon}>
+                  <Check color="#059669" size={32} />
                 </View>
+                <Text style={styles.joinSuccessTitle}>You're in!</Text>
+                <Text style={styles.joinSuccessSubtitle}>
+                  Successfully joined the circle
+                </Text>
               </View>
-            </View>
-            <TouchableOpacity style={[styles.joinButton, { backgroundColor: circle.color }]}>
-              <Ionicons name="add" size={16} color="#FFFFFF" />
-              <Text style={styles.joinButtonText}>Join</Text>
-            </TouchableOpacity>
-          </TouchableOpacity>
-        ))}
+            ) : (
+              <>
+                <Text style={styles.modalTitle}>Join Circle</Text>
+                <Text style={styles.modalSubtitle}>
+                  Enter the invite code to join
+                </Text>
 
-        <View style={{ height: 100 }} />
-      </ScrollView>
-    </SafeAreaView>
+                <TextInput
+                  value={joinCode}
+                  onChangeText={text => {
+                    setJoinCode(text.toUpperCase());
+                    setJoinError('');
+                  }}
+                  placeholder="e.g. MYPA-7K2P"
+                  placeholderTextColor="#94a3b8"
+                  style={styles.joinCodeInput}
+                  autoCapitalize="characters"
+                />
+
+                {joinError ? (
+                  <Text style={styles.joinError}>{joinError}</Text>
+                ) : null}
+
+                <Pressable
+                  onPress={handleJoinCircle}
+                  disabled={!joinCode.trim()}
+                  style={({ pressed }) => [
+                    styles.joinSubmitButton,
+                    !joinCode.trim() && styles.joinSubmitButtonDisabled,
+                    pressed && styles.buttonPressed,
+                  ]}
+                >
+                  <Text style={styles.joinSubmitText}>Join Circle</Text>
+                </Pressable>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8FAFC' },
-  scrollView: { flex: 1 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12 },
-  backButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
-  headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#0F172A' },
-  addButton: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#0F172A', alignItems: 'center', justifyContent: 'center' },
-  searchContainer: { paddingHorizontal: 20, marginBottom: 16 },
-  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
-  searchInput: { flex: 1, marginLeft: 8, fontSize: 15, color: '#0F172A' },
-  statsRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 20, marginBottom: 16 },
-  statCard: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 12, padding: 12, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
-  statIconContainer: { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-  statValue: { fontSize: 18, fontWeight: '700', color: '#0F172A', marginBottom: 2 },
-  statLabel: { fontSize: 11, color: '#64748B', textAlign: 'center' },
-  createButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#0F172A', marginHorizontal: 20, borderRadius: 12, padding: 14, marginBottom: 20 },
-  createButtonText: { fontSize: 15, fontWeight: '600', color: '#FFFFFF' },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 12 },
-  sectionTitle: { fontSize: 17, fontWeight: '600', color: '#0F172A' },
-  sectionCount: { fontSize: 14, fontWeight: '500', color: '#64748B', backgroundColor: '#F1F5F9', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
-  seeAll: { fontSize: 14, fontWeight: '500', color: '#8B5CF6' },
-  circleCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', marginHorizontal: 20, borderRadius: 16, padding: 14, marginBottom: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
-  circleIcon: { width: 52, height: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
-  circleInfo: { flex: 1 },
-  circleNameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  circleName: { fontSize: 15, fontWeight: '600', color: '#0F172A', marginBottom: 3 },
-  unreadBadge: { backgroundColor: '#F43F5E', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10 },
-  unreadText: { fontSize: 10, fontWeight: '600', color: '#FFFFFF' },
-  circleDescription: { fontSize: 13, color: '#64748B', marginBottom: 6 },
-  circleMeta: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  membersInfo: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  circleMembers: { fontSize: 12, color: '#64748B' },
-  activityBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
-  activityDot: { width: 6, height: 6, borderRadius: 3 },
-  activityText: { fontSize: 11, fontWeight: '500' },
-  circleRight: { alignItems: 'flex-end', gap: 4 },
-  lastActive: { fontSize: 11, color: '#94A3B8' },
-  joinButton: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },
-  joinButtonText: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
+  container: {
+    flex: 1,
+    backgroundColor: '#f8fafc',
+  },
+  safeArea: {
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 120,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 12,
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#0f172a',
+    letterSpacing: -0.5,
+  },
+  headerSubtitle: {
+    fontSize: 13,
+    color: '#64748b',
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  headerButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  joinButton: {
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  joinButtonBlur: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+  },
+  joinButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  createButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 16,
+    backgroundColor: '#0f172a',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statsContainer: {
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
+  statsBlur: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+  },
+  statsContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+  },
+  statsLeft: {
+    flexDirection: 'row',
+    gap: 24,
+  },
+  statItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  statIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  statLabel: {
+    fontSize: 11,
+    color: '#64748b',
+  },
+  nudgeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: '#fffbeb',
+  },
+  nudgeText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#b45309',
+  },
+  searchFilterRow: {
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: '#0f172a',
+  },
+  clearButton: {
+    padding: 4,
+  },
+  filterChips: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  filterChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+  },
+  filterChipActive: {
+    backgroundColor: '#0f172a',
+  },
+  filterChipText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#475569',
+  },
+  filterChipTextActive: {
+    color: '#fff',
+  },
+  circlesList: {
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  emptyState: {
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  emptyStateBlur: {
+    padding: 32,
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+  },
+  emptyIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 16,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#0f172a',
+    marginBottom: 4,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: '#64748b',
+    marginBottom: 16,
+  },
+  emptyButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: '#0f172a',
+  },
+  emptyButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  circleCard: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginBottom: 0,
+  },
+  circleCardHighlight: {
+    borderWidth: 2,
+    borderColor: '#10b981',
+  },
+  circleCardBlur: {
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+  },
+  joinedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 8,
+  },
+  joinedBannerText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  circleCardContent: {
+    padding: 16,
+  },
+  cardPressed: {
+    transform: [{ scale: 0.98 }],
+  },
+  circleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  circleAvatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  circleInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+  circleTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  circleName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#0f172a',
+    flexShrink: 1,
+  },
+  streakBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    backgroundColor: '#fff7ed',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 999,
+  },
+  streakBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#ea580c',
+  },
+  circleSubtitle: {
+    fontSize: 13,
+    color: '#64748b',
+    marginTop: 2,
+  },
+  circleStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  statusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  statusBadgeDone: {
+    backgroundColor: '#ecfdf5',
+  },
+  statusBadgePending: {
+    backgroundColor: '#fffbeb',
+  },
+  statusDoneContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  statusDoneText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#059669',
+  },
+  statusPendingText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#b45309',
+  },
+  progressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 12,
+  },
+  progressBar: {
+    flex: 1,
+    height: 6,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  progressFillDone: {
+    backgroundColor: '#10b981',
+  },
+  progressFillPending: {
+    backgroundColor: '#8b5cf6',
+  },
+  memberAvatars: {
+    flexDirection: 'row',
+  },
+  memberAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  memberAvatarPosted: {
+    backgroundColor: '#10b981',
+  },
+  memberAvatarPending: {
+    backgroundColor: '#e2e8f0',
+  },
+  memberAvatarMore: {
+    backgroundColor: '#475569',
+  },
+  memberInitial: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  memberInitialPosted: {
+    color: '#fff',
+  },
+  memberInitialPending: {
+    color: '#64748b',
+  },
+  memberMoreText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  expandedActions: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    paddingTop: 4,
+  },
+  expandedButtonsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  openCircleButton: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: '#0f172a',
+    alignItems: 'center',
+  },
+  openCircleText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  actionButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: '#f1f5f9',
+  },
+  buttonPressed: {
+    opacity: 0.7,
+    transform: [{ scale: 0.98 }],
+  },
+
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  modalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+  },
+  actionSheet: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 8,
+    paddingBottom: 40,
+  },
+  actionSheetHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: '#e2e8f0',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginVertical: 8,
+  },
+  actionSheetItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    padding: 16,
+    borderRadius: 12,
+  },
+  actionSheetItemPressed: {
+    backgroundColor: '#f8fafc',
+  },
+  actionSheetItemPressedDanger: {
+    backgroundColor: '#fef2f2',
+  },
+  actionSheetIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionSheetText: {
+    flex: 1,
+  },
+  actionSheetTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#0f172a',
+  },
+  actionSheetSubtitle: {
+    fontSize: 13,
+    color: '#64748b',
+  },
+  createModal: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 40,
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: '#e2e8f0',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: 20,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: '#64748b',
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748b',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  modalInput: {
+    backgroundColor: '#f1f5f9',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 15,
+    color: '#0f172a',
+    marginBottom: 16,
+  },
+  privacyRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 24,
+  },
+  privacyButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+  },
+  privacyButtonActive: {
+    backgroundColor: '#0f172a',
+  },
+  privacyButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  privacyButtonTextActive: {
+    color: '#fff',
+  },
+  createSubmitButton: {
+    paddingVertical: 16,
+    borderRadius: 12,
+    backgroundColor: '#0f172a',
+    alignItems: 'center',
+  },
+  createSubmitButtonDisabled: {
+    opacity: 0.5,
+  },
+  createSubmitText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  joinModal: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 40,
+  },
+  joinCodeInput: {
+    backgroundColor: '#f1f5f9',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#0f172a',
+    textAlign: 'center',
+    letterSpacing: 2,
+    marginBottom: 16,
+  },
+  joinError: {
+    fontSize: 13,
+    color: '#dc2626',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  joinSubmitButton: {
+    paddingVertical: 16,
+    borderRadius: 12,
+    backgroundColor: '#0f172a',
+    alignItems: 'center',
+  },
+  joinSubmitButtonDisabled: {
+    opacity: 0.5,
+  },
+  joinSubmitText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  joinSuccessContainer: {
+    alignItems: 'center',
+    paddingVertical: 32,
+  },
+  joinSuccessIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 16,
+    backgroundColor: '#ecfdf5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  joinSuccessTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  joinSuccessSubtitle: {
+    fontSize: 14,
+    color: '#64748b',
+    marginTop: 4,
+  },
 });
+
+export default CirclesScreen;
