@@ -10,11 +10,13 @@ import {
   Modal,
   Animated,
   Alert,
+  Pressable,
 } from 'react-native';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
+import { BlurView } from 'expo-blur';
 
 // Types
 interface BrainDumpTask {
@@ -188,6 +190,7 @@ export function TaskSortingScreen({ navigation: navProp }: TaskSortingScreenProp
   const [completingTaskId, setCompletingTaskId] = useState<number | null>(null);
   
   const inputRef = useRef<TextInput>(null);
+  const aiSortTimerRef = useRef<NodeJS.Timeout | null>(null);
   const fadeAnims = useRef<{ [key: number]: Animated.Value }>({}).current;
   const slideAnims = useRef<{ [key: number]: Animated.Value }>({}).current;
   const checkAnims = useRef<{ [key: number]: Animated.Value }>({}).current;
@@ -405,7 +408,10 @@ export function TaskSortingScreen({ navigation: navProp }: TaskSortingScreenProp
     
     Animated.loop(Animated.timing(spinAnim, { toValue: 1, duration: 1000, useNativeDriver: true })).start();
     
-    setTimeout(() => {
+    if (aiSortTimerRef.current) {
+      clearTimeout(aiSortTimerRef.current);
+    }
+    aiSortTimerRef.current = setTimeout(() => {
       const categorized = unsortedTasks.map((task, index) => {
         const { category, priority, time } = categorizeTask(task.title);
         return {
@@ -418,6 +424,12 @@ export function TaskSortingScreen({ navigation: navProp }: TaskSortingScreenProp
       spinAnim.setValue(0);
     }, 1500);
   };
+
+  useEffect(() => {
+    return () => {
+      if (aiSortTimerRef.current) clearTimeout(aiSortTimerRef.current);
+    };
+  }, []);
 
   const handleConfirmAiSort = async () => {
     try {
@@ -681,7 +693,9 @@ export function TaskSortingScreen({ navigation: navProp }: TaskSortingScreenProp
 
       {/* Add to Plan Modal */}
       <Modal visible={showAddToPlanModal} animationType="slide" transparent={true} onRequestClose={() => setShowAddToPlanModal(false)}>
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowAddToPlanModal(false)}>
+        <View style={styles.modalOverlay}>
+          <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFillObject} />
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setShowAddToPlanModal(false)} />
           <View style={styles.modalSheet} onStartShouldSetResponder={() => true}>
             <View style={styles.sheetHandle} />
             <View style={styles.modalHeader}>
@@ -708,12 +722,17 @@ export function TaskSortingScreen({ navigation: navProp }: TaskSortingScreenProp
               <TouchableOpacity style={styles.confirmButton} onPress={handleConfirmAddToPlan}><Feather name="send" size={16} color={Colors.white} /><Text style={styles.confirmButtonText}>Add to Plan</Text></TouchableOpacity>
             </View>
           </View>
-        </TouchableOpacity>
+        </View>
       </Modal>
 
       {/* AI Sort Results Modal */}
       <Modal visible={showAiSortModal} animationType="slide" transparent={true} onRequestClose={() => { if (!isAiProcessing) { setShowAiSortModal(false); setSortedTasks([]); } }}>
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => { if (!isAiProcessing) { setShowAiSortModal(false); setSortedTasks([]); } }}>
+        <View style={styles.modalOverlay}>
+          <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFillObject} />
+          <Pressable
+            style={StyleSheet.absoluteFillObject}
+            onPress={() => { if (!isAiProcessing) { setShowAiSortModal(false); setSortedTasks([]); } }}
+          />
           <View style={styles.aiModalSheet} onStartShouldSetResponder={() => true}>
             <View style={styles.sheetHandle} />
             {isAiProcessing ? (
@@ -758,7 +777,7 @@ export function TaskSortingScreen({ navigation: navProp }: TaskSortingScreenProp
               </>
             )}
           </View>
-        </TouchableOpacity>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -829,9 +848,9 @@ const styles = StyleSheet.create({
   emptySubtitle: { fontSize: 14, color: Colors.textSecondary, marginBottom: 20 },
   emptyButton: { backgroundColor: Colors.primary, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 10 },
   emptyButtonText: { color: Colors.white, fontSize: 15, fontWeight: '600' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'flex-end' },
-  modalSheet: { backgroundColor: Colors.white, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '85%' },
-  aiModalSheet: { backgroundColor: Colors.white, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '90%' },
+  modalOverlay: { flex: 1, justifyContent: 'flex-end' },
+  modalSheet: { backgroundColor: Colors.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: '85%', width: '100%', maxWidth: 390, alignSelf: 'center' },
+  aiModalSheet: { backgroundColor: Colors.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: '90%', width: '100%', maxWidth: 390, alignSelf: 'center' },
   sheetHandle: { width: 40, height: 4, backgroundColor: Colors.border, borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
   modalHeader: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 20 },
   modalHeaderIcon: { width: 48, height: 48, borderRadius: 24, backgroundColor: Colors.primaryLight, justifyContent: 'center', alignItems: 'center' },

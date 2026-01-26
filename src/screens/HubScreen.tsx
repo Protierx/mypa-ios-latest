@@ -9,6 +9,7 @@ import {
   Animated,
   Modal,
   Easing,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -50,7 +51,6 @@ import {
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 interface HubScreenProps {
-  onNavigate?: (screen: string) => void;
   onVoiceClick?: () => void;
   navigation?: any;
 }
@@ -61,7 +61,7 @@ interface BriefingItem {
   delay: number;
 }
 
-export function HubScreen({ onNavigate, onVoiceClick, navigation }: HubScreenProps) {
+export function HubScreen({ onVoiceClick, navigation }: HubScreenProps) {
   const [greeting, setGreeting] = useState({ text: '', icon: Sun, period: 'day', timeOfDay: 'morning' });
   const [completedTasks, setCompletedTasks] = useState<number[]>([]);
   const [showBriefing, setShowBriefing] = useState(false);
@@ -88,23 +88,27 @@ export function HubScreen({ onNavigate, onVoiceClick, navigation }: HubScreenPro
 
   // Navigation helper
   const handleNavigate = (screen: string) => {
-    if (onNavigate) {
-      onNavigate(screen);
-    } else if (navigation) {
-      // Map screen names to navigation routes
-      const routeMap: { [key: string]: string } = {
-        'inbox': 'Inbox',
-        'profile': 'Profile',
-        'streak': 'Streak',
-        'level': 'Level',
-        'plan': 'Plan',
-        'sort': 'TaskSorting',
-        'challenges': 'Challenges',
-        'wallet': 'Wallet',
-        'reset': 'Reset',
-      };
-      const route = routeMap[screen] || screen;
-      navigation.navigate(route);
+    if (!navigation) return;
+    const homeStackRoutes: { [key: string]: string } = {
+      inbox: 'Inbox',
+      streak: 'Streak',
+      level: 'Level',
+      sort: 'TaskSorting',
+      challenges: 'Challenges',
+      wallet: 'Wallet',
+      reset: 'Reset',
+    };
+
+    if (homeStackRoutes[screen]) {
+      navigation.navigate(homeStackRoutes[screen]);
+    } else if (screen === 'profile') {
+      navigation.navigate('Profile', { screen: 'ProfileMain' });
+    } else if (screen === 'plan') {
+      navigation.navigate('Plan');
+    } else if (screen === 'circles') {
+      navigation.navigate('Circles', { screen: 'CirclesList' });
+    } else {
+      navigation.navigate(screen);
     }
   };
 
@@ -323,7 +327,7 @@ export function HubScreen({ onNavigate, onVoiceClick, navigation }: HubScreenPro
       rate: 0.95,
       pitch: 1,
       onDone: () => {},
-      onError: (e) => console.log('Speech error:', e),
+      onError: () => Alert.alert('Voice Briefing', 'Unable to play the briefing audio right now.'),
     });
   };
 
@@ -465,7 +469,7 @@ export function HubScreen({ onNavigate, onVoiceClick, navigation }: HubScreenPro
         </Animated.View>
       )}
 
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
@@ -484,6 +488,8 @@ export function HubScreen({ onNavigate, onVoiceClick, navigation }: HubScreenPro
                   styles.headerButton,
                   pressed && styles.buttonPressed,
                 ]}
+                accessibilityRole="button"
+                accessibilityLabel={`Inbox with 3 notifications`}
               >
                 <Inbox color="#475569" size={16} />
                 <View style={styles.notificationBadge}>
@@ -1079,8 +1085,8 @@ const styles = StyleSheet.create({
   },
   headerButton: {
     position: 'relative',
-    width: 36,
-    height: 36,
+    width: 44,
+    height: 44,
     borderRadius: 12,
     backgroundColor: '#f1f5f9',
     alignItems: 'center',

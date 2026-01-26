@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -6,9 +6,14 @@ import {
   ScrollView,
   TouchableOpacity,
   SafeAreaView,
+  Modal,
+  TextInput,
+  Pressable,
+  Animated,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
-import { colors } from '../styles/colors';
+import { BlurView } from 'expo-blur';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface ChallengesScreenProps {
   navigation: any;
@@ -39,10 +44,23 @@ const categoryColors: { [key: string]: { bg: string } } = {
   social: { bg: '#10B981' },
 };
 
+const STORAGE_KEYS = {
+  activeChallenges: 'challengesActive',
+  invites: 'challengeInvites',
+};
+
 export function ChallengesScreen({ navigation }: ChallengesScreenProps) {
   const [activeTab, setActiveTab] = useState<'active' | 'leaderboard' | 'achievements'>('active');
   const [expandedChallenge, setExpandedChallenge] = useState<number | null>(null);
   const [selectedTimeframe, setSelectedTimeframe] = useState<'week' | 'month' | 'all'>('week');
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newCategory, setNewCategory] = useState<Challenge['category']>('fitness');
+  const [newDays, setNewDays] = useState('14');
+  const [newXp, setNewXp] = useState('40');
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' } | null>(null);
+  const toastAnim = useRef(new Animated.Value(0)).current;
+  const toastTimer = useRef<NodeJS.Timeout | null>(null);
 
   const userStats = {
     totalXP: 4850,
@@ -69,7 +87,7 @@ export function ChallengesScreen({ navigation }: ChallengesScreenProps) {
     { id: 5, name: 'Champion', iconName: 'trophy', color: '#EAB308', description: 'Win 10 challenges', unlocked: false, xp: 1000, progress: 8, total: 10 },
   ];
 
-  const [activeChallenges] = useState<Challenge[]>([
+  const defaultChallenges: Challenge[] = [
     {
       id: 1,
       name: 'Morning Workout',
@@ -126,9 +144,9 @@ export function ChallengesScreen({ navigation }: ChallengesScreenProps) {
       category: 'wellness',
       xpReward: 25
     },
-  ]);
+  ];
 
-  const invites = [
+  const defaultInvites = [
     {
       id: 1,
       name: 'Hydration Challenge',
@@ -139,6 +157,130 @@ export function ChallengesScreen({ navigation }: ChallengesScreenProps) {
       xpReward: 200,
     },
   ];
+
+  const [activeChallenges, setActiveChallenges] = useState<Challenge[]>(defaultChallenges);
+  const [invites, setInvites] = useState(defaultInvites);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const [storedChallenges, storedInvites] = await Promise.all([
+          AsyncStorage.getItem(STORAGE_KEYS.activeChallenges),
+          AsyncStorage.getItem(STORAGE_KEYS.invites),
+        ]);
+        if (storedChallenges) setActiveChallenges(JSON.parse(storedChallenges));
+        if (storedInvites) setInvites(JSON.parse(storedInvites));
+      } catch (e) {
+        // keep defaults
+      }
+    };
+    load();
+  }, []);
+
+  useEffect(() => {
+    const persist = async () => {
+      try {
+        await AsyncStorage.setItem(STORAGE_KEYS.activeChallenges, JSON.stringify(activeChallenges));
+        await AsyncStorage.setItem(STORAGE_KEYS.invites, JSON.stringify(invites));
+      } catch (e) {
+        // noop
+      }
+    };
+    persist();
+  }, [activeChallenges, invites]);
+
+  useEffect(() => {
+    if (!toast) return;
+    Animated.timing(toastAnim, { toValue: 1, duration: 220, useNativeDriver: true }).start();
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => {
+      Animated.timing(toastAnim, { toValue: 0, duration: 200, useNativeDriver: true }).start(() => {
+        setToast(null);
+      });
+    }, 1800);
+    return () => {
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+    };
+  }, [toast, toastAnim]);
+
+  const showToast = (message: string, type: 'success' | 'info' = 'success') => {
+    setToast({ message, type });
+  };
+
+  const handleInviteAccept = (inviteId: number) => {
+    const invite = invites.find(i => i.id === inviteId);
+    if (!invite) return;
+    const newChallenge: Challenge = {
+      id: Date.now(),
+      name: invite.name,
+      iconName: invite.iconName,
+      iconColor: invite.iconColor,
+      daysLeft: 7,
+      totalDays: 7,
+      members: [
+        { name: 'You', initial: 'A', color: '#8B5CF6', streak: 1, rank: 1 },
+        { name: invite.inviter, initial: invite.inviter[0], color: '#3B82F6', streak: 1, rank: 2 },
+      ],
+      todayPrompt: 'Post your progress today',
+      progress: { completed: 0, total: 1 },
+      myStatus: 'pending',
+      myStreak: 1,
+      category: 'wellness',
+      xpReward: invite.xpReward,
+    };
+    setActiveChallenges(prev => [newChallenge, ...prev]);
+    setInvites(prev => prev.filter(inv => inv.id !== inviteId));
+    showToast('Challenge added to your list', 'success');
+  };
+
+  const handleInviteDecline = (inviteId: number) => {
+    setInvites(prev => prev.filter(inv => inv.id !== inviteId));
+    showToast('Invite declined', 'info');
+  };
+
+  const handleSubmitProof = (challengeId: number) => {
+    setActiveChallenges(prev =>
+      prev.map(challenge => {
+        if (challenge.id !== challengeId) return challenge;
+        return {
+          ...challenge,
+          myStatus: 'completed',
+          myStreak: challenge.myStreak + 1,
+          progress: {
+            ...challenge.progress,
+            completed: Math.min(challenge.progress.completed + 1, challenge.progress.total),
+          },
+        };
+      })
+    );
+    showToast('Proof submitted. Nice work!', 'success');
+    navigation.navigate('ProofCamera');
+  };
+
+  const handleCreateChallenge = () => {
+    if (!newName.trim()) return;
+    const totalDays = Math.max(1, parseInt(newDays, 10) || 14);
+    const xpReward = Math.max(10, parseInt(newXp, 10) || 40);
+    const newChallenge: Challenge = {
+      id: Date.now(),
+      name: newName.trim(),
+      iconName: newCategory === 'fitness' ? 'dumbbell' : newCategory === 'learning' ? 'book-open' : newCategory === 'wellness' ? 'cellphone-off' : newCategory === 'productivity' ? 'target' : 'heart',
+      iconColor: categoryColors[newCategory].bg,
+      daysLeft: totalDays,
+      totalDays,
+      members: [{ name: 'You', initial: 'A', color: '#8B5CF6', streak: 0, rank: 1 }],
+      todayPrompt: 'Start today and log your progress',
+      progress: { completed: 0, total: 1 },
+      myStatus: 'pending',
+      myStreak: 0,
+      category: newCategory,
+      xpReward,
+    };
+    setActiveChallenges(prev => [newChallenge, ...prev]);
+    setShowCreateModal(false);
+    setNewName('');
+    showToast('Challenge created', 'success');
+  };
 
   const renderIcon = (name: string, size: number, color: string) => {
     switch (name) {
@@ -167,17 +309,38 @@ export function ChallengesScreen({ navigation }: ChallengesScreenProps) {
 
   return (
     <SafeAreaView style={styles.container}>
+      {toast && (
+        <Animated.View
+          style={[
+            styles.toast,
+            toast.type === 'success' ? styles.toastSuccess : styles.toastInfo,
+            {
+              opacity: toastAnim,
+              transform: [
+                {
+                  translateY: toastAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [-10, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          <Text style={styles.toastText}>{toast.message}</Text>
+        </Animated.View>
+      )}
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
             <Ionicons name="arrow-back" size={20} color="#475569" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Challenges</Text>
-          <TouchableOpacity style={styles.addButton}>
-            <Ionicons name="add" size={20} color="#FFFFFF" />
-          </TouchableOpacity>
-        </View>
+        <Text style={styles.headerTitle}>Challenges</Text>
+        <TouchableOpacity style={styles.addButton} onPress={() => setShowCreateModal(true)}>
+          <Ionicons name="add" size={20} color="#FFFFFF" />
+        </TouchableOpacity>
+      </View>
 
         {/* Stats Banner */}
         <View style={styles.statsBanner}>
@@ -230,11 +393,11 @@ export function ChallengesScreen({ navigation }: ChallengesScreenProps) {
               { id: 'leaderboard', label: 'Rankings', icon: 'trophy' },
               { id: 'achievements', label: 'Badges', icon: 'medal' },
             ].map((tab) => (
-              <TouchableOpacity
-                key={tab.id}
-                style={[styles.tab, activeTab === tab.id && styles.tabActive]}
-                onPress={() => setActiveTab(tab.id as any)}
-              >
+                <TouchableOpacity
+                  key={tab.id}
+                  style={[styles.tab, activeTab === tab.id && styles.tabActive]}
+                  onPress={() => setActiveTab(tab.id as any)}
+                >
                 {tab.icon === 'target' && <MaterialCommunityIcons name="target" size={16} color={activeTab === tab.id ? '#0F172A' : '#64748B'} />}
                 {tab.icon === 'trophy' && <Ionicons name="trophy" size={16} color={activeTab === tab.id ? '#0F172A' : '#64748B'} />}
                 {tab.icon === 'medal' && <MaterialCommunityIcons name="medal" size={16} color={activeTab === tab.id ? '#0F172A' : '#64748B'} />}
@@ -264,12 +427,12 @@ export function ChallengesScreen({ navigation }: ChallengesScreenProps) {
                         <Text style={styles.inviteDetails}>{invite.inviter} • {invite.members} members • +{invite.xpReward} XP</Text>
                       </View>
                       <View style={styles.inviteActions}>
-                        <TouchableOpacity style={styles.declineButton}>
-                          <Ionicons name="close" size={16} color="#64748B" />
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.joinButton}>
-                          <Text style={styles.joinButtonText}>Join</Text>
-                        </TouchableOpacity>
+                      <TouchableOpacity style={styles.declineButton} onPress={() => handleInviteDecline(invite.id)}>
+                        <Ionicons name="close" size={16} color="#64748B" />
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.joinButton} onPress={() => handleInviteAccept(invite.id)}>
+                        <Text style={styles.joinButtonText}>Join</Text>
+                      </TouchableOpacity>
                       </View>
                     </View>
                   ))}
@@ -376,7 +539,7 @@ export function ChallengesScreen({ navigation }: ChallengesScreenProps) {
                       )}
 
                       {challenge.myStatus === 'pending' ? (
-                        <TouchableOpacity style={styles.submitButton}>
+                        <TouchableOpacity style={styles.submitButton} onPress={() => handleSubmitProof(challenge.id)}>
                           <Ionicons name="camera" size={20} color="#FFFFFF" />
                           <Text style={styles.submitButtonText}>Submit Proof</Text>
                         </TouchableOpacity>
@@ -528,6 +691,64 @@ export function ChallengesScreen({ navigation }: ChallengesScreenProps) {
 
         <View style={{ height: 100 }} />
       </ScrollView>
+
+      <Modal visible={showCreateModal} animationType="slide" transparent onRequestClose={() => setShowCreateModal(false)}>
+        <View style={styles.modalOverlay}>
+          <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFillObject} />
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setShowCreateModal(false)} />
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHandle} />
+            <Text style={styles.modalTitle}>Create Challenge</Text>
+            <TextInput
+              placeholder="Challenge name"
+              placeholderTextColor="#94A3B8"
+              value={newName}
+              onChangeText={setNewName}
+              style={styles.modalInput}
+            />
+            <Text style={styles.modalLabel}>Category</Text>
+            <View style={styles.choiceRow}>
+              {(['fitness', 'wellness', 'learning', 'productivity', 'social'] as const).map(cat => (
+                <TouchableOpacity
+                  key={cat}
+                  style={[styles.choiceChip, newCategory === cat && styles.choiceChipActive]}
+                  onPress={() => setNewCategory(cat)}
+                >
+                  <Text style={[styles.choiceText, newCategory === cat && styles.choiceTextActive]}>
+                    {cat.charAt(0).toUpperCase() + cat.slice(1)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Text style={styles.modalLabel}>Length (days)</Text>
+            <TextInput
+              placeholder="14"
+              placeholderTextColor="#94A3B8"
+              value={newDays}
+              onChangeText={setNewDays}
+              keyboardType="number-pad"
+              style={styles.modalInput}
+            />
+            <Text style={styles.modalLabel}>XP per day</Text>
+            <TextInput
+              placeholder="40"
+              placeholderTextColor="#94A3B8"
+              value={newXp}
+              onChangeText={setNewXp}
+              keyboardType="number-pad"
+              style={styles.modalInput}
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.modalCancel} onPress={() => setShowCreateModal(false)}>
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalSave} onPress={handleCreateChallenge}>
+                <Text style={styles.modalSaveText}>Create</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -536,9 +757,29 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
   scrollView: { flex: 1 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12 },
-  backButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
+  backButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
   headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#0F172A' },
-  addButton: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#0F172A', alignItems: 'center', justifyContent: 'center' },
+  addButton: { width: 44, height: 44, borderRadius: 14, backgroundColor: '#0F172A', alignItems: 'center', justifyContent: 'center' },
+  toast: { position: 'absolute', top: 10, left: 20, right: 20, zIndex: 10, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 14, alignItems: 'center' },
+  toastSuccess: { backgroundColor: '#ECFDF5' },
+  toastInfo: { backgroundColor: '#F1F5F9' },
+  toastText: { fontSize: 12, color: '#0F172A', fontWeight: '700' },
+  modalOverlay: { flex: 1, justifyContent: 'flex-end' },
+  modalSheet: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 32, width: '100%', maxWidth: 390, alignSelf: 'center' },
+  modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#E2E8F0', alignSelf: 'center', marginBottom: 12 },
+  modalTitle: { fontSize: 18, fontWeight: '700', color: '#0F172A', marginBottom: 12 },
+  modalLabel: { fontSize: 12, color: '#94A3B8', fontWeight: '700', textTransform: 'uppercase', marginBottom: 8 },
+  modalInput: { backgroundColor: '#F1F5F9', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, color: '#0F172A', marginBottom: 12 },
+  choiceRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
+  choiceChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 14, backgroundColor: '#F1F5F9' },
+  choiceChipActive: { backgroundColor: '#0F172A' },
+  choiceText: { fontSize: 12, color: '#64748B', fontWeight: '600' },
+  choiceTextActive: { color: '#FFFFFF' },
+  modalActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  modalCancel: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: '#F1F5F9', alignItems: 'center' },
+  modalCancelText: { color: '#64748B', fontWeight: '700' },
+  modalSave: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: '#0F172A', alignItems: 'center' },
+  modalSaveText: { color: '#FFFFFF', fontWeight: '700' },
   statsBanner: { marginHorizontal: 20, marginBottom: 16, padding: 16, borderRadius: 16, backgroundColor: '#FFFFFF', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
   statsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   statsLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
@@ -563,7 +804,7 @@ const styles = StyleSheet.create({
   xpProgressFill: { height: '100%', backgroundColor: '#8B5CF6', borderRadius: 4 },
   tabContainer: { paddingHorizontal: 20, marginBottom: 16 },
   tabBar: { flexDirection: 'row', gap: 4, padding: 4, backgroundColor: '#F1F5F9', borderRadius: 12 },
-  tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 8 },
+  tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 10, minHeight: 44 },
   tabActive: { backgroundColor: '#FFFFFF', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 },
   tabText: { fontSize: 13, fontWeight: '500', color: '#64748B' },
   tabTextActive: { color: '#0F172A' },
@@ -578,8 +819,8 @@ const styles = StyleSheet.create({
   inviteName: { fontSize: 15, fontWeight: '600', color: '#0F172A' },
   inviteDetails: { fontSize: 12, color: '#64748B', marginTop: 2 },
   inviteActions: { flexDirection: 'row', gap: 8 },
-  declineButton: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, backgroundColor: '#FFFFFF' },
-  joinButton: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12, backgroundColor: '#0F172A' },
+  declineButton: { paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12, backgroundColor: '#FFFFFF', minHeight: 44, justifyContent: 'center' },
+  joinButton: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, backgroundColor: '#0F172A', minHeight: 44, justifyContent: 'center' },
   joinButtonText: { fontSize: 13, fontWeight: '500', color: '#FFFFFF' },
   challengeCard: { borderRadius: 16, backgroundColor: '#FFFFFF', overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
   challengeHeader: { padding: 16 },
@@ -590,7 +831,7 @@ const styles = StyleSheet.create({
   challengeMeta: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
   challengeMetaText: { fontSize: 12, color: 'rgba(255,255,255,0.8)' },
   challengeMetaDot: { fontSize: 12, color: 'rgba(255,255,255,0.6)', marginHorizontal: 4 },
-  completedBadge: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
+  completedBadge: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
   streakBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)' },
   streakBadgeText: { fontSize: 14, fontWeight: 'bold', color: '#FFFFFF' },
   challengeProgress: { marginTop: 16 },
@@ -607,7 +848,7 @@ const styles = StyleSheet.create({
   miniLeaderboardTitle: { fontSize: 12, fontWeight: '600', color: '#475569' },
   memberAvatars: { flexDirection: 'row', gap: 8 },
   memberAvatarContainer: { position: 'relative' },
-  memberAvatar: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#FFFFFF' },
+  memberAvatar: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#FFFFFF' },
   memberAvatarYou: { borderColor: '#8B5CF6' },
   memberAvatarText: { fontSize: 12, fontWeight: '600', color: '#FFFFFF' },
   rankBadge: { position: 'absolute', top: -4, right: -4, width: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
@@ -630,7 +871,7 @@ const styles = StyleSheet.create({
   stakesBadge: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, backgroundColor: '#FFF1F2', marginBottom: 12 },
   stakesEmoji: { fontSize: 12 },
   stakesText: { fontSize: 12, fontWeight: '500', color: '#BE123C' },
-  submitButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 12, backgroundColor: '#0F172A' },
+  submitButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 12, backgroundColor: '#0F172A', minHeight: 44 },
   submitButtonText: { fontSize: 15, fontWeight: '600', color: '#FFFFFF' },
   completedButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 12, backgroundColor: '#ECFDF5' },
   completedButtonText: { fontSize: 15, fontWeight: '600', color: '#059669' },
@@ -669,7 +910,7 @@ const styles = StyleSheet.create({
   leaderboardItemYou: { backgroundColor: '#F5F3FF' },
   leaderboardItemLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   leaderboardItemRank: { width: 32, fontSize: 15, fontWeight: 'bold', color: '#94A3B8' },
-  leaderboardItemAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#94A3B8', alignItems: 'center', justifyContent: 'center' },
+  leaderboardItemAvatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#94A3B8', alignItems: 'center', justifyContent: 'center' },
   leaderboardItemAvatarYou: { backgroundColor: '#8B5CF6' },
   leaderboardItemAvatarText: { fontSize: 14, fontWeight: 'bold', color: '#FFFFFF' },
   leaderboardItemName: { fontSize: 15, fontWeight: '600', color: '#334155' },

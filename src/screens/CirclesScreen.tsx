@@ -39,7 +39,6 @@ import {
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface CirclesScreenProps {
-  onNavigate?: (screen: string) => void;
   onModalStateChange?: (isOpen: boolean) => void;
   navigation?: any;
 }
@@ -73,7 +72,7 @@ function generateInviteCode(): string {
   return `MYPA-${code}`;
 }
 
-export function CirclesScreen({ onNavigate, onModalStateChange, navigation }: CirclesScreenProps) {
+export function CirclesScreen({ onModalStateChange, navigation }: CirclesScreenProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterChip, setFilterChip] = useState<'all' | 'active' | 'your-turn'>('all');
   const [joinModalOpen, setJoinModalOpen] = useState(false);
@@ -83,6 +82,10 @@ export function CirclesScreen({ onNavigate, onModalStateChange, navigation }: Ci
   const [expandedCard, setExpandedCard] = useState<number | null>(null);
   const [longPressedCard, setLongPressedCard] = useState<number | null>(null);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+  const joinHighlightTimer = useRef<NodeJS.Timeout | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' } | null>(null);
+  const toastAnim = useRef(new Animated.Value(0)).current;
+  const toastTimer = useRef<NodeJS.Timeout | null>(null);
 
   const [circles, setCircles] = useState<Circle[]>([
     {
@@ -138,6 +141,47 @@ export function CirclesScreen({ onNavigate, onModalStateChange, navigation }: Ci
     },
   ]);
 
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const stored = await AsyncStorage.getItem('circlesData');
+        if (stored) setCircles(JSON.parse(stored));
+      } catch (e) {
+        // keep defaults
+      }
+    };
+    load();
+  }, []);
+
+  useEffect(() => {
+    const persist = async () => {
+      try {
+        await AsyncStorage.setItem('circlesData', JSON.stringify(circles));
+      } catch (e) {
+        // noop
+      }
+    };
+    persist();
+  }, [circles]);
+
+  useEffect(() => {
+    if (!toast) return;
+    Animated.timing(toastAnim, { toValue: 1, duration: 220, useNativeDriver: true }).start();
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => {
+      Animated.timing(toastAnim, { toValue: 0, duration: 200, useNativeDriver: true }).start(() => {
+        setToast(null);
+      });
+    }, 1800);
+    return () => {
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+    };
+  }, [toast, toastAnim]);
+
+  const showToast = (message: string, type: 'success' | 'info' = 'success') => {
+    setToast({ message, type });
+  };
+
   const [createOpen, setCreateOpen] = useState(false);
   const [newName, setNewName] = useState('');
   const [newMembers, setNewMembers] = useState('');
@@ -191,14 +235,15 @@ export function CirclesScreen({ onNavigate, onModalStateChange, navigation }: Ci
 
   // Navigation helper
   const handleNavigate = (screen: string) => {
-    if (onNavigate) {
-      onNavigate(screen);
-    } else if (navigation) {
-      const routeMap: { [key: string]: string } = {
-        'circle-home': 'CircleHome',
-      };
-      const route = routeMap[screen] || screen;
-      navigation.navigate(route);
+    if (!navigation) return;
+    if (screen === 'circle-home') {
+      navigation.navigate('CircleHome');
+    } else if (screen === 'plan') {
+      navigation.navigate('Plan');
+    } else if (screen === 'hub') {
+      navigation.navigate('Home', { screen: 'Hub' });
+    } else {
+      navigation.navigate(screen);
     }
   };
 
@@ -250,7 +295,10 @@ export function CirclesScreen({ onNavigate, onModalStateChange, navigation }: Ci
 
             await AsyncStorage.removeItem('pendingCircleAction');
 
-            setTimeout(() => setJustJoinedCircle(null), 3000);
+            if (joinHighlightTimer.current) {
+              clearTimeout(joinHighlightTimer.current);
+            }
+            joinHighlightTimer.current = setTimeout(() => setJustJoinedCircle(null), 3000);
           }
         }
       } catch (e) {
@@ -259,6 +307,13 @@ export function CirclesScreen({ onNavigate, onModalStateChange, navigation }: Ci
     };
 
     checkForPendingAction();
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (joinHighlightTimer.current) clearTimeout(joinHighlightTimer.current);
+      if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    };
   }, []);
 
   // Update parent about modal state
@@ -312,6 +367,7 @@ export function CirclesScreen({ onNavigate, onModalStateChange, navigation }: Ci
     setNewMembers('');
     setNewPrivacy('public');
     setCreateOpen(false);
+    showToast('Circle created', 'success');
   }
 
   function handleJoinCircle() {
@@ -346,8 +402,10 @@ export function CirclesScreen({ onNavigate, onModalStateChange, navigation }: Ci
     setCircles(updatedCircles);
     setJoinSuccess(true);
     setJoinCode('');
+    showToast('Joined circle', 'success');
 
-    setTimeout(() => {
+    if (joinHighlightTimer.current) clearTimeout(joinHighlightTimer.current);
+    joinHighlightTimer.current = setTimeout(() => {
       setJoinSuccess(false);
       setJoinModalOpen(false);
     }, 1500);
@@ -391,12 +449,33 @@ export function CirclesScreen({ onNavigate, onModalStateChange, navigation }: Ci
 
   return (
     <View style={styles.container}>
+      {toast && (
+        <Animated.View
+          style={[
+            styles.toast,
+            toast.type === 'success' ? styles.toastSuccess : styles.toastInfo,
+            {
+              opacity: toastAnim,
+              transform: [
+                {
+                  translateY: toastAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [-10, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          <Text style={styles.toastText}>{toast.message}</Text>
+        </Animated.View>
+      )}
       <LinearGradient
         colors={['#f8fafc', '#f1f5f9', '#f8fafc']}
         style={StyleSheet.absoluteFillObject}
       />
 
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
@@ -418,6 +497,8 @@ export function CirclesScreen({ onNavigate, onModalStateChange, navigation }: Ci
                   styles.joinButton,
                   pressed && styles.buttonPressed,
                 ]}
+                accessibilityRole="button"
+                accessibilityLabel="Join a circle"
               >
                 <BlurView intensity={40} tint="light" style={styles.joinButtonBlur}>
                   <Text style={styles.joinButtonText}>Join</Text>
@@ -429,6 +510,8 @@ export function CirclesScreen({ onNavigate, onModalStateChange, navigation }: Ci
                   styles.createButton,
                   pressed && styles.buttonPressed,
                 ]}
+                accessibilityRole="button"
+                accessibilityLabel="Create a new circle"
               >
                 <Plus color="#fff" size={20} strokeWidth={2.5} />
               </Pressable>
@@ -464,7 +547,10 @@ export function CirclesScreen({ onNavigate, onModalStateChange, navigation }: Ci
 
                 {circles.some(c => c.posted < c.total) && (
                   <Pressable
-                    onPress={() => Alert.alert('Nudge', 'Nudge sent!')}
+                    onPress={() => {
+                      // TODO: Hook up real nudge delivery once notifications are wired.
+                      Alert.alert('Nudge', 'Nudge sent!');
+                    }}
                     style={({ pressed }) => [
                       styles.nudgeButton,
                       pressed && styles.buttonPressed,
@@ -783,10 +869,8 @@ export function CirclesScreen({ onNavigate, onModalStateChange, navigation }: Ci
         onRequestClose={() => setLongPressedCard(null)}
       >
         <View style={styles.modalOverlay}>
-          <Pressable
-            style={styles.modalBackdrop}
-            onPress={() => setLongPressedCard(null)}
-          />
+          <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFillObject} />
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setLongPressedCard(null)} />
           <Animated.View style={styles.actionSheet}>
             <View style={styles.actionSheetHandle} />
 
@@ -815,6 +899,7 @@ export function CirclesScreen({ onNavigate, onModalStateChange, navigation }: Ci
               onPress={() => {
                 const circle = circles.find(c => c.id === longPressedCard);
                 if (circle) {
+                  // TODO: Add clipboard copy/share sheet for invite codes.
                   Alert.alert('Invite Code', `Share this code: ${circle.inviteCode}`);
                 }
                 setLongPressedCard(null);
@@ -835,6 +920,7 @@ export function CirclesScreen({ onNavigate, onModalStateChange, navigation }: Ci
 
             <Pressable
               onPress={() => {
+                // TODO: Open circle-specific settings screen.
                 Alert.alert('Settings', 'Circle settings');
                 setLongPressedCard(null);
               }}
@@ -901,10 +987,8 @@ export function CirclesScreen({ onNavigate, onModalStateChange, navigation }: Ci
         onRequestClose={() => setCreateOpen(false)}
       >
         <View style={styles.modalOverlay}>
-          <Pressable
-            style={styles.modalBackdrop}
-            onPress={() => setCreateOpen(false)}
-          />
+          <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFillObject} />
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setCreateOpen(false)} />
           <View style={styles.createModal}>
             <View style={styles.modalHandle} />
             <Text style={styles.modalTitle}>Create Circle</Text>
@@ -990,8 +1074,9 @@ export function CirclesScreen({ onNavigate, onModalStateChange, navigation }: Ci
         }}
       >
         <View style={styles.modalOverlay}>
+          <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFillObject} />
           <Pressable
-            style={styles.modalBackdrop}
+            style={StyleSheet.absoluteFillObject}
             onPress={() => {
               setJoinModalOpen(false);
               setJoinError('');
@@ -1139,9 +1224,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   statIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1460,21 +1545,20 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'flex-end',
   },
-  modalBackdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
-  },
   actionSheet: {
     backgroundColor: '#fff',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 8,
     paddingBottom: 40,
+    width: '100%',
+    maxWidth: 390,
+    alignSelf: 'center',
   },
   actionSheetHandle: {
     width: 40,
     height: 4,
-    backgroundColor: '#e2e8f0',
+    backgroundColor: '#cbd5e1',
     borderRadius: 2,
     alignSelf: 'center',
     marginVertical: 8,
@@ -1493,9 +1577,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#fef2f2',
   },
   actionSheetIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1517,11 +1601,14 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     padding: 24,
     paddingBottom: 40,
+    width: '100%',
+    maxWidth: 390,
+    alignSelf: 'center',
   },
   modalHandle: {
     width: 40,
     height: 4,
-    backgroundColor: '#e2e8f0',
+    backgroundColor: '#cbd5e1',
     borderRadius: 2,
     alignSelf: 'center',
     marginBottom: 20,
@@ -1582,6 +1669,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: '#0f172a',
     alignItems: 'center',
+    minHeight: 48,
+    justifyContent: 'center',
   },
   createSubmitButtonDisabled: {
     opacity: 0.5,
@@ -1597,7 +1686,14 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     padding: 24,
     paddingBottom: 40,
+    width: '100%',
+    maxWidth: 390,
+    alignSelf: 'center',
   },
+  toast: { position: 'absolute', top: 10, left: 20, right: 20, zIndex: 10, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 14, alignItems: 'center' },
+  toastSuccess: { backgroundColor: '#ECFDF5' },
+  toastInfo: { backgroundColor: '#F1F5F9' },
+  toastText: { fontSize: 12, color: '#0F172A', fontWeight: '700' },
   joinCodeInput: {
     backgroundColor: '#f1f5f9',
     borderRadius: 12,
@@ -1621,6 +1717,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: '#0f172a',
     alignItems: 'center',
+    minHeight: 48,
+    justifyContent: 'center',
   },
   joinSubmitButtonDisabled: {
     opacity: 0.5,

@@ -9,9 +9,11 @@ import {
   Modal,
   Dimensions,
   Alert,
+  Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 
@@ -250,7 +252,7 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
     setAssignedMember({ id: member.id, name: member.name, initial: member.initial });
     setAssignTo(member.name);
     setAssignToId(member.id);
-    setShowMemberPicker(false);
+    requestAnimationFrame(() => setShowMemberPicker(false));
   };
 
   // Handle view member profile
@@ -297,7 +299,7 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
       setCopySuccess(type);
       setTimeout(() => setCopySuccess(null), 2000);
     } catch (error) {
-      console.log('Copy failed:', error);
+      Alert.alert('Copy failed', 'Unable to copy the invite link.');
     }
   };
 
@@ -370,6 +372,7 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
     setAssignedMember(null);
     setAssignTo('');
     setAssignToId('');
+    setShowMemberPicker(false);
     setDueDay('today');
     setCustomDueDate('');
     setDueTime('18:00');
@@ -1263,14 +1266,20 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
         visible={showAssignModal}
         animationType="slide"
         transparent={true}
-        onRequestClose={() => { resetAssignForm(); setShowAssignModal(false); }}
+        onRequestClose={() => { resetAssignForm(); setShowAssignModal(false); setShowMemberPicker(false); }}
       >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => { resetAssignForm(); setShowAssignModal(false); }}
-        >
-          <View style={[styles.assignModalSheet]} onStartShouldSetResponder={() => true}>
+        <View style={styles.modalOverlay} pointerEvents="box-none">
+          <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFillObject} />
+          <Pressable
+            style={StyleSheet.absoluteFillObject}
+            pointerEvents={showMemberPicker ? 'none' : 'auto'}
+            onPress={() => { resetAssignForm(); setShowAssignModal(false); setShowMemberPicker(false); }}
+          />
+          <View
+            style={[styles.assignModalSheet]}
+            pointerEvents="auto"
+            onStartShouldSetResponder={() => true}
+          >
             {/* Drag Handle */}
             <View style={styles.sheetHandle} />
             
@@ -1278,7 +1287,7 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
             <View style={styles.assignModalHeader}>
               <Text style={styles.assignModalTitle}>Assign Mission</Text>
               <TouchableOpacity 
-                onPress={() => { resetAssignForm(); setShowAssignModal(false); }}
+                onPress={() => { resetAssignForm(); setShowAssignModal(false); setShowMemberPicker(false); }}
                 style={styles.assignModalClose}
               >
                 <Feather name="x" size={24} color={Colors.textSecondary} />
@@ -1544,7 +1553,7 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
               {/* Bottom Buttons */}
               <View style={styles.assignBottomButtons}>
                 <TouchableOpacity
-                  onPress={() => { resetAssignForm(); setShowAssignModal(false); }}
+                  onPress={() => { resetAssignForm(); setShowAssignModal(false); setShowMemberPicker(false); }}
                   style={styles.assignCancelButton}
                 >
                   <Text style={styles.assignCancelButtonText}>Cancel</Text>
@@ -1566,22 +1575,28 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
               </View>
             </ScrollView>
           </View>
-        </TouchableOpacity>
+        </View>
       </Modal>
 
       {/* Member Picker Modal (Nested) */}
       <Modal
         visible={showMemberPicker}
-        animationType="slide"
+        animationType="fade"
         transparent={true}
+        presentationStyle="overFullScreen"
         onRequestClose={() => setShowMemberPicker(false)}
       >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setShowMemberPicker(false)}
-        >
-          <View style={styles.memberPickerSheet} onStartShouldSetResponder={() => true}>
+        <View style={styles.modalOverlay} pointerEvents="box-none">
+          <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFillObject} />
+          <Pressable
+            style={StyleSheet.absoluteFillObject}
+            onPress={() => setShowMemberPicker(false)}
+          />
+          <View
+            style={styles.memberPickerSheet}
+            pointerEvents="auto"
+            onStartShouldSetResponder={() => true}
+          >
             <View style={styles.sheetHandle} />
             
             {/* Header */}
@@ -1627,7 +1642,7 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
               ))}
             </View>
           </View>
-        </TouchableOpacity>
+        </View>
       </Modal>
 
       {/* Post Options Modal (iOS Action Sheet Style) */}

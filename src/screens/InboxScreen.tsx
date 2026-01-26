@@ -4,12 +4,12 @@ import {
   Animated,
   FlatList,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -33,9 +33,10 @@ import {
   Zap,
 } from 'lucide-react-native';
 import { IOSStatusBar } from '../components/IOSStatusBar';
+import { useNavigation } from '@react-navigation/native';
 
 interface InboxScreenProps {
-  onNavigate?: (screen: string) => void;
+  navigation?: any;
 }
 
 interface Assignment {
@@ -180,7 +181,31 @@ const PulseDot = ({ color }: { color: string }) => {
   );
 };
 
-export function InboxScreen({ onNavigate }: InboxScreenProps) {
+export function InboxScreen({ navigation }: InboxScreenProps) {
+  const nav = useNavigation<any>();
+  // Navigation helper for cross-stack navigation
+  const handleNavigate = (screen: string) => {
+    const navigator = navigation || nav;
+    if (!navigator) return;
+    const homeStackRoutes: { [key: string]: string } = {
+      hub: 'Hub',
+      inbox: 'Inbox',
+      wallet: 'Wallet',
+      challenges: 'Challenges',
+      settings: 'Settings',
+    };
+
+    if (homeStackRoutes[screen]) {
+      navigator.navigate('Home', { screen: homeStackRoutes[screen] });
+    } else if (screen === 'plan') {
+      navigator.navigate('Plan');
+    } else if (screen === 'circles' || screen === 'circle-home') {
+      navigator.navigate('Circles', { screen: screen === 'circle-home' ? 'CircleHome' : 'CirclesList' });
+    } else {
+      navigator.navigate(screen);
+    }
+  };
+
   const [activeTab, setActiveTab] = useState<TabType>('all');
   const [actionFeedback, setActionFeedback] = useState<Feedback>(null);
   const [assignments, setAssignments] = useState<Assignment[]>([
@@ -256,14 +281,14 @@ export function InboxScreen({ onNavigate }: InboxScreenProps) {
         }
         if (action.type === 'removeItemNavigate') {
           setItems(prev => prev.filter(it => it.id !== action.itemId));
-          onNavigate?.(action.target);
+          handleNavigate(action.target);
         }
         if (action.type === 'removeAssignment') {
           setAssignments(prev => prev.filter(a => a.id !== action.assignmentId));
         }
         if (action.type === 'removeAssignmentNavigate') {
           setAssignments(prev => prev.filter(a => a.id !== action.assignmentId));
-          onNavigate?.(action.target);
+          handleNavigate(action.target);
         }
         if (action.type === 'clearSnooze') {
           setSnoozedItems(prev => {
@@ -277,7 +302,7 @@ export function InboxScreen({ onNavigate }: InboxScreenProps) {
       }, action.delayMs);
       scheduledRef.current.set(action.id, timer);
     });
-  }, [delayedActions, onNavigate]);
+  }, [delayedActions, navigation, nav]);
 
   useEffect(() => {
     return () => {
@@ -357,7 +382,7 @@ export function InboxScreen({ onNavigate }: InboxScreenProps) {
       console.warn('Error storing message action', e);
     }
 
-    onNavigate?.('circle-home');
+    handleNavigate('circle-home');
   };
 
   const handleMessageArchive = (id: number) => {
@@ -387,7 +412,7 @@ export function InboxScreen({ onNavigate }: InboxScreenProps) {
 
   const handleSocialView = (id: number) => {
     markRead(id);
-    onNavigate?.('circles');
+    handleNavigate('circles');
   };
 
   const acceptAssignment = async (id: number) => {
@@ -436,7 +461,7 @@ export function InboxScreen({ onNavigate }: InboxScreenProps) {
   };
 
   const viewAssignmentInPlan = () => {
-    onNavigate?.('plan');
+    handleNavigate('plan');
   };
 
   const confirmDecline = (id: number) => {
@@ -621,7 +646,7 @@ export function InboxScreen({ onNavigate }: InboxScreenProps) {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <IOSStatusBar />
       <View style={styles.backgroundGlowTop} />
       <View style={styles.backgroundGlowBottom} />
@@ -629,7 +654,12 @@ export function InboxScreen({ onNavigate }: InboxScreenProps) {
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <Pressable style={styles.backButton} onPress={() => onNavigate?.('hub')}>
+            <Pressable 
+              style={styles.backButton} 
+              onPress={() => handleNavigate('hub')}
+              accessibilityRole="button"
+              accessibilityLabel="Go back to hub"
+            >
               <ArrowLeft size={18} color="#475569" />
             </Pressable>
             <View>
@@ -723,11 +753,11 @@ export function InboxScreen({ onNavigate }: InboxScreenProps) {
                 <Text style={styles.emptyBadgeText}>+10 XP for staying organized</Text>
               </View>
               <View style={styles.emptyActions}>
-                <Pressable style={styles.emptyActionPrimary} onPress={() => onNavigate?.('plan')}>
+                <Pressable style={styles.emptyActionPrimary} onPress={() => handleNavigate('plan')}>
                   <Calendar size={16} color="#2563EB" />
                   <Text style={styles.emptyActionText}>View Plan</Text>
                 </Pressable>
-                <Pressable style={styles.emptyActionSecondary} onPress={() => onNavigate?.('circles')}>
+                <Pressable style={styles.emptyActionSecondary} onPress={() => handleNavigate('circles')}>
                   <Users size={16} color="#7C3AED" />
                   <Text style={[styles.emptyActionText, { color: '#7C3AED' }]}>Circles</Text>
                 </Pressable>
@@ -771,7 +801,7 @@ const styles = StyleSheet.create({
   },
   header: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  backButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8 },
+  backButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 },
   headerSubtitle: { fontSize: 12, color: '#94A3B8', fontWeight: '600' },
   headerTitle: { fontSize: 28, fontWeight: '700', color: '#0F172A' },
   newBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999 },
@@ -812,7 +842,7 @@ const styles = StyleSheet.create({
   secondaryAction: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#F1F5F9', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 12 },
   secondaryActionText: { fontSize: 12, fontWeight: '600', color: '#64748B' },
   secondaryDisabled: { opacity: 0.6 },
-  iconAction: { width: 36, height: 36, borderRadius: 12, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' },
+  iconAction: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#F1F5F9', alignItems: 'center', justifyContent: 'center' },
   feedbackChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 },
   feedbackSuccess: { backgroundColor: '#ECFDF5' },
   feedbackInfo: { backgroundColor: '#F1F5F9' },

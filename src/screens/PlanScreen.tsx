@@ -20,7 +20,7 @@ import Svg, { Circle } from 'react-native-svg';
 import { useNavigation } from '@react-navigation/native';
 
 interface PlanScreenProps {
-  onNavigate?: (screen: string) => void;
+  navigation?: any;
 }
 
 interface Task {
@@ -242,8 +242,8 @@ const SwipeableTask = ({
   );
 };
 
-export function PlanScreen({ onNavigate }: PlanScreenProps) {
-  const navigation = useNavigation<any>();
+export function PlanScreen({ navigation }: PlanScreenProps) {
+  const nav = useNavigation<any>();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showCalendar, setShowCalendar] = useState(false);
@@ -270,17 +270,19 @@ export function PlanScreen({ onNavigate }: PlanScreenProps) {
 
   const [focusSessions, setFocusSessions] = useState<FocusSession[]>([]);
 
-  // Navigate handler that uses prop or navigation
   const handleNavigate = (screen: string) => {
-    if (onNavigate) {
-      onNavigate(screen);
+    const navigator = navigation || nav;
+    if (!navigator) return;
+    if (screen === 'sort') {
+      navigator.navigate('Home', { screen: 'TaskSorting' });
+    } else if (screen === 'hub') {
+      navigator.navigate('Home', { screen: 'Hub' });
+    } else if (screen === 'circles') {
+      navigator.navigate('Circles', { screen: 'CirclesList' });
+    } else if (screen === 'profile') {
+      navigator.navigate('Profile', { screen: 'ProfileMain' });
     } else {
-      // Map screen names to actual navigation routes
-      const routeMap: { [key: string]: string } = {
-        'sort': 'TaskSorting',
-      };
-      const route = routeMap[screen] || screen;
-      navigation.navigate('Home', { screen: route });
+      navigator.navigate(screen);
     }
   };
   const [focusStats, setFocusStats] = useState<FocusStats>(DEFAULT_STATS);
@@ -339,7 +341,7 @@ export function PlanScreen({ onNavigate }: PlanScreenProps) {
               durationMin: parseDuration(task.estimatedTime || '30m'),
               title: task.title,
               category: task.aiCategory || 'Personal',
-              priority: task.aiPriority === 'urgent' ? 'High' : task.aiPriority === 'low' ? 'Low' : 'Normal',
+              priority: (task.aiPriority === 'urgent' ? 'High' : task.aiPriority === 'low' ? 'Low' : 'Normal') as 'High' | 'Normal' | 'Low',
               completed: false,
               isFixed: false,
             }));
@@ -693,7 +695,7 @@ export function PlanScreen({ onNavigate }: PlanScreenProps) {
               </Text>
             </View>
             <TouchableOpacity style={styles.dumpBtn} onPress={() => handleNavigate('sort')}>
-              <MaterialCommunityIcons name="sparkles" size={14} color="#64748B" />
+              <MaterialCommunityIcons name="star-four-points-outline" size={14} color="#64748B" />
               <Text style={styles.dumpBtnText}>Dump</Text>
             </TouchableOpacity>
           </View>
@@ -875,7 +877,7 @@ export function PlanScreen({ onNavigate }: PlanScreenProps) {
                 <Text style={styles.emptyPrimaryText}>Add Task</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.emptySecondary} onPress={() => handleNavigate('sort')}>
-                <MaterialCommunityIcons name="sparkles" size={16} color="#7C3AED" />
+                <MaterialCommunityIcons name="star-four-points-outline" size={16} color="#7C3AED" />
                 <Text style={styles.emptySecondaryText}>Brain Dump</Text>
               </TouchableOpacity>
             </View>
@@ -1137,6 +1139,7 @@ const styles = StyleSheet.create({
   focusCardWrap: { marginHorizontal: 20, marginTop: 14 },
   focusHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   focusStatus: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  focusStreak: { flexDirection: 'row', alignItems: 'center' },
   liveDot: { width: 8, height: 8, borderRadius: 4 },
   liveDotActive: { backgroundColor: '#FFFFFF' },
   liveDotPaused: { backgroundColor: '#FDE68A' },

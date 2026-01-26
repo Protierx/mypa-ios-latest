@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -7,9 +7,13 @@ import {
   TouchableOpacity,
   SafeAreaView,
   TextInput,
+  Modal,
+  Pressable,
+  Animated,
 } from 'react-native';
-import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
-import { colors } from '../styles/colors';
+import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { BlurView } from 'expo-blur';
 
 interface Task {
   id: string;
@@ -48,15 +52,133 @@ const categoryColors: { [key: string]: string } = {
   Finance: '#06B6D4',
 };
 
+const categoryIcons: { [key: string]: string } = {
+  Work: 'briefcase',
+  Fitness: 'barbell',
+  Personal: 'person',
+  Learning: 'book',
+  Health: 'medkit',
+  Finance: 'card',
+};
+
+const STORAGE_KEY = 'tasksList';
+
 export function TasksScreen({ navigation }: any) {
-  const [tasks, setTasks] = useState(initialTasks);
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [filter, setFilter] = useState<'all' | 'pending' | 'completed'>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [showTaskModal, setShowTaskModal] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [titleInput, setTitleInput] = useState('');
+  const [descInput, setDescInput] = useState('');
+  const [priorityInput, setPriorityInput] = useState<'high' | 'medium' | 'low'>('medium');
+  const [categoryInput, setCategoryInput] = useState('Work');
+  const [dueInput, setDueInput] = useState('Today');
+  const addPulse = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const loadTasks = async () => {
+      try {
+        const stored = await AsyncStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          setTasks(JSON.parse(stored));
+        } else {
+          setTasks(initialTasks);
+        }
+      } catch (e) {
+        setTasks(initialTasks);
+      }
+    };
+    loadTasks();
+  }, []);
+
+  useEffect(() => {
+    const saveTasks = async () => {
+      try {
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+      } catch (e) {
+        // noop
+      }
+    };
+    if (tasks.length) saveTasks();
+  }, [tasks]);
+
+  useEffect(() => {
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(addPulse, { toValue: 1.05, duration: 1400, useNativeDriver: true }),
+        Animated.timing(addPulse, { toValue: 1, duration: 1400, useNativeDriver: true }),
+      ])
+    );
+    pulse.start();
+    return () => pulse.stop();
+  }, [addPulse]);
 
   const toggleTask = (id: string) => {
     setTasks(tasks.map(task =>
       task.id === id ? { ...task, completed: !task.completed } : task
     ));
+  };
+
+  const openCreateModal = () => {
+    setEditingTask(null);
+    setTitleInput('');
+    setDescInput('');
+    setPriorityInput('medium');
+    setCategoryInput('Work');
+    setDueInput('Today');
+    setShowTaskModal(true);
+  };
+
+  const openEditModal = (task: Task) => {
+    setEditingTask(task);
+    setTitleInput(task.title);
+    setDescInput(task.description);
+    setPriorityInput(task.priority);
+    setCategoryInput(task.category);
+    setDueInput(task.dueDate);
+    setShowTaskModal(true);
+  };
+
+  const saveTask = () => {
+    if (!titleInput.trim()) return;
+    const categoryIcon = categoryIcons[categoryInput] || 'briefcase';
+    if (editingTask) {
+      setTasks(prev =>
+        prev.map(task =>
+          task.id === editingTask.id
+            ? {
+                ...task,
+                title: titleInput.trim(),
+                description: descInput.trim() || 'No description',
+                priority: priorityInput,
+                category: categoryInput,
+                categoryIcon,
+                dueDate: dueInput,
+              }
+            : task
+        )
+      );
+    } else {
+      const newTask: Task = {
+        id: `${Date.now()}`,
+        title: titleInput.trim(),
+        description: descInput.trim() || 'No description',
+        priority: priorityInput,
+        category: categoryInput,
+        categoryIcon,
+        dueDate: dueInput,
+        completed: false,
+      };
+      setTasks(prev => [newTask, ...prev]);
+    }
+    setShowTaskModal(false);
+  };
+
+  const deleteTask = () => {
+    if (!editingTask) return;
+    setTasks(prev => prev.filter(task => task.id !== editingTask.id));
+    setShowTaskModal(false);
   };
 
   const filteredTasks = tasks.filter(task => {
@@ -77,7 +199,7 @@ export function TasksScreen({ navigation }: any) {
           <Ionicons name="arrow-back" size={20} color="#475569" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Tasks</Text>
-        <TouchableOpacity style={styles.addHeaderButton}>
+        <TouchableOpacity style={styles.addHeaderButton} onPress={openCreateModal}>
           <Ionicons name="add" size={20} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
@@ -202,7 +324,7 @@ export function TasksScreen({ navigation }: any) {
                   </View>
                 </View>
 
-                <TouchableOpacity style={styles.taskMenuButton}>
+                <TouchableOpacity style={styles.taskMenuButton} onPress={() => openEditModal(task)}>
                   <Ionicons name="ellipsis-vertical" size={16} color="#94A3B8" />
                 </TouchableOpacity>
               </TouchableOpacity>
@@ -214,9 +336,88 @@ export function TasksScreen({ navigation }: any) {
       </ScrollView>
 
       {/* Add Task FAB */}
-      <TouchableOpacity style={styles.addFab}>
-        <Ionicons name="add" size={24} color="#FFFFFF" />
-      </TouchableOpacity>
+      <Animated.View style={{ transform: [{ scale: addPulse }] }}>
+        <TouchableOpacity style={styles.addFab} onPress={openCreateModal}>
+          <Ionicons name="add" size={24} color="#FFFFFF" />
+        </TouchableOpacity>
+      </Animated.View>
+
+      <Modal visible={showTaskModal} animationType="slide" transparent onRequestClose={() => setShowTaskModal(false)}>
+        <View style={styles.modalOverlay}>
+          <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFillObject} />
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setShowTaskModal(false)} />
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHandle} />
+            <Text style={styles.modalTitle}>{editingTask ? 'Edit Task' : 'Add Task'}</Text>
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Task title"
+              placeholderTextColor="#94A3B8"
+              value={titleInput}
+              onChangeText={setTitleInput}
+            />
+            <TextInput
+              style={[styles.modalInput, styles.modalInputMultiline]}
+              placeholder="Short description"
+              placeholderTextColor="#94A3B8"
+              value={descInput}
+              onChangeText={setDescInput}
+              multiline
+            />
+            <Text style={styles.modalLabel}>Priority</Text>
+            <View style={styles.choiceRow}>
+              {(['high', 'medium', 'low'] as const).map(level => (
+                <TouchableOpacity
+                  key={level}
+                  style={[styles.choiceChip, priorityInput === level && styles.choiceChipActive]}
+                  onPress={() => setPriorityInput(level)}
+                >
+                  <Text style={[styles.choiceText, priorityInput === level && styles.choiceTextActive]}>
+                    {level.charAt(0).toUpperCase() + level.slice(1)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Text style={styles.modalLabel}>Category</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.choiceScroll}>
+              {Object.keys(categoryColors).map(cat => (
+                <TouchableOpacity
+                  key={cat}
+                  style={[styles.choiceChip, categoryInput === cat && styles.choiceChipActive]}
+                  onPress={() => setCategoryInput(cat)}
+                >
+                  <Text style={[styles.choiceText, categoryInput === cat && styles.choiceTextActive]}>{cat}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <Text style={styles.modalLabel}>Due</Text>
+            <View style={styles.choiceRow}>
+              {['Today', 'Tomorrow', 'This week'].map(due => (
+                <TouchableOpacity
+                  key={due}
+                  style={[styles.choiceChip, dueInput === due && styles.choiceChipActive]}
+                  onPress={() => setDueInput(due)}
+                >
+                  <Text style={[styles.choiceText, dueInput === due && styles.choiceTextActive]}>{due}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <View style={styles.modalActions}>
+              {editingTask ? (
+                <TouchableOpacity style={styles.deleteButtonModal} onPress={deleteTask}>
+                  <Ionicons name="trash" size={16} color="#EF4444" />
+                  <Text style={styles.deleteButtonText}>Delete</Text>
+                </TouchableOpacity>
+              ) : (
+                <View style={{ flex: 1 }} />
+              )}
+              <TouchableOpacity style={styles.saveButtonModal} onPress={saveTask}>
+                <Text style={styles.saveButtonText}>{editingTask ? 'Save' : 'Add Task'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -224,19 +425,19 @@ export function TasksScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12 },
-  backButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
+  backButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
   headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#0F172A' },
-  addHeaderButton: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#0F172A', alignItems: 'center', justifyContent: 'center' },
+  addHeaderButton: { width: 44, height: 44, borderRadius: 14, backgroundColor: '#0F172A', alignItems: 'center', justifyContent: 'center' },
   searchContainer: { paddingHorizontal: 20, marginBottom: 12 },
   searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
   searchInput: { flex: 1, marginLeft: 8, marginRight: 8, fontSize: 15, color: '#0F172A' },
   statsRow: { flexDirection: 'row', paddingHorizontal: 20, gap: 8, marginBottom: 12 },
   statCard: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 12, padding: 12, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
-  statIconBg: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
+  statIconBg: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
   statValue: { fontSize: 20, fontWeight: '700', color: '#0F172A', marginBottom: 2 },
   statLabel: { fontSize: 10, color: '#64748B' },
   filterContainer: { flexDirection: 'row', paddingHorizontal: 20, marginBottom: 16, gap: 8 },
-  filterButton: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, backgroundColor: '#FFFFFF', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 },
+  filterButton: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 22, backgroundColor: '#FFFFFF', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1, minHeight: 44 },
   filterButtonActive: { backgroundColor: '#0F172A' },
   filterText: { fontSize: 13, color: '#64748B', fontWeight: '500' },
   filterTextActive: { color: '#FFFFFF' },
@@ -262,4 +463,22 @@ const styles = StyleSheet.create({
   taskDue: { fontSize: 11, color: '#64748B' },
   taskMenuButton: { padding: 4 },
   addFab: { position: 'absolute', bottom: 100, right: 20, width: 56, height: 56, borderRadius: 16, backgroundColor: '#8B5CF6', alignItems: 'center', justifyContent: 'center', shadowColor: '#8B5CF6', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 5 },
+  modalOverlay: { flex: 1, justifyContent: 'flex-end' },
+  modalSheet: { backgroundColor: '#FFFFFF', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 32, width: '100%', maxWidth: 390, alignSelf: 'center' },
+  modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: '#E2E8F0', alignSelf: 'center', marginBottom: 12 },
+  modalTitle: { fontSize: 18, fontWeight: '700', color: '#0F172A', marginBottom: 12 },
+  modalInput: { backgroundColor: '#F1F5F9', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, color: '#0F172A', marginBottom: 12 },
+  modalInputMultiline: { minHeight: 64, textAlignVertical: 'top' },
+  modalLabel: { fontSize: 12, color: '#94A3B8', fontWeight: '700', textTransform: 'uppercase', marginBottom: 8 },
+  choiceRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  choiceScroll: { marginBottom: 12 },
+  choiceChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 14, backgroundColor: '#F1F5F9', marginRight: 8 },
+  choiceChipActive: { backgroundColor: '#0F172A' },
+  choiceText: { fontSize: 12, color: '#64748B', fontWeight: '600' },
+  choiceTextActive: { color: '#FFFFFF' },
+  modalActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  deleteButtonModal: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, backgroundColor: '#FEE2E2' },
+  deleteButtonText: { color: '#EF4444', fontWeight: '700', fontSize: 12 },
+  saveButtonModal: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: '#0F172A', alignItems: 'center' },
+  saveButtonText: { color: '#FFFFFF', fontWeight: '700' },
 });
