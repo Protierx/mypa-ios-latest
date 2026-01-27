@@ -1,5 +1,20 @@
+# Dependencies
 node_modules/
+
+# Build outputs
 dist/
+backend/dist/
+
+# Environment
 .env
+backend/.env
+
+# Logs
 *.log
+
+# OS
 .DS_Store
+
+# Expo
+frontend/.expo/
+frontend/node_modules/
