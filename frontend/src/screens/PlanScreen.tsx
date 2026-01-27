@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -17,7 +17,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle } from 'react-native-svg';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { tasksApi } from '../services/api';
 
 interface PlanScreenProps {
@@ -295,28 +295,57 @@ export function PlanScreen({ navigation }: PlanScreenProps) {
   const [highlightedTaskTitle, setHighlightedTaskTitle] = useState<string | null>(null);
   const [showAddedBanner, setShowAddedBanner] = useState<string | null>(null);
 
+  // Function to load tasks from API
+  const loadTasksFromApi = useCallback(async () => {
+    try {
+      const apiResponse = await tasksApi.getAll();
+      console.log('Tasks API response:', apiResponse);
+      
+      // API returns { success: true, data: [tasks] } - data IS the array
+      const tasksData = apiResponse.data;
+      
+      if (apiResponse.success && Array.isArray(tasksData) && tasksData.length > 0) {
+        // Convert API tasks to local format
+        const apiTasks: Task[] = tasksData.map((task: any, index: number) => ({
+          id: task.id || Date.now() + index,
+          date: task.date || getTodayStr(),
+          time: task.time || '10:00 AM',
+          duration: task.durationMin ? formatDuration(task.durationMin) : '30m',
+          durationMin: task.durationMin || 30,
+          title: task.title,
+          category: task.category || 'Personal',
+          priority: task.priority === 'HIGH' ? 'High' : task.priority === 'LOW' ? 'Low' : 'Normal',
+          completed: task.completed || false,
+          isFixed: task.isFixed || false,
+        }));
+        setTasks(apiTasks);
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.warn('Failed to load tasks from API:', e);
+      return false;
+    }
+  }, []);
+
+  // Reload tasks when screen comes into focus (e.g., after adding from TaskSorting)
+  useFocusEffect(
+    useCallback(() => {
+      // Only reload if we're not in the initial loading state
+      if (!isLoading) {
+        loadTasksFromApi();
+      }
+    }, [isLoading, loadTasksFromApi])
+  );
+
+  // Initial load
   useEffect(() => {
     const loadData = async () => {
       try {
         // First, try to fetch from API
-        const apiResponse = await tasksApi.getAll();
+        const apiLoaded = await loadTasksFromApi();
         
-        if (apiResponse.success && apiResponse.data?.tasks && apiResponse.data.tasks.length > 0) {
-          // Convert API tasks to local format
-          const apiTasks: Task[] = apiResponse.data.tasks.map((task: any, index: number) => ({
-            id: task.id || Date.now() + index,
-            date: task.date || getTodayStr(),
-            time: task.time || '10:00 AM',
-            duration: task.durationMin ? formatDuration(task.durationMin) : '30m',
-            durationMin: task.durationMin || 30,
-            title: task.title,
-            category: task.category || 'Personal',
-            priority: task.priority === 'HIGH' ? 'High' : task.priority === 'LOW' ? 'Low' : 'Normal',
-            completed: task.completed || false,
-            isFixed: task.isFixed || false,
-          }));
-          setTasks(apiTasks);
-        } else {
+        if (!apiLoaded) {
           // Fallback to AsyncStorage if API returns no tasks
           const storedTasks = await AsyncStorage.getItem(STORAGE_KEYS.tasks);
           
@@ -389,7 +418,7 @@ export function PlanScreen({ navigation }: PlanScreenProps) {
     };
 
     loadData();
-  }, []);
+  }, [loadTasksFromApi]);
 
   useEffect(() => {
     if (isLoading) return;

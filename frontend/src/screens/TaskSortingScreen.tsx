@@ -407,8 +407,33 @@ export function TaskSortingScreen({ navigation: navProp }: TaskSortingScreenProp
     if (!selectedTask) return;
     
     try {
-      // Use AI to smart schedule this single task
-      const response = await brainDumpApi.smartSchedule([selectedTask.id], true);
+      // Get the selected date from dateOptions
+      const selectedDateOption = dateOptions[selectedDate];
+      const targetDate = selectedDateOption?.fullDate || new Date().toISOString().split('T')[0];
+      
+      // Format category properly (capitalize first letter)
+      const formatCategory = (cat?: string) => {
+        if (!cat) return 'Personal';
+        return cat.charAt(0).toUpperCase() + cat.slice(1).toLowerCase();
+      };
+      
+      console.log('Adding to plan:', { 
+        id: selectedTask.id, 
+        title: selectedTask.title, 
+        date: targetDate,
+        category: formatCategory(selectedTask.aiCategory)
+      });
+      
+      // Convert brain dump item to task with the selected date
+      const response = await brainDumpApi.convert(selectedTask.id, {
+        title: selectedTask.title,
+        category: formatCategory(selectedTask.aiCategory),
+        priority: selectedTask.aiPriority === 'urgent' ? 'HIGH' : selectedTask.aiPriority === 'low' ? 'LOW' : 'NORMAL',
+        durationMin: parseInt(selectedTask.estimatedTime?.replace(/[^\d]/g, '') || '30', 10) || 30,
+        date: targetDate,
+      });
+      
+      console.log('Convert response:', response);
       
       if (response.success && response.data) {
         // Task was created via backend, remove from local state
@@ -421,6 +446,9 @@ export function TaskSortingScreen({ navigation: navProp }: TaskSortingScreenProp
           setSelectedTask(null);
           try { navigation.navigate('Home', { screen: 'Plan' }); } catch { navigation.navigate('Plan'); }
         });
+      } else {
+        console.error('Convert failed:', response);
+        Alert.alert('Error', response.error || 'Failed to add task to plan. Please try again.');
       }
     } catch (error) {
       console.error('Failed to schedule task:', error);

@@ -5,7 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
 // Use your machine's LAN IP address - visible in Expo output
-const API_BASE_URL = 'http://192.168.1.165:3000';
+const API_BASE_URL = 'http://192.168.1.31:3000';
 
 // Storage keys
 const TOKEN_KEY = 'mypa_access_token';
