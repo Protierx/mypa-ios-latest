@@ -1,0 +1,521 @@
+// Prisma Schema for MYPA Backend
+// Run: npx prisma db push (to sync with database)
+// NOTE: Using SQLite for local development. Switch to PostgreSQL for production.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+// ==========================================
+// USER & AUTH
+// ==========================================
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  passwordHash  String
+  username      String?  @unique
+  name          String?
+  avatarUrl     String?
+  bio           String?
+  
+  // Gamification
+  xp            Int      @default(0)
+  level         Int      @default(1)
+  totalTimeSaved Int     @default(0)
+  
+  // Streaks
+  currentStreak Int      @default(0)
+  longestStreak Int      @default(0)
+  lastActiveDate DateTime?
+  
+  // Stats
+  tasksCompleted   Int   @default(0)
+  focusMinutes     Int   @default(0)
+  challengesWon    Int   @default(0)
+  
+  // Settings
+  timezone         String @default("UTC")
+  dailyGoalMinutes Int    @default(120)
+  
+  // Status
+  isActive      Boolean  @default(true)
+  isOnboarded   Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Relations
+  refreshTokens RefreshToken[]
+  tasks         Task[]
+  focusSessions FocusSession[]
+  brainDumpItems BrainDumpItem[]
+  
+  // Circles
+  ownedCircles    Circle[]       @relation("CircleOwner")
+  circleMemberships CircleMember[]
+  assignmentsCreated Assignment[] @relation("AssignmentCreator")
+  assignmentsReceived Assignment[] @relation("AssignmentAssignee")
+  
+  // Social
+  posts         Post[]
+  reactions     Reaction[]
+  challengeParticipations ChallengeParticipant[]
+  
+  // Achievements & Notifications
+  achievements  UserAchievement[]
+  notifications Notification[]
+  savedPlaces   SavedPlace[]
+  
+  // Settings
+  settings      UserSettings?
+  
+  // Google integration
+  googleRefreshToken String?
+  googleConnectedAt  DateTime?
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  
+  @@map("refresh_tokens")
+}
+
+model UserSettings {
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Notifications
+  pushEnabled         Boolean @default(true)
+  emailNotifications  Boolean @default(true)
+  remindersBefore     Int     @default(15)
+  
+  // Voice
+  voiceLanguage       String  @default("en")
+  voiceSpeed          String  @default("normal")
+  voiceName           String  @default("nova")
+  
+  // Privacy
+  profilePublic       Boolean @default(true)
+  showStreak          Boolean @default(true)
+  showLevel           Boolean @default(true)
+  
+  // Focus
+  focusSessionDefault Int     @default(25)
+  breakDuration       Int     @default(5)
+  longBreakDuration   Int     @default(15)
+  sessionsBeforeLongBreak Int @default(4)
+  
+  // Theme
+  theme               String  @default("system")
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("user_settings")
+}
+
+// ==========================================
+// TASKS & PRODUCTIVITY
+// ==========================================
+
+model Task {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  title       String
+  description String?
+  
+  // Scheduling
+  date        String?
+  time        String?
+  durationMin Int       @default(30)
+  isFixed     Boolean   @default(false)
+  
+  // Organization
+  category    String    @default("Personal")
+  priority    String    @default("NORMAL")
+  tags        String    @default("[]")
+  
+  // AI metadata
+  aiCategorized Boolean @default(false)
+  aiSuggestions String?
+  
+  // Status
+  completed   Boolean   @default(false)
+  completedAt DateTime?
+  
+  // Gamification
+  xpAwarded   Int       @default(0)
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  // Relations
+  focusSessions FocusSession[]
+  assignment    Assignment?
+
+  @@map("tasks")
+}
+
+model FocusSession {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  taskId         String?
+  task           Task?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  
+  // Timing
+  startedAt      DateTime @default(now())
+  endedAt        DateTime?
+  targetMinutes  Int      @default(25)
+  actualMinutes  Int      @default(0)
+  
+  // Status: ACTIVE, PAUSED, COMPLETED, ABANDONED
+  status         String   @default("ACTIVE")
+  pausedAt       DateTime?
+  totalPausedSec Int      @default(0)
+  
+  // Meta
+  category       String?
+  notes          String?
+  
+  // Gamification
+  xpAwarded      Int      @default(0)
+  
+  createdAt      DateTime @default(now())
+
+  @@map("focus_sessions")
+}
+
+model BrainDumpItem {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  content   String
+  
+  // AI processing
+  processed    Boolean  @default(false)
+  aiCategory   String?
+  aiPriority   String?
+  aiSuggestion String?
+  
+  // Conversion
+  convertedToTaskId String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("brain_dump_items")
+}
+
+// ==========================================
+// CIRCLES (SOCIAL ACCOUNTABILITY)
+// ==========================================
+
+model Circle {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  emoji       String   @default("👥")
+  color       String   @default("#8B5CF6")
+  
+  // Owner
+  ownerId     String
+  owner       User     @relation("CircleOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  
+  // Settings
+  isPrivate   Boolean  @default(false)
+  inviteCode  String   @unique @default(uuid())
+  maxMembers  Int      @default(20)
+  
+  // Stats
+  totalXp     Int      @default(0)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  members     CircleMember[]
+  assignments Assignment[]
+  posts       Post[]
+  challenges  Challenge[]
+
+  @@map("circles")
+}
+
+model CircleMember {
+  id       String   @id @default(uuid())
+  circleId String
+  circle   Circle   @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Role: OWNER, ADMIN, MEMBER
+  role     String   @default("MEMBER")
+  
+  // Stats within circle
+  xpContributed Int @default(0)
+  tasksCompleted Int @default(0)
+  
+  joinedAt DateTime @default(now())
+  
+  @@unique([circleId, userId])
+  @@map("circle_members")
+}
+
+// ==========================================
+// ASSIGNMENTS (CIRCLE TASKS)
+// ==========================================
+
+model Assignment {
+  id          String   @id @default(uuid())
+  circleId    String
+  circle      Circle   @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  
+  // Who created / assigned
+  creatorId   String
+  creator     User     @relation("AssignmentCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  
+  // Who it's assigned to
+  assigneeId  String
+  assignee    User     @relation("AssignmentAssignee", fields: [assigneeId], references: [id], onDelete: Cascade)
+  
+  // Task link (optional)
+  taskId      String?  @unique
+  task        Task?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  
+  // Assignment details
+  title       String
+  description String?
+  dueDate     DateTime?
+  
+  // Status: PENDING, ACCEPTED, DECLINED, COMPLETED, EXPIRED
+  status      String   @default("PENDING")
+  acceptedAt  DateTime?
+  completedAt DateTime?
+  
+  // Proof
+  proofUrl    String?
+  proofNote   String?
+  
+  // Gamification
+  xpReward    Int      @default(50)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("assignments")
+}
+
+// ==========================================
+// POSTS (CIRCLE FEED)
+// ==========================================
+
+model Post {
+  id        String   @id @default(uuid())
+  circleId  String
+  circle    Circle   @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  
+  // Type: DAILY_CARD, ACHIEVEMENT, MILESTONE, SYSTEM, TEXT
+  type      String   @default("DAILY_CARD")
+  content   String?
+  imageUrl  String?
+  
+  // Daily Card specific
+  tasksCompleted Int?
+  focusMinutes   Int?
+  streakDay      Int?
+  
+  createdAt DateTime @default(now())
+  
+  // Relations
+  reactions Reaction[]
+
+  @@map("posts")
+}
+
+model Reaction {
+  id      String @id @default(uuid())
+  postId  String
+  post    Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId  String
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  emoji   String @default("🔥")
+  
+  createdAt DateTime @default(now())
+  
+  @@unique([postId, userId])
+  @@map("reactions")
+}
+
+// ==========================================
+// CHALLENGES
+// ==========================================
+
+model Challenge {
+  id          String   @id @default(uuid())
+  circleId    String?
+  circle      Circle?  @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  
+  title       String
+  description String?
+  emoji       String   @default("🏆")
+  
+  // Type: FOCUS_MINUTES, TASKS_COMPLETED, STREAK_DAYS, CUSTOM
+  type        String   @default("FOCUS_MINUTES")
+  targetValue Int      @default(100)
+  
+  // Timing
+  startsAt    DateTime
+  endsAt      DateTime
+  
+  // Rewards
+  xpReward    Int      @default(100)
+  
+  // Status
+  isActive    Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  
+  // Relations
+  participants ChallengeParticipant[]
+
+  @@map("challenges")
+}
+
+model ChallengeParticipant {
+  id           String    @id @default(uuid())
+  challengeId  String
+  challenge    Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  progress     Int       @default(0)
+  rank         Int?
+  
+  joinedAt     DateTime  @default(now())
+  completedAt  DateTime?
+  
+  @@unique([challengeId, userId])
+  @@map("challenge_participants")
+}
+
+// ==========================================
+// ACHIEVEMENTS
+// ==========================================
+
+model Achievement {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  
+  name        String
+  description String
+  emoji       String
+  
+  // Type: TASKS_COMPLETED, STREAK_DAYS, FOCUS_MINUTES, LEVEL_REACHED, etc.
+  type        String
+  threshold   Int      @default(1)
+  
+  // Reward
+  xpReward    Int      @default(50)
+  
+  // Display
+  isHidden    Boolean  @default(false)
+  
+  // Relations
+  users       UserAchievement[]
+
+  @@map("achievements")
+}
+
+model UserAchievement {
+  id            String      @id @default(uuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievementId String
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+  
+  unlockedAt    DateTime    @default(now())
+  
+  @@unique([userId, achievementId])
+  @@map("user_achievements")
+}
+
+// ==========================================
+// NOTIFICATIONS
+// ==========================================
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Type: REMINDER, ASSIGNMENT, CIRCLE_INVITE, CHALLENGE, ACHIEVEMENT, STREAK, SYSTEM
+  type      String
+  title     String
+  body      String
+  data      String?
+  
+  read      Boolean  @default(false)
+  readAt    DateTime?
+  
+  createdAt DateTime @default(now())
+
+  @@map("notifications")
+}
+
+// ==========================================
+// SAVED PLACES
+// ==========================================
+
+model SavedPlace {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  name      String
+  address   String?
+  latitude  Float
+  longitude Float
+  
+  icon      String   @default("📍")
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("saved_places")
+}
+
+// ==========================================
+// PUSH TOKENS
+// ==========================================
+
+model PushToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  platform  String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("push_tokens")
+}

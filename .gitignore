@@ -1,8 +1,5 @@
 node_modules/
-.expo/
 dist/
-web-build/
+.env
 *.log
 .DS_Store
-*.local
-.cache/
