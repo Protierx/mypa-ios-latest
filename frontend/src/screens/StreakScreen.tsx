@@ -2,43 +2,70 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors } from '../styles/colors';
+import { useAuth } from '../contexts/AuthContext';
 
 interface StreakScreenProps {
   navigation?: any;
 }
 
+// Calculate XP multiplier based on streak
+const getXPMultiplier = (streak: number) => {
+  if (streak >= 60) return 3.0;
+  if (streak >= 30) return 2.5;
+  if (streak >= 14) return 2.0;
+  if (streak >= 7) return 1.5;
+  if (streak >= 3) return 1.2;
+  return 1.0;
+};
+
+// Calculate next milestone
+const getNextMilestone = (streak: number) => {
+  const milestones = [3, 7, 14, 30, 60, 100];
+  return milestones.find(m => m > streak) || 100;
+};
+
 export function StreakScreen({ navigation }: StreakScreenProps) {
+  const { user } = useAuth();
+
+  const currentStreak = user?.currentStreak || 0;
+  const longestStreak = user?.longestStreak || 0;
+  const xpMultiplier = getXPMultiplier(currentStreak);
+  const nextMilestone = getNextMilestone(currentStreak);
+  const daysToMilestone = nextMilestone - currentStreak;
+
   const streakData = {
-    currentStreak: 7,
-    longestStreak: 23,
-    totalDaysActive: 89,
-    xpMultiplier: 1.5,
-    nextMilestone: 14,
-    daysToMilestone: 7,
+    currentStreak,
+    longestStreak,
+    totalDaysActive: Math.max(currentStreak, longestStreak),
+    xpMultiplier,
+    nextMilestone,
+    daysToMilestone,
   };
 
   const today = new Date();
   const calendarDays = Array.from({ length: 28 }, (_, i) => {
     const date = new Date(today);
     date.setDate(today.getDate() - (27 - i));
-    const isActive = i >= 21;
+    // Mark days as active based on current streak
+    const daysAgo = 27 - i;
+    const isActive = daysAgo < currentStreak;
     const isToday = i === 27;
     return { date, isActive, isToday };
   });
 
   const milestones = [
-    { days: 3, reward: '1.2x XP', icon: 'flame', color: '#F97316', achieved: true },
-    { days: 7, reward: '1.5x XP', icon: 'flame', color: '#F97316', achieved: true, current: true },
-    { days: 14, reward: '2x XP', icon: 'diamond-stone', color: '#06B6D4', achieved: false },
-    { days: 30, reward: 'Streak Shield', icon: 'shield', color: '#3B82F6', achieved: false },
-    { days: 60, reward: 'Gold Badge', icon: 'trophy', color: '#F59E0B', achieved: false },
-    { days: 100, reward: 'Legend Status', icon: 'crown', color: '#EAB308', achieved: false },
+    { days: 3, reward: '1.2x XP', icon: 'flame', color: '#F97316', achieved: currentStreak >= 3 },
+    { days: 7, reward: '1.5x XP', icon: 'flame', color: '#F97316', achieved: currentStreak >= 7, current: currentStreak >= 7 && currentStreak < 14 },
+    { days: 14, reward: '2x XP', icon: 'diamond-stone', color: '#06B6D4', achieved: currentStreak >= 14, current: currentStreak >= 14 && currentStreak < 30 },
+    { days: 30, reward: 'Streak Shield', icon: 'shield', color: '#3B82F6', achieved: currentStreak >= 30, current: currentStreak >= 30 && currentStreak < 60 },
+    { days: 60, reward: 'Gold Badge', icon: 'trophy', color: '#F59E0B', achieved: currentStreak >= 60, current: currentStreak >= 60 && currentStreak < 100 },
+    { days: 100, reward: 'Legend Status', icon: 'crown', color: '#EAB308', achieved: currentStreak >= 100 },
   ];
 
   const streakBenefits = [
-    { icon: 'flash', title: '1.5x XP Multiplier', desc: 'All tasks give 50% more XP', active: true },
-    { icon: 'gift', title: 'Daily Bonus Chest', desc: 'Unlocks at 14 days', active: false },
-    { icon: 'shield', title: 'Streak Shield', desc: 'Unlocks at 30 days', active: false },
+    { icon: 'flash', title: `${xpMultiplier}x XP Multiplier`, desc: xpMultiplier > 1 ? `All tasks give ${Math.round((xpMultiplier - 1) * 100)}% more XP` : 'Build streak for bonus XP', active: xpMultiplier > 1 },
+    { icon: 'gift', title: 'Daily Bonus Chest', desc: 'Unlocks at 14 days', active: currentStreak >= 14 },
+    { icon: 'shield', title: 'Streak Shield', desc: 'Unlocks at 30 days', active: currentStreak >= 30 },
   ];
 
   return (

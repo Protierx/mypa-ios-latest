@@ -18,8 +18,7 @@ import { Ionicons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import * as Speech from 'expo-speech';
 import { colors } from '../styles/colors';
-import { processVoiceCommand, executeVoiceCommand, VoiceCommand } from '../services/voice';
-import { api } from '../services/api';
+import { getVoiceAssistant, VoiceCommand } from '../services/voiceAssistant';
 
 const { width, height } = Dimensions.get('window');
 
@@ -51,21 +50,41 @@ export function ListeningScreen({ visible, onClose }: ListeningScreenProps) {
   const floatAnim = useRef(new Animated.Value(0)).current;
   
   const [transcripts, setTranscripts] = useState<Transcript[]>([]);
+  const voiceAssistant = useRef(getVoiceAssistant()).current;
 
-  // Greet user when screen opens
+  // Greet user when screen opens with AI greeting
   useEffect(() => {
     if (visible && transcripts.length === 0) {
-      const greeting = getGreeting();
-      setTranscripts([{
-        id: 1,
-        text: greeting,
-        isUser: false,
-        time: "Just now"
-      }]);
-      Speech.speak(greeting, {
-        language: 'en-US',
-        rate: 1.0,
-      });
+      const greet = async () => {
+        try {
+          // Use AI chat for a personalized greeting
+          const response = await voiceAssistant.chat("Hello! What can you help me with?");
+          const greeting = response.message || getGreeting();
+          
+          setTranscripts([{
+            id: 1,
+            text: greeting,
+            isUser: false,
+            time: "Just now"
+          }]);
+          
+          // Use OpenAI TTS for human-like voice
+          await voiceAssistant.speak(greeting);
+        } catch {
+          const greeting = getGreeting();
+          setTranscripts([{
+            id: 1,
+            text: greeting,
+            isUser: false,
+            time: "Just now"
+          }]);
+          Speech.speak(greeting, {
+            language: 'en-US',
+            rate: 1.0,
+          });
+        }
+      };
+      greet();
     }
   }, [visible]);
   
@@ -137,46 +156,57 @@ export function ListeningScreen({ visible, onClose }: ListeningScreenProps) {
   const navigation = useNavigation();
   const [isProcessing, setIsProcessing] = useState(false);
   
-  // Process AI command and execute navigation/actions
+  // Process AI command using conversational chat
   const handleAICommand = async (text: string) => {
     setIsProcessing(true);
     
     try {
-      // Process the command through AI
-      const command = await processVoiceCommand(text);
-      
-      // Execute the command (navigate, create task, etc.)
-      const result = await executeVoiceCommand(command, navigation);
+      // Use the new conversational AI chat
+      const response = await voiceAssistant.chat(text);
       
       // Add AI response to transcripts
       setTranscripts(prev => [...prev, {
         id: prev.length + 1,
-        text: result.message,
+        text: response.message,
         isUser: false,
         time: "Just now"
       }]);
       
-      // Speak the response
-      Speech.speak(result.message, {
-        language: language === 'English' ? 'en-US' : 
-                  language === 'Spanish' ? 'es-ES' :
-                  language === 'French' ? 'fr-FR' : 'ar-SA',
-        rate: speed === 'Slow' ? 0.7 : speed === 'Fast' ? 1.3 : 1.0,
-      });
+      // Use OpenAI TTS for human-like voice
+      await voiceAssistant.speak(response.message);
       
-      // If command was successful and navigates away, close the listening screen
-      if (result.success && command.action === 'navigate') {
-        setTimeout(() => onClose(), 500);
+      // Handle any actions the AI wants to take
+      if (response.action && response.action.type !== 'none') {
+        switch (response.action.type) {
+          case 'navigation':
+            if (response.action.target || response.action.data?.screen) {
+              const screen = response.action.target || response.action.data?.screen;
+              setTimeout(() => {
+                onClose();
+                navigation.navigate(screen as never);
+              }, 500);
+            }
+            break;
+          case 'task':
+            // Task was already created by the backend AI
+            break;
+          case 'focus':
+            // Focus was already started by the backend AI
+            break;
+        }
       }
       
     } catch (error) {
       console.error('AI command error:', error);
+      const errorMsg = "Sorry, I couldn't process that request. Please try again.";
       setTranscripts(prev => [...prev, {
         id: prev.length + 1,
-        text: "Sorry, I couldn't process that request. Please try again.",
+        text: errorMsg,
         isUser: false,
         time: "Just now"
       }]);
+      // Use fallback speech
+      Speech.speak(errorMsg, { language: 'en-US', rate: 1.0 });
     } finally {
       setIsProcessing(false);
     }

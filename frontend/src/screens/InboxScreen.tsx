@@ -64,12 +64,21 @@ interface NotificationItem {
 
 type Feedback = { id: number; message: string; type: 'success' | 'info' } | null;
 
+type DelayedActionBase = { id: number; delayMs: number };
+
 type DelayedAction =
-  | { id: number; type: 'removeItem'; itemId: number; delayMs: number }
-  | { id: number; type: 'removeItemNavigate'; itemId: number; delayMs: number; target: string }
-  | { id: number; type: 'removeAssignment'; assignmentId: number; delayMs: number }
-  | { id: number; type: 'removeAssignmentNavigate'; assignmentId: number; delayMs: number; target: string }
-  | { id: number; type: 'clearSnooze'; itemId: number; delayMs: number };
+  | (DelayedActionBase & { type: 'removeItem'; itemId: number })
+  | (DelayedActionBase & { type: 'removeItemNavigate'; itemId: number; target: string })
+  | (DelayedActionBase & { type: 'removeAssignment'; assignmentId: number })
+  | (DelayedActionBase & { type: 'removeAssignmentNavigate'; assignmentId: number; target: string })
+  | (DelayedActionBase & { type: 'clearSnooze'; itemId: number });
+
+type DelayedActionInput =
+  | { type: 'removeItem'; itemId: number; delayMs: number }
+  | { type: 'removeItemNavigate'; itemId: number; delayMs: number; target: string }
+  | { type: 'removeAssignment'; assignmentId: number; delayMs: number }
+  | { type: 'removeAssignmentNavigate'; assignmentId: number; delayMs: number; target: string }
+  | { type: 'clearSnooze'; itemId: number; delayMs: number };
 
 const STORAGE_KEYS = {
   pendingPlanTasks: 'pendingPlanTasks',
@@ -262,8 +271,9 @@ export function InboxScreen({ navigation }: InboxScreenProps) {
   const scheduledRef = useRef<Map<number, NodeJS.Timeout>>(new Map());
   const nextActionId = useRef(1);
 
-  const enqueueAction = (action: Omit<DelayedAction, 'id'>) => {
-    setDelayedActions(prev => [...prev, { id: nextActionId.current++, ...action }]);
+  const enqueueAction = (action: DelayedActionInput) => {
+    const newAction: DelayedAction = { ...action, id: nextActionId.current++ };
+    setDelayedActions(prev => [...prev, newAction]);
   };
 
   useEffect(() => {

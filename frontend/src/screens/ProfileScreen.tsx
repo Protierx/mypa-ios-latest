@@ -44,7 +44,7 @@ interface Achievement {
 }
 
 export function ProfileScreen({ navigation }: ProfileScreenProps) {
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
   const [showAchievements, setShowAchievements] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
@@ -54,15 +54,19 @@ export function ProfileScreen({ navigation }: ProfileScreenProps) {
   const logoutOpacityAnim = useRef(new Animated.Value(0)).current;
   const logoutScaleAnim = useRef(new Animated.Value(0.9)).current;
 
-  // User stats and achievements
+  // Calculate XP needed for next level
+  const xpForNextLevel = (user?.level || 1) * 100;
+  const currentLevelXp = user?.xp ? user.xp % xpForNextLevel : 0;
+
+  // User stats from auth context
   const userStats = {
-    level: 12,
-    xp: 2460,
-    xpToNext: 340,
-    streak: 12,
-    timeSaved: '14h',
-    challengesWon: 8,
-    circlesJoined: 3,
+    level: user?.level || 1,
+    xp: user?.xp || 0,
+    xpToNext: xpForNextLevel - currentLevelXp,
+    streak: user?.currentStreak || 0,
+    timeSaved: user?.totalTimeSaved ? `${Math.round(user.totalTimeSaved / 60)}h` : '0h',
+    challengesWon: user?.challengesWon || 0,
+    circlesJoined: 0, // Will be fetched separately if needed
   };
 
   const achievements: Achievement[] = [
@@ -229,8 +233,8 @@ export function ProfileScreen({ navigation }: ProfileScreenProps) {
 
               {/* User Info */}
               <View style={styles.userInfo}>
-                <Text style={styles.userName}>Alex</Text>
-                <Text style={styles.userEmail}>alex@email.com</Text>
+                <Text style={styles.userName}>{user?.name || user?.email?.split('@')[0] || 'User'}</Text>
+                <Text style={styles.userEmail}>{user?.email || ''}</Text>
               </View>
 
               {/* Edit Button */}

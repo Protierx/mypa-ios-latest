@@ -4,7 +4,14 @@ import OpenAI from 'openai';
 import { env } from '../config/env.js';
 import { validateBody } from '../middleware/validation.js';
 import { authenticateToken } from '../middleware/auth.js';
-import { isAIConfigured, generateDailyBriefing } from '../services/ai.service.js';
+import { 
+  isAIConfigured, 
+  generateDailyBriefing,
+  conversationWithMYPA,
+  generateProactiveSuggestion,
+  generateEveningSummary,
+  suggestTaskOptimization,
+} from '../services/ai.service.js';
 import prisma from '../config/database.js';
 
 const router = Router();
@@ -22,12 +29,102 @@ const processCommandSchema = z.object({
   text: z.string().min(1).max(1000),
 });
 
+const conversationSchema = z.object({
+  message: z.string().min(1).max(2000),
+  conversationHistory: z.array(z.object({
+    role: z.enum(['user', 'assistant']),
+    content: z.string(),
+  })).optional(),
+});
+
 const transcribeSchema = z.object({
   audio: z.string(), // Base64 encoded audio
   language: z.string().optional(),
 });
 
-// POST /ai/process-command - Process voice command with AI
+// POST /ai/conversation - Full conversation with MYPA (main entry point)
+router.post(
+  '/conversation',
+  validateBody(conversationSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!openai) {
+        return res.status(503).json({
+          success: false,
+          error: 'AI is not configured',
+          code: 'AI_NOT_CONFIGURED',
+        });
+      }
+
+      const { message, conversationHistory } = req.body;
+      const userId = req.user!.id;
+
+      // Get user context
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { 
+          name: true, 
+          xp: true, 
+          level: true, 
+          currentStreak: true,
+        },
+      });
+
+      // Get user's tasks
+      const tasks = await prisma.task.findMany({
+        where: { userId },
+        orderBy: [{ date: 'asc' }, { priority: 'desc' }],
+        take: 20,
+        select: {
+          id: true,
+          title: true,
+          date: true,
+          priority: true,
+          completed: true,
+        },
+      });
+
+      // Get pending brain dumps
+      const pendingBrainDumps = await prisma.brainDumpItem.count({
+        where: { userId, processed: false },
+      });
+
+      // Have conversation with MYPA
+      const response = await conversationWithMYPA(
+        {
+          userId,
+          userName: user?.name || 'there',
+          message,
+          conversationHistory,
+        },
+        {
+          tasks: tasks.map(t => ({
+            id: t.id,
+            title: t.title,
+            date: t.date || undefined,
+            priority: t.priority,
+            completed: t.completed,
+          })),
+          streak: user?.currentStreak || 0,
+          level: user?.level || 1,
+          xp: user?.xp || 0,
+          pendingBrainDumps,
+        }
+      );
+
+      // If there's an action, we could execute it here or let frontend handle it
+      res.json({
+        success: true,
+        data: response,
+      });
+    } catch (error) {
+      console.error('MYPA conversation error:', error);
+      next(error);
+    }
+  }
+);
+
+// POST /ai/process-command - Process voice command with AI (legacy, redirects to conversation)
 router.post(
   '/process-command',
   validateBody(processCommandSchema),
@@ -299,5 +396,153 @@ If they ask about features, mention: tasks, focus sessions, brain dump, challeng
     }
   }
 );
+
+// GET /ai/suggestion - Get proactive suggestion based on context
+router.get('/suggestion', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    if (!isAIConfigured()) {
+      return res.json({ success: true, data: null });
+    }
+
+    const userId = req.user!.id;
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true, currentStreak: true },
+    });
+
+    const tasks = await prisma.task.findMany({
+      where: { userId, completed: false },
+      take: 10,
+    });
+
+    const pendingBrainDumps = await prisma.brainDumpItem.count({
+      where: { userId, processed: false },
+    });
+
+    const suggestion = await generateProactiveSuggestion(userId, {
+      userName: user?.name || 'there',
+      tasks: tasks.map(t => ({
+        title: t.title,
+        priority: t.priority,
+        date: t.date || undefined,
+        completed: t.completed,
+      })),
+      streak: user?.currentStreak || 0,
+      pendingBrainDumps,
+    });
+
+    res.json({
+      success: true,
+      data: suggestion,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /ai/evening-summary - Get evening wrap-up
+router.get('/evening-summary', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    if (!isAIConfigured()) {
+      return res.json({
+        success: true,
+        data: { summary: "Great work today! Rest up for tomorrow." },
+      });
+    }
+
+    const userId = req.user!.id;
+    const today = new Date().toISOString().split('T')[0];
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true, currentStreak: true },
+    });
+
+    // Count tasks completed today
+    const completedToday = await prisma.task.count({
+      where: {
+        userId,
+        completed: true,
+        completedAt: { gte: new Date(today) },
+      },
+    });
+
+    // Count tasks created today
+    const createdToday = await prisma.task.count({
+      where: {
+        userId,
+        createdAt: { gte: new Date(today) },
+      },
+    });
+
+    // Calculate focus time (placeholder - would need focus session tracking)
+    const focusMinutes = 0;
+
+    // Calculate XP earned today (placeholder)
+    const xpToday = completedToday * 25;
+
+    const summary = await generateEveningSummary({
+      userName: user?.name || 'there',
+      tasksCompletedToday: completedToday,
+      tasksCreatedToday: createdToday,
+      focusMinutesToday: focusMinutes,
+      streak: user?.currentStreak || 0,
+      xpEarnedToday: xpToday,
+    });
+
+    res.json({
+      success: true,
+      data: {
+        summary,
+        stats: {
+          completed: completedToday,
+          created: createdToday,
+          focusMinutes,
+          xpEarned: xpToday,
+        },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /ai/task-suggestions - Get task optimization suggestions
+router.get('/task-suggestions', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    if (!isAIConfigured()) {
+      return res.json({
+        success: true,
+        data: { suggestions: [] },
+      });
+    }
+
+    const userId = req.user!.id;
+
+    const tasks = await prisma.task.findMany({
+      where: { userId },
+      orderBy: { date: 'asc' },
+      take: 20,
+    });
+
+    const suggestions = await suggestTaskOptimization(
+      tasks.map(t => ({
+        title: t.title,
+        priority: t.priority,
+        category: t.category,
+        date: t.date || undefined,
+        completed: t.completed,
+      }))
+    );
+
+    res.json({
+      success: true,
+      data: suggestions,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
 
 export default router;

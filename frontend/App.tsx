@@ -177,11 +177,11 @@ export default function App() {
 }
 
 function AppContent() {
-  const { user, loading } = useAuth();
+  const { user, isLoading } = useAuth();
   const [showListening, setShowListening] = useState(false);
 
   // Show loading screen while checking auth
-  if (loading) {
+  if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
         <Image

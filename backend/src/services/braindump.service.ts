@@ -1,7 +1,7 @@
 import prisma from '../config/database.js';
 import { AppError } from '../middleware/error.js';
-import { categorizeBrainDump, isAIConfigured, CategorizedItem } from './ai.service.js';
-import { createTask } from './task.service.js';
+import { categorizeBrainDump, isAIConfigured, CategorizedItem, smartScheduleBrainDump, ScheduledTask } from './ai.service.js';
+import { createTask, getTasksForDate, createManyTasks } from './task.service.js';
 import { addXp } from './user.service.js';
 import { XP_REWARDS } from '../utils/xp.js';
 
@@ -263,3 +263,121 @@ export async function getBrainDumpStats(userId: string) {
     pendingReview: total - converted,
   };
 }
+
+/**
+ * Smart schedule brain dump items using AI
+ * Analyzes items and existing schedule to find optimal times
+ */
+export async function smartScheduleItems(
+  userId: string, 
+  itemIds: string[],
+  options?: {
+    autoCreate?: boolean; // If true, automatically create tasks
+  }
+) {
+  if (!isAIConfigured()) {
+    throw new AppError('AI is not configured', 503, 'AI_NOT_CONFIGURED');
+  }
+
+  // Get the brain dump items
+  const items = await prisma.brainDumpItem.findMany({
+    where: {
+      id: { in: itemIds },
+      userId,
+      convertedToTaskId: null, // Only unconverted items
+    },
+  });
+
+  if (items.length === 0) {
+    throw new AppError('No valid items to schedule', 400, 'NO_ITEMS');
+  }
+
+  // Get existing tasks for the next 7 days
+  const today = new Date();
+  const nextWeekDates: string[] = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(today);
+    d.setDate(today.getDate() + i);
+    nextWeekDates.push(d.toISOString().split('T')[0]);
+  }
+
+  const existingTasks = await prisma.task.findMany({
+    where: {
+      userId,
+      date: { in: nextWeekDates },
+      completed: false,
+    },
+    select: {
+      date: true,
+      time: true,
+      durationMin: true,
+      title: true,
+      category: true,
+    },
+  });
+
+  // Call AI to smart schedule
+  const scheduleResult = await smartScheduleBrainDump(
+    items.map(item => ({ id: item.id, content: item.content })),
+    existingTasks.map(t => ({
+      date: t.date || '',
+      time: t.time || undefined,
+      durationMin: t.durationMin,
+      title: t.title,
+      category: t.category,
+    }))
+  );
+
+  // If autoCreate is true, create the tasks
+  let createdTasks: any[] = [];
+  if (options?.autoCreate) {
+    const tasksToCreate = scheduleResult.scheduledTasks.map(scheduled => ({
+      title: scheduled.title,
+      category: scheduled.category,
+      priority: scheduled.priority,
+      date: scheduled.suggestedDate,
+      time: scheduled.suggestedTime,
+      durationMin: scheduled.durationMinutes,
+    }));
+
+    // Create tasks one by one to get IDs
+    for (const taskInput of tasksToCreate) {
+      const task = await createTask(userId, taskInput);
+      createdTasks.push(task);
+    }
+
+    // Mark brain dump items as converted
+    const itemIdToTaskId: Record<string, string> = {};
+    scheduleResult.scheduledTasks.forEach((scheduled, index) => {
+      if (createdTasks[index]) {
+        itemIdToTaskId[scheduled.originalId] = createdTasks[index].id;
+      }
+    });
+
+    // Update brain dump items
+    for (const item of items) {
+      if (itemIdToTaskId[item.id]) {
+        await prisma.brainDumpItem.update({
+          where: { id: item.id },
+          data: {
+            processed: true,
+            convertedToTaskId: itemIdToTaskId[item.id],
+            aiCategory: scheduleResult.scheduledTasks.find(s => s.originalId === item.id)?.category,
+            aiPriority: scheduleResult.scheduledTasks.find(s => s.originalId === item.id)?.priority,
+          },
+        });
+      }
+    }
+
+    // Award XP for smart scheduling
+    await addXp(userId, XP_REWARDS.BRAIN_DUMP_PROCESS * items.length, 'Smart scheduled tasks');
+  }
+
+  return {
+    scheduledTasks: scheduleResult.scheduledTasks,
+    summary: scheduleResult.summary,
+    createdTasks: options?.autoCreate ? createdTasks : undefined,
+    itemsProcessed: items.length,
+  };
+}
+

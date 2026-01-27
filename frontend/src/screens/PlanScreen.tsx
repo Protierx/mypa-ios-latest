@@ -18,6 +18,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle } from 'react-native-svg';
 import { useNavigation } from '@react-navigation/native';
+import { tasksApi } from '../services/api';
 
 interface PlanScreenProps {
   navigation?: any;
@@ -297,33 +298,52 @@ export function PlanScreen({ navigation }: PlanScreenProps) {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [storedTasks, storedSessions, storedStats] = await Promise.all([
-          AsyncStorage.getItem(STORAGE_KEYS.tasks),
+        // First, try to fetch from API
+        const apiResponse = await tasksApi.getAll();
+        
+        if (apiResponse.success && apiResponse.data?.tasks && apiResponse.data.tasks.length > 0) {
+          // Convert API tasks to local format
+          const apiTasks: Task[] = apiResponse.data.tasks.map((task: any, index: number) => ({
+            id: task.id || Date.now() + index,
+            date: task.date || getTodayStr(),
+            time: task.time || '10:00 AM',
+            duration: task.durationMin ? formatDuration(task.durationMin) : '30m',
+            durationMin: task.durationMin || 30,
+            title: task.title,
+            category: task.category || 'Personal',
+            priority: task.priority === 'HIGH' ? 'High' : task.priority === 'LOW' ? 'Low' : 'Normal',
+            completed: task.completed || false,
+            isFixed: task.isFixed || false,
+          }));
+          setTasks(apiTasks);
+        } else {
+          // Fallback to AsyncStorage if API returns no tasks
+          const storedTasks = await AsyncStorage.getItem(STORAGE_KEYS.tasks);
+          
+          if (storedTasks) {
+            const parsedTasks: any[] = JSON.parse(storedTasks);
+            const normalized = parsedTasks.map(task => {
+              const durationStr = typeof task.duration === 'number' ? formatDuration(task.duration) : task.duration || '30m';
+              const durationMin = task.durationMin ?? parseDuration(durationStr);
+              return {
+                ...task,
+                duration: durationStr,
+                durationMin,
+                priority: task.priority || 'Normal',
+              } as Task;
+            });
+            setTasks(normalized);
+          } else {
+            // No tasks anywhere - start with empty list for new users
+            setTasks([]);
+          }
+        }
+
+        // Load focus sessions and stats from local storage
+        const [storedSessions, storedStats] = await Promise.all([
           AsyncStorage.getItem(STORAGE_KEYS.sessions),
           AsyncStorage.getItem(STORAGE_KEYS.stats),
         ]);
-
-        if (storedTasks) {
-          const parsedTasks: any[] = JSON.parse(storedTasks);
-          const normalized = parsedTasks.map(task => {
-            const durationStr = typeof task.duration === 'number' ? formatDuration(task.duration) : task.duration || '30m';
-            const durationMin = task.durationMin ?? parseDuration(durationStr);
-            return {
-              ...task,
-              duration: durationStr,
-              durationMin,
-              priority: task.priority || 'Normal',
-            } as Task;
-          });
-          setTasks(normalized);
-        } else {
-          const todayStr = getTodayStr();
-          setTasks([
-            { id: 1, date: todayStr, time: '9:00 AM', duration: '30m', durationMin: 30, title: 'Morning planning', category: 'Personal', priority: 'Normal', completed: true, isFixed: false },
-            { id: 2, date: todayStr, time: '10:00 AM', duration: '1h', durationMin: 60, title: 'Review Q1 metrics', category: 'Work', priority: 'High', completed: false, isFixed: false },
-            { id: 3, date: todayStr, time: '2:00 PM', duration: '45m', durationMin: 45, title: 'Gym session', category: 'Health', priority: 'Normal', completed: false, isFixed: true },
-          ]);
-        }
 
         if (storedSessions) setFocusSessions(JSON.parse(storedSessions));
         if (storedStats) setFocusStats(JSON.parse(storedStats));

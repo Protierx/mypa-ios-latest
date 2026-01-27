@@ -17,15 +17,19 @@ import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { BlurView } from 'expo-blur';
+import { brainDumpApi } from '../services/api';
 
 // Types
 interface BrainDumpTask {
-  id: number;
+  id: string;
   title: string;
   status: 'unsorted' | 'reviewed' | 'planned';
   aiCategory?: 'work' | 'health' | 'personal' | 'learning' | 'social' | 'finance' | 'home';
   aiPriority?: 'urgent' | 'important' | 'normal' | 'low';
   estimatedTime?: string;
+  scheduledDate?: string;
+  scheduledTime?: string;
+  reasoning?: string;
   isNew: boolean;
   createdAt: string;
   source: 'voice' | 'typed' | 'ai-chat';
@@ -100,78 +104,20 @@ const quickTemplates = [
   { icon: 'handshake', label: 'Meeting', text: 'Meeting with ' },
 ];
 
-// Initial sample data
-const initialTasks: BrainDumpTask[] = [
-  {
-    id: 1,
-    title: 'Call dentist for appointment',
-    status: 'unsorted',
-    source: 'voice',
-    isStarred: true,
-    isNew: true,
-    createdAt: '10m ago',
-  },
-  {
-    id: 2,
-    title: 'Review Q1 metrics report',
-    status: 'unsorted',
-    source: 'ai-chat',
-    isStarred: false,
-    isNew: false,
-    createdAt: '5m ago',
-  },
-  {
-    id: 3,
-    title: 'Book flight for conference',
-    status: 'unsorted',
-    source: 'typed',
-    isStarred: false,
-    isNew: false,
-    createdAt: '2h ago',
-  },
-  {
-    id: 4,
-    title: 'Respond to team Slack messages',
-    status: 'reviewed',
-    aiCategory: 'work',
-    aiPriority: 'important',
-    estimatedTime: '20m',
-    source: 'voice',
-    isStarred: false,
-    isNew: true,
-    createdAt: '1h ago',
-  },
-  {
-    id: 5,
-    title: 'Learn new React patterns',
-    status: 'reviewed',
-    aiCategory: 'learning',
-    aiPriority: 'normal',
-    estimatedTime: '1h 30m',
-    source: 'ai-chat',
-    isStarred: false,
-    isNew: false,
-    createdAt: '3h ago',
-  },
-  {
-    id: 6,
-    title: 'Schedule gym session',
-    status: 'unsorted',
-    source: 'voice',
-    isStarred: false,
-    isNew: false,
-    createdAt: '5h ago',
-  },
-  {
-    id: 7,
-    title: 'Pay electricity bill',
-    status: 'unsorted',
-    source: 'typed',
-    isStarred: false,
-    isNew: false,
-    createdAt: '1d ago',
-  },
-];
+// Initial sample data - will be replaced with actual data from API
+const initialTasks: BrainDumpTask[] = [];
+
+// AI scheduled task result type
+interface AIScheduledTask {
+  originalId: string;
+  title: string;
+  category: string;
+  priority: 'LOW' | 'NORMAL' | 'HIGH';
+  suggestedDate: string;
+  suggestedTime: string;
+  durationMinutes: number;
+  reasoning: string;
+}
 
 export function TaskSortingScreen({ navigation: navProp }: TaskSortingScreenProps) {
   const navigation = navProp || useNavigation<any>();
@@ -186,15 +132,81 @@ export function TaskSortingScreen({ navigation: navProp }: TaskSortingScreenProp
   const [selectedDate, setSelectedDate] = useState(0);
   const [isAiProcessing, setIsAiProcessing] = useState(false);
   const [sortedTasks, setSortedTasks] = useState<(BrainDumpTask & { suggestedTime?: string })[]>([]);
-  const [showTaskMenu, setShowTaskMenu] = useState<number | null>(null);
-  const [completingTaskId, setCompletingTaskId] = useState<number | null>(null);
+  const [showTaskMenu, setShowTaskMenu] = useState<string | null>(null);
+  const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
+  const [aiSummary, setAiSummary] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(false);
   
   const inputRef = useRef<TextInput>(null);
   const aiSortTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const fadeAnims = useRef<{ [key: number]: Animated.Value }>({}).current;
-  const slideAnims = useRef<{ [key: number]: Animated.Value }>({}).current;
-  const checkAnims = useRef<{ [key: number]: Animated.Value }>({}).current;
+  const fadeAnims = useRef<{ [key: string]: Animated.Value }>({}).current;
+  const slideAnims = useRef<{ [key: string]: Animated.Value }>({}).current;
+  const checkAnims = useRef<{ [key: string]: Animated.Value }>({}).current;
   const spinAnim = useRef(new Animated.Value(0)).current;
+
+  // Load brain dump items from API on mount
+  useEffect(() => {
+    loadBrainDumpItems();
+  }, []);
+
+  const loadBrainDumpItems = async () => {
+    setIsLoading(true);
+    try {
+      const response = await brainDumpApi.getAll(false); // Get unprocessed items
+      if (response.success && response.data) {
+        const loadedTasks: BrainDumpTask[] = response.data.map((item: any) => ({
+          id: item.id,
+          title: item.content,
+          status: item.processed ? 'reviewed' : 'unsorted',
+          aiCategory: item.aiCategory?.toLowerCase(),
+          aiPriority: mapPriority(item.aiPriority),
+          estimatedTime: item.suggestion?.suggestedDuration ? `${item.suggestion.suggestedDuration}m` : undefined,
+          isNew: isWithinHours(item.createdAt, 1),
+          createdAt: formatTimeAgo(item.createdAt),
+          source: 'typed',
+          isStarred: false,
+        }));
+        setTasks(loadedTasks);
+      }
+    } catch (error) {
+      console.error('Failed to load brain dump items:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Helper to map priority from API format
+  const mapPriority = (priority?: string): BrainDumpTask['aiPriority'] => {
+    if (!priority) return undefined;
+    const map: Record<string, BrainDumpTask['aiPriority']> = {
+      'HIGH': 'urgent',
+      'NORMAL': 'normal',
+      'LOW': 'low',
+    };
+    return map[priority] || 'normal';
+  };
+
+  // Helper to check if date is within hours
+  const isWithinHours = (dateStr: string, hours: number): boolean => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    return (now.getTime() - date.getTime()) < hours * 60 * 60 * 1000;
+  };
+
+  // Helper to format time ago
+  const formatTimeAgo = (dateStr: string): string => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    return `${diffDays}d ago`;
+  };
 
   // Initialize animations for tasks
   useEffect(() => {
@@ -244,7 +256,7 @@ export function TaskSortingScreen({ navigation: navProp }: TaskSortingScreenProp
 
   const dateOptions = getDateOptions();
 
-  // AI Categorization Logic
+  // AI Categorization Logic (fallback for local processing)
   const categorizeTask = (title: string): { category: BrainDumpTask['aiCategory']; priority: BrainDumpTask['aiPriority']; time: string } => {
     const lowerTitle = title.toLowerCase();
     
@@ -295,39 +307,57 @@ export function TaskSortingScreen({ navigation: navProp }: TaskSortingScreenProp
     }
   };
 
-  // Add new task
-  const handleAddTask = () => {
+  // Add new task - saves to backend
+  const handleAddTask = async () => {
     if (!inputText.trim()) return;
     
-    const newTask: BrainDumpTask = {
-      id: Date.now(),
-      title: inputText.trim(),
-      status: 'unsorted',
-      source: 'typed',
-      isStarred: false,
-      isNew: true,
-      createdAt: 'Just now',
-    };
-    
-    fadeAnims[newTask.id] = new Animated.Value(0);
-    slideAnims[newTask.id] = new Animated.Value(30);
-    checkAnims[newTask.id] = new Animated.Value(0);
-    
-    setTasks([newTask, ...tasks]);
-    setInputText('');
-    
-    Animated.parallel([
-      Animated.timing(fadeAnims[newTask.id], { toValue: 1, duration: 300, useNativeDriver: true }),
-      Animated.timing(slideAnims[newTask.id], { toValue: 0, duration: 300, useNativeDriver: true }),
-    ]).start();
+    try {
+      // Create brain dump item via API
+      const response = await brainDumpApi.create(inputText.trim(), false);
+      
+      if (response.success && response.data) {
+        const newTask: BrainDumpTask = {
+          id: response.data.id,
+          title: inputText.trim(),
+          status: 'unsorted',
+          source: 'typed',
+          isStarred: false,
+          isNew: true,
+          createdAt: 'Just now',
+        };
+        
+        fadeAnims[newTask.id] = new Animated.Value(0);
+        slideAnims[newTask.id] = new Animated.Value(30);
+        checkAnims[newTask.id] = new Animated.Value(0);
+        
+        setTasks([newTask, ...tasks]);
+        setInputText('');
+        
+        Animated.parallel([
+          Animated.timing(fadeAnims[newTask.id], { toValue: 1, duration: 300, useNativeDriver: true }),
+          Animated.timing(slideAnims[newTask.id], { toValue: 0, duration: 300, useNativeDriver: true }),
+        ]).start();
+      }
+    } catch (error) {
+      console.error('Failed to create brain dump item:', error);
+      Alert.alert('Error', 'Failed to save. Please try again.');
+    }
   };
 
-  const handleToggleStar = (taskId: number) => {
+  const handleToggleStar = (taskId: string) => {
     setTasks(tasks.map(t => t.id === taskId ? { ...t, isStarred: !t.isStarred } : t));
   };
 
-  const handleCompleteTask = (taskId: number) => {
+  const handleCompleteTask = async (taskId: string) => {
     setCompletingTaskId(taskId);
+    
+    // Delete from backend
+    try {
+      await brainDumpApi.delete(taskId);
+    } catch (error) {
+      console.error('Failed to delete brain dump item:', error);
+    }
+    
     Animated.sequence([
       Animated.spring(checkAnims[taskId], { toValue: 1, useNativeDriver: true, tension: 100, friction: 5 }),
       Animated.delay(300),
@@ -341,7 +371,14 @@ export function TaskSortingScreen({ navigation: navProp }: TaskSortingScreenProp
     });
   };
 
-  const handleDeleteTask = (taskId: number) => {
+  const handleDeleteTask = async (taskId: string) => {
+    // Delete from backend
+    try {
+      await brainDumpApi.delete(taskId);
+    } catch (error) {
+      console.error('Failed to delete brain dump item:', error);
+    }
+    
     Animated.parallel([
       Animated.timing(fadeAnims[taskId], { toValue: 0, duration: 200, useNativeDriver: true }),
       Animated.timing(slideAnims[taskId], { toValue: 100, duration: 200, useNativeDriver: true }),
@@ -349,7 +386,7 @@ export function TaskSortingScreen({ navigation: navProp }: TaskSortingScreenProp
     setShowTaskMenu(null);
   };
 
-  const handleCategorizeTask = (taskId: number) => {
+  const handleCategorizeTask = (taskId: string) => {
     setTasks(tasks.map(t => {
       if (t.id === taskId) {
         const { category, priority, time } = categorizeTask(t.title);
@@ -369,34 +406,30 @@ export function TaskSortingScreen({ navigation: navProp }: TaskSortingScreenProp
   const handleConfirmAddToPlan = async () => {
     if (!selectedTask) return;
     
-    let taskToAdd = { ...selectedTask };
-    if (taskToAdd.status === 'unsorted') {
-      const { category, priority, time } = categorizeTask(taskToAdd.title);
-      taskToAdd = { ...taskToAdd, status: 'planned', aiCategory: category, aiPriority: priority, estimatedTime: time };
-    }
-    
-    const timeSlot = getSmartTimeSlot(taskToAdd, 0);
-    const planTask = { ...taskToAdd, scheduledDate: dateOptions[selectedDate].fullDate, scheduledTime: timeSlot };
-    
     try {
-      const existing = await AsyncStorage.getItem('pendingPlanTasks');
-      const pending = existing ? JSON.parse(existing) : [];
-      pending.push(planTask);
-      await AsyncStorage.setItem('pendingPlanTasks', JSON.stringify(pending));
-    } catch (e) { console.error('Error saving task:', e); }
-    
-    Animated.parallel([
-      Animated.timing(fadeAnims[selectedTask.id], { toValue: 0, duration: 300, useNativeDriver: true }),
-      Animated.timing(slideAnims[selectedTask.id], { toValue: -50, duration: 300, useNativeDriver: true }),
-    ]).start(() => {
-      setTasks(tasks.filter(t => t.id !== selectedTask.id));
-      setShowAddToPlanModal(false);
-      setSelectedTask(null);
-      try { navigation.navigate('Home', { screen: 'Plan' }); } catch { navigation.navigate('Plan'); }
-    });
+      // Use AI to smart schedule this single task
+      const response = await brainDumpApi.smartSchedule([selectedTask.id], true);
+      
+      if (response.success && response.data) {
+        // Task was created via backend, remove from local state
+        Animated.parallel([
+          Animated.timing(fadeAnims[selectedTask.id], { toValue: 0, duration: 300, useNativeDriver: true }),
+          Animated.timing(slideAnims[selectedTask.id], { toValue: -50, duration: 300, useNativeDriver: true }),
+        ]).start(() => {
+          setTasks(tasks.filter(t => t.id !== selectedTask.id));
+          setShowAddToPlanModal(false);
+          setSelectedTask(null);
+          try { navigation.navigate('Home', { screen: 'Plan' }); } catch { navigation.navigate('Plan'); }
+        });
+      }
+    } catch (error) {
+      console.error('Failed to schedule task:', error);
+      Alert.alert('Error', 'Failed to schedule task. Please try again.');
+    }
   };
 
-  const handleAiSort = () => {
+  // AI Smart Schedule - uses real AI backend
+  const handleAiSort = async () => {
     const unsortedTasks = tasks.filter(t => t.status === 'unsorted');
     if (unsortedTasks.length === 0) {
       Alert.alert('All Done!', 'No unsorted tasks to process.');
@@ -405,24 +438,90 @@ export function TaskSortingScreen({ navigation: navProp }: TaskSortingScreenProp
     
     setIsAiProcessing(true);
     setShowAiSortModal(true);
+    setAiSummary('');
     
     Animated.loop(Animated.timing(spinAnim, { toValue: 1, duration: 1000, useNativeDriver: true })).start();
     
-    if (aiSortTimerRef.current) {
-      clearTimeout(aiSortTimerRef.current);
-    }
-    aiSortTimerRef.current = setTimeout(() => {
+    try {
+      // Call AI smart schedule endpoint (without auto-create to preview first)
+      const response = await brainDumpApi.smartSchedule(
+        unsortedTasks.map(t => t.id),
+        false // Don't auto-create, just get suggestions
+      );
+      
+      if (response.success && response.data) {
+        const scheduledTasks = response.data.scheduledTasks as AIScheduledTask[];
+        
+        // Map AI results back to our task format
+        const categorized = scheduledTasks.map((scheduled) => {
+          const originalTask = unsortedTasks.find(t => t.id === scheduled.originalId);
+          return {
+            ...originalTask!,
+            id: scheduled.originalId,
+            title: scheduled.title,
+            status: 'reviewed' as const,
+            aiCategory: scheduled.category.toLowerCase() as BrainDumpTask['aiCategory'],
+            aiPriority: mapPriorityFromAI(scheduled.priority),
+            estimatedTime: formatDuration(scheduled.durationMinutes),
+            scheduledDate: scheduled.suggestedDate,
+            scheduledTime: formatTime12h(scheduled.suggestedTime),
+            reasoning: scheduled.reasoning,
+            suggestedTime: formatTime12h(scheduled.suggestedTime),
+          };
+        });
+        
+        setSortedTasks(categorized);
+        setAiSummary(response.data.summary || '');
+      }
+    } catch (error) {
+      console.error('AI scheduling failed:', error);
+      
+      // Fallback to local categorization
       const categorized = unsortedTasks.map((task, index) => {
         const { category, priority, time } = categorizeTask(task.title);
         return {
-          ...task, status: 'reviewed' as const, aiCategory: category, aiPriority: priority, estimatedTime: time,
+          ...task,
+          status: 'reviewed' as const,
+          aiCategory: category,
+          aiPriority: priority,
+          estimatedTime: time,
           suggestedTime: getSmartTimeSlot({ ...task, aiCategory: category, aiPriority: priority }, index),
         };
       });
       setSortedTasks(categorized);
+      setAiSummary('Scheduled using local intelligence (AI unavailable)');
+    } finally {
       setIsAiProcessing(false);
       spinAnim.setValue(0);
-    }, 1500);
+    }
+  };
+
+  // Helper to map AI priority format
+  const mapPriorityFromAI = (priority: string): BrainDumpTask['aiPriority'] => {
+    const map: Record<string, BrainDumpTask['aiPriority']> = {
+      'HIGH': 'urgent',
+      'NORMAL': 'normal',
+      'LOW': 'low',
+    };
+    return map[priority] || 'normal';
+  };
+
+  // Helper to format duration
+  const formatDuration = (minutes: number): string => {
+    if (minutes >= 60) {
+      const hours = Math.floor(minutes / 60);
+      const mins = minutes % 60;
+      return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+    }
+    return `${minutes}m`;
+  };
+
+  // Helper to format 24h time to 12h
+  const formatTime12h = (time24: string): string => {
+    const [hours, minutes] = time24.split(':').map(Number);
+    const period = hours >= 12 ? 'PM' : 'AM';
+    const hours12 = hours % 12 || 12;
+    return `${hours12}:${minutes.toString().padStart(2, '0')} ${period}`;
   };
 
   useEffect(() => {
@@ -431,22 +530,38 @@ export function TaskSortingScreen({ navigation: navProp }: TaskSortingScreenProp
     };
   }, []);
 
+  // Confirm AI sort and create tasks in backend
   const handleConfirmAiSort = async () => {
     try {
-      const today = new Date().toISOString().split('T')[0];
-      const planTasks = sortedTasks.map(task => ({ ...task, status: 'planned', scheduledDate: today, scheduledTime: task.suggestedTime }));
+      setIsAiProcessing(true);
       
-      const existing = await AsyncStorage.getItem('pendingPlanTasks');
-      const pending = existing ? JSON.parse(existing) : [];
-      await AsyncStorage.setItem('pendingPlanTasks', JSON.stringify([...pending, ...planTasks]));
+      // Call smart schedule with autoCreate=true to actually create the tasks
+      const response = await brainDumpApi.smartSchedule(
+        sortedTasks.map(t => t.id),
+        true // Now auto-create the tasks
+      );
       
-      const sortedIds = sortedTasks.map(t => t.id);
-      setTasks(tasks.filter(t => !sortedIds.includes(t.id)));
-      setShowAiSortModal(false);
-      setSortedTasks([]);
-      
-      try { navigation.navigate('Home', { screen: 'Plan' }); } catch { navigation.navigate('Plan'); }
-    } catch (e) { console.error('Error saving tasks:', e); }
+      if (response.success) {
+        // Remove scheduled tasks from local state
+        const sortedIds = sortedTasks.map(t => t.id);
+        setTasks(tasks.filter(t => !sortedIds.includes(t.id)));
+        setShowAiSortModal(false);
+        setSortedTasks([]);
+        setAiSummary('');
+        
+        // Navigate to Plan screen
+        try { 
+          navigation.navigate('Home', { screen: 'Plan' }); 
+        } catch { 
+          navigation.navigate('Plan'); 
+        }
+      }
+    } catch (error) {
+      console.error('Error creating tasks:', error);
+      Alert.alert('Error', 'Failed to create tasks. Please try again.');
+    } finally {
+      setIsAiProcessing(false);
+    }
   };
 
   const filteredTasks = tasks.filter(task => {

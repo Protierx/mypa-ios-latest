@@ -46,7 +46,14 @@ import {
   Play,
   Check,
   TrendingUp,
+  FileText,
+  Briefcase,
+  Heart,
+  Home,
 } from 'lucide-react-native';
+import { getVoiceAssistant } from '../services/voiceAssistant';
+import { useAuth } from '../contexts/AuthContext';
+import { tasksApi, focusApi } from '../services/api';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -62,6 +69,7 @@ interface BriefingItem {
 }
 
 export function HubScreen({ onVoiceClick, navigation }: HubScreenProps) {
+  const { user } = useAuth();
   const [greeting, setGreeting] = useState({ text: '', icon: Sun, period: 'day', timeOfDay: 'morning' });
   const [completedTasks, setCompletedTasks] = useState<number[]>([]);
   const [showBriefing, setShowBriefing] = useState(false);
@@ -72,8 +80,14 @@ export function HubScreen({ onVoiceClick, navigation }: HubScreenProps) {
   const [lastXpGain, setLastXpGain] = useState(0);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [activeInsightIndex, setActiveInsightIndex] = useState(0);
+  const [aiBriefing, setAiBriefing] = useState<string | null>(null);
+  const [aiSuggestion, setAiSuggestion] = useState<string | null>(null);
+  const [realTasks, setRealTasks] = useState<any[]>([]);
+  const [focusStats, setFocusStats] = useState<any>(null);
+  const [userStats, setUserStats] = useState<any>(null);
 
   const briefingTimer = useRef<NodeJS.Timeout | null>(null);
+  const voiceAssistant = useRef(getVoiceAssistant()).current;
 
   // Animation values
   const xpPopupAnim = useRef(new Animated.Value(0)).current;
@@ -150,6 +164,34 @@ export function HubScreen({ onVoiceClick, navigation }: HubScreenProps) {
       }
     };
     loadData();
+  }, []);
+
+  // Load AI data - tasks, focus stats, and proactive suggestion
+  useEffect(() => {
+    const loadAIData = async () => {
+      try {
+        // Fetch real tasks
+        const tasksRes = await tasksApi.getAll();
+        if (tasksRes.success && tasksRes.data?.tasks) {
+          setRealTasks(tasksRes.data.tasks.slice(0, 5));
+        }
+
+        // Fetch focus stats
+        const focusRes = await focusApi.getStats();
+        if (focusRes.success && focusRes.data) {
+          setFocusStats(focusRes.data);
+        }
+
+        // Get proactive AI suggestion
+        const suggestion = await voiceAssistant.getProactiveSuggestion();
+        if (suggestion) {
+          setAiSuggestion(suggestion);
+        }
+      } catch (e) {
+        console.error('Error loading AI data:', e);
+      }
+    };
+    loadAIData();
   }, []);
 
   // Dynamic greeting
@@ -315,20 +357,36 @@ export function HubScreen({ onVoiceClick, navigation }: HubScreenProps) {
     }
   }, [showXpPopup]);
 
-  const startBriefing = () => {
-    const briefingItems = getBriefingItems();
+  const startBriefing = async () => {
     setShowBriefing(true);
     setBriefingStep(0);
     setIsSpeaking(true);
-    playBriefingSequence(0, briefingItems);
 
-    // Use expo-speech
-    Speech.speak(briefingItems[0].text, {
-      rate: 0.95,
-      pitch: 1,
-      onDone: () => {},
-      onError: () => Alert.alert('Voice Briefing', 'Unable to play the briefing audio right now.'),
-    });
+    try {
+      // Get AI-generated morning briefing
+      const briefing = await voiceAssistant.getMorningBriefing();
+      setAiBriefing(briefing);
+
+      // Use OpenAI TTS for human-like voice
+      await voiceAssistant.speak(briefing);
+      setIsSpeaking(false);
+
+      // Award XP for listening to briefing
+      const bonusXp = 10;
+      awardXp(bonusXp);
+    } catch (error) {
+      console.error('AI Briefing error:', error);
+      // Fallback to static briefing
+      const briefingItems = getBriefingItems();
+      playBriefingSequence(0, briefingItems);
+
+      Speech.speak(briefingItems[0].text, {
+        rate: 0.95,
+        pitch: 1,
+        onDone: () => {},
+        onError: () => Alert.alert('Voice Briefing', 'Unable to play the briefing audio right now.'),
+      });
+    }
   };
 
   const playBriefingSequence = (step: number, briefingItems: BriefingItem[]) => {
@@ -379,26 +437,46 @@ export function HubScreen({ onVoiceClick, navigation }: HubScreenProps) {
     }
   };
 
-  // Today's data
+  // Calculate XP needed for next level (simple formula: level * 100)
+  const xpForNextLevel = (user?.level || 1) * 100;
+  const currentLevelXp = user?.xp ? user.xp % xpForNextLevel : 0;
+
+  // Today's data - using real user data from AuthContext
   const today = {
     date: new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' }),
-    userName: 'Alex',
-    streak: 7,
-    level: 12,
-    xp: 2460 + xpEarned,
-    xpToNext: 340 - xpEarned,
-    tasksCompleted: 4 + completedTasks.length,
-    totalTasks: 7,
-    timeSaved: 42,
-    focusMinutes: 180,
+    userName: user?.name || user?.email?.split('@')[0] || 'there',
+    streak: user?.currentStreak || 0,
+    level: user?.level || 1,
+    xp: (user?.xp || 0) + xpEarned,
+    xpToNext: xpForNextLevel - currentLevelXp - xpEarned,
+    tasksCompleted: (user?.tasksCompleted || 0) + completedTasks.length,
+    totalTasks: realTasks.length || 0,
+    timeSaved: user?.totalTimeSaved || 0,
+    focusMinutes: user?.focusMinutes || 0,
   };
 
-  // Priority tasks
-  const tasks = [
-    { id: 1, title: 'Review Q1 metrics', time: '5:00 PM', icon: BarChart3, category: 'Work', duration: '15m', priority: true },
-    { id: 2, title: 'Gym Session', time: '6:00 PM', icon: Dumbbell, category: 'Health', duration: '1h', priority: true },
-    { id: 3, title: 'Call Mom', time: 'Evening', icon: Phone, category: 'Personal', duration: '15m', priority: false },
-  ];
+  // Get icon for task category
+  const getCategoryIcon = (category: string) => {
+    switch (category?.toLowerCase()) {
+      case 'work': return Briefcase;
+      case 'health': return Heart;
+      case 'personal': return Home;
+      case 'fitness': return Dumbbell;
+      default: return FileText;
+    }
+  };
+
+  // Map real tasks to display format
+  const displayTasks = realTasks.slice(0, 3).map((task: any) => ({
+    id: task.id,
+    title: task.title,
+    time: task.time || (task.date ? new Date(task.date).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : 'Anytime'),
+    icon: getCategoryIcon(task.category),
+    category: task.category || 'Personal',
+    duration: task.durationMin ? `${task.durationMin}m` : '30m',
+    priority: task.priority === 'HIGH',
+    completed: task.completed,
+  }));
 
   const getCategoryStyle = (category: string) => {
     switch (category) {
@@ -608,7 +686,7 @@ export function HubScreen({ onVoiceClick, navigation }: HubScreenProps) {
                   </View>
                   <View>
                     <Text style={styles.sectionTitle}>Today's Focus</Text>
-                    <Text style={styles.sectionSubtitle}>{completedTasks.length}/{tasks.length} completed</Text>
+                    <Text style={styles.sectionSubtitle}>{displayTasks.filter((t: any) => t.completed).length}/{displayTasks.length} completed</Text>
                   </View>
                 </View>
                 <Pressable
@@ -629,20 +707,20 @@ export function HubScreen({ onVoiceClick, navigation }: HubScreenProps) {
                   <View
                     style={[
                       styles.progressFill,
-                      { width: `${(completedTasks.length / tasks.length) * 100}%` },
+                      { width: `${displayTasks.length > 0 ? (displayTasks.filter((t: any) => t.completed).length / displayTasks.length) * 100 : 0}%` },
                     ]}
                   />
                 </View>
                 <Text style={styles.progressText}>
-                  {Math.round((completedTasks.length / tasks.length) * 100)}%
+                  {displayTasks.length > 0 ? Math.round((displayTasks.filter((t: any) => t.completed).length / displayTasks.length) * 100) : 0}%
                 </Text>
               </View>
 
               {/* Task List */}
               <View style={styles.taskList}>
-                {tasks.map((task, index) => {
-                  const isCompleted = completedTasks.includes(task.id);
-                  const isNextUp = !isCompleted && !tasks.slice(0, index).some(t => !completedTasks.includes(t.id));
+                {displayTasks.length > 0 ? displayTasks.map((task: any, index: number) => {
+                  const isCompleted = task.completed || completedTasks.includes(task.id);
+                  const isNextUp = !isCompleted && !displayTasks.slice(0, index).some((t: any) => !(t.completed || completedTasks.includes(t.id)));
                   const catStyle = getCategoryStyle(task.category);
                   const TaskIcon = task.icon;
 
@@ -747,7 +825,11 @@ export function HubScreen({ onVoiceClick, navigation }: HubScreenProps) {
                       </View>
                     </Pressable>
                   );
-                })}
+                }) : (
+                  <View style={styles.emptyTasks}>
+                    <Text style={styles.emptyTasksText}>No tasks yet. Add your first task!</Text>
+                  </View>
+                )}
               </View>
 
               {/* Quick Add Button */}
@@ -1299,6 +1381,21 @@ const styles = StyleSheet.create({
   },
   taskList: {
     gap: 10,
+  },
+  emptyTasks: {
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderStyle: 'dashed',
+  },
+  emptyTasksText: {
+    fontSize: 14,
+    color: '#94a3b8',
+    textAlign: 'center',
   },
   taskCard: {
     position: 'relative',

@@ -273,6 +273,52 @@ export const brainDumpApi = {
     api.post(`/brain-dump/${id}/convert`, overrides || {}),
   delete: (id: string) => api.delete(`/brain-dump/${id}`),
   getStats: () => api.get('/brain-dump/stats'),
+  
+  // AI Smart Scheduling
+  smartSchedule: (itemIds: string[], autoCreate = true) =>
+    api.post('/brain-dump/smart-schedule', { itemIds, autoCreate }),
+  
+  // Quick schedule - takes raw text items and schedules them
+  quickSchedule: (items: string[], autoCreate = true) =>
+    api.post('/brain-dump/quick-schedule', { items, autoCreate }),
+};
+
+// AI API - MYPA Assistant
+export const aiApi = {
+  // Main conversation endpoint - use this for all AI interactions
+  conversation: (message: string, conversationHistory?: { role: 'user' | 'assistant'; content: string }[]) =>
+    api.post('/ai/conversation', { message, conversationHistory }),
+  
+  // Process voice command (simpler, action-focused)
+  processCommand: (text: string) => api.post('/ai/process-command', { text }),
+  
+  // Get morning briefing
+  getBriefing: () => api.get('/ai/briefing'),
+  
+  // Get evening summary
+  getEveningSummary: () => api.get('/ai/evening-summary'),
+  
+  // Get proactive suggestion
+  getSuggestion: () => api.get('/ai/suggestion'),
+  
+  // Get task optimization suggestions
+  getTaskSuggestions: () => api.get('/ai/task-suggestions'),
+  
+  // General chat (simple Q&A)
+  chat: (message: string) => api.post('/ai/chat', { message }),
+  
+  // Transcribe audio (Whisper)
+  transcribe: (audioBase64: string, language = 'en') =>
+    api.post('/ai/transcribe-base64', { audio: audioBase64, language }),
+};
+
+// TTS API - Text to Speech
+export const ttsApi = {
+  speak: (text: string, voice: 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer' = 'nova', speed = 1.0) =>
+    api.post('/tts/speak', { text, voice, speed }),
+  
+  stream: (text: string, voice: 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer' = 'nova', speed = 1.0) =>
+    api.post('/tts/stream', { text, voice, speed }),
 };
 
 export default api;

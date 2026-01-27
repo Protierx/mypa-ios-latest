@@ -2,46 +2,62 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { colors } from '../styles/colors';
+import { useAuth } from '../contexts/AuthContext';
 
 interface LevelScreenProps {
   navigation?: any;
 }
 
+// Calculate tier/rank based on level
+const getTierForLevel = (level: number) => {
+  if (level <= 5) return { name: 'Beginner', icon: 'sprout', color: '#10B981' };
+  if (level <= 10) return { name: 'Explorer', icon: 'compass', color: '#06B6D4' };
+  if (level <= 15) return { name: 'Rising Star', icon: 'star', color: '#8B5CF6' };
+  if (level <= 25) return { name: 'Champion', icon: 'trophy', color: '#F59E0B' };
+  if (level <= 40) return { name: 'Master', icon: 'diamond-stone', color: '#EC4899' };
+  return { name: 'Legend', icon: 'crown', color: '#EAB308' };
+};
+
 export function LevelScreen({ navigation }: LevelScreenProps) {
+  const { user } = useAuth();
+
+  // Calculate XP thresholds based on level (100 XP per level)
+  const currentLevel = user?.level || 1;
+  const currentXP = user?.xp || 0;
+  const xpPerLevel = 100;
+  const xpForCurrentLevel = (currentLevel - 1) * xpPerLevel;
+  const xpForNextLevel = currentLevel * xpPerLevel;
+  const tier = getTierForLevel(currentLevel);
+
   const levelData = {
-    currentLevel: 12,
-    currentXP: 2460,
-    xpForCurrentLevel: 2200,
-    xpForNextLevel: 2800,
-    totalXPEarned: 24600,
-    rank: 'Rising Star',
+    currentLevel,
+    currentXP,
+    xpForCurrentLevel,
+    xpForNextLevel,
+    totalXPEarned: currentXP,
+    rank: tier.name,
   };
 
   const xpProgress = ((levelData.currentXP - levelData.xpForCurrentLevel) / (levelData.xpForNextLevel - levelData.xpForCurrentLevel)) * 100;
   const xpToNext = levelData.xpForNextLevel - levelData.currentXP;
 
   const tiers = [
-    { level: '1-5', name: 'Beginner', icon: 'sprout', color: '#10B981' },
-    { level: '6-10', name: 'Explorer', icon: 'compass', color: '#06B6D4' },
-    { level: '11-15', name: 'Rising Star', icon: 'star', color: '#8B5CF6', current: true },
-    { level: '16-25', name: 'Champion', icon: 'trophy', color: '#F59E0B' },
-    { level: '26-40', name: 'Master', icon: 'diamond-stone', color: '#EC4899' },
-    { level: '41+', name: 'Legend', icon: 'crown', color: '#EAB308' },
+    { level: '1-5', name: 'Beginner', icon: 'sprout', color: '#10B981', current: currentLevel >= 1 && currentLevel <= 5 },
+    { level: '6-10', name: 'Explorer', icon: 'compass', color: '#06B6D4', current: currentLevel >= 6 && currentLevel <= 10 },
+    { level: '11-15', name: 'Rising Star', icon: 'star', color: '#8B5CF6', current: currentLevel >= 11 && currentLevel <= 15 },
+    { level: '16-25', name: 'Champion', icon: 'trophy', color: '#F59E0B', current: currentLevel >= 16 && currentLevel <= 25 },
+    { level: '26-40', name: 'Master', icon: 'diamond-stone', color: '#EC4899', current: currentLevel >= 26 && currentLevel <= 40 },
+    { level: '41+', name: 'Legend', icon: 'crown', color: '#EAB308', current: currentLevel >= 41 },
   ];
 
-  const recentXP = [
-    { action: 'Completed Daily Tasks', xp: 150, time: '2h ago', icon: 'checkmark-circle', color: '#10B981' },
-    { action: '7-Day Streak Bonus', xp: 100, time: '5h ago', icon: 'flame', color: '#F97316' },
-    { action: 'Circle Challenge Won', xp: 250, time: 'Yesterday', icon: 'trophy', color: '#F59E0B' },
-    { action: 'Morning Routine', xp: 75, time: 'Yesterday', icon: 'sunny', color: '#EC4899' },
-    { action: 'First Task of Day', xp: 50, time: 'Yesterday', icon: 'flash', color: '#8B5CF6' },
-  ];
+  // Recent XP will be empty for new users - could be fetched from API in future
+  const recentXP: { action: string; xp: number; time: string; icon: string; color: string }[] = [];
 
   const levelRewards = [
-    { level: 10, reward: 'Custom Themes', icon: 'color-palette', color: '#EC4899', unlocked: true },
-    { level: 12, reward: 'Priority Support', icon: 'people', color: '#8B5CF6', unlocked: true, current: true },
-    { level: 15, reward: 'Circle Leader Badge', icon: 'ribbon', color: '#F59E0B', unlocked: false },
-    { level: 20, reward: 'Unlimited Circles', icon: 'infinite', color: '#3B82F6', unlocked: false },
+    { level: 10, reward: 'Custom Themes', icon: 'color-palette', color: '#EC4899', unlocked: currentLevel >= 10 },
+    { level: 12, reward: 'Priority Support', icon: 'people', color: '#8B5CF6', unlocked: currentLevel >= 12, current: currentLevel >= 12 && currentLevel < 15 },
+    { level: 15, reward: 'Circle Leader Badge', icon: 'ribbon', color: '#F59E0B', unlocked: currentLevel >= 15 },
+    { level: 20, reward: 'Unlimited Circles', icon: 'infinite', color: '#3B82F6', unlocked: currentLevel >= 20 },
     { level: 25, reward: 'VIP Status', icon: 'diamond', color: '#06B6D4', unlocked: false },
   ];
 

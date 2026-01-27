@@ -173,4 +173,68 @@ router.delete('/:id', async (req: Request, res: Response, next: NextFunction) =>
   }
 });
 
+// POST /brain-dump/smart-schedule - AI smart schedule items
+const smartScheduleSchema = z.object({
+  itemIds: z.array(z.string()).min(1, 'At least one item required'),
+  autoCreate: z.boolean().optional().default(true),
+});
+
+router.post(
+  '/smart-schedule',
+  validateBody(smartScheduleSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = await brainDumpService.smartScheduleItems(
+        req.user!.id,
+        req.body.itemIds,
+        { autoCreate: req.body.autoCreate }
+      );
+
+      res.json({
+        success: true,
+        data: result,
+        message: `Intelligently scheduled ${result.itemsProcessed} items!`,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// POST /brain-dump/quick-schedule - Quick AI schedule for text input (no saved items)
+const quickScheduleSchema = z.object({
+  items: z.array(z.string().min(1).max(500)).min(1).max(20),
+  autoCreate: z.boolean().optional().default(true),
+});
+
+router.post(
+  '/quick-schedule',
+  validateBody(quickScheduleSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      // First create brain dump items
+      const createdItems = await Promise.all(
+        req.body.items.map((content: string) =>
+          brainDumpService.createBrainDumpItem(req.user!.id, { content, autoProcess: false })
+        )
+      );
+
+      // Then smart schedule them
+      const result = await brainDumpService.smartScheduleItems(
+        req.user!.id,
+        createdItems.map(item => item.id),
+        { autoCreate: req.body.autoCreate }
+      );
+
+      res.json({
+        success: true,
+        data: result,
+        message: `Intelligently scheduled ${result.itemsProcessed} items!`,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 export default router;
