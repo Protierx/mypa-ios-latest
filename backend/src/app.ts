@@ -11,6 +11,9 @@ import focusRoutes from './routes/focus.routes.js';
 import brainDumpRoutes from './routes/braindump.routes.js';
 import aiRoutes from './routes/ai.routes.js';
 import ttsRoutes from './routes/tts.routes.js';
+import circlesRoutes from './routes/circles.routes.js';
+import assignmentsRoutes, { circleAssignmentsRouter } from './routes/assignments.routes.js';
+import postsRoutes, { circleFeedRouter, circlePostsRouter } from './routes/posts.routes.js';
 
 export function createApp(): Application {
   const app = express();
@@ -46,9 +49,15 @@ export function createApp(): Application {
   app.use('/ai', aiRoutes);
   app.use('/tts', ttsRoutes);
 
+  // Phase 3: Social
+  app.use('/circles', circlesRoutes);
+  app.use('/circles/:circleId/assignments', circleAssignmentsRouter);
+  app.use('/circles/:circleId/feed', circleFeedRouter);
+  app.use('/circles/:circleId/posts', circlePostsRouter);
+  app.use('/assignments', assignmentsRoutes);
+  app.use('/posts', postsRoutes);
+
   // TODO: Add more routes as we implement them
-  // app.use('/circles', circlesRoutes);
-  // app.use('/assignments', assignmentsRoutes);
   // app.use('/challenges', challengesRoutes);
   // app.use('/notifications', notificationsRoutes);
   // app.use('/places', placesRoutes);

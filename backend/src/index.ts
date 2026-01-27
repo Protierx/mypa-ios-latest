@@ -1,6 +1,8 @@
+import { createServer } from 'http';
 import { createApp } from './app.js';
 import { env } from './config/env.js';
 import prisma from './config/database.js';
+import { initializeSocket } from './services/socket.service.js';
 
 async function main() {
   // Test database connection
@@ -13,14 +15,19 @@ async function main() {
   }
 
   const app = createApp();
+  
+  // Create HTTP server and initialize Socket.io
+  const server = createServer(app);
+  initializeSocket(server);
 
-  app.listen(env.PORT, () => {
+  server.listen(env.PORT, () => {
     console.log(`
 🚀 MYPA Backend v2.0.0
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📡 Server:     http://localhost:${env.PORT}
 🔧 Environment: ${env.NODE_ENV}
 📊 Database:   PostgreSQL
+🔌 WebSocket:  Enabled
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Available endpoints:
@@ -44,6 +51,30 @@ Available endpoints:
   PATCH  /tasks/:id
   POST   /tasks/:id/complete
   DELETE /tasks/:id
+
+  GET    /circles
+  POST   /circles
+  GET    /circles/:id
+  PATCH  /circles/:id
+  DELETE /circles/:id
+  POST   /circles/:id/join
+  POST   /circles/:id/leave
+  GET    /circles/:id/members
+  GET    /circles/:id/feed
+  POST   /circles/:id/posts
+  GET    /circles/:id/assignments
+  POST   /circles/:id/assignments
+
+  GET    /assignments/mine
+  GET    /assignments/:id
+  POST   /assignments/:id/accept
+  POST   /assignments/:id/decline
+  POST   /assignments/:id/complete
+
+  GET    /posts/:id
+  DELETE /posts/:id
+  POST   /posts/:id/react
+  DELETE /posts/:id/react
 
   GET    /health
 `);

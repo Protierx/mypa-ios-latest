@@ -4,8 +4,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
-// Use your machine's LAN IP address - visible in Expo output as 192.168.1.31
-const API_BASE_URL = 'http://192.168.1.31:3000';
+// Use your machine's LAN IP address - visible in Expo output
+const API_BASE_URL = 'http://192.168.1.165:3000';
 
 // Storage keys
 const TOKEN_KEY = 'mypa_access_token';
@@ -319,6 +319,89 @@ export const ttsApi = {
   
   stream: (text: string, voice: 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer' = 'nova', speed = 1.0) =>
     api.post('/tts/stream', { text, voice, speed }),
+};
+
+// Circles API
+export const circlesApi = {
+  // Circle CRUD
+  getAll: () => api.get('/circles'),
+  getById: (id: string) => api.get(`/circles/${id}`),
+  create: (data: { name: string; description?: string; emoji?: string; color?: string; isPrivate?: boolean }) =>
+    api.post('/circles', data),
+  update: (id: string, data: any) => api.patch(`/circles/${id}`, data),
+  delete: (id: string) => api.delete(`/circles/${id}`),
+  
+  // Membership
+  join: (id: string) => api.post(`/circles/${id}/join`),
+  joinByCode: (code: string) => api.post(`/circles/join/${code}`),
+  leave: (id: string) => api.post(`/circles/${id}/leave`),
+  previewByCode: (code: string) => api.get(`/circles/preview/${code}`),
+  
+  // Members
+  getMembers: (circleId: string) => api.get(`/circles/${circleId}/members`),
+  updateMemberRole: (circleId: string, userId: string, role: 'ADMIN' | 'MEMBER') =>
+    api.patch(`/circles/${circleId}/members/${userId}`, { role }),
+  kickMember: (circleId: string, userId: string) =>
+    api.delete(`/circles/${circleId}/members/${userId}`),
+  
+  // Invite code
+  regenerateInviteCode: (circleId: string) => api.post(`/circles/${circleId}/invite-code`),
+  
+  // Feed & Posts
+  getFeed: (circleId: string, options?: { type?: string; limit?: number; offset?: number }) => {
+    const params = new URLSearchParams();
+    if (options?.type) params.set('type', options.type);
+    if (options?.limit) params.set('limit', options.limit.toString());
+    if (options?.offset) params.set('offset', options.offset.toString());
+    const query = params.toString();
+    return api.get(`/circles/${circleId}/feed${query ? `?${query}` : ''}`);
+  },
+  createPost: (circleId: string, data: { type?: string; content?: string; imageUrl?: string }) =>
+    api.post(`/circles/${circleId}/posts`, data),
+  createDailyCard: (circleId: string) => api.post(`/circles/${circleId}/posts/daily-card`),
+  
+  // Assignments
+  getAssignments: (circleId: string, status?: string) => {
+    const query = status ? `?status=${status}` : '';
+    return api.get(`/circles/${circleId}/assignments${query}`);
+  },
+  createAssignment: (circleId: string, data: {
+    assigneeId: string;
+    title: string;
+    description?: string;
+    dueDate?: string;
+    xpReward?: number;
+  }) => api.post(`/circles/${circleId}/assignments`, data),
+};
+
+// Assignments API
+export const assignmentsApi = {
+  getMine: (options?: { role?: 'assignee' | 'creator'; status?: string }) => {
+    const params = new URLSearchParams();
+    if (options?.role) params.set('role', options.role);
+    if (options?.status) params.set('status', options.status);
+    const query = params.toString();
+    return api.get(`/assignments/mine${query ? `?${query}` : ''}`);
+  },
+  getCircleAssignments: (circleId: string, status?: string) => {
+    const query = status ? `?status=${status}` : '';
+    return api.get(`/circles/${circleId}/assignments${query}`);
+  },
+  getById: (id: string) => api.get(`/assignments/${id}`),
+  accept: (id: string) => api.post(`/assignments/${id}/accept`),
+  decline: (id: string) => api.post(`/assignments/${id}/decline`),
+  complete: (id: string, proof?: { proofUrl?: string; proofNote?: string }) =>
+    api.post(`/assignments/${id}/complete`, proof || {}),
+  delete: (id: string) => api.delete(`/assignments/${id}`),
+};
+
+// Posts API
+export const postsApi = {
+  getById: (id: string) => api.get(`/posts/${id}`),
+  delete: (id: string) => api.delete(`/posts/${id}`),
+  react: (id: string, emoji: string) => api.post(`/posts/${id}/react`, { emoji }),
+  removeReaction: (id: string) => api.delete(`/posts/${id}/react`),
+  getReactions: (id: string) => api.get(`/posts/${id}/reactions`),
 };
 
 export default api;

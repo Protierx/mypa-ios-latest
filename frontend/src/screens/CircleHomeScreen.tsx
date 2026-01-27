@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,12 +10,17 @@ import {
   Dimensions,
   Alert,
   Pressable,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
+import { circlesApi, assignmentsApi, postsApi, tasksApi } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
+import { useSocket, useSocketEvent } from '../services/socket';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -41,10 +46,12 @@ const Colors = {
 
 export default function CircleHomeScreen({ navigation, route }: { navigation: any; route: any }) {
   // Get circle data from route params with fallback
-  const { circle } = route?.params || {};
-  const circleId = circle?.id || 'circle-1';
-  const circleName = circle?.name || 'Morning Warriors';
+  const { circleId: paramCircleId, circleName: paramCircleName, inviteCode: paramInviteCode, circle } = route?.params || {};
+  const circleId = paramCircleId || circle?.id || 'circle-1';
+  const circleName = paramCircleName || circle?.name || 'Morning Warriors';
   const circleEmoji = circle?.emoji || '🏃';
+  
+  const { user } = useAuth();
 
   const [circleTab, setCircleTab] = useState('feed');
   const [showActionMenu, setShowActionMenu] = useState(false);
@@ -52,74 +59,39 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
   const [showInviteSheet, setShowInviteSheet] = useState(false);
   const [copySuccess, setCopySuccess] = useState<string | null>(null);
   const [feedFilter, setFeedFilter] = useState('all');
+  const [loadingMembers, setLoadingMembers] = useState(false);
+  const [memberSearchQuery, setMemberSearchQuery] = useState('');
 
-  const [circleMembers, setCircleMembers] = useState([
-    { id: 'a', initial: 'A', name: 'Alex', posted: true, lastPostTime: '2h ago', role: 'admin' },
-    { id: 'b', initial: 'B', name: 'Blake', posted: true, lastPostTime: '4h ago', role: 'member' },
-    { id: 'c', initial: 'C', name: 'Charlie', posted: false, role: 'member' },
-    { id: 'd', initial: 'D', name: 'Dana', posted: true, lastPostTime: '1h ago', role: 'member' },
-  ]);
+  const [circleMembers, setCircleMembers] = useState<Array<{
+    id: string;
+    odil?: string;
+    name: string;
+    posted: boolean;
+    lastPostTime?: string;
+    role: string;
+    initial: string;
+  }>>([]);
 
   const [userPosted, setUserPosted] = useState(false);
+  const [loadingFeed, setLoadingFeed] = useState(true);
+  const [loadingAssignments, setLoadingAssignments] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  
+  // Today's task stats for "Share My Day"
+  const [todayStats, setTodayStats] = useState({
+    completed: 0,
+    total: 0,
+    timeSaved: 0,
+  });
+
   const postedCount = circleMembers.filter(m => m.posted).length + (userPosted ? 1 : 0);
   const totalCount = circleMembers.length + 1;
 
-  const [posts, setPosts] = useState([
-    {
-      id: 1,
-      user: { initial: 'A', name: 'Alex' },
-      time: '2h ago',
-      type: 'receipt',
-      missions: { completed: 4, total: 5 },
-      wallet: '+26m',
-      streak: 6,
-      reactions: { heart: 2, fire: 1, clap: 0 },
-    },
-    {
-      id: 2,
-      user: { initial: 'B', name: 'Blake' },
-      time: '4h ago',
-      type: 'receipt',
-      missions: { completed: 5, total: 5 },
-      wallet: '+32m',
-      streak: 12,
-      reactions: { heart: 5, fire: 3, clap: 2 },
-    },
-    {
-      id: 3,
-      type: 'system',
-      systemType: 'assigned',
-      systemText: 'Morning workout assigned by Alex',
-      dueTime: 'Today at 7:00 AM',
-    },
-    {
-      id: 4,
-      user: { initial: 'D', name: 'Dana' },
-      time: '1h ago',
-      type: 'receipt',
-      missions: { completed: 3, total: 5 },
-      wallet: '+15m',
-      streak: 4,
-      reactions: { heart: 1, fire: 0, clap: 1 },
-    },
-  ]);
+  // Real posts from API - start empty
+  const [posts, setPosts] = useState<any[]>([]);
 
-  const [assignments, setAssignments] = useState([
-    {
-      id: 1,
-      title: 'Morning workout',
-      assignedBy: 'Alex',
-      dueTime: 'Today at 7:00 AM',
-      status: 'pending',
-    },
-    {
-      id: 2,
-      title: 'Read for 15 minutes',
-      assignedBy: 'Blake',
-      dueTime: 'Today at 8:00 PM',
-      status: 'accepted',
-    },
-  ]);
+  // Real assignments from API - start empty
+  const [assignments, setAssignments] = useState<any[]>([]);
 
   const [assignmentTitle, setAssignmentTitle] = useState('');
   const [assignmentDueTime, setAssignmentDueTime] = useState('18:00');
@@ -197,35 +169,342 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
   const [proofImage, setProofImage] = useState<string | null>(null);
   const [selectedAssignmentForProof, setSelectedAssignmentForProof] = useState<any>(null);
 
-  const inviteCode = 'MYPA-7K2P';
-  const inviteLink = 'https://mypa.app/invite/MYPA-7K2P';
+  const inviteCode = paramInviteCode || circle?.inviteCode || 'MYPA-7K2P';
+  const inviteLink = `https://mypa.app/invite/${inviteCode}`;
 
-  // Handle post check-in
-  const handlePostCheckin = () => {
-    setUserPosted(true);
-    Alert.alert(
-      '🎉 Check-in Posted!',
-      'Your progress has been shared with the circle.',
-      [{ text: 'Awesome!', style: 'default' }]
-    );
+  // Socket connection for real-time updates
+  const { connect, joinCircle, leaveCircle } = useSocket();
+
+  // Connect to socket and join circle room
+  useEffect(() => {
+    const setupSocket = async () => {
+      await connect();
+      joinCircle(circleId);
+    };
+    setupSocket();
+
+    return () => {
+      leaveCircle(circleId);
+    };
+  }, [circleId]);
+
+  // Real-time: New post in circle
+  useSocketEvent('post:new', (data: any) => {
+    if (data.circleId === circleId) {
+      console.log('📨 New post received:', data.post);
+      setPosts(prev => [data.post, ...prev]);
+    }
+  }, [circleId]);
+
+  // Real-time: Post deleted
+  useSocketEvent('post:deleted', (data: any) => {
+    if (data.circleId === circleId) {
+      setPosts(prev => prev.filter(p => p.id !== data.postId));
+    }
+  }, [circleId]);
+
+  // Real-time: Reaction on post
+  useSocketEvent('post:reaction', (data: any) => {
+    if (data.circleId === circleId) {
+      // Refresh posts to get updated reactions
+      fetchFeed();
+    }
+  }, [circleId]);
+
+  // Real-time: New member joined
+  useSocketEvent('circle:member_joined', (data: any) => {
+    if (data.circleId === circleId) {
+      console.log('📨 Member joined:', data.member);
+      fetchCircleMembers();
+    }
+  }, [circleId]);
+
+  // Real-time: Member left
+  useSocketEvent('circle:member_left', (data: any) => {
+    if (data.circleId === circleId) {
+      setCircleMembers(prev => prev.filter(m => m.id !== data.userId));
+    }
+  }, [circleId]);
+
+  // Real-time: New assignment created (for circle feed)
+  useSocketEvent('assignment:created', (data: any) => {
+    if (data.circleId === circleId) {
+      fetchAssignments();
+    }
+  }, [circleId]);
+
+  // Real-time: Assignment assigned to me
+  useSocketEvent('assignment:new', (data: any) => {
+    console.log('📨 New assignment for you:', data.assignment);
+    if (data.assignment?.circleId === circleId) {
+      fetchAssignments();
+      Alert.alert(
+        '🎯 New Mission!',
+        `You've been assigned: ${data.assignment.title}`,
+        [{ text: 'View', onPress: () => setCircleTab('challenges') }]
+      );
+    }
+  }, [circleId]);
+
+  // Real-time: Assignment status updated
+  useSocketEvent('assignment:updated', (data: any) => {
+    if (data.circleId === circleId) {
+      fetchAssignments();
+    }
+  }, [circleId]);
+
+  // Fetch circle members from API
+  // Load all data on mount and when circleId changes
+  useEffect(() => {
+    loadAllData();
+  }, [circleId]);
+
+  const loadAllData = async () => {
+    await Promise.all([
+      fetchCircleMembers(),
+      fetchFeed(),
+      fetchAssignments(),
+      fetchTodayStats(),
+    ]);
   };
 
-  // Handle reaction toggle
-  const handleReaction = (postId: number, reactionType: 'heart' | 'fire' | 'clap') => {
-    setPosts(prevPosts => 
-      prevPosts.map(post => {
-        if (post.id === postId && post.reactions) {
-          return {
-            ...post,
-            reactions: {
-              ...post.reactions,
-              [reactionType]: post.reactions[reactionType] + 1
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadAllData();
+    setRefreshing(false);
+  };
+
+  const fetchCircleMembers = async () => {
+    setLoadingMembers(true);
+    try {
+      const response = await circlesApi.getMembers(circleId);
+      if (response.success && response.data) {
+        // Transform API response - filter out current user
+        const members = response.data
+          .filter((m: any) => m.userId !== user?.id)
+          .map((m: any) => ({
+            id: m.userId,
+            name: m.user?.name || m.user?.username || 'Unknown',
+            initial: (m.user?.name || m.user?.username || 'U').charAt(0).toUpperCase(),
+            posted: m.hasPostedToday || false,
+            lastPostTime: m.lastPostTime,
+            role: m.role?.toLowerCase() || 'member',
+            avatarUrl: m.user?.avatarUrl,
+            xpContributed: m.xpContributed || 0,
+            tasksCompleted: m.tasksCompleted || 0,
+          }));
+        setCircleMembers(members);
+      } else {
+        setCircleMembers([]);
+      }
+    } catch (error) {
+      console.error('Failed to fetch circle members:', error);
+      setCircleMembers([]);
+    } finally {
+      setLoadingMembers(false);
+    }
+  };
+
+  const fetchFeed = async () => {
+    setLoadingFeed(true);
+    try {
+      const response = await circlesApi.getFeed(circleId);
+      if (response.success && response.data) {
+        // Transform API posts to match local format
+        const apiPosts = response.data.map((p: any) => ({
+          id: p.id,
+          user: {
+            id: p.authorId,
+            initial: (p.author?.name || p.author?.username || 'U').charAt(0).toUpperCase(),
+            name: p.author?.name || p.author?.username || 'Unknown',
+          },
+          time: formatTimeAgo(p.createdAt),
+          type: p.type === 'DAILY_CARD' ? 'receipt' : 'post',
+          content: p.content,
+          missions: p.tasksCompleted !== undefined ? { completed: p.tasksCompleted, total: p.totalTasks || 0 } : undefined,
+          wallet: p.timeSaved ? `+${p.timeSaved}m` : undefined,
+          streak: p.streak,
+          reactions: {
+            heart: p.reactions?.filter((r: any) => r.emoji === '❤️').length || 0,
+            fire: p.reactions?.filter((r: any) => r.emoji === '🔥').length || 0,
+            clap: p.reactions?.filter((r: any) => r.emoji === '👏').length || 0,
+          },
+        }));
+        setPosts(apiPosts);
+        
+        // Check if current user has posted today
+        const userPost = response.data.find((p: any) => 
+          p.authorId === user?.id && 
+          p.type === 'DAILY_CARD' &&
+          new Date(p.createdAt).toDateString() === new Date().toDateString()
+        );
+        setUserPosted(!!userPost);
+      } else {
+        setPosts([]);
+      }
+    } catch (error) {
+      console.error('Failed to fetch feed:', error);
+      setPosts([]);
+    } finally {
+      setLoadingFeed(false);
+    }
+  };
+
+  const fetchAssignments = async () => {
+    setLoadingAssignments(true);
+    try {
+      // Fetch assignments for this circle
+      const response = await assignmentsApi.getCircleAssignments(circleId);
+      if (response.success && response.data) {
+        const apiAssignments = response.data.map((a: any) => ({
+          id: a.id,
+          title: a.title,
+          description: a.description,
+          assignedBy: a.assigner?.name || a.assigner?.username || 'Unknown',
+          assignedTo: a.assignee?.name || a.assignee?.username || 'Unknown',
+          assignedToId: a.assigneeId,
+          dueTime: formatDueTime(a.dueDate),
+          dueDate: a.dueDate,
+          status: a.status?.toLowerCase() || 'pending',
+          proofUrl: a.proofUrl,
+          createdAt: a.createdAt,
+        }));
+        setAssignments(apiAssignments);
+      } else {
+        setAssignments([]);
+      }
+    } catch (error) {
+      console.error('Failed to fetch assignments:', error);
+      setAssignments([]);
+    } finally {
+      setLoadingAssignments(false);
+    }
+  };
+
+  const fetchTodayStats = async () => {
+    try {
+      // Get today's tasks to calculate real stats
+      const response = await tasksApi.getToday();
+      if (response.success && response.data) {
+        const tasks = response.data;
+        const completed = tasks.filter((t: any) => t.completed).length;
+        const total = tasks.length;
+        const timeSaved = tasks
+          .filter((t: any) => t.completed)
+          .reduce((sum: number, t: any) => sum + (t.durationMin || 0), 0);
+        
+        setTodayStats({ completed, total, timeSaved });
+      } else {
+        setTodayStats({ completed: 0, total: 0, timeSaved: 0 });
+      }
+    } catch (error) {
+      console.error('Failed to fetch today stats:', error);
+      setTodayStats({ completed: 0, total: 0, timeSaved: 0 });
+    }
+  };
+
+  // Helper to format time ago
+  const formatTimeAgo = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffMins < 1) return 'just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    return `${diffDays}d ago`;
+  };
+
+  // Helper to format due time
+  const formatDueTime = (dateString: string) => {
+    if (!dateString) return 'No due date';
+    const date = new Date(dateString);
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    
+    if (date.toDateString() === today.toDateString()) {
+      return `Today at ${timeStr}`;
+    } else if (date.toDateString() === tomorrow.toDateString()) {
+      return `Tomorrow at ${timeStr}`;
+    } else {
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ` at ${timeStr}`;
+    }
+  };
+
+  // Handle post check-in - Share My Day (posts daily card with real stats)
+  const [postingDailyCard, setPostingDailyCard] = useState(false);
+  
+  const handlePostCheckin = async () => {
+    if (userPosted) {
+      Alert.alert('Already Shared', 'You\'ve already shared your day with this circle today.');
+      return;
+    }
+
+    if (todayStats.total === 0) {
+      Alert.alert(
+        'No Tasks Today',
+        'You don\'t have any tasks scheduled for today. Add some tasks first!',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    setPostingDailyCard(true);
+    try {
+      const response = await circlesApi.createDailyCard(circleId);
+      if (response.success) {
+        setUserPosted(true);
+        // Refresh feed to show new post
+        await fetchFeed();
+        Alert.alert(
+          '🎉 Day Shared!',
+          `Your progress (${todayStats.completed}/${todayStats.total} tasks, +${todayStats.timeSaved}m saved) has been shared with the circle.`,
+          [{ text: 'Awesome!', style: 'default' }]
+        );
+      } else {
+        Alert.alert('Error', response.error || 'Failed to share your day');
+      }
+    } catch (error) {
+      console.error('Failed to post daily card:', error);
+      Alert.alert('Error', 'Failed to share your day. Please try again.');
+    } finally {
+      setPostingDailyCard(false);
+    }
+  };
+
+  // Handle reaction toggle - with real API call
+  const handleReaction = async (postId: string, reactionType: 'heart' | 'fire' | 'clap') => {
+    const emojiMap = { heart: '❤️', fire: '🔥', clap: '👏' };
+    const emoji = emojiMap[reactionType];
+    
+    try {
+      const response = await postsApi.react(postId, emoji);
+      if (response.success) {
+        // Optimistic update
+        setPosts(prevPosts => 
+          prevPosts.map(post => {
+            if (post.id === postId && post.reactions) {
+              return {
+                ...post,
+                reactions: {
+                  ...post.reactions,
+                  [reactionType]: post.reactions[reactionType] + 1
+                }
+              };
             }
-          };
-        }
-        return post;
-      })
-    );
+            return post;
+          })
+        );
+      }
+    } catch (error) {
+      console.error('Failed to add reaction:', error);
+    }
   };
 
   // Handle leave circle
@@ -303,7 +582,9 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
     }
   };
 
-  const handleCreateAssignment = () => {
+  const [creatingAssignment, setCreatingAssignment] = useState(false);
+
+  const handleCreateAssignment = async () => {
     if (!assignmentTitle.trim()) {
       Alert.alert('Error', 'Please enter a mission title');
       return;
@@ -313,42 +594,111 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
       return;
     }
 
-    // Format due time string
-    const dayLabel = dueDay === 'today' ? 'Today' : dueDay === 'tomorrow' ? 'Tomorrow' : customDueDate;
-    const timeLabel = formatTime(dueTime);
-    const dueString = `${dayLabel} at ${timeLabel}`;
-
-    const newAssignment = {
-      id: assignments.length + 1,
-      title: assignmentTitle,
-      assignedBy: 'You',
-      assignedTo: assignedMember.name,
-      dueTime: dueString,
-      status: 'pending',
-      requireProof: requireProof,
-      repeat: repeatEnabled ? repeatFrequency : null,
-    };
-
-    setAssignments([...assignments, newAssignment]);
-    
-    // Create system post with purple border styling
-    let systemText = `${assignedMember.name} assigned: ${assignmentTitle} (Due ${dueString})`;
-    if (repeatEnabled) {
-      systemText += ` · Repeats ${repeatFrequency}`;
+    // Calculate due date
+    let dueDate = new Date();
+    if (dueDay === 'tomorrow') {
+      dueDate.setDate(dueDate.getDate() + 1);
+    } else if (dueDay === 'custom' && customDueDate) {
+      dueDate = new Date(customDueDate);
     }
     
-    const newPost = {
-      id: posts.length + 1,
-      type: 'system',
-      systemType: 'assigned',
-      systemText: systemText,
-      dueTime: dueString,
-    };
-    setPosts([newPost as any, ...posts]);
-    
-    // Reset all form fields
-    resetAssignForm();
-    setShowAssignModal(false);
+    // Set the time
+    const [hours, minutes] = dueTime.split(':');
+    dueDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+
+    setCreatingAssignment(true);
+    try {
+      const response = await circlesApi.createAssignment(circleId, {
+        assigneeId: assignedMember.id,
+        title: assignmentTitle.trim(),
+        description: '',
+        dueDate: dueDate.toISOString(),
+        xpReward: 50,
+      });
+
+      if (response.success && response.data) {
+        // Refresh assignments list
+        await fetchAssignments();
+        // Refresh feed to show new system post
+        await fetchFeed();
+        
+        // Reset all form fields
+        resetAssignForm();
+        setShowAssignModal(false);
+        
+        Alert.alert('Success', `Mission assigned to ${assignedMember.name}!`);
+      } else {
+        Alert.alert('Error', response.error || 'Failed to create assignment');
+      }
+    } catch (error) {
+      console.error('Failed to create assignment:', error);
+      Alert.alert('Error', 'Failed to create assignment. Please try again.');
+    } finally {
+      setCreatingAssignment(false);
+    }
+  };
+
+  // Accept assignment
+  const handleAcceptAssignment = async (assignmentId: string) => {
+    try {
+      const response = await assignmentsApi.accept(assignmentId);
+      if (response.success) {
+        // Refresh assignments
+        await fetchAssignments();
+        Alert.alert('Accepted!', 'You\'ve accepted this mission.');
+      } else {
+        Alert.alert('Error', response.error || 'Failed to accept assignment');
+      }
+    } catch (error) {
+      console.error('Failed to accept assignment:', error);
+      Alert.alert('Error', 'Failed to accept assignment');
+    }
+  };
+
+  // Decline assignment
+  const handleDeclineAssignment = async (assignmentId: string) => {
+    Alert.alert(
+      'Decline Mission?',
+      'Are you sure you want to decline this mission?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Decline',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const response = await assignmentsApi.decline(assignmentId);
+              if (response.success) {
+                await fetchAssignments();
+                Alert.alert('Declined', 'Mission declined.');
+              } else {
+                Alert.alert('Error', response.error || 'Failed to decline');
+              }
+            } catch (error) {
+              console.error('Failed to decline assignment:', error);
+              Alert.alert('Error', 'Failed to decline assignment');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // Complete assignment
+  const handleCompleteAssignment = async (assignmentId: string) => {
+    try {
+      const response = await assignmentsApi.complete(assignmentId);
+      if (response.success) {
+        await fetchAssignments();
+        await fetchFeed(); // Refresh feed to show completion
+        Alert.alert('🎉 Complete!', 'Great job completing this mission!');
+      } else {
+        Alert.alert('Error', response.error || 'Failed to complete');
+      }
+    } catch (error) {
+      console.error('Failed to complete assignment:', error);
+      Alert.alert('Error', 'Failed to complete assignment');
+    }
   };
 
   // Helper to format time
@@ -399,32 +749,39 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
 
   // NEW: Handle Share Today
   const handleShareToday = () => {
+    if (todayStats.total === 0) {
+      Alert.alert(
+        'No Tasks Today',
+        'You don\'t have any tasks scheduled for today. Add some tasks first!',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
     setShowShareModal(true);
   };
 
-  // NEW: Handle Confirm Share
-  const handleConfirmShare = () => {
-    // Create receipt post
-    const newPost = {
-      id: posts.length + 1,
-      user: { initial: 'Y', name: 'You' },
-      time: 'Just now',
-      type: 'receipt',
-      missions: { completed: 4, total: 5 },
-      wallet: '+20m',
-      streak: 3,
-      reactions: { heart: 0, fire: 0, clap: 0 },
-      note: shareNote || undefined,
-      privacy: sharePrivacy,
-    };
-    
-    setPosts([newPost, ...posts]);
-    setUserPosted(true);
-    setShareNote('');
-    setSharePrivacy('full');
-    setShowShareModal(false);
-    
-    Alert.alert('🎉 Shared!', 'Your day has been shared with the circle.');
+  // NEW: Handle Confirm Share - posts real daily card
+  const handleConfirmShare = async () => {
+    setPostingDailyCard(true);
+    try {
+      const response = await circlesApi.createDailyCard(circleId);
+      if (response.success) {
+        setUserPosted(true);
+        // Refresh feed to show new post
+        await fetchFeed();
+        setShareNote('');
+        setSharePrivacy('full');
+        setShowShareModal(false);
+        Alert.alert('🎉 Shared!', 'Your day has been shared with the circle.');
+      } else {
+        Alert.alert('Error', response.error || 'Failed to share your day');
+      }
+    } catch (error) {
+      console.error('Failed to post daily card:', error);
+      Alert.alert('Error', 'Failed to share your day. Please try again.');
+    } finally {
+      setPostingDailyCard(false);
+    }
   };
 
   // NEW: Handle Share Link
@@ -727,7 +1084,18 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
       </View>
 
       {/* Content */}
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.content} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={Colors.primary}
+            colors={[Colors.primary]}
+          />
+        }
+      >
         {/* Feed Tab */}
         {circleTab === 'feed' && (
           <View>
@@ -932,10 +1300,59 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
               </View>
             </View>
 
-            {/* Posts */}
-            {posts.map(post => (
-              <PostCard key={post.id} post={post} />
-            ))}
+            {/* Posts - With Empty State and Loading */}
+            {loadingFeed ? (
+              <View style={{ padding: 40, alignItems: 'center' }}>
+                <ActivityIndicator size="large" color={Colors.primary} />
+                <Text style={{ marginTop: 12, color: Colors.textSecondary }}>Loading feed...</Text>
+              </View>
+            ) : posts.length === 0 ? (
+              <View style={{
+                padding: 40,
+                alignItems: 'center',
+                backgroundColor: Colors.surface,
+                borderRadius: 16,
+                marginTop: 8,
+              }}>
+                <Feather name="message-circle" size={48} color={Colors.textMuted} />
+                <Text style={{ 
+                  marginTop: 16, 
+                  fontSize: 16, 
+                  fontWeight: '600', 
+                  color: Colors.textPrimary,
+                  textAlign: 'center' 
+                }}>
+                  No posts yet
+                </Text>
+                <Text style={{ 
+                  marginTop: 8, 
+                  color: Colors.textSecondary, 
+                  textAlign: 'center',
+                  paddingHorizontal: 20,
+                }}>
+                  Be the first to share your day with the circle!
+                </Text>
+                {!userPosted && todayStats.total > 0 && (
+                  <TouchableOpacity 
+                    onPress={handleShareToday}
+                    style={{ marginTop: 16 }}
+                  >
+                    <LinearGradient
+                      colors={['#8b5cf6', '#ec4899']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={{ paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 }}
+                    >
+                      <Text style={{ color: Colors.white, fontWeight: '600' }}>Share Your Day</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                )}
+              </View>
+            ) : (
+              posts.map(post => (
+                <PostCard key={post.id} post={post} />
+              ))
+            )}
           </View>
         )}
 
@@ -943,7 +1360,7 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
         {circleTab === 'members' && (
           <View>
             <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionTitle}>MEMBERS ({totalCount})</Text>
+              <Text style={styles.sectionTitle}>MEMBERS ({circleMembers.length + 1})</Text>
               {isCurrentUserAdmin && (
                 <TouchableOpacity 
                   onPress={() => setShowCircleSettings(true)}
@@ -967,68 +1384,99 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
                     colors={['#a78bfa', '#7c3aed']}
                     style={styles.memberAvatar}
                   >
-                    <Text style={styles.memberAvatarText}>Y</Text>
+                    <Text style={styles.memberAvatarText}>
+                      {(user?.name || user?.username || 'Y').charAt(0).toUpperCase()}
+                    </Text>
                   </LinearGradient>
                   <View style={styles.memberDetails}>
                     <View style={styles.memberNameRow}>
                       <Text style={styles.memberName}>You</Text>
-                      <View style={styles.adminTagBadge}>
-                        <Text style={styles.adminTagText}>Admin</Text>
-                      </View>
-                    </View>
-                    <Text style={styles.memberRole}>Circle creator</Text>
-                  </View>
-                </View>
-                <Text style={styles.adminBadge}>👑</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-
-            {/* Other Members */}
-            {circleMembers.map(member => (
-              <TouchableOpacity 
-                key={member.id} 
-                activeOpacity={0.7}
-                onPress={() => isCurrentUserAdmin ? handleMemberOptions(member) : handleViewMember(member)}
-                onLongPress={() => isCurrentUserAdmin && handleMemberOptions(member)}
-                style={styles.memberCardPlain}
-              >
-                <View style={styles.memberInfo}>
-                  <LinearGradient
-                    colors={['#c4b5fd', '#8b5cf6']}
-                    style={styles.memberAvatar}
-                  >
-                    <Text style={styles.memberAvatarText}>{member.initial}</Text>
-                  </LinearGradient>
-                  <View style={styles.memberDetails}>
-                    <View style={styles.memberNameRow}>
-                      <Text style={styles.memberName}>{member.name}</Text>
-                      {member.role === 'admin' && (
+                      {isCurrentUserAdmin && (
                         <View style={styles.adminTagBadge}>
                           <Text style={styles.adminTagText}>Admin</Text>
                         </View>
                       )}
                     </View>
-                    <Text style={styles.memberStatus}>
-                      {member.posted ? `Posted ${member.lastPostTime}` : 'Not posted yet'}
+                    <Text style={styles.memberRole}>
+                      {userPosted ? 'Posted today' : 'Not posted yet'}
                     </Text>
                   </View>
                 </View>
-                <View style={styles.memberActions}>
-                  {member.posted && (
-                    <View style={styles.postedIndicator}>
-                      <Feather name="check" size={12} color={Colors.success} />
+                {isCurrentUserAdmin && <Text style={styles.adminBadge}>👑</Text>}
+                {userPosted && (
+                  <View style={styles.postedIndicator}>
+                    <Feather name="check" size={12} color={Colors.success} />
+                  </View>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
+
+            {/* Loading Members */}
+            {loadingMembers ? (
+              <View style={{ padding: 20, alignItems: 'center' }}>
+                <ActivityIndicator size="small" color={Colors.primary} />
+              </View>
+            ) : circleMembers.length === 0 ? (
+              <View style={{
+                padding: 30,
+                alignItems: 'center',
+                backgroundColor: Colors.surface,
+                borderRadius: 12,
+                marginTop: 8,
+              }}>
+                <Feather name="users" size={32} color={Colors.textMuted} />
+                <Text style={{ marginTop: 8, color: Colors.textSecondary, textAlign: 'center' }}>
+                  You're the only one here!{'\n'}Invite friends to join your circle.
+                </Text>
+              </View>
+            ) : (
+              /* Other Members */
+              circleMembers.map(member => (
+                <TouchableOpacity 
+                  key={member.id} 
+                  activeOpacity={0.7}
+                  onPress={() => isCurrentUserAdmin ? handleMemberOptions(member) : handleViewMember(member)}
+                  onLongPress={() => isCurrentUserAdmin && handleMemberOptions(member)}
+                  style={styles.memberCardPlain}
+                >
+                  <View style={styles.memberInfo}>
+                    <LinearGradient
+                      colors={['#c4b5fd', '#8b5cf6']}
+                      style={styles.memberAvatar}
+                    >
+                      <Text style={styles.memberAvatarText}>{member.initial}</Text>
+                    </LinearGradient>
+                    <View style={styles.memberDetails}>
+                      <View style={styles.memberNameRow}>
+                        <Text style={styles.memberName}>{member.name}</Text>
+                        {member.role === 'admin' && (
+                          <View style={styles.adminTagBadge}>
+                            <Text style={styles.adminTagText}>Admin</Text>
+                          </View>
+                        )}
+                      </View>
+                      <Text style={styles.memberStatus}>
+                        {member.posted ? `Posted ${member.lastPostTime || 'today'}` : 'Not posted yet'}
+                      </Text>
                     </View>
-                  )}
-                  {member.role === 'admin' && <Text style={styles.adminBadge}>👑</Text>}
-                  <TouchableOpacity 
-                    onPress={() => handleAssignToMember(member)}
-                    style={styles.assignToMemberButton}
-                  >
-                    <Feather name="plus" size={18} color={Colors.primary} />
-                  </TouchableOpacity>
-                </View>
-              </TouchableOpacity>
-            ))}
+                  </View>
+                  <View style={styles.memberActions}>
+                    {member.posted && (
+                      <View style={styles.postedIndicator}>
+                        <Feather name="check" size={12} color={Colors.success} />
+                      </View>
+                    )}
+                    {member.role === 'admin' && <Text style={styles.adminBadge}>👑</Text>}
+                    <TouchableOpacity 
+                      onPress={() => handleAssignToMember(member)}
+                      style={styles.assignToMemberButton}
+                    >
+                      <Feather name="plus" size={18} color={Colors.primary} />
+                    </TouchableOpacity>
+                  </View>
+                </TouchableOpacity>
+              ))
+            )}
 
             {/* Invite Members Button */}
             <TouchableOpacity 
@@ -1046,52 +1494,132 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
           <View>
             <Text style={styles.sectionTitle}>CHALLENGES</Text>
             
-            {assignments.map(assignment => (
-              <View key={assignment.id} style={styles.challengeCard}>
+            {loadingAssignments ? (
+              <View style={{ padding: 40, alignItems: 'center' }}>
+                <ActivityIndicator size="large" color={Colors.primary} />
+                <Text style={{ marginTop: 12, color: Colors.textSecondary }}>Loading challenges...</Text>
+              </View>
+            ) : assignments.length === 0 ? (
+              <View style={{
+                padding: 40,
+                alignItems: 'center',
+                backgroundColor: Colors.surface,
+                borderRadius: 16,
+                marginTop: 8,
+              }}>
+                <Feather name="target" size={48} color={Colors.textMuted} />
+                <Text style={{ 
+                  marginTop: 16, 
+                  fontSize: 16, 
+                  fontWeight: '600', 
+                  color: Colors.textPrimary,
+                  textAlign: 'center' 
+                }}>
+                  No challenges yet
+                </Text>
+                <Text style={{ 
+                  marginTop: 8, 
+                  color: Colors.textSecondary, 
+                  textAlign: 'center',
+                  paddingHorizontal: 20,
+                }}>
+                  Assign missions to circle members to create accountability challenges.
+                </Text>
                 <TouchableOpacity 
-                  activeOpacity={0.7}
-                  onPress={() => handleChallengeAction(assignment)}
+                  onPress={() => setShowAssignModal(true)}
+                  style={{ marginTop: 16 }}
                 >
-                  <View style={styles.challengeHeader}>
-                    <View style={styles.challengeInfo}>
-                      <Text style={styles.challengeTitle}>{assignment.title}</Text>
-                      <Text style={styles.challengeAssigner}>Assigned by {assignment.assignedBy}</Text>
-                    </View>
-                    <View style={[
-                      styles.statusBadge,
-                      assignment.status === 'pending' ? styles.statusPending : styles.statusAccepted
-                    ]}>
-                      <Text style={[
-                        styles.statusText,
-                        assignment.status === 'pending' ? styles.statusTextPending : styles.statusTextAccepted
-                      ]}>
-                        {assignment.status.charAt(0).toUpperCase() + assignment.status.slice(1)}
-                      </Text>
-                    </View>
-                  </View>
-                  <Text style={styles.challengeDueTime}>⏰ {assignment.dueTime}</Text>
-                </TouchableOpacity>
-                
-                {/* Progress Bar */}
-                <View style={styles.challengeProgress}>
-                  <View style={styles.challengeProgressTrack}>
-                    <View style={[styles.challengeProgressFill, { width: '60%' }]} />
-                  </View>
-                  <Text style={styles.challengeProgressText}>3/5 days</Text>
-                </View>
-                
-                {/* Log Today Button */}
-                <TouchableOpacity 
-                  style={styles.logTodayButton}
-                  onPress={() => {
-                    Alert.alert('Logged!', `Today's progress for "${assignment.title}" has been logged.`);
-                  }}
-                >
-                  <Feather name="check-circle" size={16} color={Colors.primary} />
-                  <Text style={styles.logTodayButtonText}>Log Today</Text>
+                  <LinearGradient
+                    colors={['#7c3aed', '#a78bfa']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={{ paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 }}
+                  >
+                    <Text style={{ color: Colors.white, fontWeight: '600' }}>Assign Mission</Text>
+                  </LinearGradient>
                 </TouchableOpacity>
               </View>
-            ))}
+            ) : (
+              assignments.map(assignment => (
+                <View key={assignment.id} style={styles.challengeCard}>
+                  <TouchableOpacity 
+                    activeOpacity={0.7}
+                    onPress={() => handleChallengeAction(assignment)}
+                  >
+                    <View style={styles.challengeHeader}>
+                      <View style={styles.challengeInfo}>
+                        <Text style={styles.challengeTitle}>{assignment.title}</Text>
+                        <Text style={styles.challengeAssigner}>
+                          {assignment.assignedToId === user?.id 
+                            ? `Assigned by ${assignment.assignedBy}` 
+                            : `Assigned to ${assignment.assignedTo}`}
+                        </Text>
+                      </View>
+                      <View style={[
+                        styles.statusBadge,
+                        assignment.status === 'pending' ? styles.statusPending : 
+                        assignment.status === 'accepted' ? styles.statusAccepted :
+                        assignment.status === 'completed' ? { backgroundColor: Colors.successLight } :
+                        styles.statusPending
+                      ]}>
+                        <Text style={[
+                          styles.statusText,
+                          assignment.status === 'pending' ? styles.statusTextPending : 
+                          assignment.status === 'completed' ? { color: Colors.success } :
+                          styles.statusTextAccepted
+                        ]}>
+                          {assignment.status.charAt(0).toUpperCase() + assignment.status.slice(1)}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={styles.challengeDueTime}>⏰ {assignment.dueTime}</Text>
+                  </TouchableOpacity>
+                  
+                  {/* Action buttons for pending assignments */}
+                  {assignment.status === 'pending' && assignment.assignedToId === user?.id && (
+                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+                      <TouchableOpacity 
+                        style={{
+                          flex: 1,
+                          backgroundColor: Colors.primaryLight,
+                          paddingVertical: 10,
+                          borderRadius: 8,
+                          alignItems: 'center',
+                        }}
+                        onPress={() => handleAcceptAssignment(assignment.id)}
+                      >
+                        <Text style={{ color: Colors.primary, fontWeight: '600' }}>Accept</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity 
+                        style={{
+                          flex: 1,
+                          backgroundColor: Colors.surface,
+                          paddingVertical: 10,
+                          borderRadius: 8,
+                          alignItems: 'center',
+                          borderWidth: 1,
+                          borderColor: Colors.border,
+                        }}
+                        onPress={() => handleDeclineAssignment(assignment.id)}
+                      >
+                        <Text style={{ color: Colors.textSecondary, fontWeight: '600' }}>Decline</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                  
+                  {/* Complete button for accepted assignments */}
+                  {assignment.status === 'accepted' && assignment.assignedToId === user?.id && (
+                    <TouchableOpacity 
+                      style={styles.logTodayButton}
+                      onPress={() => handleCompleteAssignment(assignment.id)}
+                    >
+                      <Feather name="check-circle" size={16} color={Colors.primary} />
+                      <Text style={styles.logTodayButtonText}>Mark Complete</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              ))
+            )}
 
             {/* Start New Challenge Button */}
             <TouchableOpacity
@@ -1574,73 +2102,141 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
                 </TouchableOpacity>
               </View>
             </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Member Picker Modal (Nested) */}
-      <Modal
-        visible={showMemberPicker}
-        animationType="fade"
-        transparent={true}
-        presentationStyle="overFullScreen"
-        onRequestClose={() => setShowMemberPicker(false)}
-      >
-        <View style={styles.modalOverlay} pointerEvents="box-none">
-          <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFillObject} />
-          <Pressable
-            style={StyleSheet.absoluteFillObject}
-            onPress={() => setShowMemberPicker(false)}
-          />
-          <View
-            style={styles.memberPickerSheet}
-            pointerEvents="auto"
-            onStartShouldSetResponder={() => true}
-          >
-            <View style={styles.sheetHandle} />
             
-            {/* Header */}
-            <View style={styles.assignModalHeader}>
-              <Text style={styles.assignModalTitle}>Choose member</Text>
-              <TouchableOpacity 
-                onPress={() => setShowMemberPicker(false)}
-                style={styles.assignModalClose}
-              >
-                <Feather name="x" size={24} color={Colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
-
-            {/* Member Grid */}
-            <View style={styles.memberPickerGrid}>
-              {circleMembers.map(member => (
-                <TouchableOpacity
-                  key={member.id}
-                  style={[
-                    styles.memberPickerGridItem,
-                    assignedMember?.id === member.id && styles.memberPickerGridItemSelected
-                  ]}
-                  onPress={() => handleSelectMember(member)}
-                >
-                  <View style={styles.memberPickerAvatarWrapper}>
-                    <LinearGradient
-                      colors={['#a78bfa', '#7c3aed']}
-                      style={styles.memberPickerAvatar}
+            {/* Member Picker Overlay (Inside Assign Modal) */}
+            {showMemberPicker && (
+              <View style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: 'rgba(0,0,0,0.5)',
+                justifyContent: 'flex-end',
+                zIndex: 1000,
+              }}>
+                <Pressable
+                  style={{ flex: 1 }}
+                  onPress={() => { setShowMemberPicker(false); setMemberSearchQuery(''); }}
+                />
+                <View style={{
+                  backgroundColor: Colors.white,
+                  borderTopLeftRadius: 20,
+                  borderTopRightRadius: 20,
+                  maxHeight: '80%',
+                  paddingBottom: 34,
+                }}>
+                  <View style={styles.sheetHandle} />
+                  
+                  {/* Header */}
+                  <View style={styles.assignModalHeader}>
+                    <Text style={styles.assignModalTitle}>Choose member</Text>
+                    <TouchableOpacity 
+                      onPress={() => { setShowMemberPicker(false); setMemberSearchQuery(''); }}
+                      style={styles.assignModalClose}
                     >
-                      <Text style={styles.memberPickerAvatarText}>{member.initial}</Text>
-                    </LinearGradient>
-                    {assignedMember?.id === member.id && (
-                      <View style={styles.memberPickerCheckmark}>
-                        <Feather name="check" size={12} color={Colors.white} />
-                      </View>
+                      <Feather name="x" size={24} color={Colors.textSecondary} />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Search Bar */}
+                  <View style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    backgroundColor: Colors.surface,
+                    borderRadius: 12,
+                    paddingHorizontal: 12,
+                    marginHorizontal: 16,
+                    marginBottom: 16,
+                    height: 44,
+                    borderWidth: 1,
+                    borderColor: Colors.border,
+                  }}>
+                    <Feather name="search" size={18} color={Colors.textMuted} />
+                    <TextInput
+                      style={{
+                        flex: 1,
+                        marginLeft: 8,
+                        fontSize: 16,
+                        color: Colors.textPrimary,
+                      }}
+                      placeholder="Search members..."
+                      placeholderTextColor={Colors.textMuted}
+                      value={memberSearchQuery}
+                      onChangeText={setMemberSearchQuery}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                    {memberSearchQuery.length > 0 && (
+                      <TouchableOpacity onPress={() => setMemberSearchQuery('')}>
+                        <Feather name="x-circle" size={18} color={Colors.textMuted} />
+                      </TouchableOpacity>
                     )}
                   </View>
-                  <Text style={[
-                    styles.memberPickerName,
-                    assignedMember?.id === member.id && styles.memberPickerNameSelected
-                  ]}>{member.name}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+
+                  {/* Member Grid */}
+                  <ScrollView style={{ maxHeight: 350 }} showsVerticalScrollIndicator={false}>
+                    <View style={styles.memberPickerGrid}>
+                      {loadingMembers ? (
+                        <View style={{ padding: 40, alignItems: 'center', width: '100%' }}>
+                          <ActivityIndicator size="large" color={Colors.primary} />
+                          <Text style={{ marginTop: 12, color: Colors.textSecondary }}>Loading members...</Text>
+                        </View>
+                      ) : circleMembers.length === 0 ? (
+                        <View style={{ padding: 40, alignItems: 'center', width: '100%' }}>
+                          <Feather name="users" size={48} color={Colors.textMuted} />
+                          <Text style={{ marginTop: 12, color: Colors.textSecondary, textAlign: 'center' }}>
+                            No other members in this circle yet.{'\n'}Invite friends to get started!
+                          </Text>
+                        </View>
+                      ) : (
+                        circleMembers
+                          .filter(member => 
+                            member.name.toLowerCase().includes(memberSearchQuery.toLowerCase())
+                          )
+                          .map(member => (
+                            <TouchableOpacity
+                              key={member.id}
+                              style={[
+                                styles.memberPickerGridItem,
+                                assignedMember?.id === member.id && styles.memberPickerGridItemSelected
+                              ]}
+                              onPress={() => {
+                                handleSelectMember(member);
+                                setMemberSearchQuery('');
+                              }}
+                            >
+                              <View style={styles.memberPickerAvatarWrapper}>
+                                <LinearGradient
+                                  colors={['#a78bfa', '#7c3aed']}
+                                  style={styles.memberPickerAvatar}
+                                >
+                                  <Text style={styles.memberPickerAvatarText}>{member.initial}</Text>
+                                </LinearGradient>
+                                {assignedMember?.id === member.id && (
+                                  <View style={styles.memberPickerCheckmark}>
+                                    <Feather name="check" size={12} color={Colors.white} />
+                                  </View>
+                                )}
+                              </View>
+                              <Text style={[
+                                styles.memberPickerName,
+                                assignedMember?.id === member.id && styles.memberPickerNameSelected
+                              ]}>{member.name}</Text>
+                            </TouchableOpacity>
+                          ))
+                      )}
+                      {circleMembers.length > 0 && 
+                        circleMembers.filter(m => m.name.toLowerCase().includes(memberSearchQuery.toLowerCase())).length === 0 && (
+                        <View style={{ padding: 40, alignItems: 'center', width: '100%' }}>
+                          <Text style={{ color: Colors.textSecondary }}>No members found matching "{memberSearchQuery}"</Text>
+                        </View>
+                      )}
+                    </View>
+                  </ScrollView>
+                </View>
+              </View>
+            )}
           </View>
         </View>
       </Modal>
@@ -2221,6 +2817,43 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
               </TouchableOpacity>
             </View>
 
+            {/* Stats Preview - Shows REAL stats */}
+            <View style={{
+              backgroundColor: Colors.surface,
+              borderRadius: 16,
+              padding: 16,
+              marginBottom: 16,
+              borderWidth: 1,
+              borderColor: Colors.border,
+            }}>
+              <Text style={{ fontSize: 14, color: Colors.textSecondary, marginBottom: 12 }}>Your Stats Today</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-around' }}>
+                <View style={{ alignItems: 'center' }}>
+                  <Text style={{ fontSize: 24, fontWeight: '700', color: Colors.textPrimary }}>
+                    {todayStats.completed}/{todayStats.total}
+                  </Text>
+                  <Text style={{ fontSize: 12, color: Colors.textMuted }}>Tasks Done</Text>
+                </View>
+                <View style={{ alignItems: 'center' }}>
+                  <Text style={{ fontSize: 24, fontWeight: '700', color: Colors.success }}>
+                    +{todayStats.timeSaved}m
+                  </Text>
+                  <Text style={{ fontSize: 12, color: Colors.textMuted }}>Time Saved</Text>
+                </View>
+                <View style={{ alignItems: 'center' }}>
+                  <Text style={{ fontSize: 24, fontWeight: '700', color: Colors.orange }}>
+                    {user?.currentStreak || 0}
+                  </Text>
+                  <Text style={{ fontSize: 12, color: Colors.textMuted }}>Day Streak</Text>
+                </View>
+              </View>
+              {todayStats.total === 0 && (
+                <Text style={{ fontSize: 12, color: Colors.warning, textAlign: 'center', marginTop: 8 }}>
+                  Add tasks to your day first!
+                </Text>
+              )}
+            </View>
+
             {/* Create Daily Life Card button */}
             <TouchableOpacity 
               onPress={handleNavigateToDailyLifeCard}
@@ -2280,9 +2913,14 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
 
             <TouchableOpacity
               onPress={handleConfirmShare}
-              style={styles.submitButton}
+              style={[styles.submitButton, (postingDailyCard || todayStats.total === 0) && { opacity: 0.5 }]}
+              disabled={postingDailyCard || todayStats.total === 0}
             >
-              <Text style={styles.submitButtonText}>Share to Circle</Text>
+              {postingDailyCard ? (
+                <ActivityIndicator size="small" color={Colors.white} />
+              ) : (
+                <Text style={styles.submitButtonText}>Share to Circle</Text>
+              )}
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -3939,6 +4577,8 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: '90%',
+    position: 'relative',
+    overflow: 'hidden',
   },
   assignModalHeader: {
     flexDirection: 'row',

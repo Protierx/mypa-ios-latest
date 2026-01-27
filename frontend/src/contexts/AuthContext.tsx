@@ -5,6 +5,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { api, authApi, userApi } from '../services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { socketService } from '../services/socket';
 
 export interface User {
   id: string;
@@ -46,6 +47,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     checkAuth();
   }, []);
+
+  // Connect to socket when user is authenticated
+  useEffect(() => {
+    if (user && api.isAuthenticated()) {
+      socketService.connect().then((connected) => {
+        if (connected) {
+          console.log('🔌 Socket connected after auth');
+        }
+      });
+    }
+  }, [user]);
 
   async function checkAuth() {
     try {
@@ -101,6 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function logout() {
+    socketService.disconnect();
     await authApi.logout();
     setUser(null);
   }

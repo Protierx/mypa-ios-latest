@@ -11,11 +11,13 @@ import {
   Modal,
   Alert,
   Easing,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { circlesApi } from '../services/api';
 import {
   Users,
   Plus,
@@ -86,6 +88,9 @@ export function CirclesScreen({ onModalStateChange, navigation }: CirclesScreenP
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' } | null>(null);
   const toastAnim = useRef(new Animated.Value(0)).current;
   const toastTimer = useRef<NodeJS.Timeout | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [creatingCircle, setCreatingCircle] = useState(false);
+  const [joiningCircle, setJoiningCircle] = useState(false);
 
   const [circles, setCircles] = useState<Circle[]>([
     {
@@ -141,18 +146,45 @@ export function CirclesScreen({ onModalStateChange, navigation }: CirclesScreenP
     },
   ]);
 
+  // Fetch circles from API on mount
   useEffect(() => {
-    const load = async () => {
-      try {
-        const stored = await AsyncStorage.getItem('circlesData');
-        if (stored) setCircles(JSON.parse(stored));
-      } catch (e) {
-        // keep defaults
-      }
-    };
-    load();
+    fetchCircles();
   }, []);
 
+  const fetchCircles = async () => {
+    setLoading(true);
+    try {
+      const response = await circlesApi.list();
+      if (response.success && response.data && response.data.length > 0) {
+        // Transform API data to match local Circle interface
+        const apiCircles: Circle[] = response.data.map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          members: c.members?.map((m: any) => ({
+            initial: (m.user?.name || m.user?.username || 'U').charAt(0).toUpperCase(),
+            posted: false, // TODO: Track from daily cards
+          })) || [],
+          challenge: c.description || '',
+          posted: 0,
+          total: c._count?.members || c.members?.length || 1,
+          streak: c.currentStreak || 0,
+          lastActivity: 'Active',
+          inviteCode: c.inviteCode || generateInviteCode(),
+          inviteLink: `https://mypa.app/invite/${c.inviteCode}`,
+          privacy: c.isPublic ? 'public' : 'private',
+        }));
+        setCircles(apiCircles);
+      }
+      // If no API circles, keep mock data
+    } catch (error) {
+      console.error('Failed to fetch circles:', error);
+      // Keep mock data on error
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Also persist to AsyncStorage as backup
   useEffect(() => {
     const persist = async () => {
       try {
@@ -161,8 +193,8 @@ export function CirclesScreen({ onModalStateChange, navigation }: CirclesScreenP
         // noop
       }
     };
-    persist();
-  }, [circles]);
+    if (!loading) persist();
+  }, [circles, loading]);
 
   useEffect(() => {
     if (!toast) return;
@@ -234,17 +266,26 @@ export function CirclesScreen({ onModalStateChange, navigation }: CirclesScreenP
   }, []);
 
   // Navigation helper
-  const handleNavigate = (screen: string) => {
+  const handleNavigate = (screen: string, params?: any) => {
     if (!navigation) return;
     if (screen === 'circle-home') {
-      navigation.navigate('CircleHome');
+      navigation.navigate('CircleHome', params);
     } else if (screen === 'plan') {
       navigation.navigate('Plan');
     } else if (screen === 'hub') {
       navigation.navigate('Home', { screen: 'Hub' });
     } else {
-      navigation.navigate(screen);
+      navigation.navigate(screen, params);
     }
+  };
+
+  // Navigate to circle with data
+  const openCircle = (circle: Circle) => {
+    handleNavigate('circle-home', {
+      circleId: circle.id,
+      circleName: circle.name,
+      inviteCode: circle.inviteCode,
+    });
   };
 
   // Check for pending circle actions from Inbox
@@ -336,79 +377,109 @@ export function CirclesScreen({ onModalStateChange, navigation }: CirclesScreenP
     }
   };
 
-  function handleCreateCircle() {
+  async function handleCreateCircle() {
     if (!newName.trim()) return;
 
-    const nextId = Math.max(0, ...circles.map(c => c.id)) + 1;
-    const memberInitials = newMembers
-      .split(',')
-      .map(s => s.trim().charAt(0).toUpperCase())
-      .filter(Boolean);
+    setCreatingCircle(true);
+    try {
+      const response = await circlesApi.create({
+        name: newName.trim(),
+        description: '',
+        isPublic: newPrivacy === 'public',
+      });
 
-    const inviteCode = generateInviteCode();
-    const newCircle: Circle = {
-      id: nextId,
-      name: newName.trim(),
-      members: memberInitials.length
-        ? memberInitials.map(initial => ({ initial, posted: false }))
-        : [{ initial: 'A', posted: false }],
-      challenge: '',
-      posted: 0,
-      total: memberInitials.length || 1,
-      streak: 0,
-      lastActivity: 'just now',
-      privacy: newPrivacy,
-      inviteCode: inviteCode,
-      inviteLink: `https://mypa.app/invite/${inviteCode}`,
-    };
+      if (response.success && response.data) {
+        // Create local circle from API response
+        const newCircle: Circle = {
+          id: response.data.id,
+          name: response.data.name,
+          members: [{ initial: 'U', posted: false }], // Creator is first member
+          challenge: response.data.description || '',
+          posted: 0,
+          total: 1,
+          streak: 0,
+          lastActivity: 'just now',
+          privacy: response.data.isPublic ? 'public' : 'private',
+          inviteCode: response.data.inviteCode,
+          inviteLink: `https://mypa.app/invite/${response.data.inviteCode}`,
+        };
 
-    setCircles([newCircle, ...circles]);
-    setNewName('');
-    setNewMembers('');
-    setNewPrivacy('public');
-    setCreateOpen(false);
-    showToast('Circle created', 'success');
+        setCircles([newCircle, ...circles]);
+        setNewName('');
+        setNewMembers('');
+        setNewPrivacy('public');
+        setCreateOpen(false);
+        showToast('Circle created', 'success');
+      } else {
+        Alert.alert('Error', response.error || 'Failed to create circle');
+      }
+    } catch (error) {
+      console.error('Create circle error:', error);
+      Alert.alert('Error', 'Failed to create circle. Please try again.');
+    } finally {
+      setCreatingCircle(false);
+    }
   }
 
-  function handleJoinCircle() {
+  async function handleJoinCircle() {
     if (!joinCode.trim()) return;
 
     setJoinError('');
-    const normalizedCode = joinCode.trim().toUpperCase();
-    const foundCircle = circles.find(c => c.inviteCode === normalizedCode);
+    setJoiningCircle(true);
+    
+    try {
+      const normalizedCode = joinCode.trim().toUpperCase();
+      const response = await circlesApi.joinByCode(normalizedCode);
 
-    if (!foundCircle) {
-      setJoinError('Invalid code. Please check and try again.');
-      return;
-    }
-
-    const alreadyMember = foundCircle.members.some(m => m.initial === 'U');
-    if (alreadyMember) {
-      setJoinError('You are already a member of this circle.');
-      return;
-    }
-
-    const updatedCircles = circles.map(c => {
-      if (c.id === foundCircle.id) {
-        return {
-          ...c,
-          members: [...c.members, { initial: 'U', posted: false }],
-          total: c.total + 1,
+      if (response.success && response.data) {
+        // Add the joined circle to local state
+        const joinedCircle: Circle = {
+          id: response.data.id,
+          name: response.data.name,
+          members: response.data.members?.map((m: any) => ({
+            initial: (m.user?.name || m.user?.username || 'U').charAt(0).toUpperCase(),
+            posted: false,
+          })) || [{ initial: 'U', posted: false }],
+          challenge: response.data.description || '',
+          posted: 0,
+          total: response.data._count?.members || response.data.members?.length || 1,
+          streak: response.data.currentStreak || 0,
+          lastActivity: 'just now',
+          privacy: response.data.isPublic ? 'public' : 'private',
+          inviteCode: response.data.inviteCode,
+          inviteLink: `https://mypa.app/invite/${response.data.inviteCode}`,
         };
+
+        // Check if already in list
+        const existingIndex = circles.findIndex(c => c.id === joinedCircle.id);
+        if (existingIndex >= 0) {
+          // Update existing
+          const updated = [...circles];
+          updated[existingIndex] = joinedCircle;
+          setCircles(updated);
+        } else {
+          // Add new
+          setCircles([joinedCircle, ...circles]);
+        }
+
+        setJoinSuccess(true);
+        setJoinCode('');
+        showToast('Joined circle', 'success');
+
+        if (joinHighlightTimer.current) clearTimeout(joinHighlightTimer.current);
+        joinHighlightTimer.current = setTimeout(() => {
+          setJoinSuccess(false);
+          setJoinModalOpen(false);
+        }, 1500);
+      } else {
+        setJoinError(response.error || 'Invalid code. Please check and try again.');
       }
-      return c;
-    });
-
-    setCircles(updatedCircles);
-    setJoinSuccess(true);
-    setJoinCode('');
-    showToast('Joined circle', 'success');
-
-    if (joinHighlightTimer.current) clearTimeout(joinHighlightTimer.current);
-    joinHighlightTimer.current = setTimeout(() => {
-      setJoinSuccess(false);
-      setJoinModalOpen(false);
-    }, 1500);
+    } catch (error) {
+      console.error('Join circle error:', error);
+      setJoinError('Failed to join circle. Please try again.');
+    } finally {
+      setJoiningCircle(false);
+    }
   }
 
   // Calculate filtered circles based on search and filter
@@ -685,7 +756,7 @@ export function CirclesScreen({ onModalStateChange, navigation }: CirclesScreenP
                       <Pressable
                         onPress={() => {
                           if (isExpanded) {
-                            handleNavigate('circle-home');
+                            openCircle(circle);
                           } else {
                             setExpandedCard(isExpanded ? null : circle.id);
                           }
@@ -818,7 +889,7 @@ export function CirclesScreen({ onModalStateChange, navigation }: CirclesScreenP
                         <Animated.View style={styles.expandedActions}>
                           <View style={styles.expandedButtonsRow}>
                             <Pressable
-                              onPress={() => handleNavigate('circle-home')}
+                              onPress={() => openCircle(circle)}
                               style={({ pressed }) => [
                                 styles.openCircleButton,
                                 pressed && styles.buttonPressed,
@@ -876,7 +947,8 @@ export function CirclesScreen({ onModalStateChange, navigation }: CirclesScreenP
 
             <Pressable
               onPress={() => {
-                handleNavigate('circle-home');
+                const circle = circles.find(c => c.id === longPressedCard);
+                if (circle) openCircle(circle);
                 setLongPressedCard(null);
               }}
               style={({ pressed }) => [
