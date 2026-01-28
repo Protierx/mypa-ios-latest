@@ -194,7 +194,8 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
   useSocketEvent('post:new', (data: any) => {
     if (data.circleId === circleId) {
       console.log('📨 New post received:', data.post);
-      setPosts(prev => [data.post, ...prev]);
+      // Refresh feed to properly format the new post
+      fetchFeed();
     }
   }, [circleId]);
 
@@ -232,6 +233,7 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
   useSocketEvent('assignment:created', (data: any) => {
     if (data.circleId === circleId) {
       fetchAssignments();
+      fetchFeed(); // Also refresh feed to show system post
     }
   }, [circleId]);
 
@@ -326,25 +328,65 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
       const response = await circlesApi.getFeed(circleId);
       if (response.success && response.data) {
         // Transform API posts to match local format
-        const apiPosts = response.data.map((p: any) => ({
-          id: p.id,
-          user: {
-            id: p.authorId,
-            initial: (p.author?.name || p.author?.username || 'U').charAt(0).toUpperCase(),
-            name: p.author?.name || p.author?.username || 'Unknown',
-          },
-          time: formatTimeAgo(p.createdAt),
-          type: p.type === 'DAILY_CARD' ? 'receipt' : 'post',
-          content: p.content,
-          missions: p.tasksCompleted !== undefined ? { completed: p.tasksCompleted, total: p.totalTasks || 0 } : undefined,
-          wallet: p.timeSaved ? `+${p.timeSaved}m` : undefined,
-          streak: p.streak,
-          reactions: {
-            heart: p.reactions?.filter((r: any) => r.emoji === '❤️').length || 0,
-            fire: p.reactions?.filter((r: any) => r.emoji === '🔥').length || 0,
-            clap: p.reactions?.filter((r: any) => r.emoji === '👏').length || 0,
-          },
-        }));
+        const apiPosts = response.data.map((p: any) => {
+          // Handle SYSTEM posts (assignments, etc.)
+          if (p.type === 'SYSTEM') {
+            let systemContent;
+            try {
+              systemContent = typeof p.content === 'string' ? JSON.parse(p.content) : p.content;
+            } catch {
+              systemContent = { action: 'unknown' };
+            }
+
+            let systemText = '';
+            let iconName = 'info';
+            
+            if (systemContent.action === 'assignment_created') {
+              systemText = `${p.author?.name || 'Someone'} assigned "${systemContent.title}" to ${systemContent.assigneeName}`;
+              iconName = 'user-plus';
+            } else if (systemContent.action === 'assignment_accepted') {
+              systemText = `${p.author?.name || 'Someone'} accepted the mission: ${systemContent.title}`;
+              iconName = 'check-circle';
+            } else if (systemContent.action === 'assignment_completed') {
+              systemText = `${p.author?.name || 'Someone'} completed: ${systemContent.title} (+${systemContent.xpAwarded || 50} XP)`;
+              iconName = 'award';
+            } else {
+              systemText = p.content || 'System update';
+            }
+
+            return {
+              id: p.id,
+              type: 'system',
+              systemText,
+              iconName,
+              dueTime: formatTimeAgo(p.createdAt),
+              user: {
+                id: p.authorId,
+                name: p.author?.name || 'System',
+              },
+            };
+          }
+
+          return {
+            id: p.id,
+            user: {
+              id: p.authorId,
+              initial: (p.author?.name || p.author?.username || 'U').charAt(0).toUpperCase(),
+              name: p.author?.name || p.author?.username || 'Unknown',
+            },
+            time: formatTimeAgo(p.createdAt),
+            type: p.type === 'DAILY_CARD' ? 'receipt' : 'post',
+            content: p.content,
+            missions: p.tasksCompleted !== undefined ? { completed: p.tasksCompleted, total: p.totalTasks || 0 } : undefined,
+            wallet: p.timeSaved ? `+${p.timeSaved}m` : undefined,
+            streak: p.streak,
+            reactions: {
+              heart: p.reactions?.filter((r: any) => r.emoji === '❤️').length || 0,
+              fire: p.reactions?.filter((r: any) => r.emoji === '🔥').length || 0,
+              clap: p.reactions?.filter((r: any) => r.emoji === '👏').length || 0,
+            },
+          };
+        });
         setPosts(apiPosts);
         
         // Check if current user has posted today
@@ -976,11 +1018,15 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
   // Post Card Component
   const PostCard = ({ post }: { post: any }) => {
     if (post.type === 'system') {
+      const iconColor = post.iconName === 'award' ? '#10B981' : 
+                        post.iconName === 'check-circle' ? '#8B5CF6' :
+                        post.iconName === 'user-plus' ? '#F59E0B' :
+                        Colors.textSecondary;
       return (
         <View style={styles.systemCard}>
           <View style={styles.systemCardContent}>
-            <View style={styles.systemIconContainer}>
-              <Feather name="clock" size={20} color={Colors.textSecondary} />
+            <View style={[styles.systemIconContainer, { backgroundColor: `${iconColor}20` }]}>
+              <Feather name={post.iconName || "info"} size={20} color={iconColor} />
             </View>
             <View style={styles.systemTextContainer}>
               <Text style={styles.systemText}>{post.systemText}</Text>
@@ -1917,16 +1963,22 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
                 {/* Time Picker */}
                 <View style={styles.timePickerRow}>
                   <Text style={styles.timePickerLabel}>Time</Text>
-                  <View style={styles.timePickerInputWrapper}>
+                  <TouchableOpacity 
+                    style={styles.timePickerInputWrapper}
+                    activeOpacity={0.7}
+                  >
                     <TextInput
                       value={dueTime}
                       onChangeText={setDueTime}
                       style={styles.timePickerInput}
                       placeholder="18:00"
                       placeholderTextColor={Colors.textMuted}
+                      keyboardType="numbers-and-punctuation"
+                      maxLength={5}
+                      selectTextOnFocus
                     />
                     <Feather name="clock" size={18} color={Colors.textMuted} />
-                  </View>
+                  </TouchableOpacity>
                 </View>
 
                 {/* Due Summary */}
@@ -4725,11 +4777,15 @@ const styles = StyleSheet.create({
     gap: 8,
     borderWidth: 1,
     borderColor: Colors.border,
+    minWidth: 100,
   },
   timePickerInput: {
     fontSize: 14,
     color: Colors.textPrimary,
     fontWeight: '500',
+    flex: 1,
+    minWidth: 50,
+    paddingVertical: 4,
   },
   dueSummary: {
     fontSize: 13,

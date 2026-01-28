@@ -182,16 +182,17 @@ export function CirclesScreen({ onModalStateChange, navigation }: CirclesScreenP
   const scaleAnim = useRef(new Animated.Value(0.95)).current;
   const cardAnimations = useRef<Animated.Value[]>([]).current;
 
-  // Initialize card animations
+  // Initialize card animations when circles change
   useEffect(() => {
     circles.forEach((_, index) => {
       if (!cardAnimations[index]) {
-        cardAnimations[index] = new Animated.Value(0);
+        // Start at 1 (visible) since we don't want fade-in on data refresh
+        cardAnimations[index] = new Animated.Value(1);
       }
     });
   }, [circles]);
 
-  // Entry animation
+  // Entry animation - only on initial mount
   useEffect(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
@@ -206,20 +207,25 @@ export function CirclesScreen({ onModalStateChange, navigation }: CirclesScreenP
         useNativeDriver: true,
       }),
     ]).start();
-
-    // Stagger card animations
-    circles.forEach((_, index) => {
-      if (cardAnimations[index]) {
-        Animated.timing(cardAnimations[index], {
-          toValue: 1,
-          duration: 300,
-          delay: index * 50,
-          easing: Easing.out(Easing.ease),
-          useNativeDriver: true,
-        }).start();
-      }
-    });
   }, []);
+
+  // Animate cards when circles are loaded
+  useEffect(() => {
+    if (circles.length > 0) {
+      // Stagger card animations
+      circles.forEach((_, index) => {
+        if (cardAnimations[index]) {
+          Animated.timing(cardAnimations[index], {
+            toValue: 1,
+            duration: 300,
+            delay: index * 50,
+            easing: Easing.out(Easing.ease),
+            useNativeDriver: true,
+          }).start();
+        }
+      });
+    }
+  }, [circles]);
 
   // Navigation helper
   const handleNavigate = (screen: string, params?: any) => {

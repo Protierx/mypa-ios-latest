@@ -35,7 +35,7 @@ import {
   Zap,
 } from 'lucide-react-native';
 import { IOSStatusBar } from '../components/IOSStatusBar';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { assignmentsApi, invitationsApi } from '../services/api';
 import { useSocketEvent } from '../services/socket';
 
@@ -283,6 +283,14 @@ export function InboxScreen({ navigation }: InboxScreenProps) {
   useEffect(() => {
     fetchAllData();
   }, []);
+
+  // Refresh data when screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      console.log('[InboxScreen] Screen focused, fetching data...');
+      fetchAllData();
+    }, [])
+  );
 
   const fetchAllData = async () => {
     setLoading(true);

@@ -9,6 +9,7 @@ import { addXp } from './user.service.js';
 import { addCircleXp, incrementMemberTasks, verifyCircleMembership } from './circle.service.js';
 import { XP_REWARDS } from '../utils/xp.js';
 import { checkAndUpdateStreak } from '../utils/streaks.js';
+import { emitAssignmentCreated, emitAssignmentUpdated, emitNewPost } from './socket.service.js';
 
 export type AssignmentStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED' | 'COMPLETED' | 'EXPIRED';
 
@@ -93,7 +94,50 @@ export async function createAssignment(
     },
   });
 
-  return formatAssignment(assignment);
+  // Create a system post in the circle feed
+  const systemPost = await prisma.post.create({
+    data: {
+      circleId,
+      authorId: creatorId,
+      type: 'SYSTEM',
+      content: JSON.stringify({
+        action: 'assignment_created',
+        assignmentId: assignment.id,
+        assigneeId: input.assigneeId,
+        assigneeName: assignment.assignee.name || assignment.assignee.username,
+        title: assignment.title,
+        dueDate: input.dueDate,
+      }),
+    },
+    include: {
+      author: {
+        select: {
+          id: true,
+          name: true,
+          username: true,
+          avatarUrl: true,
+          level: true,
+          currentStreak: true,
+        },
+      },
+    },
+  });
+
+  const formattedAssignment = formatAssignment(assignment);
+
+  // Emit socket events for real-time updates
+  emitAssignmentCreated(circleId, input.assigneeId, formattedAssignment);
+  
+  // Emit new post event
+  emitNewPost(circleId, {
+    id: systemPost.id,
+    type: 'SYSTEM',
+    content: systemPost.content,
+    author: systemPost.author,
+    createdAt: systemPost.createdAt.toISOString(),
+  });
+
+  return formattedAssignment;
 }
 
 export async function getAssignmentById(userId: string, assignmentId: string) {
@@ -333,7 +377,33 @@ export async function acceptAssignment(userId: string, assignmentId: string) {
     },
   });
 
-  return formatAssignment(updated);
+  const formattedAssignment = formatAssignment(updated);
+  
+  // Emit socket event for real-time updates
+  emitAssignmentUpdated(assignment.circleId, { ...formattedAssignment, creatorId: assignment.creatorId }, 'accepted');
+
+  // Create system post for feed
+  const systemPost = await prisma.post.create({
+    data: {
+      circleId: assignment.circleId,
+      authorId: userId,
+      type: 'SYSTEM',
+      content: JSON.stringify({
+        action: 'assignment_accepted',
+        assignmentId: assignment.id,
+        title: assignment.title,
+      }),
+    },
+  });
+
+  emitNewPost(assignment.circleId, {
+    id: systemPost.id,
+    type: 'SYSTEM',
+    content: systemPost.content,
+    createdAt: systemPost.createdAt.toISOString(),
+  });
+
+  return formattedAssignment;
 }
 
 export async function declineAssignment(userId: string, assignmentId: string) {
@@ -387,7 +457,12 @@ export async function declineAssignment(userId: string, assignmentId: string) {
     },
   });
 
-  return formatAssignment(updated);
+  const formattedAssignment = formatAssignment(updated);
+  
+  // Emit socket event for real-time updates
+  emitAssignmentUpdated(assignment.circleId, { ...formattedAssignment, creatorId: assignment.creatorId }, 'declined');
+
+  return formattedAssignment;
 }
 
 export async function completeAssignment(
@@ -479,8 +554,36 @@ export async function completeAssignment(
     },
   });
 
+  const formattedAssignment = formatAssignment(updated);
+  
+  // Emit socket event for real-time updates
+  emitAssignmentUpdated(assignment.circleId, { ...formattedAssignment, creatorId: assignment.creatorId }, 'completed');
+
+  // Create system post for feed celebrating completion
+  const systemPost = await prisma.post.create({
+    data: {
+      circleId: assignment.circleId,
+      authorId: userId,
+      type: 'SYSTEM',
+      content: JSON.stringify({
+        action: 'assignment_completed',
+        assignmentId: assignment.id,
+        title: assignment.title,
+        xpAwarded,
+        proofUrl: proof?.url,
+      }),
+    },
+  });
+
+  emitNewPost(assignment.circleId, {
+    id: systemPost.id,
+    type: 'SYSTEM',
+    content: systemPost.content,
+    createdAt: systemPost.createdAt.toISOString(),
+  });
+
   return {
-    ...formatAssignment(updated),
+    ...formattedAssignment,
     xpAwarded,
   };
 }
