@@ -77,7 +77,7 @@ router.post(
 );
 
 // ==========================================
-// ACCEPT INVITATION
+// ACCEPT INVITATION?
 // ==========================================
 
 router.post(
