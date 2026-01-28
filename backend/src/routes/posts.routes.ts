@@ -1,6 +1,6 @@
 /**
  * Posts Routes
- * API endpoints for circle posts and reactions!
+ * API endpoints for circle posts and reactions!?
  */
 
 import { Router, Request, Response, NextFunction } from 'express';
@@ -11,7 +11,7 @@ import { authenticateToken } from '../middleware/auth.js';
 
 const router = Router();
 
-// All routes require authentication
+// All routes require authentication?
 router.use(authenticateToken);
 
 // Validation schemas
