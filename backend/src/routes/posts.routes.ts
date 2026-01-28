@@ -1,6 +1,6 @@
 /**
  * Posts Routes
- * API endpoints for circle posts and reactions
+ * API endpoints for circle posts and reactions!
  */
 
 import { Router, Request, Response, NextFunction } from 'express';
