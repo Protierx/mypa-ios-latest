@@ -60,6 +60,8 @@ model User {
   circleMemberships CircleMember[]
   assignmentsCreated Assignment[] @relation("AssignmentCreator")
   assignmentsReceived Assignment[] @relation("AssignmentAssignee")
+  invitationsSent     CircleInvitation[] @relation("InvitationsSent")
+  invitationsReceived CircleInvitation[] @relation("InvitationsReceived")
   
   // Social
   posts         Post[]
@@ -254,6 +256,7 @@ model Circle {
   assignments Assignment[]
   posts       Post[]
   challenges  Challenge[]
+  invitations CircleInvitation[]
 
   @@map("circles")
 }
@@ -276,6 +279,37 @@ model CircleMember {
   
   @@unique([circleId, userId])
   @@map("circle_members")
+}
+
+// ==========================================
+// CIRCLE INVITATIONS
+// ==========================================
+
+model CircleInvitation {
+  id         String   @id @default(uuid())
+  circleId   String
+  circle     Circle   @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  
+  // Who sent the invite
+  inviterId  String
+  inviter    User     @relation("InvitationsSent", fields: [inviterId], references: [id], onDelete: Cascade)
+  
+  // Who is being invited
+  inviteeId  String
+  invitee    User     @relation("InvitationsReceived", fields: [inviteeId], references: [id], onDelete: Cascade)
+  
+  // Status: PENDING, ACCEPTED, DECLINED, EXPIRED
+  status     String   @default("PENDING")
+  
+  // Optional message
+  message    String?
+  
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  expiresAt  DateTime?
+  
+  @@unique([circleId, inviteeId])
+  @@map("circle_invitations")
 }
 
 // ==========================================

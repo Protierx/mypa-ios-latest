@@ -72,7 +72,8 @@ export async function createCircle(userId: string, input: CreateCircleInput) {
     },
   });
 
-  return formatCircle(circle);
+  // Creator is always a member, so include inviteCode
+  return formatCircle(circle, true);
 }
 
 export async function getCircleById(circleId: string, userId?: string) {
@@ -152,7 +153,7 @@ export async function getUserCircles(userId: string) {
   });
 
   return memberships.map((m) => ({
-    ...formatCircleBasic(m.circle),
+    ...formatCircleBasic(m.circle, true), // Include inviteCode since user is a member
     role: m.role,
     xpContributed: m.xpContributed,
     tasksCompleted: m.tasksCompleted,
@@ -249,7 +250,7 @@ export async function joinCircle(userId: string, circleId: string) {
   await addXp(userId, XP_REWARDS.CIRCLE_JOIN, 'Joined a circle');
 
   return {
-    ...formatCircleBasic(membership.circle),
+    ...formatCircleBasic(membership.circle, true), // Include inviteCode since user is now a member
     role: membership.role,
     joinedAt: membership.joinedAt,
   };
@@ -581,7 +582,7 @@ function formatCircle(circle: any, isMember?: boolean) {
   };
 }
 
-function formatCircleBasic(circle: any) {
+function formatCircleBasic(circle: any, includeSensitive: boolean = false) {
   return {
     id: circle.id,
     name: circle.name,
@@ -589,6 +590,7 @@ function formatCircleBasic(circle: any) {
     emoji: circle.emoji,
     color: circle.color,
     isPrivate: circle.isPrivate,
+    inviteCode: includeSensitive ? circle.inviteCode : undefined,
     maxMembers: circle.maxMembers,
     totalXp: circle.totalXp,
     memberCount: circle._count?.members,

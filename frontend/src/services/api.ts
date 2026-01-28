@@ -5,7 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
 // Use your machine's LAN IP address - visible in Expo output
-const API_BASE_URL = 'http://192.168.1.31:3000';
+const API_BASE_URL = 'http://172.20.10.3:3000';
 
 // Storage keys
 const TOKEN_KEY = 'mypa_access_token';
@@ -324,6 +324,7 @@ export const ttsApi = {
 // Circles API
 export const circlesApi = {
   // Circle CRUD
+  list: () => api.get('/circles'),
   getAll: () => api.get('/circles'),
   getById: (id: string) => api.get(`/circles/${id}`),
   create: (data: { name: string; description?: string; emoji?: string; color?: string; isPrivate?: boolean }) =>
@@ -402,6 +403,29 @@ export const postsApi = {
   react: (id: string, emoji: string) => api.post(`/posts/${id}/react`, { emoji }),
   removeReaction: (id: string) => api.delete(`/posts/${id}/react`),
   getReactions: (id: string) => api.get(`/posts/${id}/reactions`),
+};
+
+// Invitations API
+export const invitationsApi = {
+  // Get my pending invitations
+  getMine: (status?: string) => {
+    const query = status ? `?status=${status}` : '';
+    return api.get(`/invitations/mine${query}`);
+  },
+  
+  // Send invitation to a user
+  invite: (circleId: string, userId: string, message?: string) =>
+    api.post(`/invitations/circle/${circleId}/invite/${userId}`, { message }),
+  
+  // Accept invitation
+  accept: (invitationId: string) => api.post(`/invitations/${invitationId}/accept`),
+  
+  // Decline invitation
+  decline: (invitationId: string) => api.post(`/invitations/${invitationId}/decline`),
+  
+  // Search users to invite
+  searchUsers: (circleId: string, query: string) =>
+    api.get(`/invitations/search/${circleId}?q=${encodeURIComponent(query)}`),
 };
 
 export default api;

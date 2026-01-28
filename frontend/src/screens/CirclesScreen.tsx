@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -51,7 +52,7 @@ interface CircleMember {
 }
 
 interface Circle {
-  id: number;
+  id: string | number;  // Support both UUID strings and legacy numbers
   name: string;
   members: CircleMember[];
   challenge: string;
@@ -81,8 +82,8 @@ export function CirclesScreen({ onModalStateChange, navigation }: CirclesScreenP
   const [joinCode, setJoinCode] = useState('');
   const [joinError, setJoinError] = useState('');
   const [joinSuccess, setJoinSuccess] = useState(false);
-  const [expandedCard, setExpandedCard] = useState<number | null>(null);
-  const [longPressedCard, setLongPressedCard] = useState<number | null>(null);
+  const [expandedCard, setExpandedCard] = useState<number | string | null>(null);
+  const [longPressedCard, setLongPressedCard] = useState<number | string | null>(null);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const joinHighlightTimer = useRef<NodeJS.Timeout | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' } | null>(null);
@@ -92,70 +93,24 @@ export function CirclesScreen({ onModalStateChange, navigation }: CirclesScreenP
   const [creatingCircle, setCreatingCircle] = useState(false);
   const [joiningCircle, setJoiningCircle] = useState(false);
 
-  const [circles, setCircles] = useState<Circle[]>([
-    {
-      id: 1,
-      name: 'Morning Warriors',
-      members: [
-        { initial: 'A', posted: true },
-        { initial: 'B', posted: true },
-        { initial: 'C', posted: false },
-        { initial: 'D', posted: true },
-      ],
-      challenge: '30-day fitness streak',
-      posted: 3,
-      total: 4,
-      streak: 12,
-      lastActivity: '24m ago',
-      inviteCode: 'MYPA-7K2P',
-      inviteLink: 'https://mypa.app/invite/MYPA-7K2P',
-    },
-    {
-      id: 2,
-      name: 'Product Team',
-      members: [
-        { initial: 'J', posted: true },
-        { initial: 'M', posted: true },
-        { initial: 'S', posted: false },
-      ],
-      challenge: 'Daily standup attendance',
-      posted: 2,
-      total: 3,
-      streak: 8,
-      lastActivity: '12m ago',
-      inviteCode: 'MYPA-9F4L',
-      inviteLink: 'https://mypa.app/invite/MYPA-9F4L',
-    },
-    {
-      id: 3,
-      name: 'Book Club',
-      members: [
-        { initial: 'E', posted: true },
-        { initial: 'R', posted: false },
-        { initial: 'L', posted: true },
-        { initial: 'K', posted: false },
-        { initial: 'P', posted: true },
-      ],
-      challenge: 'Read 15min daily',
-      posted: 3,
-      total: 5,
-      streak: 5,
-      lastActivity: '2h ago',
-      inviteCode: 'MYPA-2X8Q',
-      inviteLink: 'https://mypa.app/invite/MYPA-2X8Q',
-    },
-  ]);
+  // Start with empty array - only real API data
+  const [circles, setCircles] = useState<Circle[]>([]);
 
-  // Fetch circles from API on mount
-  useEffect(() => {
-    fetchCircles();
-  }, []);
+  // Fetch circles when screen gains focus (including coming back from CircleHome)
+  useFocusEffect(
+    useCallback(() => {
+      console.log('[CirclesScreen] Screen focused, fetching circles...');
+      fetchCircles();
+    }, [])
+  );
 
   const fetchCircles = async () => {
     setLoading(true);
     try {
+      console.log('[CirclesScreen] Fetching circles from API...');
       const response = await circlesApi.list();
-      if (response.success && response.data && response.data.length > 0) {
+      console.log('[CirclesScreen] API response:', response);
+      if (response.success && response.data) {
         // Transform API data to match local Circle interface
         const apiCircles: Circle[] = response.data.map((c: any) => ({
           id: c.id,
@@ -166,19 +121,20 @@ export function CirclesScreen({ onModalStateChange, navigation }: CirclesScreenP
           })) || [],
           challenge: c.description || '',
           posted: 0,
-          total: c._count?.members || c.members?.length || 1,
+          total: c.memberCount || c._count?.members || c.members?.length || 1,
           streak: c.currentStreak || 0,
           lastActivity: 'Active',
-          inviteCode: c.inviteCode || generateInviteCode(),
+          inviteCode: c.inviteCode,
           inviteLink: `https://mypa.app/invite/${c.inviteCode}`,
-          privacy: c.isPublic ? 'public' : 'private',
+          privacy: c.isPrivate ? 'private' : 'public',
         }));
+        console.log('[CirclesScreen] Setting circles:', apiCircles.length);
         setCircles(apiCircles);
+      } else {
+        console.log('[CirclesScreen] No data in response');
       }
-      // If no API circles, keep mock data
     } catch (error) {
-      console.error('Failed to fetch circles:', error);
-      // Keep mock data on error
+      console.error('[CirclesScreen] Failed to fetch circles:', error);
     } finally {
       setLoading(false);
     }
@@ -385,10 +341,11 @@ export function CirclesScreen({ onModalStateChange, navigation }: CirclesScreenP
       const response = await circlesApi.create({
         name: newName.trim(),
         description: '',
-        isPublic: newPrivacy === 'public',
+        isPrivate: newPrivacy === 'private',
       });
 
       if (response.success && response.data) {
+        console.log('[CirclesScreen] Circle created:', response.data);
         // Create local circle from API response
         const newCircle: Circle = {
           id: response.data.id,
@@ -399,17 +356,21 @@ export function CirclesScreen({ onModalStateChange, navigation }: CirclesScreenP
           total: 1,
           streak: 0,
           lastActivity: 'just now',
-          privacy: response.data.isPublic ? 'public' : 'private',
+          privacy: response.data.isPrivate ? 'private' : 'public',
           inviteCode: response.data.inviteCode,
           inviteLink: `https://mypa.app/invite/${response.data.inviteCode}`,
         };
 
-        setCircles([newCircle, ...circles]);
+        // Add to local state immediately
+        setCircles(prev => [newCircle, ...prev]);
         setNewName('');
         setNewMembers('');
         setNewPrivacy('public');
         setCreateOpen(false);
         showToast('Circle created', 'success');
+        
+        // Refresh from API to ensure consistency
+        setTimeout(() => fetchCircles(), 500);
       } else {
         Alert.alert('Error', response.error || 'Failed to create circle');
       }
@@ -445,7 +406,7 @@ export function CirclesScreen({ onModalStateChange, navigation }: CirclesScreenP
           total: response.data._count?.members || response.data.members?.length || 1,
           streak: response.data.currentStreak || 0,
           lastActivity: 'just now',
-          privacy: response.data.isPublic ? 'public' : 'private',
+          privacy: response.data.isPrivate ? 'private' : 'public',
           inviteCode: response.data.inviteCode,
           inviteLink: `https://mypa.app/invite/${response.data.inviteCode}`,
         };
@@ -484,6 +445,7 @@ export function CirclesScreen({ onModalStateChange, navigation }: CirclesScreenP
 
   // Calculate filtered circles based on search and filter
   let filteredCircles = [...circles];
+  console.log('[CirclesScreen] circles count:', circles.length, 'filteredCircles:', filteredCircles.length);
 
   if (searchQuery.trim()) {
     const query = searchQuery.toLowerCase();

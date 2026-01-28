@@ -20,11 +20,12 @@ async function main() {
   const server = createServer(app);
   initializeSocket(server);
 
-  server.listen(env.PORT, () => {
+  // Bind to 0.0.0.0 to allow connections from other devices on the network
+  server.listen(env.PORT, '0.0.0.0', () => {
     console.log(`
 🚀 MYPA Backend v2.0.0
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📡 Server:     http://localhost:${env.PORT}
+📡 Server:     http://0.0.0.0:${env.PORT}
 🔧 Environment: ${env.NODE_ENV}
 📊 Database:   PostgreSQL
 🔌 WebSocket:  Enabled

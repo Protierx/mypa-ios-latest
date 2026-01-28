@@ -14,6 +14,7 @@ import ttsRoutes from './routes/tts.routes.js';
 import circlesRoutes from './routes/circles.routes.js';
 import assignmentsRoutes, { circleAssignmentsRouter } from './routes/assignments.routes.js';
 import postsRoutes, { circleFeedRouter, circlePostsRouter } from './routes/posts.routes.js';
+import invitationsRoutes from './routes/invitations.routes.js';
 
 export function createApp(): Application {
   const app = express();
@@ -56,6 +57,7 @@ export function createApp(): Application {
   app.use('/circles/:circleId/posts', circlePostsRouter);
   app.use('/assignments', assignmentsRoutes);
   app.use('/posts', postsRoutes);
+  app.use('/invitations', invitationsRoutes);
 
   // TODO: Add more routes as we implement them
   // app.use('/challenges', challengesRoutes);

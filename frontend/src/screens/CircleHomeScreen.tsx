@@ -169,8 +169,10 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
   const [proofImage, setProofImage] = useState<string | null>(null);
   const [selectedAssignmentForProof, setSelectedAssignmentForProof] = useState<any>(null);
 
-  const inviteCode = paramInviteCode || circle?.inviteCode || 'MYPA-7K2P';
-  const inviteLink = `https://mypa.app/invite/${inviteCode}`;
+  // Circle details from API
+  const [circleDetails, setCircleDetails] = useState<any>(circle || null);
+  const inviteCode = circleDetails?.inviteCode || paramInviteCode || '';
+  const inviteLink = inviteCode ? `https://mypa.app/invite/${inviteCode}` : '';
 
   // Socket connection for real-time updates
   const { connect, joinCircle, leaveCircle } = useSocket();
@@ -261,11 +263,24 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
 
   const loadAllData = async () => {
     await Promise.all([
+      fetchCircleDetails(),
       fetchCircleMembers(),
       fetchFeed(),
       fetchAssignments(),
       fetchTodayStats(),
     ]);
+  };
+
+  // Fetch circle details (including invite code)
+  const fetchCircleDetails = async () => {
+    try {
+      const response = await circlesApi.getById(circleId);
+      if (response.success && response.data) {
+        setCircleDetails(response.data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch circle details:', error);
+    }
   };
 
   const onRefresh = async () => {

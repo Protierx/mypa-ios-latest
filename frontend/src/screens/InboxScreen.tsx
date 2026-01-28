@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import {
   Alert,
   Animated,
@@ -8,6 +8,8 @@ import {
   StyleSheet,
   Text,
   View,
+  RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -34,13 +36,15 @@ import {
 } from 'lucide-react-native';
 import { IOSStatusBar } from '../components/IOSStatusBar';
 import { useNavigation } from '@react-navigation/native';
+import { assignmentsApi, invitationsApi } from '../services/api';
+import { useSocketEvent } from '../services/socket';
 
 interface InboxScreenProps {
   navigation?: any;
 }
 
 interface Assignment {
-  id: number;
+  id: number | string;
   title: string;
   assignedByName: string;
   dueTime?: string;
@@ -52,7 +56,7 @@ interface Assignment {
 type TabType = 'all' | 'messages' | 'reminders' | 'invites';
 
 interface NotificationItem {
-  id: number;
+  id: number | string;
   title: string;
   subtitle?: string;
   type: 'message' | 'reminder' | 'invite' | 'social';
@@ -74,11 +78,11 @@ type DelayedAction =
   | (DelayedActionBase & { type: 'clearSnooze'; itemId: number });
 
 type DelayedActionInput =
-  | { type: 'removeItem'; itemId: number; delayMs: number }
-  | { type: 'removeItemNavigate'; itemId: number; delayMs: number; target: string }
-  | { type: 'removeAssignment'; assignmentId: number; delayMs: number }
-  | { type: 'removeAssignmentNavigate'; assignmentId: number; delayMs: number; target: string }
-  | { type: 'clearSnooze'; itemId: number; delayMs: number };
+  | { type: 'removeItem'; itemId: number | string; delayMs: number }
+  | { type: 'removeItemNavigate'; itemId: number | string; delayMs: number; target: string }
+  | { type: 'removeAssignment'; assignmentId: number | string; delayMs: number }
+  | { type: 'removeAssignmentNavigate'; assignmentId: number | string; delayMs: number; target: string }
+  | { type: 'clearSnooze'; itemId: number | string; delayMs: number };
 
 const STORAGE_KEYS = {
   pendingPlanTasks: 'pendingPlanTasks',
@@ -86,6 +90,34 @@ const STORAGE_KEYS = {
   pendingCircleAction: 'pendingCircleAction',
   pendingMessageAction: 'pendingMessageAction',
   lastCompletedReminder: 'lastCompletedReminder',
+};
+
+// Helper: Format time ago
+const formatTimeAgo = (dateString: string): string => {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays === 1) return 'Yesterday';
+  return `${diffDays}d ago`;
+};
+
+// Helper: Format due date
+const formatDueDate = (dateString: string): string => {
+  const date = new Date(dateString);
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  if (date.toDateString() === today.toDateString()) return 'Today';
+  if (date.toDateString() === tomorrow.toDateString()) return 'Tomorrow';
+  return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
 };
 
 const tabs: { id: TabType; label: string }[] = [
@@ -217,54 +249,98 @@ export function InboxScreen({ navigation }: InboxScreenProps) {
 
   const [activeTab, setActiveTab] = useState<TabType>('all');
   const [actionFeedback, setActionFeedback] = useState<Feedback>(null);
-  const [assignments, setAssignments] = useState<Assignment[]>([
-    {
-      id: 1,
-      title: 'Review Q1 metrics',
-      assignedByName: 'Alex',
-      dueTime: '2:00 PM',
-      dueDate: 'Today',
-      status: 'pending',
-      category: 'Work',
-    },
-    {
-      id: 2,
-      title: 'Grocery run',
-      assignedByName: 'Blake',
-      dueTime: '6:00 PM',
-      dueDate: 'Today',
-      status: 'pending',
-      category: 'Errands',
-    },
-  ]);
-  const [items, setItems] = useState<NotificationItem[]>([
-    {
-      id: 1,
-      title: 'Alice sent you a message',
-      subtitle: 'Can we reschedule our call to Thursday?',
-      type: 'message',
-      time: '10m ago',
-      isNew: true,
-      senderName: 'Alice',
-      circleName: 'Family',
-    },
-    {
-      id: 2,
-      title: 'Reminder: Take medication',
-      subtitle: 'Daily 8:00 AM',
-      type: 'reminder',
-      time: '1h ago',
-    },
-    {
-      id: 3,
-      title: 'Circle invite from Dev Team',
-      subtitle: 'Join the Q1 planning circle',
-      type: 'invite',
-      time: '2h ago',
-      isNew: true,
-      circleName: 'Dev Team',
-    },
-  ]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  
+  // Real data from API - start empty
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [circleInvitations, setCircleInvitations] = useState<any[]>([]);
+  
+  // Transform circle invitations to NotificationItem format
+  const inviteItems: NotificationItem[] = circleInvitations.map((inv: any) => ({
+    id: inv.id,
+    title: `Circle invite from ${inv.inviter?.name || inv.inviter?.username || 'Someone'}`,
+    subtitle: `Join "${inv.circle?.name || 'circle'}"${inv.message ? ` - ${inv.message}` : ''}`,
+    type: 'invite' as const,
+    time: formatTimeAgo(inv.createdAt),
+    isNew: true,
+    circleName: inv.circle?.name,
+    senderName: inv.inviter?.name || inv.inviter?.username,
+    _invitationId: inv.id,
+  }));
+  
+  // Combine invites with other notification items
+  const [items, setItems] = useState<NotificationItem[]>([]);
+  
+  // Merge inviteItems with local items (messages, reminders)
+  const allItems = useMemo(() => {
+    // Filter out old invite items and add fresh ones from API
+    const nonInviteItems = items.filter(i => i.type !== 'invite');
+    return [...inviteItems, ...nonInviteItems];
+  }, [inviteItems, items]);
+
+  // Fetch data on mount
+  useEffect(() => {
+    fetchAllData();
+  }, []);
+
+  const fetchAllData = async () => {
+    setLoading(true);
+    await Promise.all([
+      fetchAssignments(),
+      fetchInvitations(),
+    ]);
+    setLoading(false);
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchAllData();
+    setRefreshing(false);
+  };
+
+  const fetchAssignments = async () => {
+    try {
+      const response = await assignmentsApi.getMine({ role: 'assignee', status: 'PENDING' });
+      if (response.success && response.data) {
+        const formatted: Assignment[] = response.data.map((a: any) => ({
+          id: a.id,
+          title: a.title,
+          assignedByName: a.creator?.name || a.creator?.username || 'Someone',
+          dueTime: a.dueDate ? new Date(a.dueDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : undefined,
+          dueDate: a.dueDate ? formatDueDate(a.dueDate) : undefined,
+          status: a.status?.toLowerCase() || 'pending',
+          category: 'Mission',
+        }));
+        setAssignments(formatted);
+      }
+    } catch (error) {
+      console.error('Failed to fetch assignments:', error);
+    }
+  };
+
+  const fetchInvitations = async () => {
+    try {
+      const response = await invitationsApi.getMine();
+      if (response.success && response.data) {
+        setCircleInvitations(response.data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch invitations:', error);
+    }
+  };
+
+  // Real-time: New invitation received
+  useSocketEvent('invitation:new', (data: any) => {
+    console.log('📨 New invitation received:', data);
+    fetchInvitations();
+  }, []);
+
+  // Real-time: New assignment received
+  useSocketEvent('assignment:new', (data: any) => {
+    console.log('📨 New assignment received:', data);
+    fetchAssignments();
+  }, []);
 
   const [snoozedItems, setSnoozedItems] = useState<Set<number>>(new Set());
   const [delayedActions, setDelayedActions] = useState<DelayedAction[]>([]);
@@ -322,7 +398,7 @@ export function InboxScreen({ navigation }: InboxScreenProps) {
   }, []);
 
   const filtered = useMemo(() => {
-    return items.filter(it =>
+    return allItems.filter(it =>
       activeTab === 'all'
         ? true
         : activeTab === 'messages'
@@ -333,45 +409,68 @@ export function InboxScreen({ navigation }: InboxScreenProps) {
         ? it.type === 'invite'
         : true
     );
-  }, [activeTab, items]);
+  }, [activeTab, allItems]);
 
-  const newCount = items.filter(i => i.isNew).length;
+  const newCount = allItems.filter(i => i.isNew).length;
 
-  const showFeedback = (id: number, message: string, type: 'success' | 'info' = 'success') => {
-    setActionFeedback({ id, message, type });
+  const showFeedback = (id: number | string, message: string, type: 'success' | 'info' = 'success') => {
+    setActionFeedback({ id: typeof id === 'string' ? id.hashCode?.() || 0 : id, message, type });
   };
 
-  const markRead = (id: number) => {
+  const markRead = (id: number | string) => {
     setItems(prev => prev.map(it => (it.id === id ? { ...it, isNew: false } : it)));
   };
 
-  const snoozeItem = (id: number) => {
-    setSnoozedItems(prev => new Set(prev).add(id));
+  const snoozeItem = (id: number | string) => {
+    setSnoozedItems(prev => new Set(prev).add(id as number));
     showFeedback(id, 'Snoozed for 1 hour', 'info');
     enqueueAction({ type: 'removeItem', itemId: id, delayMs: 1500 });
     enqueueAction({ type: 'clearSnooze', itemId: id, delayMs: 1500 });
   };
 
-  const acceptInvite = async (id: number) => {
-    const invite = items.find(it => it.id === id);
+  const acceptInvite = async (id: number | string) => {
+    const invite = allItems.find(it => it.id === id);
     const circleName = invite?.circleName || 'circle';
-
-    try {
-      await AsyncStorage.setItem(
-        STORAGE_KEYS.pendingCircleAction,
-        JSON.stringify({ action: 'join', circleName, timestamp: Date.now() })
-      );
-    } catch (e) {
-      console.warn('Error storing circle action', e);
-    }
+    const invitationId = (invite as any)?._invitationId || id;
 
     showFeedback(id, `Joining ${circleName}...`, 'success');
-    enqueueAction({ type: 'removeItemNavigate', itemId: id, delayMs: 1000, target: 'circles' });
+
+    try {
+      // Call real API to accept invitation
+      const response = await invitationsApi.accept(String(invitationId));
+      
+      if (response.success) {
+        // Remove from local state
+        setCircleInvitations(prev => prev.filter(inv => inv.id !== invitationId));
+        
+        // Navigate to circles
+        setTimeout(() => handleNavigate('circles'), 1000);
+      } else {
+        Alert.alert('Error', response.error || 'Failed to accept invitation');
+      }
+    } catch (e) {
+      console.error('Error accepting invite:', e);
+      Alert.alert('Error', 'Failed to accept invitation');
+    }
   };
 
-  const declineInvite = (id: number) => {
+  const declineInvite = async (id: number | string) => {
+    const invite = allItems.find(it => it.id === id);
+    const invitationId = (invite as any)?._invitationId || id;
+
     showFeedback(id, 'Invite declined', 'info');
-    enqueueAction({ type: 'removeItem', itemId: id, delayMs: 800 });
+
+    try {
+      // Call real API to decline invitation
+      const response = await invitationsApi.decline(String(invitationId));
+      
+      if (response.success) {
+        // Remove from local state
+        setCircleInvitations(prev => prev.filter(inv => inv.id !== invitationId));
+      }
+    } catch (e) {
+      console.error('Error declining invite:', e);
+    }
   };
 
   const handleMessageReply = async (id: number) => {
@@ -420,54 +519,77 @@ export function InboxScreen({ navigation }: InboxScreenProps) {
     enqueueAction({ type: 'removeItem', itemId: id, delayMs: 800 });
   };
 
-  const handleSocialView = (id: number) => {
+  const handleSocialView = (id: number | string) => {
     markRead(id);
     handleNavigate('circles');
   };
 
-  const acceptAssignment = async (id: number) => {
+  const acceptAssignment = async (id: number | string) => {
     const assignment = assignments.find(a => a.id === id);
     if (!assignment) return;
 
+    showFeedback(assignment.id, 'Accepting mission...', 'success');
+
     try {
-      const pendingTask = {
-        title: assignment.title,
-        suggestedTime: assignment.dueTime || '12:00 PM',
-        estimatedTime: '30m',
-        aiCategory: assignment.category?.toLowerCase() || 'work',
-        aiPriority: 'important',
-        assignedBy: assignment.assignedByName,
-        source: 'inbox-assignment',
-      };
-
-      const existingPending = await AsyncStorage.getItem(STORAGE_KEYS.pendingPlanTasks);
-      const pendingTasks = existingPending ? JSON.parse(existingPending) : [];
-      pendingTasks.push(pendingTask);
-      await AsyncStorage.setItem(STORAGE_KEYS.pendingPlanTasks, JSON.stringify(pendingTasks));
-      await AsyncStorage.setItem(
-        STORAGE_KEYS.highlightNewTask,
-        JSON.stringify({ title: assignment.title, timestamp: Date.now() })
-      );
+      // Call real API to accept assignment
+      const response = await assignmentsApi.accept(String(id));
+      
+      if (response.success) {
+        // Update local state
+        setAssignments(prev => prev.map(a => (a.id === id ? { ...a, status: 'accepted' } : a)));
+        
+        // Remove after delay
+        setTimeout(() => {
+          setAssignments(prev => prev.filter(a => a.id !== id));
+        }, 1500);
+        
+        showFeedback(assignment.id, 'Mission accepted! ✅', 'success');
+      } else {
+        Alert.alert('Error', response.error || 'Failed to accept mission');
+      }
     } catch (e) {
-      console.warn('Error adding task to plan', e);
+      console.error('Error accepting assignment:', e);
+      Alert.alert('Error', 'Failed to accept mission');
     }
-
-    showFeedback(assignment.id, 'Adding to your Plan...', 'success');
-    setAssignments(prev => prev.map(a => (a.id === id ? { ...a, status: 'accepted' } : a)));
-    enqueueAction({ type: 'removeAssignmentNavigate', assignmentId: id, delayMs: 1200, target: 'plan' });
   };
 
-  const declineAssignment = (id: number) => {
+  const declineAssignment = async (id: number | string) => {
     const assignment = assignments.find(a => a.id === id);
-    showFeedback(id, `Declined - ${assignment?.assignedByName} notified`, 'info');
-    setAssignments(prev => prev.map(a => (a.id === id ? { ...a, status: 'declined' } : a)));
-    enqueueAction({ type: 'removeAssignment', assignmentId: id, delayMs: 1500 });
+    
+    try {
+      // Call real API to decline assignment
+      const response = await assignmentsApi.decline(String(id));
+      
+      if (response.success) {
+        showFeedback(id, `Declined - ${assignment?.assignedByName} notified`, 'info');
+        setAssignments(prev => prev.map(a => (a.id === id ? { ...a, status: 'declined' } : a)));
+        
+        // Remove after delay
+        setTimeout(() => {
+          setAssignments(prev => prev.filter(a => a.id !== id));
+        }, 1500);
+      }
+    } catch (e) {
+      console.error('Error declining assignment:', e);
+    }
   };
 
-  const completeAssignment = (id: number) => {
-    showFeedback(id, 'Completed! Great job 🎉', 'success');
-    setAssignments(prev => prev.map(a => (a.id === id ? { ...a, status: 'completed' } : a)));
-    enqueueAction({ type: 'removeAssignment', assignmentId: id, delayMs: 1500 });
+  const completeAssignment = async (id: number | string) => {
+    try {
+      const response = await assignmentsApi.complete(String(id));
+      
+      if (response.success) {
+        showFeedback(id, 'Completed! Great job 🎉', 'success');
+        setAssignments(prev => prev.map(a => (a.id === id ? { ...a, status: 'completed' } : a)));
+        
+        // Remove after delay
+        setTimeout(() => {
+          setAssignments(prev => prev.filter(a => a.id !== id));
+        }, 1500);
+      }
+    } catch (e) {
+      console.error('Error completing assignment:', e);
+    }
   };
 
   const viewAssignmentInPlan = () => {
