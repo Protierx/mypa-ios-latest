@@ -4,6 +4,7 @@ import { UserPublic, UserStats } from '../types/index.js';
 import { formatUserPublic } from './auth.service.js';
 import { calculateLevel, xpForLevel, xpToNextLevel } from '../utils/xp.js';
 import { checkAndUpdateStreak } from '../utils/streaks.js';
+import { sendLevelUpNotification } from './push.service.js';
 
 export async function getUserById(userId: string): Promise<UserPublic> {
   const user = await prisma.user.findUnique({
@@ -135,8 +136,9 @@ export async function addXp(userId: string, amount: number, reason?: string): Pr
     },
   });
   
-  // If leveled up, could create notification here
+  // If leveled up, send push notification and store in database
   if (leveledUp) {
+    // Store notification in database
     await prisma.notification.create({
       data: {
         userId,
@@ -145,6 +147,11 @@ export async function addXp(userId: string, amount: number, reason?: string): Pr
         body: `Congratulations! You've reached level ${newLevel}!`,
         data: JSON.stringify({ level: newLevel, xp: newXp }),
       },
+    });
+    
+    // Send push notification to device
+    sendLevelUpNotification(userId, newLevel).catch(err => {
+      console.error('Failed to send level up push notification:', err);
     });
   }
   

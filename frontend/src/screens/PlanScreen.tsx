@@ -17,11 +17,20 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle } from 'react-native-svg';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { tasksApi } from '../services/api';
+import { useNavigation, useFocusEffect, useRoute, RouteProp } from '@react-navigation/native';
+import { tasksApi, aiApi } from '../services/api';
+
+interface AISuggestion {
+  category: string;
+  priority: 'High' | 'Normal' | 'Low';
+  suggestedDuration: string;
+  confidence: number;
+  tags: string[];
+}
 
 interface PlanScreenProps {
   navigation?: any;
+  route?: RouteProp<{ Plan: { date?: string; taskId?: string; highlightNew?: boolean } }, 'Plan'>;
 }
 
 interface Task {
@@ -141,6 +150,7 @@ const SwipeableTask = ({
   onMoveTomorrow,
   isActive,
   isQuick,
+  isHighlighted,
 }: {
   task: Task;
   onComplete: () => void;
@@ -150,6 +160,7 @@ const SwipeableTask = ({
   onMoveTomorrow: () => void;
   isActive: boolean;
   isQuick: boolean;
+  isHighlighted?: boolean;
 }) => {
   const translateX = useRef(new Animated.Value(0)).current;
   const handleDeletePress = () => {
@@ -186,6 +197,7 @@ const SwipeableTask = ({
           styles.taskCard,
           task.completed && styles.taskCardCompleted,
           isActive && styles.taskCardActive,
+          isHighlighted && styles.taskCardHighlighted,
           { transform: [{ translateX }] },
         ]}
         {...panResponder.panHandlers}
@@ -243,11 +255,21 @@ const SwipeableTask = ({
   );
 };
 
-export function PlanScreen({ navigation }: PlanScreenProps) {
+export function PlanScreen({ navigation, route }: PlanScreenProps) {
   const nav = useNavigation<any>();
+  const routeHook = useRoute<RouteProp<{ Plan: { date?: string; taskId?: string; highlightNew?: boolean } }, 'Plan'>>();
+  const routeParams = route?.params || routeHook?.params;
+  
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState(() => {
+    // Initialize with route param date if provided
+    if (routeParams?.date) {
+      return new Date(routeParams.date + 'T12:00:00');
+    }
+    return new Date();
+  });
   const [showCalendar, setShowCalendar] = useState(false);
+  const [highlightedTaskId, setHighlightedTaskId] = useState<string | null>(routeParams?.taskId || null);
   const [isLoading, setIsLoading] = useState(true);
 
   const [isAdding, setIsAdding] = useState(false);
@@ -257,6 +279,15 @@ export function PlanScreen({ navigation }: PlanScreenProps) {
   const [newDuration, setNewDuration] = useState('30m');
   const [newPriority, setNewPriority] = useState<'High' | 'Normal' | 'Low'>('Normal');
   const [newTime, setNewTime] = useState('');
+  const [showNewTimePicker, setShowNewTimePicker] = useState(false);
+  const [newTimeDate, setNewTimeDate] = useState(new Date());
+  const [newTaskDate, setNewTaskDate] = useState(new Date());
+  const [showNewDatePicker, setShowNewDatePicker] = useState(false);
+
+  // AI Suggestion state
+  const [aiSuggestion, setAiSuggestion] = useState<AISuggestion | null>(null);
+  const [isLoadingAI, setIsLoadingAI] = useState(false);
+  const aiDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
   const [editTitle, setEditTitle] = useState('');
   const [editCategory, setEditCategory] = useState('Personal');
@@ -328,14 +359,32 @@ export function PlanScreen({ navigation }: PlanScreenProps) {
     }
   }, []);
 
+  // Handle navigation params to go to a specific date
+  useEffect(() => {
+    if (routeParams?.date) {
+      const targetDate = new Date(routeParams.date + 'T12:00:00');
+      setSelectedDate(targetDate);
+    }
+    if (routeParams?.taskId) {
+      setHighlightedTaskId(routeParams.taskId);
+      // Clear highlight after 3 seconds
+      const timer = setTimeout(() => setHighlightedTaskId(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [routeParams?.date, routeParams?.taskId]);
+
   // Reload tasks when screen comes into focus (e.g., after adding from TaskSorting)
   useFocusEffect(
     useCallback(() => {
       // Only reload if we're not in the initial loading state
       if (!isLoading) {
         loadTasksFromApi();
+        // Also update date from params if coming back
+        if (routeParams?.date) {
+          setSelectedDate(new Date(routeParams.date + 'T12:00:00'));
+        }
       }
-    }, [isLoading, loadTasksFromApi])
+    }, [isLoading, loadTasksFromApi, routeParams?.date])
   );
 
   // Initial load
@@ -461,6 +510,73 @@ export function PlanScreen({ navigation }: PlanScreenProps) {
     }
   }, [activeTimerId, focusCardAnim]);
 
+  // Debounced AI categorization when title changes
+  useEffect(() => {
+    if (!newTitle.trim() || newTitle.trim().length < 3) {
+      setAiSuggestion(null);
+      return;
+    }
+
+    // Clear existing timeout
+    if (aiDebounceRef.current) {
+      clearTimeout(aiDebounceRef.current);
+    }
+
+    // Set new debounced call (500ms delay)
+    aiDebounceRef.current = setTimeout(async () => {
+      setIsLoadingAI(true);
+      try {
+        const response = await aiApi.categorizeTask(newTitle.trim());
+        if (response.success && response.data) {
+          const data = response.data;
+          // Map the duration to our format
+          let durationStr = '30m';
+          if (data.suggestedDuration) {
+            const min = parseInt(data.suggestedDuration, 10);
+            if (min <= 15) durationStr = '15m';
+            else if (min <= 30) durationStr = '30m';
+            else if (min <= 60) durationStr = '1h';
+            else durationStr = '2h';
+          }
+          
+          // Map priority to our format (backend returns uppercase)
+          let priorityVal: 'High' | 'Normal' | 'Low' = 'Normal';
+          const priorityLower = (data.priority || '').toLowerCase();
+          if (priorityLower === 'high') priorityVal = 'High';
+          else if (priorityLower === 'low') priorityVal = 'Low';
+          
+          // Map AI category to our available categories
+          const validCategories = ['Personal', 'Work', 'Health', 'Learning', 'Errands'];
+          let categoryVal = data.category || 'Personal';
+          if (!validCategories.includes(categoryVal)) {
+            // Map Finance/Social to closest match
+            if (categoryVal === 'Finance') categoryVal = 'Errands';
+            else if (categoryVal === 'Social') categoryVal = 'Personal';
+            else categoryVal = 'Personal';
+          }
+          
+          setAiSuggestion({
+            category: categoryVal,
+            priority: priorityVal,
+            suggestedDuration: durationStr,
+            confidence: data.confidence || 0.5,
+            tags: data.tags || [],
+          });
+        }
+      } catch (error) {
+        console.error('AI categorization failed:', error);
+      } finally {
+        setIsLoadingAI(false);
+      }
+    }, 500);
+
+    return () => {
+      if (aiDebounceRef.current) {
+        clearTimeout(aiDebounceRef.current);
+      }
+    };
+  }, [newTitle]);
+
   const todayStr = useMemo(() => selectedDate.toISOString().split('T')[0], [selectedDate]);
   const todayTasks = tasks.filter(t => t.date === todayStr);
   const completedCount = todayTasks.filter(t => t.completed).length;
@@ -580,9 +696,10 @@ export function PlanScreen({ navigation }: PlanScreenProps) {
 
   const handleAddTask = () => {
     if (!newTitle.trim()) return;
+    const taskDateStr = newTaskDate.toISOString().split('T')[0];
     const newTask: Task = {
       id: Date.now(),
-      date: todayStr,
+      date: taskDateStr,
       time: newTime || new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
       duration: newDuration,
       durationMin: parseDuration(newDuration),
@@ -598,6 +715,11 @@ export function PlanScreen({ navigation }: PlanScreenProps) {
     setNewDuration('30m');
     setNewPriority('Normal');
     setNewTime('');
+    setShowNewTimePicker(false);
+    setNewTimeDate(new Date());
+    setNewTaskDate(new Date());
+    setShowNewDatePicker(false);
+    setAiSuggestion(null);
     setIsAdding(false);
   };
 
@@ -909,6 +1031,7 @@ export function PlanScreen({ navigation }: PlanScreenProps) {
                 onMoveTomorrow={() => handleMoveToTomorrow(task.id)}
                 isActive={activeTimerId === task.id}
                 isQuick={isQuickTask(task)}
+                isHighlighted={highlightedTaskId === String(task.id)}
               />
             </View>
           ))}
@@ -948,16 +1071,138 @@ export function PlanScreen({ navigation }: PlanScreenProps) {
               style={styles.modalInput}
             />
             <Text style={styles.modalHelper}>Tip: start with a verb, like “Review” or “Call”.</Text>
+
+            {/* AI Suggestion Banner */}
+            {isLoadingAI && (
+              <View style={styles.aiSuggestionBanner}>
+                <View style={styles.aiLoadingRow}>
+                  <Ionicons name="sparkles" size={16} color="#8B5CF6" />
+                  <Text style={styles.aiLoadingText}>AI analyzing...</Text>
+                </View>
+              </View>
+            )}
+            
+            {aiSuggestion && !isLoadingAI && (
+              <View style={styles.aiSuggestionBanner}>
+                <View style={styles.aiSuggestionHeader}>
+                  <View style={styles.aiSuggestionTitle}>
+                    <Ionicons name="sparkles" size={14} color="#8B5CF6" />
+                    <Text style={styles.aiSuggestionLabel}>AI Suggests</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.aiApplyAllBtn}
+                    onPress={() => {
+                      setNewCategory(aiSuggestion.category);
+                      setNewPriority(aiSuggestion.priority);
+                      setNewDuration(aiSuggestion.suggestedDuration);
+                    }}
+                  >
+                    <Text style={styles.aiApplyAllText}>Apply All</Text>
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.aiSuggestionChips}>
+                  <TouchableOpacity
+                    style={[styles.aiChip, newCategory === aiSuggestion.category && styles.aiChipApplied]}
+                    onPress={() => setNewCategory(aiSuggestion.category)}
+                  >
+                    <Ionicons name="folder-outline" size={12} color={newCategory === aiSuggestion.category ? '#059669' : '#6366F1'} />
+                    <Text style={[styles.aiChipText, newCategory === aiSuggestion.category && styles.aiChipTextApplied]}>
+                      {aiSuggestion.category}
+                    </Text>
+                    {newCategory === aiSuggestion.category && <Ionicons name="checkmark" size={12} color="#059669" />}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.aiChip, newPriority === aiSuggestion.priority && styles.aiChipApplied]}
+                    onPress={() => setNewPriority(aiSuggestion.priority)}
+                  >
+                    <Ionicons name="flag-outline" size={12} color={newPriority === aiSuggestion.priority ? '#059669' : '#6366F1'} />
+                    <Text style={[styles.aiChipText, newPriority === aiSuggestion.priority && styles.aiChipTextApplied]}>
+                      {aiSuggestion.priority}
+                    </Text>
+                    {newPriority === aiSuggestion.priority && <Ionicons name="checkmark" size={12} color="#059669" />}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.aiChip, newDuration === aiSuggestion.suggestedDuration && styles.aiChipApplied]}
+                    onPress={() => setNewDuration(aiSuggestion.suggestedDuration)}
+                  >
+                    <Ionicons name="time-outline" size={12} color={newDuration === aiSuggestion.suggestedDuration ? '#059669' : '#6366F1'} />
+                    <Text style={[styles.aiChipText, newDuration === aiSuggestion.suggestedDuration && styles.aiChipTextApplied]}>
+                      {aiSuggestion.suggestedDuration}
+                    </Text>
+                    {newDuration === aiSuggestion.suggestedDuration && <Ionicons name="checkmark" size={12} color="#059669" />}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+            
+            {/* Date Selector */}
+            <Text style={styles.modalLabel}>Date</Text>
+            <View style={styles.dateQuickRow}>
+              <TouchableOpacity
+                style={[styles.dateQuickChip, newTaskDate.toDateString() === new Date().toDateString() && styles.dateQuickChipActive]}
+                onPress={() => setNewTaskDate(new Date())}
+              >
+                <Ionicons name="today-outline" size={14} color={newTaskDate.toDateString() === new Date().toDateString() ? '#FFFFFF' : '#64748B'} />
+                <Text style={[styles.dateQuickText, newTaskDate.toDateString() === new Date().toDateString() && styles.dateQuickTextActive]}>Today</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.dateQuickChip, newTaskDate.toDateString() === new Date(Date.now() + 86400000).toDateString() && styles.dateQuickChipActive]}
+                onPress={() => setNewTaskDate(new Date(Date.now() + 86400000))}
+              >
+                <Ionicons name="arrow-forward-outline" size={14} color={newTaskDate.toDateString() === new Date(Date.now() + 86400000).toDateString() ? '#FFFFFF' : '#64748B'} />
+                <Text style={[styles.dateQuickText, newTaskDate.toDateString() === new Date(Date.now() + 86400000).toDateString() && styles.dateQuickTextActive]}>Tomorrow</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.dateQuickChip, styles.datePickerChip]}
+                onPress={() => setShowNewDatePicker(true)}
+              >
+                <Ionicons name="calendar-outline" size={14} color="#7C3AED" />
+                <Text style={styles.datePickerChipText}>
+                  {newTaskDate.toDateString() !== new Date().toDateString() && 
+                   newTaskDate.toDateString() !== new Date(Date.now() + 86400000).toDateString()
+                    ? newTaskDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                    : 'Pick Date'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            {showNewDatePicker && (
+              <View style={styles.pickerContainer}>
+                <View style={styles.pickerHeader}>
+                  <TouchableOpacity onPress={() => setShowNewDatePicker(false)}>
+                    <Text style={styles.pickerCancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.pickerTitle}>Select Date</Text>
+                  <TouchableOpacity onPress={() => setShowNewDatePicker(false)}>
+                    <Text style={styles.pickerDoneText}>Done</Text>
+                  </TouchableOpacity>
+                </View>
+                <DateTimePicker
+                  value={newTaskDate}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  minimumDate={new Date()}
+                  onChange={(event, date) => {
+                    if (Platform.OS !== 'ios') setShowNewDatePicker(false);
+                    if (date) {
+                      setNewTaskDate(date);
+                    }
+                  }}
+                />
+              </View>
+            )}
+            
             <View style={styles.modalRow}>
               <View style={styles.modalField}>
-                <Text style={styles.modalLabel}>When</Text>
-                <TextInput
-                  value={newTime}
-                  onChangeText={setNewTime}
-                  placeholder="Anytime"
-                  placeholderTextColor="#94A3B8"
-                  style={styles.modalInput}
-                />
+                <Text style={styles.modalLabel}>Time</Text>
+                <TouchableOpacity 
+                  style={styles.timePickerButton}
+                  onPress={() => setShowNewTimePicker(true)}
+                >
+                  <Ionicons name="time-outline" size={16} color={newTime ? '#0F172A' : '#94A3B8'} />
+                  <Text style={[styles.timePickerText, !newTime && styles.timePickerPlaceholder]}>
+                    {newTime || 'Anytime'}
+                  </Text>
+                </TouchableOpacity>
               </View>
               <View style={styles.modalField}>
                 <Text style={styles.modalLabel}>Duration</Text>
@@ -974,6 +1219,44 @@ export function PlanScreen({ navigation }: PlanScreenProps) {
                 </View>
               </View>
             </View>
+            
+            {/* Time Picker - Full Width */}
+            {showNewTimePicker && (
+              <View style={styles.fullWidthPickerContainer}>
+                <View style={styles.pickerHeader}>
+                  <TouchableOpacity onPress={() => {
+                    setShowNewTimePicker(false);
+                    setNewTime('');
+                  }}>
+                    <Text style={styles.pickerCancelText}>Clear</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.pickerTitle}>Select Time</Text>
+                  <TouchableOpacity onPress={() => setShowNewTimePicker(false)}>
+                    <Text style={styles.pickerDoneText}>Done</Text>
+                  </TouchableOpacity>
+                </View>
+                <DateTimePicker
+                  value={newTimeDate}
+                  mode="time"
+                  is24Hour={false}
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  style={{ width: '100%' }}
+                  onChange={(event, date) => {
+                    if (Platform.OS !== 'ios') setShowNewTimePicker(false);
+                    if (date) {
+                      setNewTimeDate(date);
+                      const hours = date.getHours();
+                      const minutes = date.getMinutes();
+                      const ampm = hours >= 12 ? 'PM' : 'AM';
+                      const hour12 = hours % 12 || 12;
+                      const timeStr = `${hour12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+                      setNewTime(timeStr);
+                    }
+                  }}
+                />
+              </View>
+            )}
+            
             <Text style={styles.modalLabel}>Category</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryRow}>
               {['Personal', 'Work', 'Health', 'Learning', 'Errands'].map(cat => (
@@ -1010,6 +1293,11 @@ export function PlanScreen({ navigation }: PlanScreenProps) {
                   setNewDuration('30m');
                   setNewPriority('Normal');
                   setNewTime('');
+                  setShowNewTimePicker(false);
+                  setNewTimeDate(new Date());
+                  setNewTaskDate(new Date());
+                  setShowNewDatePicker(false);
+                  setAiSuggestion(null);
                 }}
               >
                 <Text style={styles.modalCancelText}>Cancel</Text>
@@ -1228,6 +1516,7 @@ const styles = StyleSheet.create({
   taskCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 18, paddingVertical: 12, paddingHorizontal: 12, shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
   taskCardCompleted: { opacity: 0.6 },
   taskCardActive: { borderWidth: 1, borderColor: '#10B981', backgroundColor: '#ECFDF5' },
+  taskCardHighlighted: { borderWidth: 2, borderColor: '#3B82F6', backgroundColor: '#EFF6FF' },
   taskAccent: { width: 4, height: '100%', borderRadius: 4, marginRight: 12 },
   taskContent: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: 10 },
   taskTimeBlock: { width: 48, alignItems: 'center' },
@@ -1267,9 +1556,46 @@ const styles = StyleSheet.create({
   modalBody: { fontSize: 14, color: '#64748B', marginBottom: 16 },
   modalInput: { backgroundColor: '#F1F5F9', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14, color: '#0F172A', marginBottom: 12 },
   modalHelper: { fontSize: 11, color: '#94A3B8', marginBottom: 8 },
+  
+  // AI Suggestion styles
+  aiSuggestionBanner: { backgroundColor: '#F5F3FF', borderRadius: 14, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: '#E9D5FF' },
+  aiLoadingRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  aiLoadingText: { fontSize: 12, color: '#8B5CF6', fontWeight: '600' },
+  aiSuggestionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  aiSuggestionTitle: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  aiSuggestionLabel: { fontSize: 12, color: '#8B5CF6', fontWeight: '700' },
+  aiApplyAllBtn: { backgroundColor: '#8B5CF6', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
+  aiApplyAllText: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
+  aiSuggestionChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  aiChip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#FFFFFF', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, borderWidth: 1, borderColor: '#E9D5FF' },
+  aiChipApplied: { backgroundColor: '#ECFDF5', borderColor: '#059669' },
+  aiChipText: { fontSize: 11, color: '#6366F1', fontWeight: '600' },
+  aiChipTextApplied: { color: '#059669' },
+  
   modalRow: { flexDirection: 'row', gap: 12 },
   modalField: { flex: 1 },
   modalLabel: { fontSize: 11, color: '#94A3B8', fontWeight: '700', textTransform: 'uppercase', marginBottom: 6 },
+  
+  // Date picker styles
+  dateQuickRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  dateQuickChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12, backgroundColor: '#F1F5F9' },
+  dateQuickChipActive: { backgroundColor: '#7C3AED' },
+  dateQuickText: { fontSize: 13, color: '#64748B', fontWeight: '600' },
+  dateQuickTextActive: { color: '#FFFFFF' },
+  
+  // Picker container styles (for Done/Cancel buttons)
+  pickerContainer: { backgroundColor: '#F8FAFC', borderRadius: 14, marginBottom: 12, overflow: 'hidden' },
+  fullWidthPickerContainer: { backgroundColor: '#F8FAFC', borderRadius: 14, marginBottom: 12 },
+  pickerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
+  pickerTitle: { fontSize: 14, fontWeight: '600', color: '#0F172A' },
+  pickerCancelText: { fontSize: 14, color: '#64748B', fontWeight: '500' },
+  pickerDoneText: { fontSize: 14, color: '#7C3AED', fontWeight: '600' },
+  datePickerChip: { backgroundColor: '#F5F3FF', borderWidth: 1, borderColor: '#E9D5FF' },
+  datePickerChipText: { fontSize: 13, color: '#7C3AED', fontWeight: '600' },
+  
+  timePickerButton: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#F1F5F9', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, marginBottom: 12 },
+  timePickerText: { fontSize: 14, color: '#0F172A', fontWeight: '500' },
+  timePickerPlaceholder: { color: '#94A3B8' },
   durationRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   durationChip: { paddingHorizontal: 10, paddingVertical: 8, borderRadius: 10, backgroundColor: '#F1F5F9' },
   durationChipActive: { backgroundColor: '#7C3AED' },

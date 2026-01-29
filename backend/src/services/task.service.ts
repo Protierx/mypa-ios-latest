@@ -3,6 +3,7 @@ import { AppError } from '../middleware/error.js';
 import { addXp } from './user.service.js';
 import { checkAndUpdateStreak } from '../utils/streaks.js';
 import { XP_REWARDS, calculateXpWithStreak, estimateTimeSaved } from '../utils/xp.js';
+import { scheduleTaskReminder, cancelTaskReminder } from './scheduler.service.js';
 
 export type TaskPriority = 'LOW' | 'NORMAL' | 'HIGH';
 
@@ -50,6 +51,24 @@ export async function createTask(userId: string, input: CreateTaskInput) {
   const taskCount = await prisma.task.count({ where: { userId } });
   if (taskCount === 1) {
     await addXp(userId, XP_REWARDS.FIRST_TASK, 'First task created');
+  }
+
+  // Schedule reminder if task has a date and time
+  if (input.date && input.time) {
+    try {
+      const [hours, minutes] = input.time.split(':').map(Number);
+      const taskDate = new Date(input.date);
+      taskDate.setHours(hours, minutes, 0, 0);
+      
+      // Schedule reminder 15 minutes before
+      const reminderTime = new Date(taskDate.getTime() - 15 * 60 * 1000);
+      
+      if (reminderTime > new Date()) {
+        scheduleTaskReminder(task.id, userId, task.title, reminderTime);
+      }
+    } catch (error) {
+      console.error('Failed to schedule task reminder:', error);
+    }
   }
 
   return task;
@@ -178,6 +197,11 @@ export async function completeTask(userId: string, taskId: string, completed: bo
     throw new AppError('Task not found', 404, 'TASK_NOT_FOUND');
   }
 
+  // Cancel any scheduled reminder when task is completed
+  if (completed) {
+    cancelTaskReminder(taskId);
+  }
+
   // Update task
   const updatedTask = await prisma.task.update({
     where: { id: taskId },
@@ -249,6 +273,9 @@ export async function deleteTask(userId: string, taskId: string) {
   if (!task) {
     throw new AppError('Task not found', 404, 'TASK_NOT_FOUND');
   }
+
+  // Cancel any scheduled reminder
+  cancelTaskReminder(taskId);
 
   await prisma.task.delete({
     where: { id: taskId },
