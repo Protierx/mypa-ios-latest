@@ -248,8 +248,10 @@ export function WalletScreen({ navigation }: WalletScreenProps) {
   };
 
   // Calculate level progress percentage
-  const xpForCurrentLevel = wallet.xp - (userStats?.xpToNextLevel || 0) + (userStats?.xpToNextLevel || 100);
-  const levelProgress = Math.min(100, Math.round(((xpForCurrentLevel - wallet.xpToNextLevel + wallet.xpToNextLevel) / (wallet.xpToNextLevel * 2)) * 100));
+  const levelProgress = Math.min(
+    100,
+    Math.round((wallet.xp / wallet.xpToNextLevel) * 100)
+  );
 
   // Calculate total time in minutes for milestones
   const totalMinutes = user?.totalTimeSaved || user?.focusMinutes || 0;
