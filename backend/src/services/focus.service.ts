@@ -1,6 +1,7 @@
 import prisma from '../config/database.js';
 import { AppError } from '../middleware/error.js';
 import { addXp } from './user.service.js';
+import { autoUpdateChallengeProgress } from './challenge.service.js';
 import { checkAndUpdateStreak } from '../utils/streaks.js';
 import { XP_REWARDS, calculateXpWithStreak } from '../utils/xp.js';
 
@@ -217,7 +218,15 @@ export async function endSession(userId: string, completed: boolean = true) {
     });
 
     // Update streak
-    await checkAndUpdateStreak(userId);
+    const streakResult = await checkAndUpdateStreak(userId);
+
+    // Update challenge progress (focus + streak)
+    if (actualMinutes > 0) {
+      await autoUpdateChallengeProgress(userId, 'FOCUS_MINUTES', actualMinutes);
+    }
+    if (streakResult.streakUpdated) {
+      await autoUpdateChallengeProgress(userId, 'STREAK_DAYS', 1);
+    }
   }
 
   const updatedSession = await prisma.focusSession.update({

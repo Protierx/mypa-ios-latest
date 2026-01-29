@@ -4,7 +4,7 @@
 import { io, Socket } from 'socket.io-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const API_BASE_URL = 'http://192.168.1.165:3000';
+const API_BASE_URL = 'http://192.168.1.31:3000';
 const TOKEN_KEY = 'mypa_access_token';
 
 // Socket events that the frontend can listen to
@@ -20,6 +20,11 @@ export type SocketEvent =
   | 'assignment:accepted'
   | 'assignment:declined'
   | 'assignment:completed'
+  // Challenge events
+  | 'challenge:created'
+  | 'challenge:updated'
+  | 'challenge:joined'
+  | 'challenge:completed'
   // Post events
   | 'post:new'
   | 'post:deleted'

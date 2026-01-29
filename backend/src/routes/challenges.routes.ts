@@ -8,6 +8,7 @@ import { z } from 'zod';
 import * as challengeService from '../services/challenge.service.js';
 import { validateBody, validateParams, validateQuery } from '../middleware/validation.js';
 import { authenticateToken } from '../middleware/auth.js';
+import { getIO } from '../services/socket.service.js';
 
 const router = Router();
 
@@ -140,6 +141,18 @@ router.post(
         endsAt: new Date(req.body.endsAt),
       });
 
+      // Emit socket event for real-time updates
+      if (challenge.circleId) {
+        const io = getIO();
+        if (io) {
+          io.to(`circle:${challenge.circleId}`).emit('challenge:created', {
+            circleId: challenge.circleId,
+            challenge,
+            timestamp: new Date().toISOString(),
+          });
+        }
+      }
+
       res.status(201).json({
         success: true,
         data: challenge,
@@ -165,6 +178,19 @@ router.post(
         req.params.id,
         req.user!.id
       );
+
+      // Emit socket event
+      if (participant.challenge.circleId) {
+        const io = getIO();
+        if (io) {
+          io.to(`circle:${participant.challenge.circleId}`).emit('challenge:joined', {
+            circleId: participant.challenge.circleId,
+            challenge: participant.challenge,
+            userId: req.user!.id,
+            timestamp: new Date().toISOString(),
+          });
+        }
+      }
 
       res.status(201).json({
         success: true,
@@ -200,6 +226,64 @@ router.post(
 );
 
 // ==========================================
+// UPDATE / DELETE CHALLENGE
+// ==========================================
+
+const updateChallengeSchema = z.object({
+  title: z.string().min(1).max(100).optional(),
+  description: z.string().max(500).optional(),
+  emoji: z.string().max(10).optional(),
+  targetValue: z.number().min(1).max(10000).optional(),
+  endsAt: z.string().datetime().optional(),
+  xpReward: z.number().min(10).max(1000).optional(),
+});
+
+// PUT /challenges/:id - Update a challenge
+router.put(
+  '/:id',
+  validateParams(idParamsSchema),
+  validateBody(updateChallengeSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const challenge = await challengeService.updateChallenge(
+        req.params.id,
+        req.user!.id,
+        {
+          ...req.body,
+          endsAt: req.body.endsAt ? new Date(req.body.endsAt) : undefined,
+        }
+      );
+
+      res.json({
+        success: true,
+        data: challenge,
+        message: 'Challenge updated!',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// DELETE /challenges/:id - Delete a challenge
+router.delete(
+  '/:id',
+  validateParams(idParamsSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      await challengeService.deleteChallenge(req.params.id, req.user!.id);
+
+      res.json({
+        success: true,
+        message: 'Challenge deleted',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// ==========================================
 // UPDATE PROGRESS
 // ==========================================
 
@@ -219,6 +303,22 @@ router.post(
       const isCompleted = 'isCompleted' in result ? result.isCompleted : false;
       const xpAwarded = 'xpAwarded' in result ? result.xpAwarded : 0;
       
+      // Emit socket event
+      const challenge = 'challenge' in result ? result.challenge : null;
+      if (challenge?.circleId) {
+        const io = getIO();
+        if (io) {
+          io.to(`circle:${challenge.circleId}`).emit('challenge:updated', {
+            circleId: challenge.circleId,
+            challenge,
+            userId: req.user!.id,
+            progress: 'progress' in result ? result.progress : 0,
+            isCompleted,
+            timestamp: new Date().toISOString(),
+          });
+        }
+      }
+
       const message = isCompleted
         ? `Challenge completed! +${xpAwarded} XP`
         : `Progress updated: ${result.progress}/${result.challenge.targetValue}`;

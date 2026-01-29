@@ -20,7 +20,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
-import { circlesApi, assignmentsApi, postsApi, tasksApi } from '../services/api';
+import { circlesApi, assignmentsApi, postsApi, tasksApi, challengesApi, aiApi } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket, useSocketEvent } from '../services/socket';
 
@@ -94,6 +94,10 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
 
   // Real assignments from API - start empty
   const [assignments, setAssignments] = useState<any[]>([]);
+  
+  // Real challenges from API
+  const [circleChallenges, setCircleChallenges] = useState<any[]>([]);
+  const [loadingChallenges, setLoadingChallenges] = useState(true);
 
   const [assignmentTitle, setAssignmentTitle] = useState('');
   const [assignmentDueTime, setAssignmentDueTime] = useState('18:00');
@@ -187,6 +191,9 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
   const [showViewProofModal, setShowViewProofModal] = useState(false);
   const [proofImage, setProofImage] = useState<string | null>(null);
   const [selectedAssignmentForProof, setSelectedAssignmentForProof] = useState<any>(null);
+  const [proofUrl, setProofUrl] = useState('');
+  const [proofNote, setProofNote] = useState('');
+  const [submittingProof, setSubmittingProof] = useState(false);
 
   // NEW: Multi-select mode for posts (WhatsApp style)
   const [postSelectionMode, setPostSelectionMode] = useState(false);
@@ -204,9 +211,23 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
     dueTime: null as Date | null,
     xpReward: 50,
     repeatEnabled: false,
-    repeatFrequency: 'daily',
+    repeatFrequency: 'daily' as 'daily' | 'weekly' | 'monthly',
     requireProof: false,
   });
+  
+  // Challenge creation state
+  const [showCreateChallengeModal, setShowCreateChallengeModal] = useState(false);
+  const [challengeTitle, setChallengeTitle] = useState('');
+  const [challengeType, setChallengeType] = useState<'FOCUS_MINUTES' | 'TASKS_COMPLETED' | 'STREAK_DAYS'>('TASKS_COMPLETED');
+  const [challengeTarget, setChallengeTarget] = useState('10');
+  const [challengeDays, setChallengeDays] = useState('7');
+  const [challengeXP, setChallengeXP] = useState(100);
+  const [challengeCategory, setChallengeCategory] = useState<'Productivity' | 'Fitness' | 'Wellness' | 'Learning' | 'Social'>('Productivity');
+  const [challengeDescription, setChallengeDescription] = useState('');
+  const [creatingChallenge, setCreatingChallenge] = useState(false);
+  const [challengePrompt, setChallengePrompt] = useState('');
+  const [aiSuggestingChallenge, setAiSuggestingChallenge] = useState(false);
+
   const [editingAssignment, setEditingAssignment] = useState(false);
   const [showEditDatePicker, setShowEditDatePicker] = useState(false);
   const [showEditTimePicker, setShowEditTimePicker] = useState(false);
@@ -301,6 +322,32 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
     }
   }, [circleId]);
 
+  // Real-time: New challenge created
+  useSocketEvent('challenge:created', (data: any) => {
+    if (data.circleId === circleId) {
+      console.log('🏆 New challenge created:', data.challenge);
+      fetchFeed(); // Add challenge post to feed
+      fetchChallenges(); // Refresh challenge list
+    }
+  }, [circleId]);
+
+  // Real-time: Challenge joined
+  useSocketEvent('challenge:joined', (data: any) => {
+    if (data.circleId === circleId) {
+      console.log('✅ Member joined challenge:', data.challenge);
+      fetchChallenges();
+    }
+  }, [circleId]);
+
+  // Real-time: Challenge completed
+  useSocketEvent('challenge:completed', (data: any) => {
+    if (data.circleId === circleId) {
+      console.log('🎉 Challenge completed:', data.challenge);
+      fetchFeed(); // Show completion post
+      fetchChallenges();
+    }
+  }, [circleId]);
+
   // Fetch circle members from API
   // Load all data on mount and when circleId changes
   useEffect(() => {
@@ -313,6 +360,7 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
       fetchCircleMembers(),
       fetchFeed(),
       fetchAssignments(),
+      fetchChallenges(),
       fetchTodayStats(),
     ]);
   };
@@ -505,6 +553,26 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
       setAssignments([]);
     } finally {
       setLoadingAssignments(false);
+    }
+  };
+
+  // Fetch real challenges for this circle
+  const fetchChallenges = async () => {
+    setLoadingChallenges(true);
+    try {
+      const response = await challengesApi.getAll();
+      if (response.success && response.data) {
+        // Filter to only show challenges for this circle
+        const circleOnlyChallenges = response.data.filter((c: any) => c.circleId === circleId);
+        setCircleChallenges(circleOnlyChallenges);
+      } else {
+        setCircleChallenges([]);
+      }
+    } catch (error) {
+      console.error('Failed to fetch challenges:', error);
+      setCircleChallenges([]);
+    } finally {
+      setLoadingChallenges(false);
     }
   };
 
@@ -841,10 +909,10 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
     console.log('🔴 showDeclineModal state set');
   };
 
-  // Complete assignment
-  const handleCompleteAssignment = async (assignmentId: string) => {
+  // Complete assignment (with optional proof)
+  const handleCompleteAssignment = async (assignment: any, proof?: { proofUrl?: string; proofNote?: string }) => {
     try {
-      const response = await assignmentsApi.complete(assignmentId);
+      const response = await assignmentsApi.complete(String(assignment.id), proof);
       if (response.success) {
         await fetchAssignments();
         await fetchFeed(); // Refresh feed to show completion
@@ -855,6 +923,116 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
     } catch (error) {
       console.error('Failed to complete assignment:', error);
       Alert.alert('Error', 'Failed to complete assignment');
+    }
+  };
+
+  const openSubmitProofModal = (assignment: any) => {
+    setSelectedAssignmentForProof(assignment);
+    setProofUrl(assignment?.proofUrl || '');
+    setProofNote('');
+    setShowSubmitProofModal(true);
+  };
+
+  const submitProofAndComplete = async () => {
+    if (!selectedAssignmentForProof) return;
+
+    if (!proofUrl.trim() && !proofNote.trim()) {
+      Alert.alert('Proof required', 'Add a proof link or a short note.');
+      return;
+    }
+
+    setSubmittingProof(true);
+    try {
+      await handleCompleteAssignment(selectedAssignmentForProof, {
+        proofUrl: proofUrl.trim() || undefined,
+        proofNote: proofNote.trim() || undefined,
+      });
+      setShowSubmitProofModal(false);
+      setSelectedAssignmentForProof(null);
+      setProofUrl('');
+      setProofNote('');
+    } finally {
+      setSubmittingProof(false);
+    }
+  };
+
+  const handleViewProof = async (assignment: any) => {
+    if (!assignment?.proofUrl) {
+      Alert.alert('No proof', 'No proof link was provided.');
+      return;
+    }
+    Alert.alert(
+      'Proof Submitted',
+      assignment.proofUrl,
+      [
+        { text: 'Close', style: 'cancel' },
+        { text: 'Copy Link', onPress: () => handleCopyInvite(assignment.proofUrl, 'proof') },
+      ]
+    );
+  };
+
+  // Create challenge
+  const handleCreateChallenge = async () => {
+    if (!challengeTitle.trim()) {
+      Alert.alert('Error', 'Please enter a challenge title');
+      return;
+    }
+
+    const target = parseInt(challengeTarget);
+    const days = parseInt(challengeDays);
+    
+    if (isNaN(target) || target < 1) {
+      Alert.alert('Error', 'Please enter a valid target number');
+      return;
+    }
+    
+    if (isNaN(days) || days < 1) {
+      Alert.alert('Error', 'Please enter a valid number of days');
+      return;
+    }
+
+    setCreatingChallenge(true);
+    try {
+      const now = new Date();
+      const endsAt = new Date();
+      endsAt.setDate(endsAt.getDate() + days);
+
+      const description = `Category: ${challengeCategory}${challengeDescription.trim() ? ` | ${challengeDescription.trim()}` : ''}`;
+      const response = await challengesApi.create({
+        title: challengeTitle.trim(),
+        type: challengeType,
+        targetValue: target,
+        startsAt: now.toISOString(),
+        endsAt: endsAt.toISOString(),
+        xpReward: challengeXP,
+        circleId: circleId,
+        emoji: challengeType === 'FOCUS_MINUTES' ? '🧠' : 
+               challengeType === 'TASKS_COMPLETED' ? '✅' : '🔥',
+        description,
+      });
+
+      if (response.success) {
+        // Refresh feed to show new challenge post
+        await fetchFeed();
+        await fetchChallenges();
+        
+        // Reset form
+        setChallengeTitle('');
+        setChallengeTarget('10');
+        setChallengeDays('7');
+        setChallengeCategory('Productivity');
+        setChallengeDescription('');
+        setShowCreateChallengeModal(false);
+        
+        Alert.alert('🎉 Challenge Created!', `Your challenge has been posted to the circle feed!`);
+      } else {
+        Alert.alert('Error', response.error || 'Failed to create challenge');
+      }
+    } catch (error) {
+      console.error('Failed to create challenge:', error);
+      Alert.alert('Error', 'Failed to create challenge. Please try again.');
+    } finally {
+      setCreatingChallenge(false);
     }
   };
 
@@ -915,6 +1093,12 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
   // NEW: Handle open Today modal
   const handleOpenTodayModal = () => {
     setShowTodayModal(true);
+  };
+
+  const extractChallengeCategory = (description?: string) => {
+    if (!description) return null;
+    const match = description.match(/Category:\s*([^|\n]+)/i);
+    return match?.[1]?.trim() || null;
   };
 
   // NEW: Handle open Member Detail
@@ -1076,8 +1260,53 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
   const handlePostTap = (post: any) => {
     if (postSelectionMode) {
       togglePostSelection(post.id);
+      return;
     }
-    // In normal mode, posts don't have tap action (can add if needed)
+
+    if (post.type === 'system' && post.isAssignmentRelated && post.assignmentId) {
+      const assignment = assignments.find(a => a.id === post.assignmentId);
+      if (assignment) {
+        setSelectedAssignment(assignment);
+        setShowAssignmentOptions(true);
+      }
+      return;
+    }
+  };
+
+  const handleChallengePress = (challenge: any) => {
+    navigation.navigate('Home', { screen: 'Challenges', params: { focusChallengeId: challenge.id } });
+  };
+
+  const handleAiSuggestChallenge = async () => {
+    if (!challengePrompt.trim()) {
+      Alert.alert('AI Assist', 'Describe the challenge you want.');
+      return;
+    }
+
+    setAiSuggestingChallenge(true);
+    try {
+      const response = await aiApi.suggestChallenge(challengePrompt.trim());
+      if (response.success && response.data) {
+        setChallengeTitle(response.data.title || challengeTitle);
+        setChallengeType(response.data.type || 'TASKS_COMPLETED');
+        setChallengeTarget(String(response.data.targetValue || 10));
+        setChallengeDays(String(response.data.days || 7));
+        setChallengeXP(Number(response.data.xpReward || 100));
+        if (response.data.category) {
+          setChallengeCategory(response.data.category);
+        }
+        if (response.data.description) {
+          setChallengeDescription(response.data.description);
+        }
+      } else {
+        Alert.alert('AI Assist', response.error || 'AI is unavailable right now.');
+      }
+    } catch (error) {
+      console.error('AI suggest failed:', error);
+      Alert.alert('AI Assist', 'Failed to generate a challenge.');
+    } finally {
+      setAiSuggestingChallenge(false);
+    }
   };
 
   // Cancel selection mode
@@ -1573,6 +1802,91 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
       // Always show regular post options first
       handlePostOptions(post);
     };
+    
+    // Handle challenge post type
+    if (post.type === 'challenge') {
+      let challengeData;
+      try {
+        challengeData = typeof post.content === 'string' ? JSON.parse(post.content) : post.content;
+      } catch (e) {
+        return null;
+      }
+      const postCategory = challengeData?.category || extractChallengeCategory(challengeData?.description);
+
+      return (
+        <Pressable 
+          onPress={() => {
+            Alert.alert(
+              `${challengeData.emoji} ${challengeData.title}`,
+              `Target: ${challengeData.targetValue} ${
+                challengeData.type === 'FOCUS_MINUTES' ? 'minutes' :
+                challengeData.type === 'TASKS_COMPLETED' ? 'tasks' : 'days'
+              }\nReward: ${challengeData.xpReward} XP${postCategory ? `\nCategory: ${postCategory}` : ''}`,
+              [
+                { text: 'Later', style: 'cancel' },
+                { 
+                  text: 'Join Challenge',
+                  onPress: async () => {
+                    try {
+                      const response = await challengesApi.join(challengeData.challengeId);
+                      if (response.success) {
+                        Alert.alert('Joined!', 'You\'ve joined the challenge!');
+                        fetchChallenges();
+                      }
+                    } catch (error) {
+                      console.error('Failed to join:', error);
+                    }
+                  }
+                }
+              ]
+            );
+          }}
+          style={({ pressed }) => [
+            styles.systemCard,
+            pressed && styles.postCardPressed,
+            { borderLeftWidth: 4, borderLeftColor: Colors.primary }
+          ]}
+        >
+          <View style={styles.systemCardContent}>
+            <View style={[styles.systemIconContainer, { backgroundColor: '#ede9fe' }]}>
+              <Text style={{ fontSize: 24 }}>{challengeData.emoji}</Text>
+            </View>
+            <View style={styles.systemTextContainer}>
+              <Text style={[styles.systemText, { fontWeight: '600' }]}>
+                {post.author?.name || 'Someone'} created a challenge
+              </Text>
+              <Text style={[styles.systemText, { fontSize: 15, marginTop: 4 }]}>
+                {challengeData.title}
+              </Text>
+              {postCategory && (
+                <View style={{
+                  alignSelf: 'flex-start',
+                  backgroundColor: Colors.primaryLight,
+                  paddingHorizontal: 8,
+                  paddingVertical: 2,
+                  borderRadius: 10,
+                  marginTop: 6,
+                }}>
+                  <Text style={{ fontSize: 11, fontWeight: '600', color: Colors.primary }}>
+                    {postCategory}
+                  </Text>
+                </View>
+              )}
+              <View style={{ flexDirection: 'row', gap: 12, marginTop: 6 }}>
+                <Text style={styles.systemTime}>
+                  {challengeData.type === 'FOCUS_MINUTES' ? `🧠 ${challengeData.targetValue} min` :
+                   challengeData.type === 'TASKS_COMPLETED' ? `✅ ${challengeData.targetValue} tasks` :
+                   `🔥 ${challengeData.targetValue} day streak`}
+                </Text>
+                <Text style={[styles.systemTime, { color: Colors.success }]}>
+                  +{challengeData.xpReward} XP
+                </Text>
+              </View>
+            </View>
+          </View>
+        </Pressable>
+      );
+    }
     
     if (post.type === 'system') {
       const iconColor = post.iconName === 'award' ? '#10B981' : 
@@ -2262,7 +2576,248 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
         {/* Challenges Tab - Reserved for friend's implementation */}
         {circleTab === 'challenges' && (
           <View>
-            {/* Challenges feature will be implemented here */}
+            <View style={styles.challengeSectionHeader}>
+              <Text style={styles.sectionTitle}>CHALLENGES</Text>
+              <TouchableOpacity
+                style={styles.challengeSectionAction}
+                onPress={() => navigation.navigate('Home', { screen: 'Challenges', params: { focusCircleId: circleId } })}
+              >
+                <Text style={styles.challengeSectionActionText}>View all</Text>
+                <Feather name="chevron-right" size={16} color={Colors.primary} />
+              </TouchableOpacity>
+            </View>
+            
+            {loadingChallenges ? (
+              <View style={{ padding: 40, alignItems: 'center' }}>
+                <ActivityIndicator size="large" color={Colors.primary} />
+                <Text style={{ marginTop: 12, color: Colors.textSecondary }}>Loading challenges...</Text>
+              </View>
+            ) : circleChallenges.length === 0 ? (
+              <View style={{
+                padding: 40,
+                alignItems: 'center',
+                backgroundColor: Colors.surface,
+                borderRadius: 16,
+                marginTop: 8,
+              }}>
+                <MaterialCommunityIcons name="trophy-outline" size={48} color={Colors.textMuted} />
+                <Text style={{ 
+                  marginTop: 16, 
+                  fontSize: 16, 
+                  fontWeight: '600', 
+                  color: Colors.textPrimary,
+                  textAlign: 'center' 
+                }}>
+                  No challenges yet
+                </Text>
+                <Text style={{ 
+                  marginTop: 8, 
+                  color: Colors.textSecondary, 
+                  textAlign: 'center',
+                  paddingHorizontal: 20,
+                }}>
+                  Create a challenge in the Challenges screen and select this circle to get started!
+                </Text>
+                <TouchableOpacity 
+                  onPress={() => navigation?.navigate('Home', { screen: 'Challenges' })}
+                  style={{ marginTop: 16 }}
+                >
+                  <LinearGradient
+                    colors={['#7c3aed', '#a78bfa']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={{ paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 }}
+                  >
+                    <Text style={{ color: Colors.white, fontWeight: '600' }}>Go to Challenges</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              circleChallenges.map(challenge => {
+                const now = new Date();
+                const endsAt = new Date(challenge.endsAt);
+                const startsAt = new Date(challenge.startsAt);
+                const daysLeft = Math.max(0, Math.ceil((endsAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+                const totalDays = Math.ceil((endsAt.getTime() - startsAt.getTime()) / (1000 * 60 * 60 * 24));
+                const progressPercent = Math.min(100, ((totalDays - daysLeft) / totalDays) * 100);
+                const participantCount = challenge.participantCount || challenge._count?.participants || 1;
+                const challengeCategory = extractChallengeCategory(challenge.description);
+                
+                // Create participant avatars (up to 3)
+                const participantAvatars = ['🧑', '👩', '🧔'].slice(0, Math.min(participantCount, 3));
+                
+                return (
+                  <TouchableOpacity 
+                    key={challenge.id} 
+                    style={styles.challengeCard}
+                    activeOpacity={0.7}
+                    onPress={() => handleChallengePress(challenge)}
+                  >
+                    {/* Header with emoji, title, XP badge */}
+                    <View style={styles.challengeHeader}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
+                        <View style={{ 
+                          width: 48, 
+                          height: 48, 
+                          borderRadius: 14, 
+                          backgroundColor: Colors.primaryLight,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}>
+                          <Text style={{ fontSize: 24 }}>{challenge.emoji || '🏆'}</Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.challengeTitle} numberOfLines={1}>{challenge.title}</Text>
+                          <Text style={styles.challengeAssigner}>
+                            {challenge.type === 'FOCUS_MINUTES' ? `${challenge.targetValue} min focus` :
+                             challenge.type === 'TASKS_COMPLETED' ? `${challenge.targetValue} tasks` :
+                             challenge.type === 'STREAK_DAYS' ? `${challenge.targetValue} day streak` :
+                             `Target: ${challenge.targetValue}`}
+                          </Text>
+                          {challengeCategory && (
+                            <View style={{
+                              alignSelf: 'flex-start',
+                              backgroundColor: Colors.primaryLight,
+                              paddingHorizontal: 8,
+                              paddingVertical: 2,
+                              borderRadius: 10,
+                              marginTop: 6,
+                            }}>
+                              <Text style={{ fontSize: 11, fontWeight: '600', color: Colors.primary }}>
+                                {challengeCategory}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                      </View>
+                      <View style={[styles.statusBadge, { backgroundColor: '#dcfce7' }]}>
+                        <Text style={[styles.statusText, { color: '#16a34a' }]}>
+                          +{challenge.xpReward} XP
+                        </Text>
+                      </View>
+                    </View>
+                    
+                    {/* Participants row */}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12, gap: 8 }}>
+                      <View style={{ flexDirection: 'row' }}>
+                        {participantAvatars.map((avatar, idx) => (
+                          <View 
+                            key={idx}
+                            style={{
+                              width: 28,
+                              height: 28,
+                              borderRadius: 14,
+                              backgroundColor: ['#fef3c7', '#dbeafe', '#fce7f3'][idx % 3],
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              marginLeft: idx > 0 ? -8 : 0,
+                              borderWidth: 2,
+                              borderColor: Colors.white,
+                            }}
+                          >
+                            <Text style={{ fontSize: 14 }}>{avatar}</Text>
+                          </View>
+                        ))}
+                        {participantCount > 3 && (
+                          <View style={{
+                            width: 28,
+                            height: 28,
+                            borderRadius: 14,
+                            backgroundColor: Colors.surface,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            marginLeft: -8,
+                            borderWidth: 2,
+                            borderColor: Colors.white,
+                          }}>
+                            <Text style={{ fontSize: 10, fontWeight: '600', color: Colors.textSecondary }}>
+                              +{participantCount - 3}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                      <Text style={{ fontSize: 13, color: Colors.textSecondary }}>
+                        {participantCount} {participantCount === 1 ? 'participant' : 'participants'}
+                      </Text>
+                      <View style={{ flex: 1 }} />
+                      <View style={{ 
+                        backgroundColor: daysLeft <= 2 ? '#fef2f2' : '#f3f4f6', 
+                        paddingHorizontal: 8, 
+                        paddingVertical: 4, 
+                        borderRadius: 6 
+                      }}>
+                        <Text style={{ 
+                          fontSize: 12, 
+                          fontWeight: '600', 
+                          color: daysLeft <= 2 ? '#dc2626' : Colors.textSecondary 
+                        }}>
+                          {daysLeft === 0 ? 'Ends today!' : `${daysLeft}d left`}
+                        </Text>
+                      </View>
+                    </View>
+                    
+                    {/* Progress bar */}
+                    <View style={{ marginTop: 12 }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                        <Text style={{ fontSize: 12, color: Colors.textSecondary }}>
+                          Day {totalDays - daysLeft} of {totalDays}
+                        </Text>
+                        <Text style={{ fontSize: 12, fontWeight: '600', color: Colors.primary }}>
+                          {Math.round(progressPercent)}%
+                        </Text>
+                      </View>
+                      <View style={{ height: 8, backgroundColor: Colors.border, borderRadius: 4, overflow: 'hidden' }}>
+                        <LinearGradient
+                          colors={['#7c3aed', '#a78bfa']}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 0 }}
+                          style={{ 
+                            height: '100%', 
+                            width: `${progressPercent}%`, 
+                            borderRadius: 4,
+                          }} 
+                        />
+                      </View>
+                    </View>
+                    
+                    {/* Join/View button */}
+                    {!challenge.isJoined ? (
+                      <TouchableOpacity 
+                        style={styles.challengeJoinButton}
+                        onPress={async (e) => {
+                          e.stopPropagation();
+                          try {
+                            const response = await challengesApi.join(challenge.id);
+                            if (response.success) {
+                              Alert.alert('Joined!', `You've joined ${challenge.title}`);
+                              fetchChallenges();
+                            }
+                          } catch (error) {
+                            console.error('Failed to join:', error);
+                          }
+                        }}
+                      >
+                        <Text style={styles.challengeJoinText}>Join Challenge</Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <View style={styles.challengeJoinedBadge}>
+                        <Feather name="check-circle" size={16} color={Colors.success} />
+                        <Text style={styles.challengeJoinedText}>Joined</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })
+            )}
+
+            {/* Create New Challenge Button */}
+            <TouchableOpacity
+              onPress={() => setShowCreateChallengeModal(true)}
+              style={styles.startNewChallengeButton}
+            >
+              <Feather name="plus" size={20} color={Colors.primary} />
+              <Text style={styles.startNewChallengeText}>Create Challenge</Text>
+            </TouchableOpacity>
           </View>
         )}
         
@@ -2616,6 +3171,255 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
                 }}>
                   Cancel
                 </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Create Challenge Modal - Simplified */}
+      <Modal
+        visible={showCreateChallengeModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowCreateChallengeModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFillObject} />
+          <Pressable
+            style={StyleSheet.absoluteFillObject}
+            onPress={() => setShowCreateChallengeModal(false)}
+          />
+          <View style={[styles.bottomSheet, { maxHeight: '75%' }]} pointerEvents="auto">
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetTitle}>🏆 Create Challenge</Text>
+            
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {/* Challenge Title */}
+              <Text style={styles.inputLabel}>Challenge Title</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="e.g., Complete 10 tasks"
+                value={challengeTitle}
+                onChangeText={setChallengeTitle}
+                maxLength={50}
+              />
+
+              {/* AI Assist */}
+              <Text style={[styles.inputLabel, { marginTop: 8 }]}>AI Assist (optional)</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="Describe the challenge you want..."
+                value={challengePrompt}
+                onChangeText={setChallengePrompt}
+                maxLength={120}
+              />
+              <TouchableOpacity
+                onPress={handleAiSuggestChallenge}
+                disabled={aiSuggestingChallenge}
+                style={{
+                  backgroundColor: Colors.primaryLight,
+                  paddingVertical: 12,
+                  borderRadius: 12,
+                  alignItems: 'center',
+                  marginTop: -6,
+                  marginBottom: 8,
+                }}
+              >
+                {aiSuggestingChallenge ? (
+                  <ActivityIndicator color={Colors.primary} />
+                ) : (
+                  <Text style={{ color: Colors.primary, fontWeight: '600' }}>✨ Generate with AI</Text>
+                )}
+              </TouchableOpacity>
+
+              {/* Challenge Type */}
+              <Text style={[styles.inputLabel, { marginTop: 16 }]}>Challenge Type</Text>
+              <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                <TouchableOpacity
+                  style={[styles.typeChip, challengeType === 'TASKS_COMPLETED' && styles.typeChipActive]}
+                  onPress={() => setChallengeType('TASKS_COMPLETED')}
+                >
+                  <Text style={[styles.typeChipText, challengeType === 'TASKS_COMPLETED' && styles.typeChipTextActive]}>
+                    ✅ Tasks
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.typeChip, challengeType === 'FOCUS_MINUTES' && styles.typeChipActive]}
+                  onPress={() => setChallengeType('FOCUS_MINUTES')}
+                >
+                  <Text style={[styles.typeChipText, challengeType === 'FOCUS_MINUTES' && styles.typeChipTextActive]}>
+                    🧠 Focus
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.typeChip, challengeType === 'STREAK_DAYS' && styles.typeChipActive]}
+                  onPress={() => setChallengeType('STREAK_DAYS')}
+                >
+                  <Text style={[styles.typeChipText, challengeType === 'STREAK_DAYS' && styles.typeChipTextActive]}>
+                    🔥 Streak
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Category */}
+              <Text style={[styles.inputLabel, { marginTop: 16 }]}>Category</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+                {['Productivity', 'Fitness', 'Wellness', 'Learning', 'Social'].map(cat => (
+                  <TouchableOpacity
+                    key={cat}
+                    style={[styles.typeChip, challengeCategory === cat && styles.typeChipActive]}
+                    onPress={() => setChallengeCategory(cat as any)}
+                  >
+                    <Text style={[styles.typeChipText, challengeCategory === cat && styles.typeChipTextActive]}>
+                      {cat}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Description */}
+              <Text style={[styles.inputLabel, { marginTop: 16 }]}>Description (optional)</Text>
+              <TextInput
+                style={[styles.textInput, { minHeight: 80, textAlignVertical: 'top' }]}
+                placeholder="Short details for the challenge"
+                value={challengeDescription}
+                onChangeText={setChallengeDescription}
+                maxLength={140}
+                multiline
+              />
+
+              {/* Target */}
+              <Text style={[styles.inputLabel, { marginTop: 16 }]}>
+                Target {challengeType === 'TASKS_COMPLETED' ? 'Tasks' : 
+                       challengeType === 'FOCUS_MINUTES' ? 'Minutes' : 'Days'}
+              </Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="10"
+                value={challengeTarget}
+                onChangeText={setChallengeTarget}
+                keyboardType="number-pad"
+                maxLength={4}
+              />
+
+              {/* Duration */}
+              <Text style={[styles.inputLabel, { marginTop: 16 }]}>Duration (Days)</Text>
+              <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                {['3', '7', '14', '30'].map(days => (
+                  <TouchableOpacity
+                    key={days}
+                    style={[styles.typeChip, challengeDays === days && styles.typeChipActive]}
+                    onPress={() => setChallengeDays(days)}
+                  >
+                    <Text style={[styles.typeChipText, challengeDays === days && styles.typeChipTextActive]}>
+                      {days}d
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* XP Reward */}
+              <Text style={[styles.inputLabel, { marginTop: 16 }]}>XP Reward</Text>
+              <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                {[50, 100, 150, 200].map(xp => (
+                  <TouchableOpacity
+                    key={xp}
+                    style={[styles.typeChip, challengeXP === xp && styles.typeChipActive]}
+                    onPress={() => setChallengeXP(xp)}
+                  >
+                    <Text style={[styles.typeChipText, challengeXP === xp && styles.typeChipTextActive]}>
+                      {xp} XP
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <View style={{ height: 20 }} />
+            </ScrollView>
+
+            {/* Action Buttons */}
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
+              <TouchableOpacity
+                onPress={() => setShowCreateChallengeModal(false)}
+                style={[styles.modalButton, { flex: 1, backgroundColor: Colors.surface }]}
+                disabled={creatingChallenge}
+              >
+                <Text style={[styles.modalButtonText, { color: Colors.textPrimary }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleCreateChallenge}
+                style={[styles.modalButton, { flex: 2 }]}
+                disabled={creatingChallenge || !challengeTitle.trim()}
+              >
+                {creatingChallenge ? (
+                  <ActivityIndicator color={Colors.white} />
+                ) : (
+                  <Text style={styles.modalButtonText}>Create Challenge</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Submit Proof Modal */}
+      <Modal
+        visible={showSubmitProofModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowSubmitProofModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFillObject} />
+          <Pressable
+            style={StyleSheet.absoluteFillObject}
+            onPress={() => setShowSubmitProofModal(false)}
+          />
+          <View style={[styles.bottomSheet, { maxHeight: '70%' }]} pointerEvents="auto">
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetTitle}>📸 Submit Proof</Text>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={styles.inputLabel}>Proof Link (photo or file)</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="https://..."
+                value={proofUrl}
+                onChangeText={setProofUrl}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+
+              <Text style={[styles.inputLabel, { marginTop: 8 }]}>Note (optional)</Text>
+              <TextInput
+                style={[styles.textInput, { minHeight: 80, textAlignVertical: 'top' }]}
+                placeholder="Add a short note..."
+                value={proofNote}
+                onChangeText={setProofNote}
+                multiline
+              />
+              <View style={{ height: 12 }} />
+            </ScrollView>
+
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
+              <TouchableOpacity
+                onPress={() => setShowSubmitProofModal(false)}
+                style={[styles.modalButton, { flex: 1, backgroundColor: Colors.surface }]}
+                disabled={submittingProof}
+              >
+                <Text style={[styles.modalButtonText, { color: Colors.textPrimary }]}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={submitProofAndComplete}
+                style={[styles.modalButton, { flex: 2 }]}
+                disabled={submittingProof}
+              >
+                {submittingProof ? (
+                  <ActivityIndicator color={Colors.white} />
+                ) : (
+                  <Text style={styles.modalButtonText}>Submit & Complete</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -3466,7 +4270,7 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
                 <>
                   {/* Header with mission info */}
                   <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)' }}>
-                    <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '600', marginBottom: 4 }}>
+                    <Text style={{ color: Colors.textPrimary, fontSize: 16, fontWeight: '600', marginBottom: 4 }}>
                       {selectedAssignment.title}
                     </Text>
                     <Text style={{ color: Colors.textSecondary, fontSize: 13 }}>
@@ -3514,6 +4318,37 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
                       <Text style={[styles.actionSheetButtonText, { color: Colors.danger }]}>
                         Decline Mission
                       </Text>
+                    </TouchableOpacity>
+                  )}
+
+                  {/* Complete option for recipient when accepted */}
+                  {isAssignmentRecipient(selectedAssignment) && selectedAssignment.status === 'accepted' && (
+                    <TouchableOpacity
+                      onPress={() => {
+                        setShowAssignmentOptions(false);
+                        if (selectedAssignment.requireProof) {
+                          openSubmitProofModal(selectedAssignment);
+                        } else {
+                          handleCompleteAssignment(selectedAssignment);
+                        }
+                      }}
+                      style={styles.actionSheetButton}
+                    >
+                      <Feather name="check" size={20} color={Colors.success} />
+                      <Text style={[styles.actionSheetButtonText, { color: Colors.success }]}>
+                        {selectedAssignment.requireProof ? 'Submit Proof & Complete' : 'Complete Mission'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+
+                  {/* View proof (if completed with proof) */}
+                  {selectedAssignment.status === 'completed' && selectedAssignment.proofUrl && (
+                    <TouchableOpacity
+                      onPress={() => handleViewProof(selectedAssignment)}
+                      style={styles.actionSheetButton}
+                    >
+                      <Feather name="image" size={20} color={Colors.primary} />
+                      <Text style={styles.actionSheetButtonText}>View Proof</Text>
                     </TouchableOpacity>
                   )}
 
@@ -4763,6 +5598,26 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     letterSpacing: 0.5,
   },
+  challengeSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  challengeSectionAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    backgroundColor: Colors.primaryLight,
+  },
+  challengeSectionActionText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.primary,
+  },
 
   // Member Card
   memberCard: {
@@ -5110,6 +5965,34 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
   },
+  challengeJoinButton: {
+    marginTop: 10,
+    backgroundColor: Colors.primary,
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+    minHeight: 40,
+  },
+  challengeJoinText: {
+    color: Colors.white,
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  challengeJoinedBadge: {
+    marginTop: 10,
+    backgroundColor: Colors.successLight,
+    paddingVertical: 8,
+    borderRadius: 10,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  challengeJoinedText: {
+    color: Colors.success,
+    fontWeight: '600',
+    fontSize: 13,
+  },
   challengeHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -5370,6 +6253,17 @@ const styles = StyleSheet.create({
     color: Colors.white,
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  modalButton: {
+    backgroundColor: Colors.primary,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  modalButtonText: {
+    color: Colors.white,
+    fontSize: 16,
+    fontWeight: '600',
   },
   cancelButton: {
     backgroundColor: Colors.surface,
@@ -6691,6 +7585,29 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginTop: 4,
     textAlign: 'center',
+  },
+  
+  // Challenge Modal Styles
+  typeChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  typeChipActive: {
+    backgroundColor: Colors.primaryLight,
+    borderColor: Colors.primary,
+  },
+  typeChipText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: Colors.textSecondary,
+  },
+  typeChipTextActive: {
+    color: Colors.primary,
+    fontWeight: '600',
   },
 });
 

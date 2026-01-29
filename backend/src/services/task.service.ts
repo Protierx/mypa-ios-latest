@@ -1,6 +1,7 @@
 import prisma from '../config/database.js';
 import { AppError } from '../middleware/error.js';
 import { addXp } from './user.service.js';
+import { autoUpdateChallengeProgress } from './challenge.service.js';
 import { checkAndUpdateStreak } from '../utils/streaks.js';
 import { XP_REWARDS, calculateXpWithStreak, estimateTimeSaved } from '../utils/xp.js';
 import { scheduleTaskReminder, cancelTaskReminder } from './scheduler.service.js';
@@ -247,7 +248,13 @@ export async function completeTask(userId: string, taskId: string, completed: bo
     });
 
     // Update streak
-    await checkAndUpdateStreak(userId);
+    const streakResult = await checkAndUpdateStreak(userId);
+
+    // Update challenge progress (tasks + streak)
+    await autoUpdateChallengeProgress(userId, 'TASKS_COMPLETED', 1);
+    if (streakResult.streakUpdated) {
+      await autoUpdateChallengeProgress(userId, 'STREAK_DAYS', 1);
+    }
 
     return { ...updatedTask, xpAwarded, timeSaved };
   }

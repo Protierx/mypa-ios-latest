@@ -5,7 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
 // Use your machine's LAN IP address - visible in Expo output
-const API_BASE_URL = 'http://192.168.1.165:3000';
+const API_BASE_URL = 'http://192.168.1.31:3000';
 
 // Storage keys
 const TOKEN_KEY = 'mypa_access_token';
@@ -326,6 +326,9 @@ export const aiApi = {
   
   // General chat (simple Q&A)
   chat: (message: string) => api.post('/ai/chat', { message }),
+
+  // Suggest a challenge configuration
+  suggestChallenge: (prompt: string) => api.post('/ai/challenge-suggest', { prompt }),
   
   // Transcribe audio (Whisper)
   transcribe: (audioBase64: string, language = 'en') =>
@@ -339,6 +342,63 @@ export const ttsApi = {
   
   stream: (text: string, voice: 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer' = 'nova', speed = 1.0) =>
     api.post('/tts/stream', { text, voice, speed }),
+};
+
+// Challenges API
+export const challengesApi = {
+  // Get all available challenges
+  getAll: () => api.get('/challenges'),
+  
+  // Get challenges user has joined
+  getMine: () => api.get('/challenges/mine'),
+  
+  // Get active challenges
+  getActive: () => api.get('/challenges/active'),
+  
+  // Get challenge by ID
+  getById: (id: string) => api.get(`/challenges/${id}`),
+  
+  // Get challenge leaderboard
+  getLeaderboard: (id: string, limit?: number) => {
+    const query = limit ? `?limit=${limit}` : '';
+    return api.get(`/challenges/${id}/leaderboard${query}`);
+  },
+  
+  // Create a new challenge
+  create: (data: {
+    title: string;
+    description?: string; // Allow description in challenge create API call typing
+    emoji?: string;
+    type: 'FOCUS_MINUTES' | 'TASKS_COMPLETED' | 'STREAK_DAYS' | 'CUSTOM';
+    targetValue: number;
+    startsAt: string;
+    endsAt: string;
+    xpReward?: number;
+    circleId?: string;
+  }) => api.post('/challenges', data),
+  
+  // Join a challenge
+  join: (id: string) => api.post(`/challenges/${id}/join`),
+  
+  // Leave a challenge
+  leave: (id: string) => api.post(`/challenges/${id}/leave`),
+  
+  // Update progress
+  updateProgress: (id: string, amount: number) => 
+    api.post(`/challenges/${id}/progress`, { amount }),
+  
+  // Update challenge (only creator can edit)
+  update: (id: string, data: {
+    title?: string;
+    description?: string;
+    emoji?: string;
+    targetValue?: number;
+    endsAt?: string;
+    xpReward?: number;
+  }) => api.put(`/challenges/${id}`, data),
+  
+  // Delete challenge (only creator can delete)
+  delete: (id: string) => api.delete(`/challenges/${id}`),
 };
 
 // Circles API
