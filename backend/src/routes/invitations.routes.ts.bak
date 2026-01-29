@@ -4,20 +4,37 @@
  */
 
 import { Router, Request, Response, NextFunction } from 'express';
-import { body, param, query } from 'express-validator';
-import { validate } from '../middleware/validation.js';
+import { z } from 'zod';
+import { validateBody, validateParams, validateQuery } from '../middleware/validation.js';
 import { authenticateToken } from '../middleware/auth.js';
 import * as invitationService from '../services/invitation.service.js';
-
-// Type for authenticated request
-interface AuthRequest extends Request {
-  user: { id: string; email: string };
-}
 
 const router = Router();
 
 // All routes require authentication
 router.use(authenticateToken);
+
+// Validation schemas
+const circleInviteParamsSchema = z.object({
+  circleId: z.string().uuid(),
+  userId: z.string().uuid(),
+});
+
+const inviteMessageSchema = z.object({
+  message: z.string().max(200).optional(),
+});
+
+const idParamsSchema = z.object({
+  id: z.string().uuid(),
+});
+
+const searchQuerySchema = z.object({
+  q: z.string().min(2),
+});
+
+const searchParamsSchema = z.object({
+  circleId: z.string().uuid(),
+});
 
 // ==========================================
 // GET MY INVITATIONS
@@ -25,11 +42,10 @@ router.use(authenticateToken);
 
 router.get('/mine', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const authReq = req as AuthRequest;
     const status = req.query.status as string | undefined;
     
     const invitations = await invitationService.getMyInvitations(
-      authReq.user.id,
+      req.user!.id,
       status
     );
 
@@ -48,20 +64,16 @@ router.get('/mine', async (req: Request, res: Response, next: NextFunction) => {
 
 router.post(
   '/circle/:circleId/invite/:userId',
-  validate([
-    param('circleId').isString().notEmpty(),
-    param('userId').isString().notEmpty(),
-    body('message').optional().isString().isLength({ max: 200 }),
-  ]),
+  validateParams(circleInviteParamsSchema),
+  validateBody(inviteMessageSchema),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const authReq = req as AuthRequest;
       const { circleId, userId } = req.params;
       const { message } = req.body;
 
       const invitation = await invitationService.sendInvitation(
         circleId,
-        authReq.user.id,
+        req.user!.id,
         userId,
         message
       );
@@ -77,18 +89,17 @@ router.post(
 );
 
 // ==========================================
-// ACCEPT INVITATION?
+// ACCEPT INVITATION
 // ==========================================
 
 router.post(
   '/:id/accept',
-  validate([param('id').isString().notEmpty()]),
+  validateParams(idParamsSchema),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const authReq = req as AuthRequest;
       const result = await invitationService.acceptInvitation(
         req.params.id,
-        authReq.user.id
+        req.user!.id
       );
 
       res.json({
@@ -107,13 +118,12 @@ router.post(
 
 router.post(
   '/:id/decline',
-  validate([param('id').isString().notEmpty()]),
+  validateParams(idParamsSchema),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const authReq = req as AuthRequest;
       const result = await invitationService.declineInvitation(
         req.params.id,
-        authReq.user.id
+        req.user!.id
       );
 
       res.json({
@@ -132,17 +142,14 @@ router.post(
 
 router.get(
   '/search/:circleId',
-  validate([
-    param('circleId').isString().notEmpty(),
-    query('q').isString().isLength({ min: 2 }),
-  ]),
+  validateParams(searchParamsSchema),
+  validateQuery(searchQuerySchema),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const authReq = req as AuthRequest;
       const users = await invitationService.searchUsersToInvite(
         req.params.circleId,
         req.query.q as string,
-        authReq.user.id
+        req.user!.id
       );
 
       res.json({

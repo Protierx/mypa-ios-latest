@@ -11,10 +11,12 @@ import focusRoutes from './routes/focus.routes.js';
 import brainDumpRoutes from './routes/braindump.routes.js';
 import aiRoutes from './routes/ai.routes.js';
 import ttsRoutes from './routes/tts.routes.js';
-import circlesRoutes from './routes/circles.routes.js';
-import assignmentsRoutes, { circleAssignmentsRouter } from './routes/assignments.routes.js';
-import postsRoutes, { circleFeedRouter, circlePostsRouter } from './routes/posts.routes.js';
-import invitationsRoutes from './routes/invitations.routes.js';
+import challengesRoutes from './routes/challenges.routes.js';
+// Phase 3 imports - disabled (friend working on it)
+// import circlesRoutes from './routes/circles.routes.js';
+// import assignmentsRoutes, { circleAssignmentsRouter } from './routes/assignments.routes.js';
+// import postsRoutes, { circleFeedRouter, circlePostsRouter } from './routes/posts.routes.js';
+// import invitationsRoutes from './routes/invitations.routes.js';
 
 export function createApp(): Application {
   const app = express();
@@ -41,7 +43,7 @@ export function createApp(): Application {
     });
   });
 
-  // API Routes
+  // API Routes - Phase 1 & 2 (Core)
   app.use('/auth', authRoutes);
   app.use('/users', usersRoutes);
   app.use('/tasks', tasksRoutes);
@@ -49,18 +51,18 @@ export function createApp(): Application {
   app.use('/brain-dump', brainDumpRoutes);
   app.use('/ai', aiRoutes);
   app.use('/tts', ttsRoutes);
+  app.use('/challenges', challengesRoutes);
 
-  // Phase 3: Social
-  app.use('/circles', circlesRoutes);
-  app.use('/circles/:circleId/assignments', circleAssignmentsRouter);
-  app.use('/circles/:circleId/feed', circleFeedRouter);
-  app.use('/circles/:circleId/posts', circlePostsRouter);
-  app.use('/assignments', assignmentsRoutes);
-  app.use('/posts', postsRoutes);
-  app.use('/invitations', invitationsRoutes);
+  // Phase 3: Social - disabled (friend working on it)
+  // app.use('/circles', circlesRoutes);
+  // app.use('/circles/:circleId/assignments', circleAssignmentsRouter);
+  // app.use('/circles/:circleId/feed', circleFeedRouter);
+  // app.use('/circles/:circleId/posts', circlePostsRouter);
+  // app.use('/assignments', assignmentsRoutes);
+  // app.use('/posts', postsRoutes);
+  // app.use('/invitations', invitationsRoutes);
 
   // TODO: Add more routes as we implement them
-  // app.use('/challenges', challengesRoutes);
   // app.use('/notifications', notificationsRoutes);
   // app.use('/places', placesRoutes);
 
