@@ -201,10 +201,17 @@ router.delete('/', async (req: Request, res: Response, next: NextFunction) => {
 const updateSettingsSchema = z.object({
   pushEnabled: z.boolean().optional(),
   taskReminders: z.boolean().optional(),
-  circleActivity: z.boolean().optional(),
+  assignmentAlerts: z.boolean().optional(),
   streakReminders: z.boolean().optional(),
   dailyBriefing: z.boolean().optional(),
-  dailyBriefingTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+  levelUpAlerts: z.boolean().optional(),
+  challengeUpdates: z.boolean().optional(),
+  circleActivity: z.boolean().optional(),
+  aiInsights: z.boolean().optional(),
+  weeklyDigest: z.boolean().optional(),
+  soundEnabled: z.boolean().optional(),
+  vibrationEnabled: z.boolean().optional(),
+  badgeEnabled: z.boolean().optional(),
   quietHoursEnabled: z.boolean().optional(),
   quietHoursStart: z.string().regex(/^\d{2}:\d{2}$/).optional(),
   quietHoursEnd: z.string().regex(/^\d{2}:\d{2}$/).optional(),
@@ -219,6 +226,21 @@ router.get('/settings', async (req: Request, res: Response, next: NextFunction) 
         pushEnabled: true,
         emailNotifications: true,
         remindersBefore: true,
+        taskReminders: true,
+        assignmentAlerts: true,
+        streakReminders: true,
+        dailyBriefing: true,
+        levelUpAlerts: true,
+        challengeUpdates: true,
+        circleActivity: true,
+        aiInsights: true,
+        weeklyDigest: true,
+        soundEnabled: true,
+        vibrationEnabled: true,
+        badgeEnabled: true,
+        quietHoursEnabled: true,
+        quietHoursStart: true,
+        quietHoursEnd: true,
       },
     });
     
@@ -229,13 +251,20 @@ router.get('/settings', async (req: Request, res: Response, next: NextFunction) 
         emailNotifications: true,
         remindersBefore: 15,
         taskReminders: true,
-        circleActivity: true,
+        assignmentAlerts: true,
         streakReminders: true,
         dailyBriefing: true,
-        dailyBriefingTime: '08:00',
+        levelUpAlerts: true,
+        challengeUpdates: true,
+        circleActivity: true,
+        aiInsights: true,
+        weeklyDigest: true,
+        soundEnabled: true,
+        vibrationEnabled: true,
+        badgeEnabled: true,
         quietHoursEnabled: false,
         quietHoursStart: '22:00',
-        quietHoursEnd: '07:00',
+        quietHoursEnd: '08:00',
       },
     });
   } catch (error) {
@@ -249,17 +278,28 @@ router.put(
   validateBody(updateSettingsSchema),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      // Build update object with only provided fields
+      const updateData: any = {};
+      const allowedFields = [
+        'pushEnabled', 'taskReminders', 'assignmentAlerts', 'streakReminders',
+        'dailyBriefing', 'levelUpAlerts', 'challengeUpdates', 'circleActivity',
+        'aiInsights', 'weeklyDigest', 'soundEnabled', 'vibrationEnabled',
+        'badgeEnabled', 'quietHoursEnabled', 'quietHoursStart', 'quietHoursEnd'
+      ];
+      
+      for (const field of allowedFields) {
+        if (req.body[field] !== undefined) {
+          updateData[field] = req.body[field];
+        }
+      }
+      
       const settings = await prisma.userSettings.upsert({
         where: { userId: req.user!.id },
         create: {
           userId: req.user!.id,
-          pushEnabled: req.body.pushEnabled ?? true,
-          emailNotifications: req.body.emailNotifications ?? true,
+          ...updateData,
         },
-        update: {
-          pushEnabled: req.body.pushEnabled,
-          emailNotifications: req.body.emailNotifications,
-        },
+        update: updateData,
       });
       
       res.json({

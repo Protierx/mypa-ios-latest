@@ -5,7 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
 // Use your machine's LAN IP address - visible in Expo output
-const API_BASE_URL = 'http://192.168.1.31:3000';
+const API_BASE_URL = 'http://172.20.10.3:3000';
 
 // Storage keys
 const TOKEN_KEY = 'mypa_access_token';
@@ -326,9 +326,6 @@ export const aiApi = {
   
   // General chat (simple Q&A)
   chat: (message: string) => api.post('/ai/chat', { message }),
-
-  // Suggest a challenge configuration
-  suggestChallenge: (prompt: string) => api.post('/ai/challenge-suggest', { prompt }),
   
   // Transcribe audio (Whisper)
   transcribe: (audioBase64: string, language = 'en') =>
@@ -603,10 +600,17 @@ export const notificationsApi = {
   updateSettings: (settings: {
     pushEnabled?: boolean;
     taskReminders?: boolean;
-    circleActivity?: boolean;
+    assignmentAlerts?: boolean;
     streakReminders?: boolean;
     dailyBriefing?: boolean;
-    dailyBriefingTime?: string;
+    levelUpAlerts?: boolean;
+    challengeUpdates?: boolean;
+    circleActivity?: boolean;
+    aiInsights?: boolean;
+    weeklyDigest?: boolean;
+    soundEnabled?: boolean;
+    vibrationEnabled?: boolean;
+    badgeEnabled?: boolean;
     quietHoursEnabled?: boolean;
     quietHoursStart?: string;
     quietHoursEnd?: string;
