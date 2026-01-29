@@ -99,10 +99,31 @@ model UserSettings {
   userId String @unique
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   
-  // Notifications
+  // Notifications - General
   pushEnabled         Boolean @default(true)
   emailNotifications  Boolean @default(true)
   remindersBefore     Int     @default(15)
+  
+  // Notifications - Types
+  taskReminders       Boolean @default(true)
+  assignmentAlerts    Boolean @default(true)
+  streakReminders     Boolean @default(true)
+  dailyBriefing       Boolean @default(true)
+  levelUpAlerts       Boolean @default(true)
+  challengeUpdates    Boolean @default(true)
+  circleActivity      Boolean @default(true)
+  aiInsights          Boolean @default(true)
+  weeklyDigest        Boolean @default(true)
+  
+  // Notifications - Delivery
+  soundEnabled        Boolean @default(true)
+  vibrationEnabled    Boolean @default(true)
+  badgeEnabled        Boolean @default(true)
+  
+  // Notifications - Quiet Hours
+  quietHoursEnabled   Boolean @default(false)
+  quietHoursStart     String  @default("22:00")
+  quietHoursEnd       String  @default("08:00")
   
   // Voice
   voiceLanguage       String  @default("en")

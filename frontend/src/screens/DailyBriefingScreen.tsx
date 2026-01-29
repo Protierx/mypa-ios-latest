@@ -1,6 +1,15 @@
 /**
  * DailyBriefingScreen - iOS-styled AI-powered daily briefing
  * Beautiful morning/evening summary with insights and tasks
+ * 
+ * Features:
+ * - Time-based themes (morning/afternoon/evening/night)
+ * - AI-generated personalized insights and tips
+ * - Today's schedule with priority focus
+ * - Weekly progress tracking
+ * - Motivational quote of the day
+ * - Upcoming assignments/missions
+ * - Productivity score
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -19,9 +28,69 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
-import { aiApi, tasksApi, analyticsApi } from '../services/api';
+import { BlurView } from 'expo-blur';
+import { aiApi, tasksApi, analyticsApi, assignmentsApi } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+// Motivational quotes for different times of day
+const MORNING_QUOTES = [
+  { text: "The secret of getting ahead is getting started.", author: "Mark Twain" },
+  { text: "Every morning brings new potential.", author: "Unknown" },
+  { text: "Today is a new day. Don't let your history interfere with your destiny.", author: "Steve Maraboli" },
+  { text: "The early bird catches the worm, but the second mouse gets the cheese.", author: "Willie Nelson" },
+  { text: "Rise up, start fresh, see the bright opportunity in each new day.", author: "Unknown" },
+];
+
+const AFTERNOON_QUOTES = [
+  { text: "It's not about having time, it's about making time.", author: "Unknown" },
+  { text: "The only way to do great work is to love what you do.", author: "Steve Jobs" },
+  { text: "Don't watch the clock; do what it does. Keep going.", author: "Sam Levenson" },
+  { text: "Success is not final, failure is not fatal.", author: "Winston Churchill" },
+  { text: "You don't have to be great to start, but you have to start to be great.", author: "Zig Ziglar" },
+];
+
+const EVENING_QUOTES = [
+  { text: "Reflect upon your present blessings, of which every man has many.", author: "Charles Dickens" },
+  { text: "Each day provides its own gifts.", author: "Marcus Aurelius" },
+  { text: "Rest when you're weary. Refresh and renew yourself.", author: "Ralph Marston" },
+  { text: "Finish each day and be done with it.", author: "Ralph Waldo Emerson" },
+  { text: "Tomorrow is a new day; begin it well.", author: "Ralph Waldo Emerson" },
+];
+
+const getQuoteForTime = () => {
+  const hour = new Date().getHours();
+  const quotes = hour < 12 ? MORNING_QUOTES : hour < 17 ? AFTERNOON_QUOTES : EVENING_QUOTES;
+  // Use today's date to get a consistent quote for the day
+  const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000);
+  return quotes[dayOfYear % quotes.length];
+};
+
+// Calculate productivity score based on tasks and streak
+const calculateProductivityScore = (
+  completedToday: number,
+  totalToday: number,
+  streak: number,
+  weeklyCompleted: number
+): number => {
+  let score = 0;
+  
+  // Task completion rate (40 points max)
+  if (totalToday > 0) {
+    score += Math.round((completedToday / totalToday) * 40);
+  } else {
+    score += 20; // Neutral if no tasks
+  }
+  
+  // Streak bonus (30 points max)
+  score += Math.min(streak * 3, 30);
+  
+  // Weekly momentum (30 points max)
+  score += Math.min(weeklyCompleted * 3, 30);
+  
+  return Math.min(score, 100);
+};
 
 // Time-based colors
 const getTimeColors = () => {
@@ -87,27 +156,55 @@ interface Task {
   time?: string;
 }
 
+interface Assignment {
+  id: string;
+  title: string;
+  dueDate?: string;
+  status: string;
+  xpReward?: number;
+  assignedByName?: string;
+  circleName?: string;
+  circleEmoji?: string;
+}
+
 export default function DailyBriefingScreen() {
   const navigation = useNavigation();
   const colors = getTimeColors();
+  const { user } = useAuth();
   
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [briefing, setBriefing] = useState<BriefingData>({});
   const [todaysTasks, setTodaysTasks] = useState<Task[]>([]);
   const [weeklyStats, setWeeklyStats] = useState<any>(null);
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [quote] = useState(getQuoteForTime());
   
   // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
   const scaleAnim = useRef(new Animated.Value(0.95)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  // Start pulse animation for productivity score
+  useEffect(() => {
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.05, duration: 1500, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 1500, useNativeDriver: true }),
+      ])
+    );
+    pulse.start();
+    return () => pulse.stop();
+  }, [pulseAnim]);
 
   const fetchBriefing = useCallback(async () => {
     try {
-      const [insightsRes, tasksRes, analyticsRes] = await Promise.all([
+      const [insightsRes, tasksRes, analyticsRes, assignmentsRes] = await Promise.all([
         aiApi.getDailyInsights(),
         tasksApi.getToday(),
         analyticsApi.getWeekly().catch(() => ({ data: null })),
+        assignmentsApi.getMine({ role: 'assignee', status: 'PENDING' }).catch(() => ({ success: false, data: [] })),
       ]);
 
       if (insightsRes.success && insightsRes.data) {
@@ -120,6 +217,21 @@ export default function DailyBriefingScreen() {
 
       if (analyticsRes.data) {
         setWeeklyStats(analyticsRes.data);
+      }
+
+      if ('success' in assignmentsRes && assignmentsRes.success && assignmentsRes.data) {
+        // Format assignments
+        const formatted = (assignmentsRes.data as any[]).slice(0, 3).map((a: any) => ({
+          id: a.id,
+          title: a.title,
+          dueDate: a.dueDate,
+          status: a.status?.toLowerCase(),
+          xpReward: a.xpReward || 50,
+          assignedByName: a.creator?.name || a.creator?.username,
+          circleName: a.circle?.name,
+          circleEmoji: a.circle?.emoji || '👥',
+        }));
+        setAssignments(formatted);
       }
     } catch (error) {
       console.error('Failed to fetch briefing:', error);
@@ -191,6 +303,24 @@ export default function DailyBriefingScreen() {
   const pendingTasks = todaysTasks.filter(t => !t.completed);
   const completedTasks = todaysTasks.filter(t => t.completed);
   const highPriorityTasks = pendingTasks.filter(t => t.priority === 'HIGH');
+  
+  // Calculate productivity score
+  const productivityScore = calculateProductivityScore(
+    completedTasks.length,
+    todaysTasks.length,
+    briefing.stats?.streak || 0,
+    briefing.stats?.weeklyCompleted || 0
+  );
+  
+  // Get score color and label
+  const getScoreInfo = (score: number) => {
+    if (score >= 80) return { color: '#34C759', label: 'Excellent', emoji: '🚀' };
+    if (score >= 60) return { color: '#007AFF', label: 'Good', emoji: '💪' };
+    if (score >= 40) return { color: '#FF9500', label: 'Building', emoji: '🌱' };
+    return { color: '#FF3B30', label: 'Getting Started', emoji: '✨' };
+  };
+  
+  const scoreInfo = getScoreInfo(productivityScore);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.bg }]}>
@@ -259,6 +389,72 @@ export default function DailyBriefingScreen() {
                 </View>
               </View>
             </View>
+          </LinearGradient>
+        </Animated.View>
+
+        {/* Productivity Score Card */}
+        <Animated.View
+          style={[
+            styles.section,
+            {
+              opacity: fadeAnim,
+              transform: [{ scale: pulseAnim }],
+            },
+          ]}
+        >
+          <View style={styles.productivityCard}>
+            <View style={styles.productivityHeader}>
+              <Text style={styles.productivityTitle}>Today's Energy</Text>
+              <Text style={styles.productivityEmoji}>{scoreInfo.emoji}</Text>
+            </View>
+            <View style={styles.productivityContent}>
+              <View style={styles.scoreCircle}>
+                <Text style={[styles.scoreNumber, { color: scoreInfo.color }]}>
+                  {productivityScore}
+                </Text>
+                <Text style={styles.scoreLabel}>{scoreInfo.label}</Text>
+              </View>
+              <View style={styles.scoreBreakdown}>
+                <View style={styles.scoreItem}>
+                  <Ionicons name="checkmark-circle" size={16} color="#34C759" />
+                  <Text style={styles.scoreItemText}>
+                    {completedTasks.length}/{todaysTasks.length} tasks done
+                  </Text>
+                </View>
+                <View style={styles.scoreItem}>
+                  <Ionicons name="flame" size={16} color="#FF9500" />
+                  <Text style={styles.scoreItemText}>
+                    {briefing.stats?.streak || 0} day streak
+                  </Text>
+                </View>
+                <View style={styles.scoreItem}>
+                  <Ionicons name="trending-up" size={16} color="#007AFF" />
+                  <Text style={styles.scoreItemText}>
+                    {briefing.stats?.weeklyCompleted || 0} this week
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </View>
+        </Animated.View>
+
+        {/* Quote of the Day */}
+        <Animated.View
+          style={[
+            styles.section,
+            {
+              opacity: fadeAnim,
+              transform: [{ scale: scaleAnim }],
+            },
+          ]}
+        >
+          <LinearGradient
+            colors={['rgba(139, 92, 246, 0.08)', 'rgba(99, 102, 241, 0.05)']}
+            style={styles.quoteCard}
+          >
+            <Ionicons name="chatbubble-ellipses" size={24} color="#8B5CF6" style={styles.quoteIcon} />
+            <Text style={styles.quoteText}>"{quote.text}"</Text>
+            <Text style={styles.quoteAuthor}>— {quote.author}</Text>
           </LinearGradient>
         </Animated.View>
 
@@ -468,6 +664,65 @@ export default function DailyBriefingScreen() {
                   );
                 })}
               </View>
+            </View>
+          </Animated.View>
+        )}
+
+        {/* Incoming Missions */}
+        {assignments.length > 0 && (
+          <Animated.View
+            style={[
+              styles.section,
+              {
+                opacity: fadeAnim,
+                transform: [{ scale: scaleAnim }],
+              },
+            ]}
+          >
+            <View style={styles.sectionHeader}>
+              <Ionicons name="paper-plane" size={20} color="#AF52DE" />
+              <Text style={[styles.sectionTitle, { color: '#AF52DE' }]}>
+                Incoming Missions
+              </Text>
+              <View style={styles.missionBadge}>
+                <Text style={styles.missionBadgeText}>{assignments.length}</Text>
+              </View>
+            </View>
+            <View style={styles.missionsCard}>
+              {assignments.map((assignment, index) => (
+                <TouchableOpacity
+                  key={assignment.id}
+                  style={[
+                    styles.missionItem,
+                    index < assignments.length - 1 && styles.missionItemBorder,
+                  ]}
+                  onPress={() => navigation.navigate('Inbox' as never)}
+                >
+                  <View style={styles.missionEmoji}>
+                    <Text style={{ fontSize: 24 }}>{assignment.circleEmoji || '📋'}</Text>
+                  </View>
+                  <View style={styles.missionContent}>
+                    <Text style={styles.missionTitle} numberOfLines={1}>
+                      {assignment.title}
+                    </Text>
+                    <Text style={styles.missionMeta}>
+                      From {assignment.assignedByName || 'Someone'} 
+                      {assignment.circleName && ` • ${assignment.circleName}`}
+                    </Text>
+                  </View>
+                  <View style={styles.missionXp}>
+                    <Ionicons name="flash" size={14} color="#FF9500" />
+                    <Text style={styles.missionXpText}>{assignment.xpReward || 50}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity
+                style={styles.viewMissionsButton}
+                onPress={() => navigation.navigate('Inbox' as never)}
+              >
+                <Text style={styles.viewMissionsText}>View all missions</Text>
+                <Ionicons name="chevron-forward" size={16} color="#AF52DE" />
+              </TouchableOpacity>
             </View>
           </Animated.View>
         )}
@@ -850,4 +1105,172 @@ const styles = StyleSheet.create({
   bottomSpacer: {
     height: 40,
   },
-});
+  // Productivity Score Card
+  productivityCard: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  productivityHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  productivityTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1C1C1E',
+  },
+  productivityEmoji: {
+    fontSize: 24,
+  },
+  productivityContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 24,
+  },
+  scoreCircle: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#F8F9FA',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 4,
+    borderColor: '#E9ECEF',
+  },
+  scoreNumber: {
+    fontSize: 32,
+    fontWeight: '800',
+  },
+  scoreLabel: {
+    fontSize: 12,
+    color: '#8E8E93',
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  scoreBreakdown: {
+    flex: 1,
+    gap: 10,
+  },
+  scoreItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  scoreItemText: {
+    fontSize: 14,
+    color: '#3C3C43',
+    fontWeight: '500',
+  },
+  // Quote Card
+  quoteCard: {
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.15)',
+  },
+  quoteIcon: {
+    marginBottom: 12,
+    opacity: 0.6,
+  },
+  quoteText: {
+    fontSize: 16,
+    fontStyle: 'italic',
+    color: '#1C1C1E',
+    lineHeight: 24,
+    marginBottom: 8,
+  },
+  quoteAuthor: {
+    fontSize: 14,
+    color: '#8B5CF6',
+    fontWeight: '600',
+  },
+  // Missions Card
+  missionBadge: {
+    backgroundColor: '#AF52DE',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginLeft: 'auto',
+  },
+  missionBadgeText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  missionsCard: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  missionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    gap: 12,
+  },
+  missionItemBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#F2F2F7',
+  },
+  missionEmoji: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#F8F9FA',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  missionContent: {
+    flex: 1,
+  },
+  missionTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1C1C1E',
+    marginBottom: 2,
+  },
+  missionMeta: {
+    fontSize: 13,
+    color: '#8E8E93',
+  },
+  missionXp: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FFF9E6',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  missionXpText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FF9500',
+  },
+  viewMissionsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderTopWidth: 1,
+    borderTopColor: '#F2F2F7',
+    gap: 4,
+  },
+  viewMissionsText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#AF52DE',
+  },});
