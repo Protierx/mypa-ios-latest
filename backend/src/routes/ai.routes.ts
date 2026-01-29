@@ -545,4 +545,278 @@ router.get('/task-suggestions', async (req: Request, res: Response, next: NextFu
   }
 });
 
+// POST /ai/categorize-task - AI categorization for a task title
+const categorizeTaskSchema = z.object({
+  title: z.string().min(1).max(500),
+  description: z.string().max(1000).optional(),
+});
+
+router.post(
+  '/categorize-task',
+  validateBody(categorizeTaskSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!openai) {
+        // Fallback without AI
+        return res.json({
+          success: true,
+          data: {
+            category: 'Personal',
+            priority: 'NORMAL',
+            suggestedDuration: 30,
+            confidence: 0.5,
+          },
+        });
+      }
+
+      const { title, description } = req.body;
+      const content = description ? `${title} - ${description}` : title;
+
+      const systemPrompt = `Analyze this task and suggest categorization. Return JSON only:
+{
+  "category": "Work|Personal|Health|Finance|Learning|Social",
+  "priority": "LOW|NORMAL|HIGH",
+  "suggestedDuration": 15|30|45|60|90|120,
+  "confidence": 0.0-1.0,
+  "tags": ["tag1", "tag2"]
+}
+
+Consider:
+- Work: Job tasks, meetings, projects, deadlines
+- Personal: Home, errands, family, admin
+- Health: Exercise, medical, wellness, sleep
+- Finance: Bills, banking, investments, budget
+- Learning: Study, courses, reading, skills
+- Social: Events, friends, networking
+
+Priority based on urgency words, deadlines, importance.
+Duration based on task complexity.`;
+
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content },
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.3,
+        max_tokens: 150,
+      });
+
+      const result = JSON.parse(completion.choices[0].message.content || '{}');
+
+      res.json({
+        success: true,
+        data: {
+          category: result.category || 'Personal',
+          priority: result.priority || 'NORMAL',
+          suggestedDuration: result.suggestedDuration || 30,
+          confidence: result.confidence || 0.7,
+          tags: result.tags || [],
+        },
+      });
+    } catch (error) {
+      console.error('Task categorization error:', error);
+      next(error);
+    }
+  }
+);
+
+// POST /ai/smart-schedule - AI-powered task scheduling
+const smartScheduleSchema = z.object({
+  tasks: z.array(z.object({
+    id: z.string(),
+    title: z.string(),
+    priority: z.string().optional(),
+    durationMin: z.number().optional(),
+  })),
+  preferences: z.object({
+    workingHoursStart: z.string().optional(),
+    workingHoursEnd: z.string().optional(),
+    preferMorningForWork: z.boolean().optional(),
+  }).optional(),
+});
+
+router.post(
+  '/smart-schedule',
+  validateBody(smartScheduleSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!openai) {
+        // Simple fallback scheduling
+        const today = new Date();
+        const scheduled = req.body.tasks.map((task: any, index: number) => {
+          const date = new Date(today);
+          date.setDate(date.getDate() + Math.floor(index / 3));
+          return {
+            ...task,
+            suggestedDate: date.toISOString().split('T')[0],
+            suggestedTime: ['09:00', '11:00', '14:00', '16:00'][index % 4],
+          };
+        });
+
+        return res.json({
+          success: true,
+          data: { scheduled, summary: 'Tasks scheduled evenly.' },
+        });
+      }
+
+      const userId = req.user!.id;
+      const { tasks, preferences } = req.body;
+
+      // Get user's existing scheduled tasks
+      const existingTasks = await prisma.task.findMany({
+        where: {
+          userId,
+          date: { not: null },
+          completed: false,
+        },
+        select: {
+          date: true,
+          time: true,
+          durationMin: true,
+          title: true,
+          category: true,
+        },
+      });
+
+      // Import smart schedule function
+      const { smartScheduleBrainDump } = await import('../services/ai.service.js');
+
+      const result = await smartScheduleBrainDump(
+        tasks.map((t: any) => ({ id: t.id, content: t.title })),
+        existingTasks.map(t => ({
+          date: t.date!,
+          time: t.time || undefined,
+          durationMin: t.durationMin,
+          title: t.title,
+          category: t.category,
+        })),
+        preferences
+      );
+
+      res.json({
+        success: true,
+        data: {
+          scheduled: result.scheduledTasks,
+          summary: result.summary,
+        },
+      });
+    } catch (error) {
+      console.error('Smart scheduling error:', error);
+      next(error);
+    }
+  }
+);
+
+// GET /ai/daily-insights - Get AI-generated daily insights
+router.get('/daily-insights', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const userId = req.user!.id;
+    const today = new Date().toISOString().split('T')[0];
+    const hour = new Date().getHours();
+
+    // Get user data
+    const [user, todaysTasks, recentCompleted] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: { name: true, currentStreak: true, level: true, xp: true },
+      }),
+      prisma.task.findMany({
+        where: { userId, date: today },
+        select: { title: true, priority: true, completed: true, category: true },
+      }),
+      prisma.task.count({
+        where: {
+          userId,
+          completed: true,
+          completedAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
+        },
+      }),
+    ]);
+
+    const completedToday = todaysTasks.filter(t => t.completed).length;
+    const pendingToday = todaysTasks.filter(t => !t.completed);
+    const highPriority = pendingToday.filter(t => t.priority === 'HIGH');
+
+    // Generate insights without AI if not configured
+    if (!openai) {
+      const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+      const insights = [
+        `${greeting}, ${user?.name || 'there'}!`,
+        pendingToday.length > 0
+          ? `You have ${pendingToday.length} task${pendingToday.length > 1 ? 's' : ''} to tackle today.`
+          : 'Your schedule is clear today!',
+        highPriority.length > 0
+          ? `${highPriority.length} high-priority task${highPriority.length > 1 ? 's' : ''} need${highPriority.length === 1 ? 's' : ''} attention.`
+          : null,
+        user?.currentStreak && user.currentStreak >= 3
+          ? `🔥 ${user.currentStreak}-day streak! Keep it going!`
+          : null,
+      ].filter(Boolean);
+
+      return res.json({
+        success: true,
+        data: {
+          greeting: `${greeting}, ${user?.name || 'there'}!`,
+          insights,
+          stats: {
+            pending: pendingToday.length,
+            completed: completedToday,
+            highPriority: highPriority.length,
+            streak: user?.currentStreak || 0,
+            weeklyCompleted: recentCompleted,
+          },
+        },
+      });
+    }
+
+    // AI-generated insights
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: `Generate 2-3 brief, personalized insights for this user. Be warm but concise.
+Return JSON: { "greeting": "...", "insights": ["...", "..."], "tip": "..." }`,
+        },
+        {
+          role: 'user',
+          content: `Time: ${hour}:00
+User: ${user?.name || 'User'}
+Streak: ${user?.currentStreak || 0} days
+Level: ${user?.level || 1}
+Today: ${pendingToday.length} pending, ${completedToday} done
+High priority: ${highPriority.length}
+Week: ${recentCompleted} completed`,
+        },
+      ],
+      response_format: { type: 'json_object' },
+      temperature: 0.7,
+      max_tokens: 200,
+    });
+
+    const aiResult = JSON.parse(completion.choices[0].message.content || '{}');
+
+    res.json({
+      success: true,
+      data: {
+        greeting: aiResult.greeting || `Good ${hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'}!`,
+        insights: aiResult.insights || [],
+        tip: aiResult.tip,
+        stats: {
+          pending: pendingToday.length,
+          completed: completedToday,
+          highPriority: highPriority.length,
+          streak: user?.currentStreak || 0,
+          weeklyCompleted: recentCompleted,
+        },
+      },
+    });
+  } catch (error) {
+    console.error('Daily insights error:', error);
+    next(error);
+  }
+});
+
 export default router;

@@ -17,6 +17,9 @@ import circlesRoutes from './routes/circles.routes.js';
 import assignmentsRoutes, { circleAssignmentsRouter } from './routes/assignments.routes.js';
 import postsRoutes, { circleFeedRouter, circlePostsRouter } from './routes/posts.routes.js';
 import invitationsRoutes from './routes/invitations.routes.js';
+// Phase 5 imports
+import analyticsRoutes from './routes/analytics.routes.js';
+import notificationsRoutes from './routes/notifications.routes.js';
 
 export function createApp(): Application {
   const app = express();
@@ -62,9 +65,9 @@ export function createApp(): Application {
   app.use('/posts', postsRoutes);
   app.use('/invitations', invitationsRoutes);
 
-  // TODO: Add more routes as we implement them
-  // app.use('/notifications', notificationsRoutes);
-  // app.use('/places', placesRoutes);
+  // Phase 5: AI & Polish
+  app.use('/analytics', analyticsRoutes);
+  app.use('/notifications', notificationsRoutes);
 
   // Error handling
   app.use(notFoundHandler);

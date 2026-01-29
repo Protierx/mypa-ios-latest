@@ -12,8 +12,10 @@ import {
   Pressable,
   ActivityIndicator,
   RefreshControl,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -102,10 +104,17 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
   // Assign Mission Modal - Complete State
   const [assignedMember, setAssignedMember] = useState<{ id: string; name: string; initial: string } | null>(null);
   const [dueDay, setDueDay] = useState<'today' | 'tomorrow' | 'custom'>('today');
-  const [customDueDate, setCustomDueDate] = useState('');
-  const [dueTime, setDueTime] = useState('18:00');
+  const [customDueDate, setCustomDueDate] = useState<Date>(new Date());
+  const [dueTime, setDueTime] = useState<Date>(() => {
+    const date = new Date();
+    date.setHours(18, 0, 0, 0);
+    return date;
+  });
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
   const [repeatEndType, setRepeatEndType] = useState<'forever' | 'untilDate' | 'count'>('forever');
-  const [repeatEndDate, setRepeatEndDate] = useState('');
+  const [repeatEndDate, setRepeatEndDate] = useState<Date>(new Date());
+  const [showRepeatEndDatePicker, setShowRepeatEndDatePicker] = useState(false);
   const [repeatEndCount, setRepeatEndCount] = useState(10);
 
   // Current user is admin
@@ -116,6 +125,7 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
   const [showPostOptions, setShowPostOptions] = useState(false);
   const [showEditPostModal, setShowEditPostModal] = useState(false);
   const [editPostContent, setEditPostContent] = useState('');
+  const [hiddenPostIds, setHiddenPostIds] = useState<Set<string>>(new Set());
   
   // Member management (admin)
   const [selectedMember, setSelectedMember] = useState<any>(null);
@@ -125,6 +135,13 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
   const [showCircleSettings, setShowCircleSettings] = useState(false);
   const [editCircleName, setEditCircleName] = useState(circleName);
   const [editCircleEmoji, setEditCircleEmoji] = useState(circleEmoji);
+
+  // Decline Mission Modal
+  const [showDeclineModal, setShowDeclineModal] = useState(false);
+  const [declineAssignmentId, setDeclineAssignmentId] = useState<string | null>(null);
+  const [declineAssignmentTitle, setDeclineAssignmentTitle] = useState('');
+  const [declineReason, setDeclineReason] = useState('');
+  const [decliningInProgress, setDecliningInProgress] = useState(false);
 
   // NEW: Today In Circle Modal
   const [showTodayModal, setShowTodayModal] = useState(false);
@@ -146,7 +163,9 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
   const [repeatEnabled, setRepeatEnabled] = useState(false);
   const [repeatFrequency, setRepeatFrequency] = useState<'daily' | 'weekly' | 'monthly'>('daily');
   const [requireProof, setRequireProof] = useState(false);
+  const [assignmentNote, setAssignmentNote] = useState('');
   const [scheduleOption, setScheduleOption] = useState<'today' | 'tomorrow' | 'custom'>('today');
+  const [assignmentXp, setAssignmentXp] = useState(50);
   
   // NEW: Circle Settings toggles
   const [inviteLinkEnabled, setInviteLinkEnabled] = useState(true);
@@ -168,6 +187,31 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
   const [showViewProofModal, setShowViewProofModal] = useState(false);
   const [proofImage, setProofImage] = useState<string | null>(null);
   const [selectedAssignmentForProof, setSelectedAssignmentForProof] = useState<any>(null);
+
+  // NEW: Multi-select mode for posts (WhatsApp style)
+  const [postSelectionMode, setPostSelectionMode] = useState(false);
+  const [selectedPosts, setSelectedPosts] = useState<Set<string | number>>(new Set());
+  const [deletingSelectedPosts, setDeletingSelectedPosts] = useState(false);
+
+  // NEW: Assignment management from circles page
+  const [showAssignmentOptions, setShowAssignmentOptions] = useState(false);
+  const [selectedAssignment, setSelectedAssignment] = useState<any>(null);
+  const [showEditAssignmentModal, setShowEditAssignmentModal] = useState(false);
+  const [editAssignmentData, setEditAssignmentData] = useState({
+    title: '',
+    description: '',
+    dueDate: null as Date | null,
+    dueTime: null as Date | null,
+    xpReward: 50,
+    repeatEnabled: false,
+    repeatFrequency: 'daily',
+    requireProof: false,
+  });
+  const [editingAssignment, setEditingAssignment] = useState(false);
+  const [showEditDatePicker, setShowEditDatePicker] = useState(false);
+  const [showEditTimePicker, setShowEditTimePicker] = useState(false);
+  const [editDueDay, setEditDueDay] = useState<'today' | 'tomorrow' | 'custom'>('custom');
+  const [editCustomDueDate, setEditCustomDueDate] = useState(new Date());
 
   // Circle details from API
   const [circleDetails, setCircleDetails] = useState<any>(circle || null);
@@ -340,16 +384,26 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
 
             let systemText = '';
             let iconName = 'info';
+            let isAssignmentRelated = false;
             
             if (systemContent.action === 'assignment_created') {
               systemText = `${p.author?.name || 'Someone'} assigned "${systemContent.title}" to ${systemContent.assigneeName}`;
               iconName = 'user-plus';
+              isAssignmentRelated = true;
             } else if (systemContent.action === 'assignment_accepted') {
               systemText = `${p.author?.name || 'Someone'} accepted the mission: ${systemContent.title}`;
               iconName = 'check-circle';
+              isAssignmentRelated = true;
+            } else if (systemContent.action === 'assignment_declined') {
+              systemText = systemContent.reason 
+                ? `${p.author?.name || 'Someone'} declined the mission: ${systemContent.title}\n"${systemContent.reason}"`
+                : `${p.author?.name || 'Someone'} declined the mission: ${systemContent.title}`;
+              iconName = 'x-circle';
+              isAssignmentRelated = true;
             } else if (systemContent.action === 'assignment_completed') {
               systemText = `${p.author?.name || 'Someone'} completed: ${systemContent.title} (+${systemContent.xpAwarded || 50} XP)`;
               iconName = 'award';
+              isAssignmentRelated = true;
             } else {
               systemText = p.content || 'System update';
             }
@@ -364,6 +418,13 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
                 id: p.authorId,
                 name: p.author?.name || 'System',
               },
+              // Include assignment info if available
+              isAssignmentRelated,
+              assignmentId: systemContent.assignmentId,
+              assignmentTitle: systemContent.title,
+              assignerId: systemContent.assignerId,
+              assigneeId: systemContent.assigneeId,
+              assignmentAction: systemContent.action,
             };
           }
 
@@ -378,13 +439,15 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
             type: p.type === 'DAILY_CARD' ? 'receipt' : 'post',
             content: p.content,
             missions: p.tasksCompleted !== undefined ? { completed: p.tasksCompleted, total: p.totalTasks || 0 } : undefined,
-            wallet: p.timeSaved ? `+${p.timeSaved}m` : undefined,
-            streak: p.streak,
+            wallet: p.focusMinutes ? `+${p.focusMinutes}m` : (p.timeSaved ? `+${p.timeSaved}m` : undefined),
+            streak: p.streakDay || p.streak,
             reactions: {
               heart: p.reactions?.filter((r: any) => r.emoji === '❤️').length || 0,
               fire: p.reactions?.filter((r: any) => r.emoji === '🔥').length || 0,
               clap: p.reactions?.filter((r: any) => r.emoji === '👏').length || 0,
             },
+            // Track user's own reaction
+            userReaction: p.reactions?.find((r: any) => r.userId === user?.id)?.emoji || null,
           };
         });
         setPosts(apiPosts);
@@ -417,14 +480,21 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
           id: a.id,
           title: a.title,
           description: a.description,
-          assignedBy: a.assigner?.name || a.assigner?.username || 'Unknown',
+          // Use creatorId from backend (assigner is alias for creator)
+          assignedBy: a.creator?.name || a.creator?.username || a.assigner?.name || 'Unknown',
+          assignedById: a.creatorId || a.creator?.id || a.assigner?.id,
           assignedTo: a.assignee?.name || a.assignee?.username || 'Unknown',
-          assignedToId: a.assigneeId,
+          assignedToId: a.assigneeId || a.assignee?.id,
           dueTime: formatDueTime(a.dueDate),
           dueDate: a.dueDate,
           status: a.status?.toLowerCase() || 'pending',
           proofUrl: a.proofUrl,
           createdAt: a.createdAt,
+          xpReward: a.xpReward || 50,
+          repeatEnabled: a.repeatEnabled || false,
+          repeatFrequency: a.repeatFrequency,
+          requireProof: a.requireProof || false,
+          declineReason: a.declineReason,
         }));
         setAssignments(apiAssignments);
       } else {
@@ -540,27 +610,63 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
     const emojiMap = { heart: '❤️', fire: '🔥', clap: '👏' };
     const emoji = emojiMap[reactionType];
     
+    // Find the post to check current user reaction
+    const post = posts.find(p => p.id === postId);
+    const hasReacted = post?.userReaction === emoji;
+    
     try {
-      const response = await postsApi.react(postId, emoji);
-      if (response.success) {
-        // Optimistic update
-        setPosts(prevPosts => 
-          prevPosts.map(post => {
-            if (post.id === postId && post.reactions) {
-              return {
-                ...post,
-                reactions: {
-                  ...post.reactions,
-                  [reactionType]: post.reactions[reactionType] + 1
+      if (hasReacted) {
+        // Remove reaction
+        const response = await postsApi.removeReaction(postId);
+        if (response.success) {
+          setPosts(prevPosts => 
+            prevPosts.map(p => {
+              if (p.id === postId) {
+                return {
+                  ...p,
+                  reactions: {
+                    ...p.reactions,
+                    [reactionType]: Math.max(0, (p.reactions?.[reactionType] || 1) - 1)
+                  },
+                  userReaction: null
+                };
+              }
+              return p;
+            })
+          );
+        }
+      } else {
+        // Add reaction (will replace any existing reaction)
+        const response = await postsApi.react(postId, emoji);
+        if (response.success) {
+          // Get the old reaction type if any
+          const oldReactionType = post?.userReaction ? 
+            Object.entries(emojiMap).find(([_, e]) => e === post.userReaction)?.[0] as 'heart' | 'fire' | 'clap' | undefined
+            : undefined;
+          
+          setPosts(prevPosts => 
+            prevPosts.map(p => {
+              if (p.id === postId) {
+                const newReactions = { ...p.reactions };
+                // Increment new reaction
+                newReactions[reactionType] = (newReactions[reactionType] || 0) + 1;
+                // Decrement old reaction if switching
+                if (oldReactionType && oldReactionType !== reactionType) {
+                  newReactions[oldReactionType] = Math.max(0, (newReactions[oldReactionType] || 1) - 1);
                 }
-              };
-            }
-            return post;
-          })
-        );
+                return {
+                  ...p,
+                  reactions: newReactions,
+                  userReaction: emoji
+                };
+              }
+              return p;
+            })
+          );
+        }
       }
     } catch (error) {
-      console.error('Failed to add reaction:', error);
+      console.error('Failed to toggle reaction:', error);
     }
   };
 
@@ -574,9 +680,19 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
         { 
           text: 'Leave', 
           style: 'destructive',
-          onPress: () => {
-            setShowActionMenu(false);
-            navigation.goBack();
+          onPress: async () => {
+            try {
+              const response = await circlesApi.leave(circleId);
+              if (response.success) {
+                setShowActionMenu(false);
+                navigation.goBack();
+              } else {
+                Alert.alert('Error', response.error || 'Failed to leave circle');
+              }
+            } catch (error) {
+              console.error('Failed to leave circle:', error);
+              Alert.alert('Error', 'Failed to leave circle. Please try again.');
+            }
           }
         }
       ]
@@ -655,22 +771,24 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
     let dueDate = new Date();
     if (dueDay === 'tomorrow') {
       dueDate.setDate(dueDate.getDate() + 1);
-    } else if (dueDay === 'custom' && customDueDate) {
+    } else if (dueDay === 'custom') {
       dueDate = new Date(customDueDate);
     }
     
-    // Set the time
-    const [hours, minutes] = dueTime.split(':');
-    dueDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+    // Set the time from the time picker
+    dueDate.setHours(dueTime.getHours(), dueTime.getMinutes(), 0, 0);
 
     setCreatingAssignment(true);
     try {
       const response = await circlesApi.createAssignment(circleId, {
         assigneeId: assignedMember.id,
         title: assignmentTitle.trim(),
-        description: '',
+        description: assignmentNote.trim() || '',
         dueDate: dueDate.toISOString(),
-        xpReward: 50,
+        xpReward: assignmentXp,
+        repeatEnabled: repeatEnabled,
+        repeatFrequency: repeatEnabled ? repeatFrequency : undefined,
+        requireProof: requireProof,
       });
 
       if (response.success && response.data) {
@@ -712,33 +830,15 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
     }
   };
 
-  // Decline assignment
-  const handleDeclineAssignment = async (assignmentId: string) => {
-    Alert.alert(
-      'Decline Mission?',
-      'Are you sure you want to decline this mission?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Decline',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const response = await assignmentsApi.decline(assignmentId);
-              if (response.success) {
-                await fetchAssignments();
-                Alert.alert('Declined', 'Mission declined.');
-              } else {
-                Alert.alert('Error', response.error || 'Failed to decline');
-              }
-            } catch (error) {
-              console.error('Failed to decline assignment:', error);
-              Alert.alert('Error', 'Failed to decline assignment');
-            }
-          },
-        },
-      ]
-    );
+  // Decline assignment - show modal for reason
+  const handleDeclineAssignment = async (assignmentId: string, title?: string) => {
+    console.log('🔴 Decline button pressed!', { assignmentId, title });
+    console.log('🔴 Setting showDeclineModal to true');
+    setDeclineAssignmentId(assignmentId);
+    setDeclineAssignmentTitle(title || 'this mission');
+    setDeclineReason('');
+    setShowDeclineModal(true);
+    console.log('🔴 showDeclineModal state set');
   };
 
   // Complete assignment
@@ -758,19 +858,32 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
     }
   };
 
-  // Helper to format time
-  const formatTime = (time: string) => {
-    const [hours, minutes] = time.split(':');
-    const h = parseInt(hours);
+  // Helper to format time from Date object
+  const formatTime = (date: Date) => {
+    const h = date.getHours();
+    const minutes = date.getMinutes().toString().padStart(2, '0');
     const ampm = h >= 12 ? 'PM' : 'AM';
     const displayHour = h > 12 ? h - 12 : h === 0 ? 12 : h;
     return `${displayHour}:${minutes} ${ampm}`;
   };
 
+  // Helper to format date
+  const formatDate = (date: Date) => {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${months[date.getMonth()]} ${date.getDate()}`;
+  };
+
   // Get due summary text
   const getDueSummary = () => {
-    const dayLabel = dueDay === 'today' ? 'Today' : dueDay === 'tomorrow' ? 'Tomorrow' : (customDueDate || 'Pick date');
+    const dayLabel = dueDay === 'today' ? 'Today' : dueDay === 'tomorrow' ? 'Tomorrow' : formatDate(customDueDate);
     return `Due: ${dayLabel} at ${formatTime(dueTime)}`;
+  };
+
+  // Get due summary text for edit mode
+  const getEditDueSummary = () => {
+    const dayLabel = editDueDay === 'today' ? 'Today' : editDueDay === 'tomorrow' ? 'Tomorrow' : formatDate(editCustomDueDate);
+    const timeStr = editAssignmentData.dueTime ? formatTime(editAssignmentData.dueTime) : '9:00 AM';
+    return `Due: ${dayLabel} at ${timeStr}`;
   };
 
   // Reset assign form
@@ -781,15 +894,22 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
     setAssignToId('');
     setShowMemberPicker(false);
     setDueDay('today');
-    setCustomDueDate('');
-    setDueTime('18:00');
+    setCustomDueDate(new Date());
+    const defaultTime = new Date();
+    defaultTime.setHours(18, 0, 0, 0);
+    setDueTime(defaultTime);
+    setShowDatePicker(false);
+    setShowTimePicker(false);
     setRepeatEnabled(false);
     setRepeatFrequency('daily');
     setRepeatEndType('forever');
-    setRepeatEndDate('');
+    setRepeatEndDate(new Date());
+    setShowRepeatEndDatePicker(false);
     setRepeatEndCount(10);
     setRequireProof(false);
     setSendNudge(true);
+    setAssignmentNote('');
+    setAssignmentXp(50);
   };
 
   // NEW: Handle open Today modal
@@ -857,15 +977,25 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
   };
 
   // NEW: Handle promote to admin
-  const handlePromoteToAdmin = (memberId: string) => {
-    setCircleMembers(prev =>
-      prev.map(m =>
-        m.id === memberId ? { ...m, role: 'admin' } : m
-      )
-    );
-    setShowMemberActionSheet(false);
-    setSelectedMemberForManage(null);
-    Alert.alert('Admin Added', 'Member has been promoted to admin.');
+  const handlePromoteToAdmin = async (memberId: string) => {
+    try {
+      const response = await circlesApi.updateMemberRole(circleId, memberId, 'ADMIN');
+      if (response.success) {
+        setCircleMembers(prev =>
+          prev.map(m =>
+            m.id === memberId ? { ...m, role: 'admin' } : m
+          )
+        );
+        setShowMemberActionSheet(false);
+        setSelectedMemberForManage(null);
+        Alert.alert('Admin Added', 'Member has been promoted to admin.');
+      } else {
+        Alert.alert('Error', response.error || 'Failed to promote member');
+      }
+    } catch (error) {
+      console.error('Failed to promote member:', error);
+      Alert.alert('Error', 'Failed to promote member. Please try again.');
+    }
   };
 
   // NEW: Handle remove from circle
@@ -879,10 +1009,20 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
         {
           text: 'Remove',
           style: 'destructive',
-          onPress: () => {
-            setCircleMembers(prev => prev.filter(m => m.id !== memberId));
-            setShowMemberActionSheet(false);
-            setSelectedMemberForManage(null);
+          onPress: async () => {
+            try {
+              const response = await circlesApi.kickMember(circleId, memberId);
+              if (response.success) {
+                setCircleMembers(prev => prev.filter(m => m.id !== memberId));
+                setShowMemberActionSheet(false);
+                setSelectedMemberForManage(null);
+              } else {
+                Alert.alert('Error', response.error || 'Failed to remove member');
+              }
+            } catch (error) {
+              console.error('Failed to remove member:', error);
+              Alert.alert('Error', 'Failed to remove member. Please try again.');
+            }
           }
         }
       ]
@@ -895,13 +1035,103 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
     navigation.navigate('DailyLifeCard');
   };
 
-  // Post management handlers
+  // Post management handlers - show action sheet first
   const handlePostOptions = (post: any) => {
-    setSelectedPost(post);
-    setShowPostOptions(true);
+    if (postSelectionMode) {
+      // Already in selection mode, just toggle this post
+      togglePostSelection(post.id);
+    } else {
+      // Show action sheet with options (restored original behavior)
+      setSelectedPost(post);
+      setShowPostOptions(true);
+    }
   };
 
-  const handleDeletePost = (postId: number) => {
+  // Enter selection mode for delete (triggered from action sheet "Delete" option)
+  const enterPostDeleteSelectionMode = (post: any) => {
+    setShowPostOptions(false);
+    setSelectedPost(null);
+    setPostSelectionMode(true);
+    setSelectedPosts(new Set([post.id]));
+  };
+
+  // Toggle post selection
+  const togglePostSelection = (id: string | number) => {
+    setSelectedPosts(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+        // Exit selection mode if nothing selected
+        if (newSet.size === 0) {
+          setPostSelectionMode(false);
+        }
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+
+  // Handle post tap in selection mode
+  const handlePostTap = (post: any) => {
+    if (postSelectionMode) {
+      togglePostSelection(post.id);
+    }
+    // In normal mode, posts don't have tap action (can add if needed)
+  };
+
+  // Cancel selection mode
+  const cancelPostSelectionMode = () => {
+    setPostSelectionMode(false);
+    setSelectedPosts(new Set());
+  };
+
+  // Delete selected posts
+  const deleteSelectedPosts = async () => {
+    const count = selectedPosts.size;
+    
+    Alert.alert(
+      'Delete Posts',
+      `Are you sure you want to delete ${count} post${count > 1 ? 's' : ''}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setDeletingSelectedPosts(true);
+            try {
+              // Delete each selected post
+              const deletePromises = Array.from(selectedPosts).map(id =>
+                postsApi.delete(String(id))
+              );
+              
+              const results = await Promise.allSettled(deletePromises);
+              const successCount = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
+              
+              if (successCount > 0) {
+                // Remove from local state
+                setPosts(prev => prev.filter(p => !selectedPosts.has(p.id)));
+                Alert.alert('Success', `Deleted ${successCount} post${successCount > 1 ? 's' : ''}`);
+              } else {
+                Alert.alert('Error', 'Failed to delete posts. You can only delete your own posts.');
+              }
+              
+              // Exit selection mode
+              cancelPostSelectionMode();
+            } catch (error) {
+              console.error('Failed to delete posts:', error);
+              Alert.alert('Error', 'Failed to delete some posts');
+            } finally {
+              setDeletingSelectedPosts(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleDeletePost = (postId: number | string) => {
     Alert.alert(
       'Delete Post',
       'Are you sure you want to delete this post? This action cannot be undone.',
@@ -910,28 +1140,152 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => {
-            setPosts(prev => prev.filter(p => p.id !== postId));
-            setShowPostOptions(false);
-            setSelectedPost(null);
+          onPress: async () => {
+            try {
+              const response = await postsApi.delete(String(postId));
+              if (response.success) {
+                setPosts(prev => prev.filter(p => p.id !== postId));
+                setShowPostOptions(false);
+                setSelectedPost(null);
+              } else {
+                Alert.alert('Error', response.error || 'Failed to delete post');
+              }
+            } catch (error) {
+              console.error('Failed to delete post:', error);
+              Alert.alert('Error', 'Failed to delete post. Please try again.');
+            }
           }
         }
       ]
     );
   };
 
-  const handleEditPost = (post: any) => {
-    setEditPostContent(`Missions: ${post.missions.completed}/${post.missions.total}`);
+  const handleEditPost = async (post: any) => {
     setShowPostOptions(false);
+    
+    // If it's an assignment-related system post, go directly to edit mission modal
+    if (post.type === 'system' && post.isAssignmentRelated && post.assignmentId) {
+      // First try to find the full assignment in our assignments array
+      let assignment = assignments.find(a => a.id === post.assignmentId);
+      
+      // If not found locally, fetch it from the API
+      if (!assignment) {
+        try {
+          const response = await assignmentsApi.getById(post.assignmentId);
+          if (response.success && response.data) {
+            const a = response.data;
+            assignment = {
+              id: a.id,
+              title: a.title,
+              description: a.description,
+              assignedById: a.creatorId || a.creator?.id,
+              assignedToId: a.assigneeId || a.assignee?.id,
+              assignedBy: a.creator?.name || a.creator?.username || 'Unknown',
+              assignedTo: a.assignee?.name || a.assignee?.username || 'Unknown',
+              status: a.status?.toLowerCase() || 'pending',
+              dueDate: a.dueDate,
+              xpReward: a.xpReward || 50,
+              repeatEnabled: a.repeatEnabled || false,
+              repeatFrequency: a.repeatFrequency,
+              requireProof: a.requireProof || false,
+            };
+          }
+        } catch (error) {
+          console.error('Failed to fetch assignment:', error);
+        }
+      }
+      
+      if (!assignment) {
+        Alert.alert('Mission Not Found', 'This mission may have been deleted.');
+        return;
+      }
+      
+      // Check if user is the sender - only sender can edit the mission
+      if (user?.id === assignment.assignedById) {
+        // Go directly to edit mission modal
+        setSelectedAssignment(assignment);
+        openEditAssignmentModal(assignment);
+      } else {
+        // User is the recipient, they can't edit the mission details
+        Alert.alert('Cannot Edit', 'Only the person who sent this mission can edit it.');
+      }
+      return;
+    }
+    
+    // For regular posts, show edit modal directly
+    if (post.type === 'system') {
+      setEditPostContent(post.systemText || '');
+    } else {
+      setEditPostContent(post.content || post.note || '');
+    }
     setShowEditPostModal(true);
   };
 
-  const handleSavePostEdit = () => {
-    // In a real app, this would update the post content
-    Alert.alert('Post Updated', 'Your post has been updated successfully.');
-    setShowEditPostModal(false);
+  const handleHidePost = (postId: string) => {
+    setHiddenPostIds(prev => new Set([...prev, postId]));
+    setShowPostOptions(false);
     setSelectedPost(null);
-    setEditPostContent('');
+    // Show brief feedback
+    Alert.alert(
+      'Post Hidden',
+      'This post has been hidden from your feed.',
+      [{ text: 'OK' }]
+    );
+  };
+
+  const handleUnhideAllPosts = () => {
+    setHiddenPostIds(new Set());
+    Alert.alert('Posts Restored', 'All hidden posts are now visible again.');
+  };
+
+  const handleSavePostEdit = async () => {
+    if (!selectedPost || !editPostContent.trim()) {
+      Alert.alert('Error', 'Please enter some content');
+      return;
+    }
+
+    try {
+      // Update the post in local state
+      setPosts(prevPosts => 
+        prevPosts.map(post => {
+          if (post.id === selectedPost.id) {
+            if (post.type === 'system') {
+              return {
+                ...post,
+                systemText: editPostContent.trim(),
+                isEdited: true,
+                editedAt: new Date().toISOString(),
+              };
+            } else {
+              return {
+                ...post,
+                note: editPostContent.trim(),
+                isEdited: true,
+                editedAt: new Date().toISOString(),
+              };
+            }
+          }
+          return post;
+        })
+      );
+
+      // TODO: In production, call API to update post and send notification
+      // await postsApi.updatePost(selectedPost.id, { content: editPostContent.trim() });
+
+      setShowEditPostModal(false);
+      setSelectedPost(null);
+      setEditPostContent('');
+      
+      // Show success feedback
+      Alert.alert(
+        'Post Updated',
+        'Your changes have been saved. The recipient will be notified.',
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      console.error('Failed to update post:', error);
+      Alert.alert('Error', 'Failed to save changes. Please try again.');
+    }
   };
 
   // Member management handlers (admin only)
@@ -990,10 +1344,25 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
   };
 
   // Circle settings handlers (admin only)
-  const handleSaveCircleSettings = () => {
-    // In a real app, this would update the circle settings
-    Alert.alert('Settings Saved', 'Circle settings have been updated.');
-    setShowCircleSettings(false);
+  const handleSaveCircleSettings = async () => {
+    try {
+      const response = await circlesApi.update(circleId, {
+        name: editCircleName || circleName,
+        emoji: editCircleEmoji || circleEmoji,
+        // Include any other settings being edited
+      });
+      if (response.success) {
+        Alert.alert('Settings Saved', 'Circle settings have been updated.');
+        setShowCircleSettings(false);
+        // Refresh circle data
+        fetchCircleMembers();
+      } else {
+        Alert.alert('Error', response.error || 'Failed to save settings');
+      }
+    } catch (error) {
+      console.error('Failed to save circle settings:', error);
+      Alert.alert('Error', 'Failed to save settings. Please try again.');
+    }
   };
 
   const handleDeleteCircle = () => {
@@ -1005,40 +1374,288 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => {
-            setShowCircleSettings(false);
-            navigation.goBack();
+          onPress: async () => {
+            try {
+              const response = await circlesApi.delete(circleId);
+              if (response.success) {
+                setShowCircleSettings(false);
+                navigation.goBack();
+              } else {
+                Alert.alert('Error', response.error || 'Failed to delete circle');
+              }
+            } catch (error) {
+              console.error('Failed to delete circle:', error);
+              Alert.alert('Error', 'Failed to delete circle. Please try again.');
+            }
           }
         }
       ]
     );
   };
 
+  // Assignment management handlers (from circles page)
+  const handleAssignmentOptions = (assignment: any) => {
+    setSelectedAssignment(assignment);
+    setShowAssignmentOptions(true);
+  };
+
+  // Check if current user is the sender of the assignment
+  const isAssignmentSender = (assignment: any) => {
+    return user?.id === assignment.assignedById;
+  };
+
+  // Check if current user is the recipient of the assignment
+  const isAssignmentRecipient = (assignment: any) => {
+    return user?.id === assignment.assignedToId;
+  };
+
+  // Open edit assignment modal (for sender)
+  const openEditAssignmentModal = (assignment: any) => {
+    setShowAssignmentOptions(false);
+    
+    // Parse the due date to determine if it's today, tomorrow, or custom
+    const dueDate = assignment.dueDate ? new Date(assignment.dueDate) : new Date();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const dueDateDay = new Date(dueDate);
+    dueDateDay.setHours(0, 0, 0, 0);
+    
+    if (dueDateDay.getTime() === today.getTime()) {
+      setEditDueDay('today');
+    } else if (dueDateDay.getTime() === tomorrow.getTime()) {
+      setEditDueDay('tomorrow');
+    } else {
+      setEditDueDay('custom');
+    }
+    setEditCustomDueDate(dueDate);
+    
+    setEditAssignmentData({
+      title: assignment.title || '',
+      description: assignment.description || '',
+      dueDate: assignment.dueDate ? new Date(assignment.dueDate) : null,
+      dueTime: assignment.dueDate ? new Date(assignment.dueDate) : new Date(),
+      xpReward: assignment.xpReward || 50,
+      repeatEnabled: assignment.repeatEnabled || false,
+      repeatFrequency: assignment.repeatFrequency || 'daily',
+      requireProof: assignment.requireProof || false,
+    });
+    setShowEditAssignmentModal(true);
+  };
+
+  // Save edited assignment (sender only)
+  const handleSaveAssignmentEdit = async () => {
+    if (!selectedAssignment) return;
+    
+    setEditingAssignment(true);
+    try {
+      // Calculate due date based on editDueDay
+      let dueDate = new Date();
+      if (editDueDay === 'tomorrow') {
+        dueDate.setDate(dueDate.getDate() + 1);
+      } else if (editDueDay === 'custom') {
+        dueDate = new Date(editCustomDueDate);
+      }
+      
+      // Set the time from the time picker
+      if (editAssignmentData.dueTime) {
+        dueDate.setHours(editAssignmentData.dueTime.getHours(), editAssignmentData.dueTime.getMinutes(), 0, 0);
+      }
+      
+      const dueDateISO = dueDate.toISOString();
+
+      const response = await assignmentsApi.update(String(selectedAssignment.id), {
+        title: editAssignmentData.title,
+        description: editAssignmentData.description || null,
+        dueDate: dueDateISO,
+        xpReward: editAssignmentData.xpReward,
+        repeatEnabled: editAssignmentData.repeatEnabled,
+        repeatFrequency: editAssignmentData.repeatEnabled ? editAssignmentData.repeatFrequency : null,
+        requireProof: editAssignmentData.requireProof,
+      });
+
+      if (response.success) {
+        Alert.alert('Success', 'Mission updated! The recipient has been notified.');
+        await fetchAssignments();
+        await fetchFeed(); // Refresh feed to show updated system post
+        setShowEditAssignmentModal(false);
+        setSelectedAssignment(null);
+      } else {
+        Alert.alert('Error', response.error || 'Failed to update mission');
+      }
+    } catch (error) {
+      console.error('Failed to update assignment:', error);
+      Alert.alert('Error', 'Failed to update mission');
+    } finally {
+      setEditingAssignment(false);
+    }
+  };
+
+  // Decline an accepted assignment (recipient only)
+  const handleDeclineAccepted = (assignment: any) => {
+    setShowAssignmentOptions(false);
+    setDeclineAssignmentId(assignment.id);
+    setDeclineAssignmentTitle(assignment.title);
+    setDeclineReason('');
+    setShowDeclineModal(true);
+  };
+
+  // Accept a pending/declined assignment and navigate to Plan
+  const handleAcceptAndGoToPlan = async (assignment: any) => {
+    setShowAssignmentOptions(false);
+    try {
+      const response = await assignmentsApi.accept(String(assignment.id));
+      if (response.success) {
+        Alert.alert(
+          'Mission Accepted! 🎯',
+          'This mission has been added to your tasks.',
+          [
+            {
+              text: 'Go to Plan',
+              onPress: () => navigation.navigate('Plan'),
+            },
+            { text: 'Stay Here', style: 'cancel' },
+          ]
+        );
+        await fetchAssignments();
+        await fetchFeed();
+      } else {
+        Alert.alert('Error', response.error || 'Failed to accept mission');
+      }
+    } catch (error) {
+      console.error('Failed to accept assignment:', error);
+      Alert.alert('Error', 'Failed to accept mission');
+    }
+  };
+
+  // Confirm decline with reason
+  const confirmDeclineAssignment = async (withReason: boolean) => {
+    if (!declineAssignmentId) return;
+    
+    setDecliningInProgress(true);
+    try {
+      const response = await assignmentsApi.decline(
+        String(declineAssignmentId),
+        withReason && declineReason.trim() ? declineReason.trim() : undefined
+      );
+
+      if (response.success) {
+        Alert.alert('Mission Declined', 'The sender has been notified.');
+        await fetchAssignments();
+        await fetchFeed();
+        setShowDeclineModal(false);
+        setDeclineAssignmentId(null);
+        setDeclineReason('');
+      } else {
+        Alert.alert('Error', response.error || 'Failed to decline mission');
+      }
+    } catch (error) {
+      console.error('Failed to decline assignment:', error);
+      Alert.alert('Error', 'Failed to decline mission');
+    } finally {
+      setDecliningInProgress(false);
+    }
+  };
+
 
   // Post Card Component
   const PostCard = ({ post }: { post: any }) => {
+    const isSelected = selectedPosts.has(post.id);
+    
+    // Handle long press - check if it's an assignment-related post
+    const handleLongPress = () => {
+      if (postSelectionMode) {
+        togglePostSelection(post.id);
+        return;
+      }
+      
+      // Always show regular post options first
+      handlePostOptions(post);
+    };
+    
     if (post.type === 'system') {
       const iconColor = post.iconName === 'award' ? '#10B981' : 
                         post.iconName === 'check-circle' ? '#8B5CF6' :
                         post.iconName === 'user-plus' ? '#F59E0B' :
                         Colors.textSecondary;
       return (
-        <View style={styles.systemCard}>
+        <Pressable 
+          onPress={() => handlePostTap(post)}
+          onLongPress={handleLongPress}
+          delayLongPress={400}
+          style={({ pressed }) => [
+            styles.systemCard,
+            pressed && styles.postCardPressed,
+            isSelected && postSelectionStyles.selectedCard
+          ]}
+        >
+          {/* Selection Checkbox */}
+          {postSelectionMode && (
+            <TouchableOpacity 
+              style={postSelectionStyles.checkboxRow}
+              onPress={() => togglePostSelection(post.id)}
+              activeOpacity={0.7}
+            >
+              <View style={[
+                postSelectionStyles.checkbox,
+                isSelected && postSelectionStyles.checkboxSelected
+              ]}>
+                {isSelected && (
+                  <Feather name="check" size={14} color="#FFFFFF" />
+                )}
+              </View>
+            </TouchableOpacity>
+          )}
           <View style={styles.systemCardContent}>
             <View style={[styles.systemIconContainer, { backgroundColor: `${iconColor}20` }]}>
               <Feather name={post.iconName || "info"} size={20} color={iconColor} />
             </View>
             <View style={styles.systemTextContainer}>
-              <Text style={styles.systemText}>{post.systemText}</Text>
+              <View style={styles.systemTextRow}>
+                <Text style={styles.systemText}>{post.systemText}</Text>
+                {post.isEdited && (
+                  <View style={styles.editedBadge}>
+                    <Feather name="edit-2" size={10} color="#64748B" />
+                    <Text style={styles.editedBadgeText}>Edited</Text>
+                  </View>
+                )}
+              </View>
               <Text style={styles.systemTime}>{post.dueTime}</Text>
             </View>
           </View>
-        </View>
+        </Pressable>
       );
     }
 
     return (
-      <View style={styles.postCard}>
+      <Pressable 
+        onPress={() => handlePostTap(post)}
+        onLongPress={() => handlePostOptions(post)}
+        delayLongPress={400}
+        style={({ pressed }) => [
+          styles.postCard,
+          pressed && styles.postCardPressed,
+          isSelected && postSelectionStyles.selectedCard
+        ]}
+      >
+        {/* Selection Checkbox */}
+        {postSelectionMode && (
+          <TouchableOpacity 
+            style={postSelectionStyles.checkboxRow}
+            onPress={() => togglePostSelection(post.id)}
+            activeOpacity={0.7}
+          >
+            <View style={[
+              postSelectionStyles.checkbox,
+              isSelected && postSelectionStyles.checkboxSelected
+            ]}>
+              {isSelected && (
+                <Feather name="check" size={14} color="#FFFFFF" />
+              )}
+            </View>
+          </TouchableOpacity>
+        )}
         {/* Header */}
         <View style={styles.postHeader}>
           <View style={styles.postUserInfo}>
@@ -1056,62 +1673,105 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
                     <Text style={styles.adminBadgeSmallText}>Admin</Text>
                   </View>
                 )}
+                {post.isEdited && (
+                  <View style={styles.editedBadge}>
+                    <Feather name="edit-2" size={10} color="#64748B" />
+                    <Text style={styles.editedBadgeText}>Edited</Text>
+                  </View>
+                )}
               </View>
               <Text style={styles.postTime}>{post.time}</Text>
             </View>
           </View>
-          <TouchableOpacity onPress={() => handlePostOptions(post)}>
-            <Feather name="more-horizontal" size={20} color={Colors.textMuted} />
-          </TouchableOpacity>
         </View>
 
-        {/* Stats */}
-        <View style={styles.statsContainer}>
-          <View style={styles.statItem}>
-            <Text style={styles.statLabel}>Missions</Text>
-            <Text style={styles.statValue}>{post.missions.completed}/{post.missions.total}</Text>
+        {/* Note if edited */}
+        {post.note && (
+          <View style={styles.postNoteContainer}>
+            <Text style={styles.postNoteText}>{post.note}</Text>
           </View>
-          <View style={styles.statItem}>
-            <Text style={styles.statLabel}>Time Saved</Text>
-            <Text style={[styles.statValue, { color: Colors.success }]}>{post.wallet}</Text>
-          </View>
-          <View style={styles.statItem}>
-            <MaterialCommunityIcons name="fire" size={16} color={Colors.orange} />
-            <Text style={[styles.statValue, { color: Colors.orange }]}>{post.streak}</Text>
-          </View>
-        </View>
+        )}
 
-        {/* Reactions */}
-        <View style={styles.reactionsContainer}>
-          <TouchableOpacity 
-            style={styles.reactionButton}
-            onPress={() => handleReaction(post.id, 'heart')}
-          >
-            <Feather name="heart" size={16} color={Colors.textMuted} />
-            <Text style={styles.reactionCount}>{post.reactions.heart}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.reactionButton}
-            onPress={() => handleReaction(post.id, 'fire')}
-          >
-            <MaterialCommunityIcons name="fire" size={16} color={Colors.orange} />
-            <Text style={styles.reactionCount}>{post.reactions.fire}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.reactionButton}
-            onPress={() => handleReaction(post.id, 'clap')}
-          >
-            <Text style={styles.clapEmoji}>👏</Text>
-            <Text style={styles.reactionCount}>{post.reactions.clap}</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+        {/* Stats - only show if missions data exists */}
+        {post.missions && (
+          <View style={styles.statsContainer}>
+            <View style={styles.statItem}>
+              <Text style={styles.statLabel}>Missions</Text>
+              <Text style={styles.statValue}>{post.missions.completed}/{post.missions.total}</Text>
+            </View>
+            <View style={styles.statItem}>
+              <Text style={styles.statLabel}>Time Saved</Text>
+              <Text style={[styles.statValue, { color: Colors.success }]}>{post.wallet || '-'}</Text>
+            </View>
+            <View style={styles.statItem}>
+              <MaterialCommunityIcons name="fire" size={16} color={Colors.orange} />
+              <Text style={[styles.statValue, { color: Colors.orange }]}>{post.streak || 0}</Text>
+            </View>
+          </View>
+        )}
+
+        {/* Reactions - with null checks */}
+        {post.reactions && (
+          <View style={styles.reactionsContainer}>
+            <TouchableOpacity 
+              style={[styles.reactionButton, post.userReaction === '❤️' && styles.reactionButtonActive]}
+              onPress={() => handleReaction(post.id, 'heart')}
+            >
+              <Feather name="heart" size={16} color={post.userReaction === '❤️' ? '#EF4444' : Colors.textMuted} />
+              <Text style={styles.reactionCount}>{post.reactions.heart || 0}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.reactionButton, post.userReaction === '🔥' && styles.reactionButtonActive]}
+              onPress={() => handleReaction(post.id, 'fire')}
+            >
+              <MaterialCommunityIcons name="fire" size={16} color={post.userReaction === '🔥' ? Colors.orange : Colors.textMuted} />
+              <Text style={styles.reactionCount}>{post.reactions.fire || 0}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.reactionButton, post.userReaction === '👏' && styles.reactionButtonActive]}
+              onPress={() => handleReaction(post.id, 'clap')}
+            >
+              <Text style={styles.clapEmoji}>👏</Text>
+              <Text style={styles.reactionCount}>{post.reactions.clap || 0}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </Pressable>
     );
   };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header */}
+      {/* Selection Mode Header (WhatsApp style) */}
+      {postSelectionMode && (
+        <View style={postSelectionStyles.header}>
+          <TouchableOpacity 
+            style={postSelectionStyles.cancelButton}
+            onPress={cancelPostSelectionMode}
+          >
+            <Feather name="x" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+          <Text style={postSelectionStyles.headerText}>
+            {selectedPosts.size} selected
+          </Text>
+          <View style={postSelectionStyles.headerActions}>
+            <TouchableOpacity 
+              style={postSelectionStyles.deleteButton}
+              onPress={deleteSelectedPosts}
+              disabled={deletingSelectedPosts || selectedPosts.size === 0}
+            >
+              {deletingSelectedPosts ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Feather name="trash-2" size={22} color="#FFFFFF" />
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* Header - hide when in selection mode */}
+      {!postSelectionMode && (
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <TouchableOpacity
@@ -1143,6 +1803,7 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
           </TouchableOpacity>
         </View>
       </View>
+      )}
 
       {/* Content */}
       <ScrollView 
@@ -1334,31 +1995,33 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
                 ))}
               </View>
               
-              {/* Row 2: Filters */}
-              <View style={styles.navigationRow}>
-                {['all', 'checkins', 'assignments'].map(filter => (
-                  <TouchableOpacity
-                    key={filter}
-                    onPress={() => setFeedFilter(filter)}
-                    style={[
-                      styles.navigationButton,
-                      feedFilter === filter && styles.navigationButtonActive
-                    ]}
-                  >
-                    <Feather 
-                      name={filter === 'all' ? 'grid' : filter === 'checkins' ? 'check-circle' : 'clipboard'} 
-                      size={16} 
-                      color={feedFilter === filter ? Colors.white : Colors.textSecondary} 
-                    />
-                    <Text style={[
-                      styles.navigationButtonText,
-                      feedFilter === filter && styles.navigationButtonTextActive
-                    ]}>
-                      {filter === 'checkins' ? 'Check-ins' : filter.charAt(0).toUpperCase() + filter.slice(1)}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              {/* Row 2: Filters - Only show when on Feed tab */}
+              {circleTab === 'feed' && (
+                <View style={styles.navigationRow}>
+                  {['all', 'checkins', 'assignments'].map(filter => (
+                    <TouchableOpacity
+                      key={filter}
+                      onPress={() => setFeedFilter(filter)}
+                      style={[
+                        styles.navigationButton,
+                        feedFilter === filter && styles.navigationButtonActive
+                      ]}
+                    >
+                      <Feather 
+                        name={filter === 'all' ? 'grid' : filter === 'checkins' ? 'check-circle' : 'clipboard'} 
+                        size={16} 
+                        color={feedFilter === filter ? Colors.white : Colors.textSecondary} 
+                      />
+                      <Text style={[
+                        styles.navigationButtonText,
+                        feedFilter === filter && styles.navigationButtonTextActive
+                      ]}>
+                        {filter === 'checkins' ? 'Check-ins' : filter.charAt(0).toUpperCase() + filter.slice(1)}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
             </View>
 
             {/* Posts - With Empty State and Loading */}
@@ -1410,9 +2073,55 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
                 )}
               </View>
             ) : (
-              posts.map(post => (
-                <PostCard key={post.id} post={post} />
-              ))
+              <>
+                {/* Show unhide option if there are hidden posts */}
+                {hiddenPostIds.size > 0 && (
+                  <TouchableOpacity 
+                    onPress={handleUnhideAllPosts}
+                    style={styles.hiddenPostsBanner}
+                  >
+                    <Feather name="eye-off" size={16} color={Colors.textSecondary} />
+                    <Text style={styles.hiddenPostsText}>
+                      {hiddenPostIds.size} hidden post{hiddenPostIds.size > 1 ? 's' : ''} • Tap to show all
+                    </Text>
+                  </TouchableOpacity>
+                )}
+                {(() => {
+                  const filteredPosts = posts
+                    .filter(post => !hiddenPostIds.has(post.id))
+                    .filter(post => {
+                      // Apply feed filter
+                      if (feedFilter === 'all') return true;
+                      if (feedFilter === 'checkins') return post.type === 'receipt';
+                      if (feedFilter === 'assignments') return post.type === 'system' && post.isAssignmentRelated;
+                      return true;
+                    });
+                  
+                  if (filteredPosts.length === 0 && feedFilter !== 'all') {
+                    return (
+                      <View style={styles.filterEmptyState}>
+                        <Feather 
+                          name={feedFilter === 'checkins' ? 'check-square' : 'target'} 
+                          size={32} 
+                          color={Colors.textSecondary} 
+                        />
+                        <Text style={styles.filterEmptyText}>
+                          No {feedFilter === 'checkins' ? 'check-ins' : 'missions'} yet
+                        </Text>
+                        <Text style={styles.filterEmptySubtext}>
+                          {feedFilter === 'checkins' 
+                            ? 'Be the first to share your day!' 
+                            : 'Assign a mission to get started'}
+                        </Text>
+                      </View>
+                    );
+                  }
+                  
+                  return filteredPosts.map(post => (
+                    <PostCard key={post.id} post={post} />
+                  ));
+                })()}
+              </>
             )}
           </View>
         )}
@@ -1550,146 +2259,10 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
           </View>
         )}
 
-        {/* Challenges Tab */}
+        {/* Challenges Tab - Reserved for friend's implementation */}
         {circleTab === 'challenges' && (
           <View>
-            <Text style={styles.sectionTitle}>CHALLENGES</Text>
-            
-            {loadingAssignments ? (
-              <View style={{ padding: 40, alignItems: 'center' }}>
-                <ActivityIndicator size="large" color={Colors.primary} />
-                <Text style={{ marginTop: 12, color: Colors.textSecondary }}>Loading challenges...</Text>
-              </View>
-            ) : assignments.length === 0 ? (
-              <View style={{
-                padding: 40,
-                alignItems: 'center',
-                backgroundColor: Colors.surface,
-                borderRadius: 16,
-                marginTop: 8,
-              }}>
-                <Feather name="target" size={48} color={Colors.textMuted} />
-                <Text style={{ 
-                  marginTop: 16, 
-                  fontSize: 16, 
-                  fontWeight: '600', 
-                  color: Colors.textPrimary,
-                  textAlign: 'center' 
-                }}>
-                  No challenges yet
-                </Text>
-                <Text style={{ 
-                  marginTop: 8, 
-                  color: Colors.textSecondary, 
-                  textAlign: 'center',
-                  paddingHorizontal: 20,
-                }}>
-                  Assign missions to circle members to create accountability challenges.
-                </Text>
-                <TouchableOpacity 
-                  onPress={() => setShowAssignModal(true)}
-                  style={{ marginTop: 16 }}
-                >
-                  <LinearGradient
-                    colors={['#7c3aed', '#a78bfa']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={{ paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 }}
-                  >
-                    <Text style={{ color: Colors.white, fontWeight: '600' }}>Assign Mission</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              assignments.map(assignment => (
-                <View key={assignment.id} style={styles.challengeCard}>
-                  <TouchableOpacity 
-                    activeOpacity={0.7}
-                    onPress={() => handleChallengeAction(assignment)}
-                  >
-                    <View style={styles.challengeHeader}>
-                      <View style={styles.challengeInfo}>
-                        <Text style={styles.challengeTitle}>{assignment.title}</Text>
-                        <Text style={styles.challengeAssigner}>
-                          {assignment.assignedToId === user?.id 
-                            ? `Assigned by ${assignment.assignedBy}` 
-                            : `Assigned to ${assignment.assignedTo}`}
-                        </Text>
-                      </View>
-                      <View style={[
-                        styles.statusBadge,
-                        assignment.status === 'pending' ? styles.statusPending : 
-                        assignment.status === 'accepted' ? styles.statusAccepted :
-                        assignment.status === 'completed' ? { backgroundColor: Colors.successLight } :
-                        styles.statusPending
-                      ]}>
-                        <Text style={[
-                          styles.statusText,
-                          assignment.status === 'pending' ? styles.statusTextPending : 
-                          assignment.status === 'completed' ? { color: Colors.success } :
-                          styles.statusTextAccepted
-                        ]}>
-                          {assignment.status.charAt(0).toUpperCase() + assignment.status.slice(1)}
-                        </Text>
-                      </View>
-                    </View>
-                    <Text style={styles.challengeDueTime}>⏰ {assignment.dueTime}</Text>
-                  </TouchableOpacity>
-                  
-                  {/* Action buttons for pending assignments */}
-                  {assignment.status === 'pending' && assignment.assignedToId === user?.id && (
-                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
-                      <TouchableOpacity 
-                        style={{
-                          flex: 1,
-                          backgroundColor: Colors.primaryLight,
-                          paddingVertical: 10,
-                          borderRadius: 8,
-                          alignItems: 'center',
-                        }}
-                        onPress={() => handleAcceptAssignment(assignment.id)}
-                      >
-                        <Text style={{ color: Colors.primary, fontWeight: '600' }}>Accept</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity 
-                        style={{
-                          flex: 1,
-                          backgroundColor: Colors.surface,
-                          paddingVertical: 10,
-                          borderRadius: 8,
-                          alignItems: 'center',
-                          borderWidth: 1,
-                          borderColor: Colors.border,
-                        }}
-                        onPress={() => handleDeclineAssignment(assignment.id)}
-                      >
-                        <Text style={{ color: Colors.textSecondary, fontWeight: '600' }}>Decline</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                  
-                  {/* Complete button for accepted assignments */}
-                  {assignment.status === 'accepted' && assignment.assignedToId === user?.id && (
-                    <TouchableOpacity 
-                      style={styles.logTodayButton}
-                      onPress={() => handleCompleteAssignment(assignment.id)}
-                    >
-                      <Feather name="check-circle" size={16} color={Colors.primary} />
-                      <Text style={styles.logTodayButtonText}>Mark Complete</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              ))
-            )}
-
-            {/* Start New Challenge Button */}
-            <TouchableOpacity
-              onPress={() => setShowAssignModal(true)}
-              style={styles.startNewChallengeButton}
-            >
-              <Feather name="plus" size={20} color={Colors.primary} />
-              <Text style={styles.startNewChallengeText}>Start New Challenge</Text>
-            </TouchableOpacity>
+            {/* Challenges feature will be implemented here */}
           </View>
         )}
         
@@ -1850,6 +2423,205 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
         </TouchableOpacity>
       </Modal>
 
+      {/* Decline Mission Modal - iOS Action Sheet Style */}
+      <Modal
+        visible={showDeclineModal}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => {
+          setShowDeclineModal(false);
+          setDeclineAssignmentId(null);
+          setDeclineReason('');
+        }}
+      >
+        <View style={[styles.modalOverlay, { justifyContent: 'center', alignItems: 'center' }]}>
+          <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFillObject} />
+          <Pressable
+            style={StyleSheet.absoluteFillObject}
+            onPress={() => {
+              setShowDeclineModal(false);
+              setDeclineAssignmentId(null);
+              setDeclineReason('');
+            }}
+          />
+          
+          {/* Modal Content */}
+          <View style={{
+            backgroundColor: Colors.background,
+            borderRadius: 20,
+            marginHorizontal: 20,
+            overflow: 'hidden',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 10 },
+            shadowOpacity: 0.25,
+            shadowRadius: 20,
+            elevation: 10,
+            width: SCREEN_WIDTH - 40,
+          }}>
+            {/* Header */}
+            <View style={{
+              paddingTop: 24,
+              paddingHorizontal: 24,
+              paddingBottom: 16,
+              alignItems: 'center',
+            }}>
+              <View style={{
+                width: 56,
+                height: 56,
+                borderRadius: 28,
+                backgroundColor: '#fff5f5',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: 16,
+              }}>
+                <Feather name="x-circle" size={28} color={Colors.danger} />
+              </View>
+              <Text style={{
+                fontSize: 20,
+                fontWeight: '700',
+                color: Colors.textPrimary,
+                marginBottom: 8,
+              }}>
+                Decline Mission?
+              </Text>
+              <Text style={{
+                fontSize: 15,
+                color: Colors.textSecondary,
+                textAlign: 'center',
+                lineHeight: 22,
+              }}>
+                Would you like to share why you're declining{'\n'}"{declineAssignmentTitle}"?
+              </Text>
+            </View>
+            
+            {/* Reason Input */}
+            <View style={{
+              paddingHorizontal: 20,
+              paddingBottom: 16,
+            }}>
+              <TextInput
+                style={{
+                  backgroundColor: Colors.surface,
+                  borderRadius: 12,
+                  paddingHorizontal: 16,
+                  paddingTop: 14,
+                  paddingBottom: 14,
+                  fontSize: 16,
+                  color: Colors.textPrimary,
+                  minHeight: 100,
+                  textAlignVertical: 'top',
+                  borderWidth: 1,
+                  borderColor: Colors.border,
+                }}
+                placeholder="e.g., I have a prior commitment, busy with exams..."
+                placeholderTextColor={Colors.textMuted}
+                value={declineReason}
+                onChangeText={setDeclineReason}
+                multiline
+                maxLength={200}
+                autoFocus={false}
+              />
+              <Text style={{
+                fontSize: 12,
+                color: Colors.textMuted,
+                textAlign: 'right',
+                marginTop: 6,
+              }}>
+                {declineReason.length}/200 (optional)
+              </Text>
+            </View>
+            
+            {/* Quick Reason Chips */}
+            <View style={{
+              paddingHorizontal: 20,
+              paddingBottom: 20,
+            }}>
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: 8 }}
+              >
+                {['Busy right now', 'Not enough time', 'Already have plans', 'Not feeling well'].map((chip) => (
+                  <TouchableOpacity
+                    key={chip}
+                    onPress={() => setDeclineReason(chip)}
+                    style={{
+                      paddingHorizontal: 14,
+                      paddingVertical: 8,
+                      backgroundColor: declineReason === chip ? Colors.primaryLight : Colors.surface,
+                      borderRadius: 20,
+                      borderWidth: 1,
+                      borderColor: declineReason === chip ? Colors.primary : Colors.border,
+                    }}
+                  >
+                    <Text style={{
+                      fontSize: 14,
+                      color: declineReason === chip ? Colors.primary : Colors.textSecondary,
+                      fontWeight: '500',
+                    }}>
+                      {chip}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+            
+            {/* Action Buttons */}
+            <View style={{
+              borderTopWidth: 1,
+              borderTopColor: Colors.border,
+            }}>
+              {/* Decline with Reason */}
+              <TouchableOpacity
+                onPress={() => confirmDeclineAssignment(true)}
+                disabled={decliningInProgress}
+                style={{
+                  paddingVertical: 16,
+                  alignItems: 'center',
+                  borderBottomWidth: 1,
+                  borderBottomColor: Colors.border,
+                  opacity: decliningInProgress ? 0.5 : 1,
+                }}
+              >
+                {decliningInProgress ? (
+                  <ActivityIndicator color={Colors.danger} />
+                ) : (
+                  <Text style={{
+                    fontSize: 17,
+                    fontWeight: '600',
+                    color: Colors.danger,
+                  }}>
+                    {declineReason.trim() ? 'Decline with Reason' : 'Decline without Reason'}
+                  </Text>
+                )}
+              </TouchableOpacity>
+              
+              {/* Cancel */}
+              <TouchableOpacity
+                onPress={() => {
+                  setShowDeclineModal(false);
+                  setDeclineAssignmentId(null);
+                  setDeclineReason('');
+                }}
+                disabled={decliningInProgress}
+                style={{
+                  paddingVertical: 16,
+                  alignItems: 'center',
+                }}
+              >
+                <Text style={{
+                  fontSize: 17,
+                  fontWeight: '600',
+                  color: Colors.primary,
+                }}>
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Assign Mission Modal */}
       <Modal
         visible={showAssignModal}
@@ -1937,7 +2709,12 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
                         styles.segmentOption,
                         dueDay === option && styles.segmentOptionActive
                       ]}
-                      onPress={() => setDueDay(option)}
+                      onPress={() => {
+                        setDueDay(option);
+                        if (option === 'custom') {
+                          setShowDatePicker(true);
+                        }
+                      }}
                     >
                       <Text style={[
                         styles.segmentOptionText,
@@ -1951,12 +2728,53 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
 
                 {/* Custom Date Picker */}
                 {dueDay === 'custom' && (
-                  <TextInput
-                    placeholder="Select date (e.g., Jan 28)"
+                  <TouchableOpacity
+                    style={[styles.datePickerButton, { marginTop: 12 }]}
+                    onPress={() => setShowDatePicker(true)}
+                  >
+                    <Feather name="calendar" size={18} color={Colors.primary} />
+                    <Text style={styles.datePickerButtonText}>{formatDate(customDueDate)}</Text>
+                    <Feather name="chevron-down" size={18} color={Colors.textMuted} />
+                  </TouchableOpacity>
+                )}
+
+                {/* iOS Date Picker Modal */}
+                {showDatePicker && Platform.OS === 'ios' && (
+                  <View style={styles.iosPickerContainer}>
+                    <DateTimePicker
+                      value={customDueDate}
+                      mode="date"
+                      display="spinner"
+                      onChange={(event, selectedDate) => {
+                        if (selectedDate) {
+                          setCustomDueDate(selectedDate);
+                        }
+                      }}
+                      minimumDate={new Date()}
+                      textColor={Colors.textPrimary}
+                    />
+                    <TouchableOpacity
+                      style={styles.pickerDoneButton}
+                      onPress={() => setShowDatePicker(false)}
+                    >
+                      <Text style={styles.pickerDoneButtonText}>Done</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {/* Android Date Picker */}
+                {showDatePicker && Platform.OS === 'android' && (
+                  <DateTimePicker
                     value={customDueDate}
-                    onChangeText={setCustomDueDate}
-                    style={[styles.assignInput, { marginTop: 12 }]}
-                    placeholderTextColor={Colors.textMuted}
+                    mode="date"
+                    display="default"
+                    onChange={(event, selectedDate) => {
+                      setShowDatePicker(false);
+                      if (selectedDate) {
+                        setCustomDueDate(selectedDate);
+                      }
+                    }}
+                    minimumDate={new Date()}
                   />
                 )}
 
@@ -1966,20 +2784,50 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
                   <TouchableOpacity 
                     style={styles.timePickerInputWrapper}
                     activeOpacity={0.7}
+                    onPress={() => setShowTimePicker(true)}
                   >
-                    <TextInput
-                      value={dueTime}
-                      onChangeText={setDueTime}
-                      style={styles.timePickerInput}
-                      placeholder="18:00"
-                      placeholderTextColor={Colors.textMuted}
-                      keyboardType="numbers-and-punctuation"
-                      maxLength={5}
-                      selectTextOnFocus
-                    />
+                    <Text style={styles.timePickerInput}>{formatTime(dueTime)}</Text>
                     <Feather name="clock" size={18} color={Colors.textMuted} />
                   </TouchableOpacity>
                 </View>
+
+                {/* iOS Time Picker */}
+                {showTimePicker && Platform.OS === 'ios' && (
+                  <View style={styles.iosPickerContainer}>
+                    <DateTimePicker
+                      value={dueTime}
+                      mode="time"
+                      display="spinner"
+                      onChange={(event, selectedTime) => {
+                        if (selectedTime) {
+                          setDueTime(selectedTime);
+                        }
+                      }}
+                      textColor={Colors.textPrimary}
+                    />
+                    <TouchableOpacity
+                      style={styles.pickerDoneButton}
+                      onPress={() => setShowTimePicker(false)}
+                    >
+                      <Text style={styles.pickerDoneButtonText}>Done</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {/* Android Time Picker */}
+                {showTimePicker && Platform.OS === 'android' && (
+                  <DateTimePicker
+                    value={dueTime}
+                    mode="time"
+                    display="default"
+                    onChange={(event, selectedTime) => {
+                      setShowTimePicker(false);
+                      if (selectedTime) {
+                        setDueTime(selectedTime);
+                      }
+                    }}
+                  />
+                )}
 
                 {/* Due Summary */}
                 <Text style={styles.dueSummary}>{getDueSummary()}</Text>
@@ -2049,22 +2897,65 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
                           styles.repeatEndOption,
                           repeatEndType === 'untilDate' && styles.repeatEndOptionActive
                         ]}
-                        onPress={() => setRepeatEndType('untilDate')}
+                        onPress={() => {
+                          setRepeatEndType('untilDate');
+                          setShowRepeatEndDatePicker(true);
+                        }}
                       >
                         <View style={[styles.radioOuter, repeatEndType === 'untilDate' && styles.radioOuterActive]}>
                           {repeatEndType === 'untilDate' && <View style={styles.radioInner} />}
                         </View>
                         <Text style={styles.repeatEndOptionText}>Until</Text>
                         {repeatEndType === 'untilDate' && (
-                          <TextInput
-                            value={repeatEndDate}
-                            onChangeText={setRepeatEndDate}
-                            placeholder="Date"
-                            style={styles.repeatEndDateInput}
-                            placeholderTextColor={Colors.textMuted}
-                          />
+                          <TouchableOpacity
+                            style={styles.repeatEndDateButton}
+                            onPress={() => setShowRepeatEndDatePicker(true)}
+                          >
+                            <Text style={styles.repeatEndDateButtonText}>{formatDate(repeatEndDate)}</Text>
+                            <Feather name="calendar" size={14} color={Colors.primary} />
+                          </TouchableOpacity>
                         )}
                       </TouchableOpacity>
+
+                      {/* Repeat End Date Picker - iOS */}
+                      {showRepeatEndDatePicker && Platform.OS === 'ios' && (
+                        <View style={styles.iosPickerContainer}>
+                          <DateTimePicker
+                            value={repeatEndDate}
+                            mode="date"
+                            display="spinner"
+                            onChange={(event, selectedDate) => {
+                              if (selectedDate) {
+                                setRepeatEndDate(selectedDate);
+                              }
+                            }}
+                            minimumDate={new Date()}
+                            textColor={Colors.textPrimary}
+                          />
+                          <TouchableOpacity
+                            style={styles.pickerDoneButton}
+                            onPress={() => setShowRepeatEndDatePicker(false)}
+                          >
+                            <Text style={styles.pickerDoneButtonText}>Done</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+
+                      {/* Repeat End Date Picker - Android */}
+                      {showRepeatEndDatePicker && Platform.OS === 'android' && (
+                        <DateTimePicker
+                          value={repeatEndDate}
+                          mode="date"
+                          display="default"
+                          onChange={(event, selectedDate) => {
+                            setShowRepeatEndDatePicker(false);
+                            if (selectedDate) {
+                              setRepeatEndDate(selectedDate);
+                            }
+                          }}
+                          minimumDate={new Date()}
+                        />
+                      )}
 
                       <TouchableOpacity
                         style={[
@@ -2123,6 +3014,28 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
                 </View>
               </View>
 
+              {/* XP Reward Selector */}
+              <View style={styles.assignSection}>
+                <Text style={styles.assignLabel}>XP Reward</Text>
+                <View style={styles.xpSelectorRow}>
+                  {[25, 50, 75, 100, 150].map((xp) => (
+                    <TouchableOpacity
+                      key={xp}
+                      onPress={() => setAssignmentXp(xp)}
+                      style={[
+                        styles.xpOption,
+                        assignmentXp === xp && styles.xpOptionSelected
+                      ]}
+                    >
+                      <Text style={[
+                        styles.xpOptionText,
+                        assignmentXp === xp && styles.xpOptionTextSelected
+                      ]}>{xp}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
               {/* Send Nudge Now Toggle */}
               <View style={styles.assignSection}>
                 <View style={styles.toggleRowWithSubtitle}>
@@ -2143,6 +3056,21 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
                     ]} />
                   </TouchableOpacity>
                 </View>
+              </View>
+
+              {/* Note Section */}
+              <View style={styles.assignSection}>
+                <Text style={styles.assignLabel}>Add a note (optional)</Text>
+                <TextInput
+                  placeholder="Any extra details or motivation..."
+                  value={assignmentNote}
+                  onChangeText={setAssignmentNote}
+                  style={[styles.assignInput, styles.assignNoteInput]}
+                  placeholderTextColor={Colors.textMuted}
+                  multiline
+                  numberOfLines={3}
+                  textAlignVertical="top"
+                />
               </View>
 
               {/* Bottom Buttons */}
@@ -2325,7 +3253,7 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
               {selectedPost && (
                 <>
                   {/* Show Edit option only for own posts or if admin */}
-                  {(selectedPost.user?.name === 'You' || isCurrentUserAdmin) && (
+                  {(selectedPost.user?.id === user?.id || isCurrentUserAdmin) && (
                     <TouchableOpacity
                       onPress={() => handleEditPost(selectedPost)}
                       style={styles.actionSheetButton}
@@ -2335,21 +3263,21 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
                     </TouchableOpacity>
                   )}
                   
-                  {/* Show Delete option for own posts or if admin */}
-                  {(selectedPost.user?.name === 'You' || isCurrentUserAdmin) && (
+                  {/* Show Delete option for own posts or if admin - triggers multi-select mode */}
+                  {(selectedPost.user?.id === user?.id || isCurrentUserAdmin) && (
                     <TouchableOpacity
-                      onPress={() => handleDeletePost(selectedPost.id)}
+                      onPress={() => enterPostDeleteSelectionMode(selectedPost)}
                       style={[styles.actionSheetButton, styles.actionSheetButtonDestructive]}
                     >
                       <Feather name="trash-2" size={20} color={Colors.danger} />
                       <Text style={[styles.actionSheetButtonText, { color: Colors.danger }]}>
-                        Delete Post
+                        Delete
                       </Text>
                     </TouchableOpacity>
                   )}
 
                   {/* Report option for other people's posts */}
-                  {selectedPost.user?.name !== 'You' && (
+                  {selectedPost.user?.id !== user?.id && (
                     <TouchableOpacity
                       onPress={() => {
                         setShowPostOptions(false);
@@ -2363,6 +3291,15 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
                       </Text>
                     </TouchableOpacity>
                   )}
+
+                  {/* Hide from feed option - available for all posts */}
+                  <TouchableOpacity
+                    onPress={() => handleHidePost(selectedPost.id)}
+                    style={styles.actionSheetButton}
+                  >
+                    <Feather name="eye-off" size={20} color={Colors.textSecondary} />
+                    <Text style={styles.actionSheetButtonText}>Hide from Feed</Text>
+                  </TouchableOpacity>
                 </>
               )}
             </View>
@@ -2377,53 +3314,61 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
         </TouchableOpacity>
       </Modal>
 
-      {/* Edit Post Modal */}
+      {/* Edit Post Modal - iOS Themed */}
       <Modal
         visible={showEditPostModal}
         animationType="slide"
         transparent={true}
         onRequestClose={() => setShowEditPostModal(false)}
       >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setShowEditPostModal(false)}
-        >
-          <View style={styles.bottomSheet} onStartShouldSetResponder={() => true}>
-            <View style={styles.sheetHandle} />
-            <Text style={styles.sheetTitle}>Edit Post</Text>
+        <View style={styles.modalOverlay}>
+          <BlurView intensity={20} style={StyleSheet.absoluteFill} tint="dark" />
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            activeOpacity={1}
+            onPress={() => setShowEditPostModal(false)}
+          />
+          <View style={styles.editPostSheet}>
+            <View style={styles.editPostSheetHandle} />
+            
+            {/* Header */}
+            <View style={styles.editPostHeader}>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowEditPostModal(false);
+                  setSelectedPost(null);
+                }}
+              >
+                <Text style={styles.editPostCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <Text style={styles.editPostTitle}>Edit Post</Text>
+              <TouchableOpacity onPress={handleSavePostEdit}>
+                <Text style={styles.editPostSaveText}>Save</Text>
+              </TouchableOpacity>
+            </View>
 
-            <Text style={styles.inputLabel}>Post Content</Text>
-            <TextInput
-              value={editPostContent}
-              onChangeText={setEditPostContent}
-              style={[styles.textInput, { height: 100, textAlignVertical: 'top' }]}
-              multiline
-              placeholderTextColor={Colors.textMuted}
-            />
+            {/* Content Editor */}
+            <View style={styles.editPostContent}>
+              <TextInput
+                value={editPostContent}
+                onChangeText={setEditPostContent}
+                style={styles.editPostTextInput}
+                multiline
+                placeholder="What's on your mind?"
+                placeholderTextColor={Colors.textMuted}
+                autoFocus
+              />
+            </View>
 
-            <Text style={styles.editPostNote}>
-              Note: Edited posts will show an "edited" indicator.
-            </Text>
-
-            <TouchableOpacity
-              onPress={handleSavePostEdit}
-              style={styles.submitButton}
-            >
-              <Text style={styles.submitButtonText}>Save Changes</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => {
-                setShowEditPostModal(false);
-                setSelectedPost(null);
-              }}
-              style={styles.cancelButton}
-            >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </TouchableOpacity>
+            {/* Info Note */}
+            <View style={styles.editPostInfoContainer}>
+              <Feather name="info" size={14} color="#64748B" />
+              <Text style={styles.editPostInfoText}>
+                Edited posts will show an "Edited" badge
+              </Text>
+            </View>
           </View>
-        </TouchableOpacity>
+        </View>
       </Modal>
 
       {/* Member Options Modal (Admin Only) */}
@@ -2501,6 +3446,412 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
+      </Modal>
+
+      {/* Assignment Options Modal (iOS Action Sheet Style) */}
+      <Modal
+        visible={showAssignmentOptions}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowAssignmentOptions(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowAssignmentOptions(false)}
+        >
+          <View style={styles.actionSheetContainer}>
+            <View style={styles.actionSheetGroup}>
+              {selectedAssignment && (
+                <>
+                  {/* Header with mission info */}
+                  <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)' }}>
+                    <Text style={{ color: Colors.text, fontSize: 16, fontWeight: '600', marginBottom: 4 }}>
+                      {selectedAssignment.title}
+                    </Text>
+                    <Text style={{ color: Colors.textSecondary, fontSize: 13 }}>
+                      {selectedAssignment.status === 'accepted' ? '✅ Accepted' : 
+                       selectedAssignment.status === 'declined' ? '❌ Declined' : 
+                       selectedAssignment.status === 'completed' ? '🎉 Completed' : '⏳ Pending'}
+                      {isAssignmentSender(selectedAssignment) && ' • You sent this'}
+                      {isAssignmentRecipient(selectedAssignment) && ' • Assigned to you'}
+                    </Text>
+                  </View>
+
+                  {/* Edit option for sender - show if user is sender and status is not completed */}
+                  {isAssignmentSender(selectedAssignment) && selectedAssignment.status !== 'completed' && (
+                    <TouchableOpacity
+                      onPress={() => openEditAssignmentModal(selectedAssignment)}
+                      style={styles.actionSheetButton}
+                    >
+                      <Feather name="edit-2" size={20} color={Colors.primary} />
+                      <Text style={styles.actionSheetButtonText}>Edit Mission</Text>
+                    </TouchableOpacity>
+                  )}
+
+                  {/* Accept option for recipient with pending/declined status */}
+                  {isAssignmentRecipient(selectedAssignment) && 
+                   (selectedAssignment.status === 'pending' || selectedAssignment.status === 'declined') && (
+                    <TouchableOpacity
+                      onPress={() => handleAcceptAndGoToPlan(selectedAssignment)}
+                      style={styles.actionSheetButton}
+                    >
+                      <Feather name="check-circle" size={20} color={Colors.success} />
+                      <Text style={[styles.actionSheetButtonText, { color: Colors.success }]}>
+                        Accept Mission
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+
+                  {/* Decline option for recipient with pending or accepted status */}
+                  {isAssignmentRecipient(selectedAssignment) && 
+                   (selectedAssignment.status === 'pending' || selectedAssignment.status === 'accepted') && (
+                    <TouchableOpacity
+                      onPress={() => handleDeclineAccepted(selectedAssignment)}
+                      style={[styles.actionSheetButton, styles.actionSheetButtonDestructive]}
+                    >
+                      <Feather name="x-circle" size={20} color={Colors.danger} />
+                      <Text style={[styles.actionSheetButtonText, { color: Colors.danger }]}>
+                        Decline Mission
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+
+                  {/* Hide from feed */}
+                  <TouchableOpacity
+                    onPress={() => {
+                      setShowAssignmentOptions(false);
+                      Alert.alert('Hidden', 'This mission post has been hidden from your feed.');
+                    }}
+                    style={styles.actionSheetButton}
+                  >
+                    <Feather name="eye-off" size={20} color={Colors.textMuted} />
+                    <Text style={styles.actionSheetButtonText}>Hide from Feed</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+            
+            <TouchableOpacity
+              onPress={() => setShowAssignmentOptions(false)}
+              style={styles.actionSheetCancel}
+            >
+              <Text style={styles.actionSheetCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Edit Assignment Modal (Sender Only) - Matches Create Assignment UI */}
+      <Modal
+        visible={showEditAssignmentModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowEditAssignmentModal(false)}
+      >
+        <View style={styles.modalOverlay} pointerEvents="box-none">
+          <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFillObject} />
+          <Pressable
+            style={StyleSheet.absoluteFillObject}
+            onPress={() => setShowEditAssignmentModal(false)}
+          />
+          <View style={[styles.assignModalSheet]} pointerEvents="auto" onStartShouldSetResponder={() => true}>
+            {/* Drag Handle */}
+            <View style={styles.sheetHandle} />
+            
+            {/* Header */}
+            <View style={styles.assignModalHeader}>
+              <Text style={styles.assignModalTitle}>Edit Mission</Text>
+              <TouchableOpacity 
+                onPress={() => {
+                  setShowEditAssignmentModal(false);
+                  setSelectedAssignment(null);
+                }}
+                style={styles.assignModalClose}
+              >
+                <Feather name="x" size={24} color={Colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView 
+              showsVerticalScrollIndicator={false}
+              style={styles.assignModalContent}
+              contentContainerStyle={{ paddingBottom: 30 }}
+            >
+              {/* Mission Title (Required) */}
+              <View style={styles.assignSection}>
+                <Text style={styles.assignLabel}>Mission</Text>
+                <TextInput
+                  placeholder="e.g. Take bins out"
+                  value={editAssignmentData.title}
+                  onChangeText={(text) => setEditAssignmentData(prev => ({ ...prev, title: text }))}
+                  style={styles.assignInput}
+                  placeholderTextColor={Colors.textMuted}
+                />
+              </View>
+
+              {/* Schedule Section */}
+              <View style={styles.assignSection}>
+                <Text style={styles.assignLabel}>Schedule</Text>
+                
+                {/* Day Segmented Control */}
+                <View style={styles.segmentedControl}>
+                  {(['today', 'tomorrow', 'custom'] as const).map((option) => (
+                    <TouchableOpacity
+                      key={option}
+                      style={[
+                        styles.segmentOption,
+                        editDueDay === option && styles.segmentOptionActive
+                      ]}
+                      onPress={() => {
+                        setEditDueDay(option);
+                        if (option === 'custom') {
+                          setShowEditDatePicker(true);
+                        } else {
+                          // Update the date based on selection
+                          const newDate = new Date();
+                          if (option === 'tomorrow') {
+                            newDate.setDate(newDate.getDate() + 1);
+                          }
+                          setEditCustomDueDate(newDate);
+                          setEditAssignmentData(prev => ({ ...prev, dueDate: newDate }));
+                        }
+                      }}
+                    >
+                      <Text style={[
+                        styles.segmentOptionText,
+                        editDueDay === option && styles.segmentOptionTextActive
+                      ]}>
+                        {option === 'today' ? 'Today' : option === 'tomorrow' ? 'Tomorrow' : 'Pick date'}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {/* Custom Date Picker */}
+                {editDueDay === 'custom' && (
+                  <TouchableOpacity
+                    style={[styles.datePickerButton, { marginTop: 12 }]}
+                    onPress={() => setShowEditDatePicker(true)}
+                  >
+                    <Feather name="calendar" size={18} color={Colors.primary} />
+                    <Text style={styles.datePickerButtonText}>{formatDate(editCustomDueDate)}</Text>
+                    <Feather name="chevron-down" size={18} color={Colors.textMuted} />
+                  </TouchableOpacity>
+                )}
+
+                {/* iOS Date Picker Modal */}
+                {showEditDatePicker && Platform.OS === 'ios' && (
+                  <View style={styles.iosPickerContainer}>
+                    <DateTimePicker
+                      value={editCustomDueDate}
+                      mode="date"
+                      display="spinner"
+                      onChange={(event, selectedDate) => {
+                        if (selectedDate) {
+                          setEditCustomDueDate(selectedDate);
+                          setEditAssignmentData(prev => ({ ...prev, dueDate: selectedDate }));
+                        }
+                      }}
+                      minimumDate={new Date()}
+                      textColor={Colors.textPrimary}
+                    />
+                    <TouchableOpacity
+                      style={styles.pickerDoneButton}
+                      onPress={() => setShowEditDatePicker(false)}
+                    >
+                      <Text style={styles.pickerDoneButtonText}>Done</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {/* Android Date Picker */}
+                {showEditDatePicker && Platform.OS === 'android' && (
+                  <DateTimePicker
+                    value={editCustomDueDate}
+                    mode="date"
+                    display="default"
+                    onChange={(event, selectedDate) => {
+                      setShowEditDatePicker(false);
+                      if (selectedDate) {
+                        setEditCustomDueDate(selectedDate);
+                        setEditAssignmentData(prev => ({ ...prev, dueDate: selectedDate }));
+                      }
+                    }}
+                    minimumDate={new Date()}
+                  />
+                )}
+
+                {/* Time Picker */}
+                <View style={styles.timePickerRow}>
+                  <Text style={styles.timePickerLabel}>Time</Text>
+                  <TouchableOpacity 
+                    style={styles.timePickerInputWrapper}
+                    activeOpacity={0.7}
+                    onPress={() => setShowEditTimePicker(true)}
+                  >
+                    <Text style={styles.timePickerInput}>
+                      {editAssignmentData.dueTime ? formatTime(editAssignmentData.dueTime) : '9:00 AM'}
+                    </Text>
+                    <Feather name="clock" size={18} color={Colors.textMuted} />
+                  </TouchableOpacity>
+                </View>
+
+                {/* iOS Time Picker */}
+                {showEditTimePicker && Platform.OS === 'ios' && (
+                  <View style={styles.iosPickerContainer}>
+                    <DateTimePicker
+                      value={editAssignmentData.dueTime || new Date()}
+                      mode="time"
+                      display="spinner"
+                      onChange={(event, selectedTime) => {
+                        if (selectedTime) {
+                          setEditAssignmentData(prev => ({ ...prev, dueTime: selectedTime }));
+                        }
+                      }}
+                      textColor={Colors.textPrimary}
+                    />
+                    <TouchableOpacity
+                      style={styles.pickerDoneButton}
+                      onPress={() => setShowEditTimePicker(false)}
+                    >
+                      <Text style={styles.pickerDoneButtonText}>Done</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {/* Android Time Picker */}
+                {showEditTimePicker && Platform.OS === 'android' && (
+                  <DateTimePicker
+                    value={editAssignmentData.dueTime || new Date()}
+                    mode="time"
+                    display="default"
+                    onChange={(event, selectedTime) => {
+                      setShowEditTimePicker(false);
+                      if (selectedTime) {
+                        setEditAssignmentData(prev => ({ ...prev, dueTime: selectedTime }));
+                      }
+                    }}
+                  />
+                )}
+
+                {/* Due Summary */}
+                <Text style={styles.dueSummary}>{getEditDueSummary()}</Text>
+              </View>
+
+              {/* Repeat Toggle */}
+              <View style={styles.assignSection}>
+                <View style={styles.toggleRowNew}>
+                  <Text style={styles.toggleLabelNew}>Repeat</Text>
+                  <TouchableOpacity
+                    onPress={() => setEditAssignmentData(prev => ({ ...prev, repeatEnabled: !prev.repeatEnabled }))}
+                    style={[
+                      styles.toggleSwitch,
+                      editAssignmentData.repeatEnabled ? styles.toggleSwitchOn : styles.toggleSwitchOff
+                    ]}
+                  >
+                    <View style={[
+                      styles.toggleKnob,
+                      editAssignmentData.repeatEnabled ? styles.toggleKnobOn : styles.toggleKnobOff
+                    ]} />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Repeat Options (when enabled) */}
+                {editAssignmentData.repeatEnabled && (
+                  <View style={styles.repeatOptions}>
+                    {/* Frequency Segmented Control */}
+                    <View style={[styles.segmentedControl, { marginTop: 12 }]}>
+                      {(['daily', 'weekly', 'monthly'] as const).map((freq) => (
+                        <TouchableOpacity
+                          key={freq}
+                          style={[
+                            styles.segmentOption,
+                            editAssignmentData.repeatFrequency === freq && styles.segmentOptionActive
+                          ]}
+                          onPress={() => setEditAssignmentData(prev => ({ ...prev, repeatFrequency: freq }))}
+                        >
+                          <Text style={[
+                            styles.segmentOptionText,
+                            editAssignmentData.repeatFrequency === freq && styles.segmentOptionTextActive
+                          ]}>
+                            {freq.charAt(0).toUpperCase() + freq.slice(1)}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+                )}
+              </View>
+
+              {/* Require Proof Toggle */}
+              <View style={styles.assignSection}>
+                <View style={styles.toggleRowWithSubtitle}>
+                  <View style={styles.toggleInfo}>
+                    <Text style={styles.toggleLabelNew}>Require proof</Text>
+                    <Text style={styles.toggleSubtitle}>Photo required to complete</Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => setEditAssignmentData(prev => ({ ...prev, requireProof: !prev.requireProof }))}
+                    style={[
+                      styles.toggleSwitch,
+                      editAssignmentData.requireProof ? styles.toggleSwitchOn : styles.toggleSwitchOff
+                    ]}
+                  >
+                    <View style={[
+                      styles.toggleKnob,
+                      editAssignmentData.requireProof ? styles.toggleKnobOn : styles.toggleKnobOff
+                    ]} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Note Section */}
+              <View style={styles.assignSection}>
+                <Text style={styles.assignLabel}>Add a note (optional)</Text>
+                <TextInput
+                  placeholder="Any extra details or motivation..."
+                  value={editAssignmentData.description}
+                  onChangeText={(text) => setEditAssignmentData(prev => ({ ...prev, description: text }))}
+                  style={[styles.assignInput, styles.assignNoteInput]}
+                  placeholderTextColor={Colors.textMuted}
+                  multiline
+                  numberOfLines={3}
+                  textAlignVertical="top"
+                />
+              </View>
+
+              {/* Bottom Buttons */}
+              <View style={styles.assignBottomButtons}>
+                <TouchableOpacity
+                  onPress={() => {
+                    setShowEditAssignmentModal(false);
+                    setSelectedAssignment(null);
+                  }}
+                  style={styles.assignCancelButton}
+                >
+                  <Text style={styles.assignCancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  onPress={handleSaveAssignmentEdit}
+                  disabled={editingAssignment || !editAssignmentData.title.trim()}
+                  style={[
+                    styles.assignSubmitButton,
+                    (editingAssignment || !editAssignmentData.title.trim()) && styles.assignSubmitButtonDisabled
+                  ]}
+                >
+                  <Text style={[
+                    styles.assignSubmitButtonText,
+                    (editingAssignment || !editAssignmentData.title.trim()) && styles.assignSubmitButtonTextDisabled
+                  ]}>
+                    {editingAssignment ? 'Saving...' : 'Save'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
       </Modal>
 
       {/* Circle Settings Modal (Admin Only) */}
@@ -3057,6 +4408,61 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
   );
 }
 
+// Post Selection Mode Styles (WhatsApp style)
+const postSelectionStyles = StyleSheet.create({
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#7C3AED',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 16,
+  },
+  cancelButton: {
+    padding: 4,
+  },
+  headerText: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  deleteButton: {
+    padding: 4,
+  },
+  checkboxRow: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    zIndex: 10,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#CBD5E1',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxSelected: {
+    backgroundColor: '#7C3AED',
+    borderColor: '#7C3AED',
+  },
+  selectedCard: {
+    borderWidth: 2,
+    borderColor: '#7C3AED',
+    backgroundColor: 'rgba(124, 58, 237, 0.05)',
+  },
+});
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -3198,6 +4604,10 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 1,
   },
+  postCardPressed: {
+    transform: [{ scale: 0.98 }],
+    opacity: 0.9,
+  },
   postHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -3271,6 +4681,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
   },
+  reactionButtonActive: {
+    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
   reactionCount: {
     fontSize: 12,
     color: Colors.textSecondary,
@@ -3313,6 +4729,29 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.textSecondary,
     marginTop: 2,
+  },
+  systemHideButton: {
+    padding: 8,
+    marginLeft: 8,
+  },
+  hiddenPostsBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.surface,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    marginBottom: 12,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderStyle: 'dashed',
+  },
+  hiddenPostsText: {
+    fontSize: 13,
+    color: Colors.textSecondary,
+    fontWeight: '500',
   },
 
   // Section Title
@@ -3425,10 +4864,39 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.primary,
   },
+  editedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  editedBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  systemTextRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
   userNameRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+  },
+  postNoteContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+  postNoteText: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    fontStyle: 'italic',
   },
   
   // iOS Action Sheet Styles
@@ -3507,12 +4975,75 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   
-  // Edit Post Modal
-  editPostNote: {
+  // Edit Post Modal - iOS Themed
+  editPostSheet: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingBottom: 40,
+    maxHeight: '80%',
+  },
+  editPostSheetHandle: {
+    width: 36,
+    height: 5,
+    backgroundColor: '#E2E8F0',
+    borderRadius: 3,
+    alignSelf: 'center',
+    marginTop: 8,
+    marginBottom: 12,
+  },
+  editPostHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: Colors.border,
+  },
+  editPostCancelText: {
+    fontSize: 17,
+    color: Colors.primary,
+    fontWeight: '400',
+  },
+  editPostTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: Colors.textPrimary,
+  },
+  editPostSaveText: {
+    fontSize: 17,
+    color: Colors.primary,
+    fontWeight: '600',
+  },
+  editPostContent: {
+    padding: 16,
+    minHeight: 150,
+  },
+  editPostTextInput: {
+    fontSize: 17,
+    color: Colors.textPrimary,
+    lineHeight: 24,
+    minHeight: 120,
+  },
+  editPostInfoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#F8FAFC',
+    borderTopWidth: 0.5,
+    borderTopColor: Colors.border,
+    marginTop: 'auto',
+  },
+  editPostInfoText: {
     fontSize: 13,
-    color: Colors.textMuted,
-    fontStyle: 'italic',
-    marginBottom: 20,
+    color: '#64748B',
   },
   
   // Circle Settings Modal
@@ -4691,6 +6222,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
   },
+  assignNoteInput: {
+    minHeight: 80,
+    paddingTop: 14,
+  },
   assignSelectButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -4727,6 +6262,31 @@ const styles = StyleSheet.create({
   assignSelectPlaceholder: {
     fontSize: 16,
     color: Colors.textMuted,
+  },
+  xpSelectorRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  xpOption: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  xpOptionSelected: {
+    backgroundColor: 'rgba(139, 92, 246, 0.1)',
+    borderColor: Colors.primary,
+  },
+  xpOptionText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+  },
+  xpOptionTextSelected: {
+    color: Colors.primary,
   },
   segmentedControl: {
     flexDirection: 'row',
@@ -4786,6 +6346,43 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 50,
     paddingVertical: 4,
+  },
+  datePickerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+  },
+  datePickerButtonText: {
+    fontSize: 15,
+    color: Colors.primary,
+    fontWeight: '500',
+    flex: 1,
+  },
+  iosPickerContainer: {
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    marginTop: 12,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  pickerDoneButton: {
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    backgroundColor: Colors.white,
+  },
+  pickerDoneButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.primary,
   },
   dueSummary: {
     fontSize: 13,
@@ -4920,6 +6517,23 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     marginLeft: 34,
     marginTop: 8,
+  },
+  repeatEndDateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    marginLeft: 8,
+    gap: 6,
+  },
+  repeatEndDateButtonText: {
+    fontSize: 14,
+    color: Colors.primary,
+    fontWeight: '500',
   },
   repeatEndDateText: {
     fontSize: 14,
@@ -5059,6 +6673,24 @@ const styles = StyleSheet.create({
   memberPickerNameSelected: {
     color: Colors.primary,
     fontWeight: '600',
+  },
+  filterEmptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+  },
+  filterEmptyText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.textPrimary,
+    marginTop: 12,
+  },
+  filterEmptySubtext: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    marginTop: 4,
+    textAlign: 'center',
   },
 });
 

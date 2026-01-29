@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, StatusBar, Image, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -6,6 +6,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
+import { usePushNotifications } from './src/services/pushNotifications';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { HubScreen } from './src/screens/HubScreen';
 import { PlanScreen } from './src/screens/PlanScreen';
@@ -30,6 +31,10 @@ import { ProofCameraScreen } from './src/screens/ProofCameraScreen';
 import { ProofConfirmScreen } from './src/screens/ProofConfirmScreen';
 import { DailyLifeCardScreen } from './src/screens/DailyLifeCardScreen';
 import { SavedPlacesScreen } from './src/screens/SavedPlacesScreen';
+import { AnalyticsScreen } from './src/screens/AnalyticsScreen';
+import DailyBriefingScreen from './src/screens/DailyBriefingScreen';
+import AIInsightsScreen from './src/screens/AIInsightsScreen';
+import NotificationSettingsScreen from './src/screens/NotificationSettingsScreen';
 import { colors } from './src/styles/colors';
 
 const Tab = createBottomTabNavigator();
@@ -52,6 +57,10 @@ function HomeStack() {
       <Stack.Screen name="ProofConfirm" component={ProofConfirmScreen} />
       <Stack.Screen name="DailyLifeCard" component={DailyLifeCardScreen} />
       <Stack.Screen name="SavedPlaces" component={SavedPlacesScreen} />
+      <Stack.Screen name="Analytics" component={AnalyticsScreen} />
+      <Stack.Screen name="DailyBriefing" component={DailyBriefingScreen} />
+      <Stack.Screen name="AIInsights" component={AIInsightsScreen} />
+      <Stack.Screen name="NotificationSettings" component={NotificationSettingsScreen} />
     </Stack.Navigator>
   );
 }
@@ -179,6 +188,30 @@ export default function App() {
 function AppContent() {
   const { user, isLoading } = useAuth();
   const [showListening, setShowListening] = useState(false);
+  
+  // Initialize push notifications when user is authenticated
+  const { register: registerPush, notification } = usePushNotifications();
+  
+  useEffect(() => {
+    if (user) {
+      // Register for push notifications when user logs in
+      registerPush().then(success => {
+        if (success) {
+          console.log('📱 Push notifications registered successfully');
+        }
+      }).catch(err => {
+        console.log('Push notification registration skipped (simulator or permission denied)');
+      });
+    }
+  }, [user]);
+  
+  // Handle incoming notifications
+  useEffect(() => {
+    if (notification) {
+      console.log('📬 Received notification:', notification.request.content.title);
+      // Could show in-app banner or navigate based on notification data
+    }
+  }, [notification]);
 
   // Show loading screen while checking auth
   if (isLoading) {

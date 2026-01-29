@@ -111,6 +111,9 @@ export function HubScreen({ onVoiceClick, navigation }: HubScreenProps) {
       challenges: 'Challenges',
       wallet: 'Wallet',
       reset: 'Reset',
+      Analytics: 'Analytics',
+      DailyBriefing: 'DailyBriefing',
+      AIInsights: 'AIInsights',
     };
 
     if (homeStackRoutes[screen]) {
