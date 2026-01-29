@@ -42,6 +42,10 @@ const transcribeSchema = z.object({
   language: z.string().optional(),
 });
 
+const challengeSuggestSchema = z.object({
+  prompt: z.string().min(1).max(500),
+});
+
 // POST /ai/conversation - Full conversation with MYPA (main entry point)
 router.post(
   '/conversation',
@@ -389,6 +393,95 @@ If they ask about features, mention: tasks, focus sessions, brain dump, challeng
         success: true,
         data: {
           response: completion.choices[0].message.content,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// POST /ai/challenge-suggest - Suggest a challenge setup from a prompt
+router.post(
+  '/challenge-suggest',
+  validateBody(challengeSuggestSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!openai) {
+        return res.status(503).json({
+          success: false,
+          error: 'AI is not configured',
+          code: 'AI_NOT_CONFIGURED',
+        });
+      }
+
+      const { prompt } = req.body;
+
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        response_format: { type: 'json_object' },
+        messages: [
+          {
+            role: 'system',
+            content: `You create simple social challenges for a productivity app.
+  Return ONLY valid JSON with this schema:
+  {
+    "title": string,
+    "type": "FOCUS_MINUTES" | "TASKS_COMPLETED" | "STREAK_DAYS",
+    "targetValue": number,
+    "days": number,
+    "xpReward": number,
+    "emoji": string,
+    "category": "Productivity" | "Fitness" | "Wellness" | "Learning" | "Social",
+    "description": string
+  }
+Rules:
+- title <= 80 chars
+- targetValue 1-10000
+- days 1-60
+- xpReward 10-500
+- emoji is a single emoji
+- Choose type that best matches the prompt.
+- Choose category that best fits the prompt.
+- Keep description short (<= 140 chars).`,
+          },
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+        temperature: 0.4,
+        max_tokens: 200,
+      });
+
+      const raw = completion.choices[0]?.message?.content || '{}';
+      let parsed: any = {};
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        parsed = {};
+      }
+
+      const allowedTypes = ['FOCUS_MINUTES', 'TASKS_COMPLETED', 'STREAK_DAYS'];
+      const allowedCategories = ['Productivity', 'Fitness', 'Wellness', 'Learning', 'Social'];
+      const safeType = allowedTypes.includes(parsed.type) ? parsed.type : 'TASKS_COMPLETED';
+      const safeCategory = allowedCategories.includes(parsed.category) ? parsed.category : 'Productivity';
+      const safeTarget = Math.min(10000, Math.max(1, Number(parsed.targetValue) || 1));
+      const safeDays = Math.min(60, Math.max(1, Number(parsed.days) || 7));
+      const safeXp = Math.min(500, Math.max(10, Number(parsed.xpReward) || 100));
+      const safeEmoji = typeof parsed.emoji === 'string' && parsed.emoji.trim() ? parsed.emoji.trim() : '🏆';
+
+      res.json({
+        success: true,
+        data: {
+          title: String(parsed.title || 'New Challenge').slice(0, 80),
+          type: safeType,
+          targetValue: safeTarget,
+          days: safeDays,
+          xpReward: safeXp,
+          emoji: safeEmoji,
+          category: safeCategory,
+          description: String(parsed.description || '').slice(0, 140),
         },
       });
     } catch (error) {

@@ -444,7 +444,11 @@ export function TaskSortingScreen({ navigation: navProp }: TaskSortingScreenProp
           setTasks(tasks.filter(t => t.id !== selectedTask.id));
           setShowAddToPlanModal(false);
           setSelectedTask(null);
-          try { navigation.navigate('Home', { screen: 'Plan' }); } catch { navigation.navigate('Plan'); }
+          try {
+            navigation.navigate('Home', { screen: 'Plan', params: { date: targetDate, highlightNew: true } });
+          } catch {
+            navigation.navigate('Plan', { date: targetDate, highlightNew: true });
+          }
         });
       } else {
         console.error('Convert failed:', response);
@@ -576,12 +580,22 @@ export function TaskSortingScreen({ navigation: navProp }: TaskSortingScreenProp
         setShowAiSortModal(false);
         setSortedTasks([]);
         setAiSummary('');
-        
-        // Navigate to Plan screen
-        try { 
-          navigation.navigate('Home', { screen: 'Plan' }); 
-        } catch { 
-          navigation.navigate('Plan'); 
+
+        const createdTasks = response.data?.createdTasks || [];
+        const scheduledDates: string[] = createdTasks
+          .map((t: any) => t.date)
+          .filter(Boolean);
+        const fallbackDates = sortedTasks
+          .map((t: any) => t.scheduledDate)
+          .filter(Boolean);
+        const allDates = scheduledDates.length > 0 ? scheduledDates : fallbackDates;
+        const targetDate = allDates.sort()[0] || new Date().toISOString().split('T')[0];
+
+        // Navigate to Plan screen on the scheduled date
+        try {
+          navigation.navigate('Home', { screen: 'Plan', params: { date: targetDate, highlightNew: true } });
+        } catch {
+          navigation.navigate('Plan', { date: targetDate, highlightNew: true });
         }
       }
     } catch (error) {

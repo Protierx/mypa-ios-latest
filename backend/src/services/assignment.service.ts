@@ -6,6 +6,7 @@
 import prisma from '../config/database.js';
 import { AppError } from '../middleware/error.js';
 import { addXp } from './user.service.js';
+import { autoUpdateChallengeProgress } from './challenge.service.js';
 import { addCircleXp, incrementMemberTasks, verifyCircleMembership } from './circle.service.js';
 import { XP_REWARDS } from '../utils/xp.js';
 import { checkAndUpdateStreak } from '../utils/streaks.js';
@@ -600,7 +601,13 @@ export async function completeAssignment(
   await incrementMemberTasks(userId, assignment.circleId);
 
   // Update streak
-  await checkAndUpdateStreak(userId);
+  const streakResult = await checkAndUpdateStreak(userId);
+
+  // Update challenge progress (tasks + streak)
+  await autoUpdateChallengeProgress(userId, 'TASKS_COMPLETED', 1);
+  if (streakResult.streakUpdated) {
+    await autoUpdateChallengeProgress(userId, 'STREAK_DAYS', 1);
+  }
 
   // Notify creator
   await prisma.notification.create({

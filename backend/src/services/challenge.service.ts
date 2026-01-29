@@ -178,7 +178,118 @@ export async function createChallenge(userId: string, data: {
     },
   });
 
+  // If circle challenge, post to feed
+  if (data.circleId) {
+    // Create feed post announcing the challenge
+    await prisma.post.create({
+      data: {
+        circleId: data.circleId,
+        authorId: userId,
+        type: 'challenge',
+        content: JSON.stringify({
+          challengeId: challenge.id,
+          title: challenge.title,
+          emoji: challenge.emoji,
+          type: data.type,
+          targetValue: data.targetValue,
+          xpReward: challenge.xpReward,
+          endsAt: challenge.endsAt,
+          description: challenge.description,
+        }),
+      },
+    });
+  }
+
   return challenge;
+}
+
+// ==========================================
+// UPDATE CHALLENGE
+// ==========================================
+
+export async function updateChallenge(challengeId: string, userId: string, data: {
+  title?: string;
+  description?: string;
+  emoji?: string;
+  targetValue?: number;
+  endsAt?: Date;
+  xpReward?: number;
+}) {
+  // Check if challenge exists and user is creator (first participant)
+  const challenge = await prisma.challenge.findUnique({
+    where: { id: challengeId },
+    include: {
+      participants: {
+        orderBy: { joinedAt: 'asc' },
+        take: 1,
+      },
+    },
+  });
+
+  if (!challenge) {
+    throw new Error('Challenge not found');
+  }
+
+  // Only the creator (first participant) can edit
+  if (challenge.participants[0]?.userId !== userId) {
+    throw new Error('Only the challenge creator can edit this challenge');
+  }
+
+  const updated = await prisma.challenge.update({
+    where: { id: challengeId },
+    data: {
+      ...(data.title && { title: data.title }),
+      ...(data.description && { description: data.description }),
+      ...(data.emoji && { emoji: data.emoji }),
+      ...(data.targetValue && { targetValue: data.targetValue }),
+      ...(data.endsAt && { endsAt: data.endsAt }),
+      ...(data.xpReward && { xpReward: data.xpReward }),
+    },
+    include: {
+      circle: {
+        select: { id: true, name: true, emoji: true },
+      },
+    },
+  });
+
+  return updated;
+}
+
+// ==========================================
+// DELETE CHALLENGE
+// ==========================================
+
+export async function deleteChallenge(challengeId: string, userId: string) {
+  // Check if challenge exists and user is creator (first participant)
+  const challenge = await prisma.challenge.findUnique({
+    where: { id: challengeId },
+    include: {
+      participants: {
+        orderBy: { joinedAt: 'asc' },
+        take: 1,
+      },
+    },
+  });
+
+  if (!challenge) {
+    throw new Error('Challenge not found');
+  }
+
+  // Only the creator (first participant) can delete
+  if (challenge.participants[0]?.userId !== userId) {
+    throw new Error('Only the challenge creator can delete this challenge');
+  }
+
+  // Delete all participants first, then the challenge
+  await prisma.challengeParticipant.deleteMany({
+    where: { challengeId },
+  });
+
+  await prisma.challenge.delete({
+    where: { id: challengeId },
+  });
+
+  return { deleted: true };
 }
 
 // ==========================================
