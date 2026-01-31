@@ -3,8 +3,9 @@
  */
 import { io, Socket } from 'socket.io-client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { config } from '../config/env';
 
-const API_BASE_URL = 'http://172.20.10.3:3000';
+const API_BASE_URL = config.socketUrl;
 const TOKEN_KEY = 'mypa_access_token';
 
 // Socket events that the frontend can listen to
@@ -115,9 +116,10 @@ class SocketService {
         transports: ['websocket', 'polling'],
         autoConnect: true,
         reconnection: true,
-        reconnectionAttempts: 5,
+        reconnectionAttempts: 10,
         reconnectionDelay: 1000,
-        timeout: 20000,
+        reconnectionDelayMax: 5000,
+        timeout: 45000,
         forceNew: true,
       });
 

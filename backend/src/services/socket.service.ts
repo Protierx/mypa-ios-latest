@@ -20,6 +20,10 @@ export function initializeSocket(server: HTTPServer) {
       origin: '*', // Configure this for production
       methods: ['GET', 'POST'],
     },
+    pingTimeout: 60000,
+    pingInterval: 25000,
+    connectTimeout: 45000,
+    transports: ['websocket', 'polling'],
   });
 
   // Authentication middleware
