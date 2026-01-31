@@ -108,118 +108,114 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
 
   const { copySuccess } = circleActions;
 
+  // Destructure all modal states from hook
+  const {
+    showActionMenu, setShowActionMenu,
+    showInviteSheet, setShowInviteSheet,
+    showMembersModal, setShowMembersModal,
+    showTodayModal, setShowTodayModal,
+    showAssignModal, setShowAssignModal,
+    showMemberPicker, setShowMemberPicker,
+    showAssignmentOptions, setShowAssignmentOptions,
+    showEditAssignmentModal, setShowEditAssignmentModal,
+    showDeclineModal, setShowDeclineModal,
+    showPostOptions, setShowPostOptions,
+    showEditPostModal, setShowEditPostModal,
+    showShareModal, setShowShareModal,
+    showSubmitProofModal, setShowSubmitProofModal,
+    showViewProofModal, setShowViewProofModal,
+    showMemberOptions, setShowMemberOptions,
+    showMemberActionSheet, setShowMemberActionSheet,
+    showMemberDetailModal, setShowMemberDetailModal,
+    showCircleSettings, setShowCircleSettings,
+    showCreateChallengeModal, setShowCreateChallengeModal,
+    closeAllModals,
+  } = modals;
+
+  // Destructure all assignment form states from hook
+  const {
+    assignmentTitle, setAssignmentTitle,
+    assignmentNote, setAssignmentNote,
+    assignmentXp, setAssignmentXp,
+    assignedMember, setAssignedMember,
+    assignTo, setAssignTo,
+    assignToId, setAssignToId,
+    memberSearchQuery, setMemberSearchQuery,
+    dueDay, setDueDay,
+    customDueDate, setCustomDueDate,
+    dueTime, setDueTime,
+    showDatePicker, setShowDatePicker,
+    showTimePicker, setShowTimePicker,
+    repeatEnabled, setRepeatEnabled,
+    repeatFrequency, setRepeatFrequency,
+    requireProof, setRequireProof,
+    sendNudge, setSendNudge,
+    repeatEndType, setRepeatEndType,
+    repeatEndDate, setRepeatEndDate,
+    repeatEndCount, setRepeatEndCount,
+    showRepeatEndDatePicker, setShowRepeatEndDatePicker,
+    creatingAssignment, setCreatingAssignment,
+    resetForm: resetAssignForm,
+  } = assignForm;
+
+  // Destructure challenge form states from hook
+  const {
+    challengeTitle, setChallengeTitle,
+    challengeType, setChallengeType,
+    challengeTarget, setChallengeTarget,
+    challengeDays, setChallengeDays,
+    challengeXP, setChallengeXP,
+    challengeCategory, setChallengeCategory,
+    challengeDescription, setChallengeDescription,
+    creatingChallenge, setCreatingChallenge,
+    challengePrompt, setChallengePrompt,
+    aiSuggestingChallenge, setAiSuggestingChallenge,
+  } = challengeForm;
+
+  // Destructure post selection states from hook
+  const {
+    postSelectionMode, setPostSelectionMode,
+    selectedPosts, setSelectedPosts,
+    hiddenPostIds, setHiddenPostIds,
+    enterSelectionMode,
+    togglePostSelection,
+  } = postSelect;
+
   // Local UI state (not extracted to hooks)
   const [circleTab, setCircleTab] = useState('feed');
   const [feedFilter, setFeedFilter] = useState('all');
-
-  const postedCount = circleMembers.filter((m: any) => m.posted).length + (userPosted ? 1 : 0);
-  const totalCount = circleMembers.length + 1;
-
-  const [assignmentTitle, setAssignmentTitle] = useState('');
-  const [assignmentDueTime, setAssignmentDueTime] = useState('18:00');
-  const [assignTo, setAssignTo] = useState('');
-  const [sendNudge, setSendNudge] = useState(true);
-  const [showMemberPicker, setShowMemberPicker] = useState(false);
-
-  // Assign Mission Modal - Complete State
-  const [assignedMember, setAssignedMember] = useState<{ id: string; name: string; initial: string } | null>(null);
-  const [dueDay, setDueDay] = useState<'today' | 'tomorrow' | 'custom'>('today');
-  const [customDueDate, setCustomDueDate] = useState<Date>(new Date());
-  const [dueTime, setDueTime] = useState<Date>(() => {
-    const date = new Date();
-    date.setHours(18, 0, 0, 0);
-    return date;
-  });
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [showTimePicker, setShowTimePicker] = useState(false);
-  const [repeatEndType, setRepeatEndType] = useState<'forever' | 'untilDate' | 'count'>('forever');
-  const [repeatEndDate, setRepeatEndDate] = useState<Date>(new Date());
-  const [showRepeatEndDatePicker, setShowRepeatEndDatePicker] = useState(false);
-  const [repeatEndCount, setRepeatEndCount] = useState(10);
-
-  // Current user is admin
   const [isCurrentUserAdmin, setIsCurrentUserAdmin] = useState(true);
   
-  // Post management
+  // Post/Assignment/Member selection state
   const [selectedPost, setSelectedPost] = useState<any>(null);
-  const [showPostOptions, setShowPostOptions] = useState(false);
-  const [showEditPostModal, setShowEditPostModal] = useState(false);
   const [editPostContent, setEditPostContent] = useState('');
-  const [hiddenPostIds, setHiddenPostIds] = useState<Set<string>>(new Set());
-  
-  // Member management (admin)
   const [selectedMember, setSelectedMember] = useState<any>(null);
-  const [showMemberOptions, setShowMemberOptions] = useState(false);
+  const [selectedMemberDetail, setSelectedMemberDetail] = useState<any>(null);
+  const [selectedAssignment, setSelectedAssignment] = useState<any>(null);
+  const [selectedAssignmentForProof, setSelectedAssignmentForProof] = useState<any>(null);
   
-  // Circle settings (admin)
-  const [showCircleSettings, setShowCircleSettings] = useState(false);
+  // Circle settings state
   const [editCircleName, setEditCircleName] = useState(circleName);
   const [editCircleEmoji, setEditCircleEmoji] = useState(circleEmoji);
-
-  // Decline Mission Modal
-  const [showDeclineModal, setShowDeclineModal] = useState(false);
+  
+  // Decline mission state
   const [declineAssignmentId, setDeclineAssignmentId] = useState<string | null>(null);
   const [declineAssignmentTitle, setDeclineAssignmentTitle] = useState('');
   const [declineReason, setDeclineReason] = useState('');
   const [decliningInProgress, setDecliningInProgress] = useState(false);
-
-  // NEW: Today In Circle Modal
-  const [showTodayModal, setShowTodayModal] = useState(false);
   
-  // NEW: Member Detail Modal
-  const [showMemberDetailModal, setShowMemberDetailModal] = useState(false);
-  const [selectedMemberDetail, setSelectedMemberDetail] = useState<any>(null);
-  
-  // NEW: Members Modal (header icon)
-  const [showMembersModal, setShowMembersModal] = useState(false);
-  
-  // NEW: Share Your Day Modal
-  const [showShareModal, setShowShareModal] = useState(false);
-  const [shareNote, setShareNote] = useState('');
-  const [sharePrivacy, setSharePrivacy] = useState<'metrics' | 'full'>('full');
-  
-  // NEW: Assignment states
-  const [assignToId, setAssignToId] = useState('');
-  const [repeatEnabled, setRepeatEnabled] = useState(false);
-  const [repeatFrequency, setRepeatFrequency] = useState<'daily' | 'weekly' | 'monthly'>('daily');
-  const [requireProof, setRequireProof] = useState(false);
-  const [assignmentNote, setAssignmentNote] = useState('');
-  const [scheduleOption, setScheduleOption] = useState<'today' | 'tomorrow' | 'custom'>('today');
-  const [assignmentXp, setAssignmentXp] = useState(50);
-  
-  // NEW: Circle Settings toggles
-  const [inviteLinkEnabled, setInviteLinkEnabled] = useState(true);
-  const [approveNewMembers, setApproveNewMembers] = useState(false);
-  const [allowAssignments, setAllowAssignments] = useState(true);
-  const [requireAcceptBeforeAdding, setRequireAcceptBeforeAdding] = useState(false);
-  const [defaultProofRequired, setDefaultProofRequired] = useState(false);
-  const [circlePrivacy, setCirclePrivacy] = useState<'metrics' | 'circle'>('circle');
-  const [muteCircle, setMuteCircle] = useState(false);
-  const [quietHoursStart, setQuietHoursStart] = useState('22:00');
-  const [quietHoursEnd, setQuietHoursEnd] = useState('07:00');
-  
-  // NEW: Member Action Sheet (for admin)
-  const [showMemberActionSheet, setShowMemberActionSheet] = useState(false);
-  const [selectedMemberForManage, setSelectedMemberForManage] = useState<any>(null);
-  
-  // NEW: Proof modals
-  const [showSubmitProofModal, setShowSubmitProofModal] = useState(false);
-  const [showViewProofModal, setShowViewProofModal] = useState(false);
-  const [proofImage, setProofImage] = useState<string | null>(null);
-  const [selectedAssignmentForProof, setSelectedAssignmentForProof] = useState<any>(null);
+  // Proof submission state
   const [proofUrl, setProofUrl] = useState('');
   const [proofNote, setProofNote] = useState('');
+  const [proofImage, setProofImage] = useState<string | null>(null);
   const [submittingProof, setSubmittingProof] = useState(false);
-
-  // NEW: Multi-select mode for posts (WhatsApp style)
-  const [postSelectionMode, setPostSelectionMode] = useState(false);
-  const [selectedPosts, setSelectedPosts] = useState<Set<string | number>>(new Set());
-  const [deletingSelectedPosts, setDeletingSelectedPosts] = useState(false);
-
-  // NEW: Assignment management from circles page
-  const [showAssignmentOptions, setShowAssignmentOptions] = useState(false);
-  const [selectedAssignment, setSelectedAssignment] = useState<any>(null);
-  const [showEditAssignmentModal, setShowEditAssignmentModal] = useState(false);
+  
+  // Assignment editing state
+  const [editingAssignment, setEditingAssignment] = useState(false);
+  const [showEditDatePicker, setShowEditDatePicker] = useState(false);
+  const [showEditTimePicker, setShowEditTimePicker] = useState(false);
+  const [editDueDay, setEditDueDay] = useState<'today' | 'tomorrow' | 'custom'>('custom');
+  const [editCustomDueDate, setEditCustomDueDate] = useState(new Date());
   const [editAssignmentData, setEditAssignmentData] = useState({
     title: '',
     description: '',
@@ -231,24 +227,30 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
     requireProof: false,
   });
   
-  // Challenge creation state
-  const [showCreateChallengeModal, setShowCreateChallengeModal] = useState(false);
-  const [challengeTitle, setChallengeTitle] = useState('');
-  const [challengeType, setChallengeType] = useState<'FOCUS_MINUTES' | 'TASKS_COMPLETED' | 'STREAK_DAYS'>('TASKS_COMPLETED');
-  const [challengeTarget, setChallengeTarget] = useState('10');
-  const [challengeDays, setChallengeDays] = useState('7');
-  const [challengeXP, setChallengeXP] = useState(100);
-  const [challengeCategory, setChallengeCategory] = useState<'Productivity' | 'Fitness' | 'Wellness' | 'Learning' | 'Social'>('Productivity');
-  const [challengeDescription, setChallengeDescription] = useState('');
-  const [creatingChallenge, setCreatingChallenge] = useState(false);
-  const [challengePrompt, setChallengePrompt] = useState('');
-  const [aiSuggestingChallenge, setAiSuggestingChallenge] = useState(false);
+  // Circle settings toggles (for circle settings modal)
+  const [inviteLinkEnabled, setInviteLinkEnabled] = useState(true);
+  const [approveNewMembers, setApproveNewMembers] = useState(false);
+  const [allowAssignments, setAllowAssignments] = useState(true);
+  const [requireAcceptBeforeAdding, setRequireAcceptBeforeAdding] = useState(false);
+  const [defaultProofRequired, setDefaultProofRequired] = useState(false);
+  const [circlePrivacy, setCirclePrivacy] = useState<'metrics' | 'circle'>('circle');
+  const [muteCircle, setMuteCircle] = useState(false);
+  const [quietHoursStart, setQuietHoursStart] = useState('22:00');
+  const [quietHoursEnd, setQuietHoursEnd] = useState('07:00');
+  
+  // Deletion state
+  const [deletingSelectedPosts, setDeletingSelectedPosts] = useState(false);
+  const [selectedMemberForManage, setSelectedMemberForManage] = useState<any>(null);
+  
+  // Share state
+  const [sharePrivacy, setSharePrivacy] = useState<'metrics' | 'full'>('full');
+  const [shareNote, setShareNote] = useState('');
+  
+  // Loading state
+  const [postingDailyCard, setPostingDailyCard] = useState(false);
 
-  const [editingAssignment, setEditingAssignment] = useState(false);
-  const [showEditDatePicker, setShowEditDatePicker] = useState(false);
-  const [showEditTimePicker, setShowEditTimePicker] = useState(false);
-  const [editDueDay, setEditDueDay] = useState<'today' | 'tomorrow' | 'custom'>('custom');
-  const [editCustomDueDate, setEditCustomDueDate] = useState(new Date());
+  const postedCount = circleMembers.filter((m: any) => m.posted).length + (userPosted ? 1 : 0);
+  const totalCount = circleMembers.length + 1;
 
   // Circle details - use from hook
   const inviteCode = circleDetails?.inviteCode || paramInviteCode || '';
@@ -398,7 +400,6 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
   };
 
   // Handle post check-in - Share My Day (posts daily card with real stats)
-  const [postingDailyCard, setPostingDailyCard] = useState(false);
   
   const handlePostCheckin = async () => {
     if (userPosted) {
@@ -587,8 +588,6 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
       Alert.alert('Copy failed', 'Unable to copy the invite link.');
     }
   };
-
-  const [creatingAssignment, setCreatingAssignment] = useState(false);
 
   const handleCreateAssignment = async () => {
     if (!assignmentTitle.trim()) {
@@ -830,31 +829,6 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
   };
 
   // Reset assign form
-  const resetAssignForm = () => {
-    setAssignmentTitle('');
-    setAssignedMember(null);
-    setAssignTo('');
-    setAssignToId('');
-    setShowMemberPicker(false);
-    setDueDay('today');
-    setCustomDueDate(new Date());
-    const defaultTime = new Date();
-    defaultTime.setHours(18, 0, 0, 0);
-    setDueTime(defaultTime);
-    setShowDatePicker(false);
-    setShowTimePicker(false);
-    setRepeatEnabled(false);
-    setRepeatFrequency('daily');
-    setRepeatEndType('forever');
-    setRepeatEndDate(new Date());
-    setShowRepeatEndDatePicker(false);
-    setRepeatEndCount(10);
-    setRequireProof(false);
-    setSendNudge(true);
-    setAssignmentNote('');
-    setAssignmentXp(50);
-  };
-
   // NEW: Handle open Today modal
   const handleOpenTodayModal = () => {
     setShowTodayModal(true);
@@ -1005,22 +979,6 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
   };
 
   // Toggle post selection
-  const togglePostSelection = (id: string | number) => {
-    setSelectedPosts(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(id)) {
-        newSet.delete(id);
-        // Exit selection mode if nothing selected
-        if (newSet.size === 0) {
-          setPostSelectionMode(false);
-        }
-      } else {
-        newSet.add(id);
-      }
-      return newSet;
-    });
-  };
-
   // Handle post tap in selection mode
   const handlePostTap = (post: any) => {
     if (postSelectionMode) {
@@ -1029,7 +987,7 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
     }
 
     if (post.type === 'system' && post.isAssignmentRelated && post.assignmentId) {
-      const assignment = assignments.find(a => a.id === post.assignmentId);
+      const assignment = assignments.find((a: any) => a.id === post.assignmentId);
       if (assignment) {
         setSelectedAssignment(assignment);
         setShowAssignmentOptions(true);
@@ -1072,57 +1030,6 @@ export default function CircleHomeScreen({ navigation, route }: { navigation: an
     } finally {
       setAiSuggestingChallenge(false);
     }
-  };
-
-  // Cancel selection mode
-  const cancelPostSelectionMode = () => {
-    setPostSelectionMode(false);
-    setSelectedPosts(new Set());
-  };
-
-  // Delete selected posts
-  const deleteSelectedPosts = async () => {
-    const count = selectedPosts.size;
-    
-    Alert.alert(
-      'Delete Posts',
-      `Are you sure you want to delete ${count} post${count > 1 ? 's' : ''}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            setDeletingSelectedPosts(true);
-            try {
-              // Delete each selected post
-              const deletePromises = Array.from(selectedPosts).map(id =>
-                postsApi.delete(String(id))
-              );
-              
-              const results = await Promise.allSettled(deletePromises);
-              const successCount = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
-              
-              if (successCount > 0) {
-                // Remove from local state
-                setPosts(prev => prev.filter(p => !selectedPosts.has(p.id)));
-                Alert.alert('Success', `Deleted ${successCount} post${successCount > 1 ? 's' : ''}`);
-              } else {
-                Alert.alert('Error', 'Failed to delete posts. You can only delete your own posts.');
-              }
-              
-              // Exit selection mode
-              cancelPostSelectionMode();
-            } catch (error) {
-              console.error('Failed to delete posts:', error);
-              Alert.alert('Error', 'Failed to delete some posts');
-            } finally {
-              setDeletingSelectedPosts(false);
-            }
-          },
-        },
-      ]
-    );
   };
 
   const handleDeletePost = (postId: number | string) => {
