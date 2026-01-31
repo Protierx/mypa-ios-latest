@@ -9,6 +9,7 @@ import * as Device from 'expo-device';
 import { Platform } from 'react-native';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { notificationsApi } from './api';
+import Constants from 'expo-constants';
 
 // Configure notification behavior
 Notifications.setNotificationHandler({
@@ -75,12 +76,16 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
 
   // Get the token
   try {
-    const expoProjectId = process.env.EXPO_PUBLIC_EXPO_PROJECT_ID;
-    if (!expoProjectId) {
-      console.warn('EXPO_PUBLIC_EXPO_PROJECT_ID is not set. Falling back to default Expo project configuration.');
+    // Try to get projectId from app.json via Constants
+    const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+    
+    if (!projectId) {
+      console.warn('No Expo project ID found in app.json. Push notifications may not work correctly.');
+      console.warn('Add "extra.eas.projectId" to your app.json or set up EAS project with: npx eas init');
     }
+    
     const tokenData = await Notifications.getExpoPushTokenAsync(
-      expoProjectId ? { projectId: expoProjectId } : undefined
+      projectId ? { projectId } : undefined
     );
     token = tokenData.data;
     console.log('Push token:', token);

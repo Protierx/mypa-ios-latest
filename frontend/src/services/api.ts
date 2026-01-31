@@ -330,6 +330,9 @@ export const aiApi = {
   // Transcribe audio (Whisper)
   transcribe: (audioBase64: string, language = 'en') =>
     api.post('/ai/transcribe-base64', { audio: audioBase64, language }),
+  
+  // Suggest a challenge based on user prompt
+  suggestChallenge: (prompt: string) => api.post('/ai/suggest-challenge', { prompt }),
 };
 
 // TTS API - Text to Speech
