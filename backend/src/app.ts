@@ -17,9 +17,6 @@ import circlesRoutes from './routes/circles.routes.js';
 import assignmentsRoutes, { circleAssignmentsRouter } from './routes/assignments.routes.js';
 import postsRoutes, { circleFeedRouter, circlePostsRouter } from './routes/posts.routes.js';
 import invitationsRoutes from './routes/invitations.routes.js';
-// Phase 5 imports
-import analyticsRoutes from './routes/analytics.routes.js';
-import notificationsRoutes from './routes/notifications.routes.js';
 
 export function createApp(): Application {
   const app = express();
