@@ -472,6 +472,20 @@ export const assignmentsApi = {
     const query = status ? `?status=${status}` : '';
     return api.get(`/circles/${circleId}/assignments${query}`);
   },
+  create: (data: {
+    circleId: string;
+    assigneeId: string;
+    title: string;
+    description?: string;
+    dueDate?: string;
+    xpReward?: number;
+    repeatEnabled?: boolean;
+    repeatFrequency?: string;
+    requireProof?: boolean;
+  }) => {
+    const { circleId, ...body } = data;
+    return api.post(`/circles/${circleId}/assignments`, body);
+  },
   getById: (id: string) => api.get(`/assignments/${id}`),
   accept: (id: string) => api.post(`/assignments/${id}/accept`),
   decline: (id: string, reason?: string) => api.post(`/assignments/${id}/decline`, { reason }),

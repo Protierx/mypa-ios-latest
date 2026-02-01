@@ -1,0 +1,1 @@
+export { useAIInsightsData } from './useAIInsightsData';

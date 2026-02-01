@@ -18,3 +18,7 @@ backend/.env
 # Expo
 frontend/.expo/
 frontend/node_modules/
+
+# Documentation backups
+README_OLD.md
+README.md.backup

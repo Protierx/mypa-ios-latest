@@ -1,0 +1,1 @@
+export { useVoiceAssistantData } from './useVoiceAssistantData';

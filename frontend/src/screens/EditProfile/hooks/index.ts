@@ -1,0 +1,1 @@
+export { useEditProfileData } from './useEditProfileData';
