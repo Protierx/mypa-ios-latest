@@ -22,11 +22,3 @@ frontend/node_modules/
 # Documentation backups
 README_OLD.md
 README.md.backup
-
-# Internal documentation and audits (not for public repo)
-AUDIT_NAVIGATION_AND_INTERACTIONS.md
-BACKEND_PROD_AUDIT.md
-UX_UI_PROD_READINESS_AUDIT.md
-CHALLENGES_GUIDE.md
-CHALLENGES_SIMPLIFIED.md
-README_INTERNAL.md
