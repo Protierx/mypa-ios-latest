@@ -21,6 +21,24 @@ const createAssignmentSchema = z.object({
   description: z.string().max(1000).optional(),
   dueDate: z.string().datetime().optional(),
   xpReward: z.number().min(10).max(500).optional(),
+  repeatEnabled: z.boolean().optional(),
+  repeatFrequency: z.string().optional(),
+  requireProof: z.boolean().optional(),
+});
+
+const updateAssignmentSchema = z.object({
+  title: z.string().min(1).max(200).optional(),
+  description: z.string().max(1000).optional().nullable(),
+  dueDate: z.string().datetime().optional().nullable(),
+  xpReward: z.number().min(10).max(500).optional(),
+  repeatEnabled: z.boolean().optional(),
+  repeatFrequency: z.string().optional().nullable(),
+  requireProof: z.boolean().optional(),
+});
+
+const updateDeclineSchema = z.object({
+  action: z.enum(['update-reason', 'accept']),
+  reason: z.string().max(500).optional(),
 });
 
 const completeAssignmentSchema = z.object({
@@ -71,6 +89,58 @@ router.get('/:id', async (req: Request, res: Response, next: NextFunction) => {
   }
 });
 
+// PUT /assignments/:id - Update assignment details (creator only)
+router.put(
+  '/:id',
+  validateBody(updateAssignmentSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const assignment = await assignmentService.updateAssignment(
+        req.user!.id,
+        req.params.id,
+        req.body
+      );
+
+      res.json({
+        success: true,
+        data: assignment,
+        message: 'Mission updated! The recipient has been notified.',
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// PUT /assignments/:id/response - Update decline reason or accept after declining (assignee only)
+router.put(
+  '/:id/response',
+  validateBody(updateDeclineSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { action, reason } = req.body;
+      const assignment = await assignmentService.updateDeclineOrAccept(
+        req.user!.id,
+        req.params.id,
+        action,
+        reason
+      );
+
+      const message = action === 'accept' 
+        ? 'Mission accepted! The sender has been notified.'
+        : 'Your response has been updated.';
+
+      res.json({
+        success: true,
+        data: assignment,
+        message,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 // POST /assignments/:id/accept - Accept an assignment
 router.post('/:id/accept', async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -92,9 +162,11 @@ router.post('/:id/accept', async (req: Request, res: Response, next: NextFunctio
 // POST /assignments/:id/decline - Decline an assignment
 router.post('/:id/decline', async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const { reason } = req.body;
     const assignment = await assignmentService.declineAssignment(
       req.user!.id,
-      req.params.id
+      req.params.id,
+      reason
     );
 
     res.json({

@@ -1,0 +1,1 @@
+export { usePrivacyControlsData } from './usePrivacyControlsData';

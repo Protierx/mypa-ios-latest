@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, StatusBar, Image, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -6,34 +6,40 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
-import { LoginScreen } from './src/screens/LoginScreen';
-import { HubScreen } from './src/screens/HubScreen';
-import { PlanScreen } from './src/screens/PlanScreen';
-import { InboxScreen } from './src/screens/InboxScreen';
-import { ProfileScreen } from './src/screens/ProfileScreen';
-import { WalletScreen } from './src/screens/WalletScreen';
-import { ChallengesScreen } from './src/screens/ChallengesScreen';
-import { CirclesScreen } from './src/screens/CirclesScreen';
-import { SettingsScreen } from './src/screens/SettingsScreen';
-import { TasksScreen } from './src/screens/TasksScreen';
-import { VoiceAssistantScreen } from './src/screens/VoiceAssistantScreen';
-import { StreakScreen } from './src/screens/StreakScreen';
-import { LevelScreen } from './src/screens/LevelScreen';
-import { EditProfileScreen } from './src/screens/EditProfileScreen';
-import { NotificationsScreen } from './src/screens/NotificationsScreen';
-import { PrivacyControlsScreen } from './src/screens/PrivacyControlsScreen';
-import { HelpSupportScreen } from './src/screens/HelpSupportScreen';
-import { CircleHomeScreen } from './src/screens/CircleHomeScreen';
-import ResetScreen from './src/screens/ResetScreen';
-import { TaskSortingScreen } from './src/screens/TaskSortingScreen';
-import { ProofCameraScreen } from './src/screens/ProofCameraScreen';
-import { ProofConfirmScreen } from './src/screens/ProofConfirmScreen';
-import { DailyLifeCardScreen } from './src/screens/DailyLifeCardScreen';
-import { SavedPlacesScreen } from './src/screens/SavedPlacesScreen';
+import { usePushNotifications } from './src/services/pushNotifications';
+import { LoginScreen } from './src/screens/Login';
+import { HubScreen } from './src/screens/Hub';
+import PlanScreen from './src/screens/Plan';
+import { InboxScreen } from './src/screens/Inbox';
+import { ProfileScreen } from './src/screens/Profile';
+import WalletScreen from './src/screens/Wallet';
+import ChallengesScreen from './src/screens/Challenges';
+import CirclesScreen from './src/screens/Circle/Circles';
+import { SettingsScreen } from './src/screens/Settings';
+import { TasksScreen } from './src/screens/Tasks';
+import { VoiceAssistantScreen } from './src/screens/VoiceAssistant';
+import { StreakScreen } from './src/screens/Streak';
+import { LevelScreen } from './src/screens/Level';
+import { EditProfileScreen } from './src/screens/EditProfile';
+import { NotificationsScreen } from './src/screens/Notification/Notifications';
+import { PrivacyControlsScreen } from './src/screens/PrivacyControls';
+import { HelpSupportScreen } from './src/screens/HelpSupport';
+import CircleHomeScreen from './src/screens/Circle/CircleHome';
+import ResetScreen from './src/screens/Reset';
+import { TaskSortingScreen } from './src/screens/TaskSorting';
+import { ProofCameraScreen } from './src/screens/Proof/ProofCamera';
+import { ProofConfirmScreen } from './src/screens/Proof/ProofConfirm';
+import { DailyLifeCardScreen } from './src/screens/DailyLifeCard';
+import { SavedPlacesScreen } from './src/screens/SavedPlaces';
+import { AnalyticsScreen } from './src/screens/Analytics';
+import DailyBriefingScreen from './src/screens/DailyBriefing';
+import AIInsightsScreen from './src/screens/AIInsights';
+import NotificationSettingsScreen from './src/screens/Notification/NotificationSettings';
 import { colors } from './src/styles/colors';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
+const RootStack = createNativeStackNavigator();
 
 function HomeStack() {
   return (
@@ -52,6 +58,10 @@ function HomeStack() {
       <Stack.Screen name="ProofConfirm" component={ProofConfirmScreen} />
       <Stack.Screen name="DailyLifeCard" component={DailyLifeCardScreen} />
       <Stack.Screen name="SavedPlaces" component={SavedPlacesScreen} />
+      <Stack.Screen name="Analytics" component={AnalyticsScreen} />
+      <Stack.Screen name="DailyBriefing" component={DailyBriefingScreen} />
+      <Stack.Screen name="AIInsights" component={AIInsightsScreen} />
+      <Stack.Screen name="NotificationSettings" component={NotificationSettingsScreen} />
     </Stack.Navigator>
   );
 }
@@ -73,7 +83,6 @@ function CirclesStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="CirclesList" component={CirclesScreen} />
-      <Stack.Screen name="CircleHome" component={CircleHomeScreen} />
     </Stack.Navigator>
   );
 }
@@ -176,9 +185,55 @@ export default function App() {
   );
 }
 
+function MainTabs({ onVoicePress }: { onVoicePress: () => void }) {
+  return (
+    <>
+      <Tab.Navigator
+        tabBar={(props) => (
+          <CustomTabBar
+            {...props}
+            onVoicePress={onVoicePress}
+          />
+        )}
+        screenOptions={{ headerShown: false }}
+      >
+        <Tab.Screen name="Home" component={HomeStack} />
+        <Tab.Screen name="Plan" component={PlanScreen} />
+        <Tab.Screen name="Voice" component={VoicePlaceholder} />
+        <Tab.Screen name="Circles" component={CirclesStack} />
+        <Tab.Screen name="Profile" component={ProfileStack} />
+      </Tab.Navigator>
+    </>
+  );
+}
+
 function AppContent() {
   const { user, isLoading } = useAuth();
   const [showListening, setShowListening] = useState(false);
+  
+  // Initialize push notifications when user is authenticated
+  const { register: registerPush, notification } = usePushNotifications();
+  
+  useEffect(() => {
+    if (user) {
+      // Register for push notifications when user logs in
+      registerPush().then(success => {
+        if (success) {
+          console.log('📱 Push notifications registered successfully');
+        }
+      }).catch(err => {
+        console.log('Push notification registration skipped (simulator or permission denied)');
+      });
+    }
+  }, [user]);
+  
+  // Handle incoming notifications
+  useEffect(() => {
+    if (notification) {
+      console.log('📬 Received notification:', notification.request.content.title);
+      // Could show in-app banner or navigate based on notification data
+    }
+  }, [notification]);
 
   // Show loading screen while checking auth
   if (isLoading) {
@@ -202,25 +257,17 @@ function AppContent() {
   return (
     <NavigationContainer>
       <StatusBar barStyle="dark-content" />
-      <Tab.Navigator
-        tabBar={(props) => (
-          <CustomTabBar 
-            {...props} 
-            onVoicePress={() => setShowListening(true)} 
-          />
-        )}
-        screenOptions={{ headerShown: false }}
-      >
-        <Tab.Screen name="Home" component={HomeStack} />
-        <Tab.Screen name="Plan" component={PlanScreen} />
-        <Tab.Screen name="Voice" component={VoicePlaceholder} />
-        <Tab.Screen name="Circles" component={CirclesStack} />
-        <Tab.Screen name="Profile" component={ProfileStack} />
-      </Tab.Navigator>
-      
-      <VoiceAssistantScreen 
-        visible={showListening} 
-        onClose={() => setShowListening(false)} 
+      <RootStack.Navigator screenOptions={{ headerShown: false }}>
+        <RootStack.Screen name="MainTabs">
+          {() => (
+            <MainTabs onVoicePress={() => setShowListening(true)} />
+          )}
+        </RootStack.Screen>
+        <RootStack.Screen name="CircleHome" component={CircleHomeScreen} />
+      </RootStack.Navigator>
+      <VoiceAssistantScreen
+        visible={showListening}
+        onClose={() => setShowListening(false)}
       />
     </NavigationContainer>
   );

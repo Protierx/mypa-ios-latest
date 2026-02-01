@@ -62,9 +62,9 @@ export function createApp(): Application {
   app.use('/posts', postsRoutes);
   app.use('/invitations', invitationsRoutes);
 
-  // TODO: Add more routes as we implement them
-  // app.use('/notifications', notificationsRoutes);
-  // app.use('/places', placesRoutes);
+  // Phase 5: AI & Polish
+  app.use('/analytics', analyticsRoutes);
+  app.use('/notifications', notificationsRoutes);
 
   // Error handling
   app.use(notFoundHandler);

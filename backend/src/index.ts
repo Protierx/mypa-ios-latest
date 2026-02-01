@@ -3,6 +3,7 @@ import { createApp } from './app.js';
 import { env } from './config/env.js';
 import prisma from './config/database.js';
 import { initializeSocket } from './services/socket.service.js';
+import { startScheduler, stopScheduler } from './services/scheduler.service.js';
 
 async function main() {
   // Test database connection
@@ -19,6 +20,9 @@ async function main() {
   // Create HTTP server and initialize Socket.io
   const server = createServer(app);
   initializeSocket(server);
+  
+  // Start notification scheduler
+  startScheduler();
 
   // Bind to 0.0.0.0 to allow connections from other devices on the network
   server.listen(env.PORT, '0.0.0.0', () => {
@@ -85,12 +89,14 @@ Available endpoints:
 // Handle graceful shutdown
 process.on('SIGINT', async () => {
   console.log('\n🛑 Shutting down...');
+  stopScheduler();
   await prisma.$disconnect();
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
   console.log('\n🛑 Shutting down...');
+  stopScheduler();
   await prisma.$disconnect();
   process.exit(0);
 });

@@ -99,10 +99,31 @@ model UserSettings {
   userId String @unique
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   
-  // Notifications
+  // Notifications - General
   pushEnabled         Boolean @default(true)
   emailNotifications  Boolean @default(true)
   remindersBefore     Int     @default(15)
+  
+  // Notifications - Types
+  taskReminders       Boolean @default(true)
+  assignmentAlerts    Boolean @default(true)
+  streakReminders     Boolean @default(true)
+  dailyBriefing       Boolean @default(true)
+  levelUpAlerts       Boolean @default(true)
+  challengeUpdates    Boolean @default(true)
+  circleActivity      Boolean @default(true)
+  aiInsights          Boolean @default(true)
+  weeklyDigest        Boolean @default(true)
+  
+  // Notifications - Delivery
+  soundEnabled        Boolean @default(true)
+  vibrationEnabled    Boolean @default(true)
+  badgeEnabled        Boolean @default(true)
+  
+  // Notifications - Quiet Hours
+  quietHoursEnabled   Boolean @default(false)
+  quietHoursStart     String  @default("22:00")
+  quietHoursEnd       String  @default("08:00")
   
   // Voice
   voiceLanguage       String  @default("en")
@@ -338,10 +359,23 @@ model Assignment {
   description String?
   dueDate     DateTime?
   
+  // Repeat settings
+  repeatEnabled   Boolean  @default(false)
+  repeatFrequency String?  // daily, weekly, monthly
+  
+  // Proof requirement
+  requireProof    Boolean  @default(false)
+  
   // Status: PENDING, ACCEPTED, DECLINED, COMPLETED, EXPIRED
   status      String   @default("PENDING")
   acceptedAt  DateTime?
   completedAt DateTime?
+  declineReason String?
+  
+  // Edit tracking
+  isEdited    Boolean  @default(false)
+  editedAt    DateTime?
+  editedChanges String?  // JSON array of what was changed
   
   // Proof
   proofUrl    String?
@@ -544,7 +578,7 @@ model SavedPlace {
 
 model PushToken {
   id        String   @id @default(uuid())
-  userId    String
+  userId    String   @unique
   token     String   @unique
   platform  String?
   
@@ -552,4 +586,26 @@ model PushToken {
   updatedAt DateTime @updatedAt
 
   @@map("push_tokens")
+}
+
+// ==========================================
+// SCHEDULED NOTIFICATIONS
+// ==========================================
+
+model ScheduledNotification {
+  id           String   @id @default(uuid())
+  userId       String
+  
+  title        String
+  body         String
+  data         String?
+  
+  scheduledFor DateTime
+  status       String   @default("PENDING") // PENDING, SENT, CANCELLED
+  sentAt       DateTime?
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("scheduled_notifications")
 }

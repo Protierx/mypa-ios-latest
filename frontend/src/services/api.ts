@@ -3,9 +3,10 @@
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
+import { config } from '../config/env';
 
-// Use your machine's LAN IP address - visible in Expo output
-const API_BASE_URL = 'http://172.20.10.3:3000';
+// Use environment-based API URL
+const API_BASE_URL = config.apiUrl;
 
 // Storage keys
 const TOKEN_KEY = 'mypa_access_token';
@@ -182,6 +183,13 @@ class ApiService {
     });
   }
 
+  put<T = any>(endpoint: string, body?: any) {
+    return this.request<T>(endpoint, {
+      method: 'PUT',
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  }
+
   delete<T = any>(endpoint: string) {
     return this.request<T>(endpoint, { method: 'DELETE' });
   }
@@ -304,12 +312,28 @@ export const aiApi = {
   // Get task optimization suggestions
   getTaskSuggestions: () => api.get('/ai/task-suggestions'),
   
+  // Auto-categorize a task
+  categorizeTask: (title: string, description?: string) =>
+    api.post('/ai/categorize-task', { title, description }),
+  
+  // Smart schedule tasks
+  smartSchedule: (
+    tasks: { id: string; title: string; priority?: string; durationMin?: number }[],
+    preferences?: { workingHoursStart?: string; workingHoursEnd?: string; preferMorningForWork?: boolean }
+  ) => api.post('/ai/smart-schedule', { tasks, preferences }),
+  
+  // Get daily insights
+  getDailyInsights: () => api.get('/ai/daily-insights'),
+  
   // General chat (simple Q&A)
   chat: (message: string) => api.post('/ai/chat', { message }),
   
   // Transcribe audio (Whisper)
   transcribe: (audioBase64: string, language = 'en') =>
     api.post('/ai/transcribe-base64', { audio: audioBase64, language }),
+  
+  // Suggest a challenge based on user prompt
+  suggestChallenge: (prompt: string) => api.post('/ai/suggest-challenge', { prompt }),
 };
 
 // TTS API - Text to Speech
@@ -319,6 +343,63 @@ export const ttsApi = {
   
   stream: (text: string, voice: 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer' = 'nova', speed = 1.0) =>
     api.post('/tts/stream', { text, voice, speed }),
+};
+
+// Challenges API
+export const challengesApi = {
+  // Get all available challenges
+  getAll: () => api.get('/challenges'),
+  
+  // Get challenges user has joined
+  getMine: () => api.get('/challenges/mine'),
+  
+  // Get active challenges
+  getActive: () => api.get('/challenges/active'),
+  
+  // Get challenge by ID
+  getById: (id: string) => api.get(`/challenges/${id}`),
+  
+  // Get challenge leaderboard
+  getLeaderboard: (id: string, limit?: number) => {
+    const query = limit ? `?limit=${limit}` : '';
+    return api.get(`/challenges/${id}/leaderboard${query}`);
+  },
+  
+  // Create a new challenge
+  create: (data: {
+    title: string;
+    description?: string; // Allow description in challenge create API call typing
+    emoji?: string;
+    type: 'FOCUS_MINUTES' | 'TASKS_COMPLETED' | 'STREAK_DAYS' | 'CUSTOM';
+    targetValue: number;
+    startsAt: string;
+    endsAt: string;
+    xpReward?: number;
+    circleId?: string;
+  }) => api.post('/challenges', data),
+  
+  // Join a challenge
+  join: (id: string) => api.post(`/challenges/${id}/join`),
+  
+  // Leave a challenge
+  leave: (id: string) => api.post(`/challenges/${id}/leave`),
+  
+  // Update progress
+  updateProgress: (id: string, amount: number) => 
+    api.post(`/challenges/${id}/progress`, { amount }),
+  
+  // Update challenge (only creator can edit)
+  update: (id: string, data: {
+    title?: string;
+    description?: string;
+    emoji?: string;
+    targetValue?: number;
+    endsAt?: string;
+    xpReward?: number;
+  }) => api.put(`/challenges/${id}`, data),
+  
+  // Delete challenge (only creator can delete)
+  delete: (id: string) => api.delete(`/challenges/${id}`),
 };
 
 // Circles API
@@ -372,6 +453,9 @@ export const circlesApi = {
     description?: string;
     dueDate?: string;
     xpReward?: number;
+    repeatEnabled?: boolean;
+    repeatFrequency?: string;
+    requireProof?: boolean;
   }) => api.post(`/circles/${circleId}/assignments`, data),
 };
 
@@ -388,12 +472,39 @@ export const assignmentsApi = {
     const query = status ? `?status=${status}` : '';
     return api.get(`/circles/${circleId}/assignments${query}`);
   },
+  create: (data: {
+    circleId: string;
+    assigneeId: string;
+    title: string;
+    description?: string;
+    dueDate?: string;
+    xpReward?: number;
+    repeatEnabled?: boolean;
+    repeatFrequency?: string;
+    requireProof?: boolean;
+  }) => {
+    const { circleId, ...body } = data;
+    return api.post(`/circles/${circleId}/assignments`, body);
+  },
   getById: (id: string) => api.get(`/assignments/${id}`),
   accept: (id: string) => api.post(`/assignments/${id}/accept`),
-  decline: (id: string) => api.post(`/assignments/${id}/decline`),
+  decline: (id: string, reason?: string) => api.post(`/assignments/${id}/decline`, { reason }),
   complete: (id: string, proof?: { proofUrl?: string; proofNote?: string }) =>
     api.post(`/assignments/${id}/complete`, proof || {}),
   delete: (id: string) => api.delete(`/assignments/${id}`),
+  // Update assignment details (creator only)
+  update: (id: string, data: {
+    title?: string;
+    description?: string | null;
+    dueDate?: string | null;
+    xpReward?: number;
+    repeatEnabled?: boolean;
+    repeatFrequency?: string | null;
+    requireProof?: boolean;
+  }) => api.put(`/assignments/${id}`, data),
+  // Update decline response (assignee only) - accept or update reason
+  updateResponse: (id: string, action: 'update-reason' | 'accept', reason?: string) =>
+    api.put(`/assignments/${id}/response`, { action, reason }),
 };
 
 // Posts API
@@ -426,6 +537,105 @@ export const invitationsApi = {
   // Search users to invite
   searchUsers: (circleId: string, query: string) =>
     api.get(`/invitations/search/${circleId}?q=${encodeURIComponent(query)}`),
+};
+
+// Analytics API
+export const analyticsApi = {
+  // Get daily stats
+  getDaily: (date?: string) => {
+    const query = date ? `?date=${date}` : '';
+    return api.get(`/analytics/daily${query}`);
+  },
+  
+  // Get weekly stats
+  getWeekly: (weekStart?: string) => {
+    const query = weekStart ? `?weekStart=${weekStart}` : '';
+    return api.get(`/analytics/weekly${query}`);
+  },
+  
+  // Get productivity trends
+  getTrends: () => api.get('/analytics/trends'),
+  
+  // Get user insights and milestones
+  getInsights: () => api.get('/analytics/insights'),
+  
+  // Get dashboard summary
+  getDashboard: () => api.get('/analytics/dashboard'),
+  
+  // Get global leaderboard
+  getGlobalLeaderboard: (limit?: number) => {
+    const query = limit ? `?limit=${limit}` : '';
+    return api.get(`/analytics/leaderboard/global${query}`);
+  },
+  
+  // Get circle leaderboard
+  getCircleLeaderboard: (circleId: string) => 
+    api.get(`/analytics/leaderboard/circle/${circleId}`),
+  
+  // Get circle analytics
+  getCircleAnalytics: (circleId: string) => 
+    api.get(`/analytics/circle/${circleId}`),
+};
+
+// Notifications API
+export const notificationsApi = {
+  // Register push token
+  registerToken: (pushToken: string, platform?: 'ios' | 'android' | 'expo') =>
+    api.post('/notifications/register-token', { pushToken, platform: platform || 'expo' }),
+  
+  // Remove push token
+  removeToken: () => api.delete('/notifications/token'),
+  
+  // Get notification history
+  getAll: (options?: { limit?: number; offset?: number; unreadOnly?: boolean }) => {
+    const params = new URLSearchParams();
+    if (options?.limit) params.set('limit', String(options.limit));
+    if (options?.offset) params.set('offset', String(options.offset));
+    if (options?.unreadOnly) params.set('unreadOnly', 'true');
+    const query = params.toString();
+    return api.get(`/notifications${query ? `?${query}` : ''}`);
+  },
+  
+  // Get unread count
+  getUnreadCount: () => api.get('/notifications/unread-count'),
+  
+  // Mark notification as read
+  markRead: (id: string) => api.put(`/notifications/${id}/read`),
+  
+  // Mark all as read
+  markAllRead: () => api.put('/notifications/read-all'),
+  
+  // Delete notification
+  delete: (id: string) => api.delete(`/notifications/${id}`),
+  
+  // Clear all notifications
+  clearAll: () => api.delete('/notifications'),
+  
+  // Get notification settings
+  getSettings: () => api.get('/notifications/settings'),
+  
+  // Update notification settings
+  updateSettings: (settings: {
+    pushEnabled?: boolean;
+    taskReminders?: boolean;
+    assignmentAlerts?: boolean;
+    streakReminders?: boolean;
+    dailyBriefing?: boolean;
+    levelUpAlerts?: boolean;
+    challengeUpdates?: boolean;
+    circleActivity?: boolean;
+    aiInsights?: boolean;
+    weeklyDigest?: boolean;
+    soundEnabled?: boolean;
+    vibrationEnabled?: boolean;
+    badgeEnabled?: boolean;
+    quietHoursEnabled?: boolean;
+    quietHoursStart?: string;
+    quietHoursEnd?: string;
+  }) => api.put('/notifications/settings', settings),
+  
+  // Send test notification
+  sendTest: () => api.post('/notifications/test'),
 };
 
 export default api;

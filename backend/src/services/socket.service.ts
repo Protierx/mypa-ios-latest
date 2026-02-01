@@ -20,6 +20,10 @@ export function initializeSocket(server: HTTPServer) {
       origin: '*', // Configure this for production
       methods: ['GET', 'POST'],
     },
+    pingTimeout: 60000,
+    pingInterval: 25000,
+    connectTimeout: 45000,
+    transports: ['websocket', 'polling'],
   });
 
   // Authentication middleware
@@ -208,7 +212,7 @@ export function emitAssignmentCreated(
 export function emitAssignmentUpdated(
   circleId: string,
   assignment: any,
-  action: 'accepted' | 'declined' | 'completed'
+  action: 'accepted' | 'declined' | 'completed' | 'edited' | 'reason-updated'
 ) {
   emitToCircle(circleId, 'assignment:updated', {
     circleId,
@@ -217,11 +221,20 @@ export function emitAssignmentUpdated(
     timestamp: new Date().toISOString(),
   });
 
-  // Also notify creator specifically
-  emitToUser(assignment.creatorId, `assignment:${action}`, {
-    assignment,
-    timestamp: new Date().toISOString(),
-  });
+  // Notify specific user based on action
+  if (['accepted', 'declined', 'reason-updated'].includes(action)) {
+    // Notify creator when assignee takes action
+    emitToUser(assignment.creatorId, `assignment:${action}`, {
+      assignment,
+      timestamp: new Date().toISOString(),
+    });
+  } else if (action === 'edited') {
+    // Notify assignee when creator edits
+    emitToUser(assignment.assigneeId, 'assignment:edited', {
+      assignment,
+      timestamp: new Date().toISOString(),
+    });
+  }
 }
 
 // ==========================================
