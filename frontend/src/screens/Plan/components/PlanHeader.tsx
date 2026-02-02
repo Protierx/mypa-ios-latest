@@ -30,10 +30,19 @@ export const PlanHeader: React.FC<PlanHeaderProps> = ({
         <TouchableOpacity
           style={[styles.headerIconBtn, showCalendar && styles.headerIconBtnActive]}
           onPress={onToggleCalendar}
+          accessibilityRole="button"
+          accessibilityLabel={showCalendar ? "Hide calendar" : "Show calendar"}
+          accessibilityState={{ expanded: showCalendar }}
         >
           <Ionicons name="calendar" size={18} color={showCalendar ? '#FFFFFF' : '#64748B'} />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.addBtn} onPress={onAddTask}>
+        <TouchableOpacity 
+          style={styles.addBtn} 
+          onPress={onAddTask}
+          accessibilityRole="button"
+          accessibilityLabel="Add new task to plan"
+          accessibilityHint="Opens dialog to create a new task"
+        >
           <Ionicons name="add" size={20} color="#FFFFFF" />
         </TouchableOpacity>
       </View>

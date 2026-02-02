@@ -89,7 +89,7 @@ export function WalletScreen({ navigation }: WalletScreenProps) {
     };
 
     if (homeStackRoutes[screen]) {
-      navigation.navigate('Home', { screen: homeStackRoutes[screen] });
+      navigation.navigate('Today', { screen: homeStackRoutes[screen] });
     } else if (screen === 'plan') {
       navigation.navigate('Plan');
     } else if (screen === 'circles') {

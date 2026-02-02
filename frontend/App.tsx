@@ -36,6 +36,7 @@ import DailyBriefingScreen from './src/screens/DailyBriefing';
 import AIInsightsScreen from './src/screens/AIInsights';
 import NotificationSettingsScreen from './src/screens/Notification/NotificationSettings';
 import { colors } from './src/styles/colors';
+import { ErrorBoundary } from './src/components/ErrorBoundary';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -45,6 +46,7 @@ function HomeStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Hub" component={HubScreen} />
+      <Stack.Screen name="Plan" component={PlanScreen} />
       <Stack.Screen name="Inbox" component={InboxScreen} />
       <Stack.Screen name="Wallet" component={WalletScreen} />
       <Stack.Screen name="Challenges" component={ChallengesScreen} />
@@ -92,11 +94,11 @@ function VoicePlaceholder() {
 }
 
 const tabConfig = [
-  { name: 'Home', icon: 'home', iconOutline: 'home-outline', color: '#8B5CF6' },
-  { name: 'Plan', icon: 'calendar', iconOutline: 'calendar-outline', color: '#3B82F6' },
-  { name: 'Voice', icon: 'mic', iconOutline: 'mic-outline', color: '#8B5CF6' },
-  { name: 'Circles', icon: 'people', iconOutline: 'people-outline', color: '#EC4899' },
-  { name: 'Profile', icon: 'person', iconOutline: 'person-outline', color: '#10B981' },
+  { name: 'Today', icon: 'today', iconOutline: 'today-outline', color: '#8B5CF6', label: 'Today' },
+  { name: 'Capture', icon: 'add-circle', iconOutline: 'add-circle-outline', color: '#3B82F6', label: 'Capture' },
+  { name: 'Voice', icon: 'mic', iconOutline: 'mic-outline', color: '#8B5CF6', label: 'Talk' },
+  { name: 'Circles', icon: 'people', iconOutline: 'people-outline', color: '#EC4899', label: 'Circles' },
+  { name: 'You', icon: 'person', iconOutline: 'person-outline', color: '#10B981', label: 'You' },
 ];
 
 interface CustomTabBarProps {
@@ -167,7 +169,7 @@ function CustomTabBar({ state, descriptors, navigation, onVoicePress }: CustomTa
                 />
               </View>
               <Text style={[styles.tabLabel, isFocused && styles.tabLabelActive]}>
-                {tab.name}
+                {tab.label}
               </Text>
             </TouchableOpacity>
           );
@@ -179,9 +181,11 @@ function CustomTabBar({ state, descriptors, navigation, onVoicePress }: CustomTa
 
 export default function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
 
@@ -197,11 +201,11 @@ function MainTabs({ onVoicePress }: { onVoicePress: () => void }) {
         )}
         screenOptions={{ headerShown: false }}
       >
-        <Tab.Screen name="Home" component={HomeStack} />
-        <Tab.Screen name="Plan" component={PlanScreen} />
+        <Tab.Screen name="Today" component={HomeStack} />
+        <Tab.Screen name="Capture" component={TaskSortingScreen} />
         <Tab.Screen name="Voice" component={VoicePlaceholder} />
         <Tab.Screen name="Circles" component={CirclesStack} />
-        <Tab.Screen name="Profile" component={ProfileStack} />
+        <Tab.Screen name="You" component={ProfileStack} />
       </Tab.Navigator>
     </>
   );

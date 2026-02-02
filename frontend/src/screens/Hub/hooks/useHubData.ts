@@ -7,6 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { tasksApi, focusApi } from '../../../services/api';
 import { getVoiceAssistant } from '../../../services/voiceAssistant';
 import { useAuth } from '../../../contexts/AuthContext';
+import { handleApiError } from '../../../utils/errorHandler';
 import { Sun, CloudSun, Sunrise, Moon } from 'lucide-react-native';
 
 export interface Greeting {
@@ -111,10 +112,12 @@ export function useHubData(): UseHubDataReturn {
     const loadAIData = async () => {
       setIsLoading(true);
       try {
-        // Fetch real tasks
-        const tasksRes = await tasksApi.getAll();
+        // Fetch today's tasks
+        const tasksRes = await tasksApi.getToday();
+        console.log('🎯 Tasks API Response:', tasksRes);
         if (tasksRes.success && tasksRes.data?.tasks) {
-          setRealTasks(tasksRes.data.tasks.slice(0, 5));
+          console.log('✅ Tasks loaded:', tasksRes.data.tasks.length, tasksRes.data.tasks);
+          setRealTasks(tasksRes.data.tasks);
         }
 
         // Fetch focus stats
@@ -128,8 +131,13 @@ export function useHubData(): UseHubDataReturn {
         if (suggestion) {
           setAiSuggestion(suggestion);
         }
-      } catch (e) {
-        console.error('Error loading AI data:', e);
+      } catch (error) {
+        handleApiError(
+          error,
+          'Load Dashboard Data',
+          true,
+          () => loadAIData() // Retry function
+        );
       } finally {
         setIsLoading(false);
       }
@@ -176,7 +184,7 @@ export function useHubData(): UseHubDataReturn {
   };
 
   // Map real tasks to display format
-  const displayTasks: DisplayTask[] = realTasks.slice(0, 3).map((task: any) => ({
+  const displayTasks: DisplayTask[] = realTasks.slice(0, 5).map((task: any) => ({
     id: task.id,
     title: task.title,
     time: task.time || (task.date ? new Date(task.date).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : 'Anytime'),
@@ -193,8 +201,12 @@ export function useHubData(): UseHubDataReturn {
     setXpEarned(newXp);
     try {
       await AsyncStorage.setItem('hubData', JSON.stringify({ xpEarned: newXp }));
-    } catch (e) {
-      console.error('Error saving XP:', e);
+    } catch (error) {
+      handleApiError(
+        error,
+        'Save XP Progress',
+        false // Don't show retry for storage errors
+      );
     }
   };
 

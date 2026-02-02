@@ -42,11 +42,11 @@ export const styles = StyleSheet.create({
   
   // Tabs
   tabContainer: { paddingHorizontal: 20, marginBottom: 16 },
-  tabBar: { flexDirection: 'row', gap: 4, padding: 4, backgroundColor: '#F1F5F9', borderRadius: 12 },
-  tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 10, minHeight: 44 },
-  tabActive: { backgroundColor: '#FFFFFF', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 },
-  tabText: { fontSize: 13, fontWeight: '500', color: '#64748B' },
-  tabTextActive: { color: '#0F172A' },
+  tabBar: { flexDirection: 'row', gap: 6, padding: 6, backgroundColor: '#F8FAFC', borderRadius: 14 },
+  tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 12, minHeight: 44, overflow: 'hidden' },
+  tabActive: { shadowColor: '#8B5CF6', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 8, elevation: 4 },
+  tabText: { fontSize: 13, fontWeight: '600', color: '#94A3B8' },
+  tabTextActive: { color: '#FFFFFF', fontWeight: '700' },
   
   // Content
   content: { paddingHorizontal: 20 },
