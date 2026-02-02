@@ -178,14 +178,14 @@ export function TaskSortingScreen({ navigation: navProp }: TaskSortingScreenProp
         <View style={styles.quickAccessGrid}>
           <TouchableOpacity 
             style={styles.quickAccessButton} 
-            onPress={() => { try { navigation.navigate('Home', { screen: 'Plan' }); } catch { navigation.navigate('Plan'); } }}
+            onPress={() => { try { navigation.navigate('Today', { screen: 'Plan' }); } catch { navigation.navigate('Plan'); } }}
           >
             <Feather name="calendar" size={20} color={Colors.blue} />
             <Text style={styles.quickAccessText}>View Plan</Text>
           </TouchableOpacity>
           <TouchableOpacity 
             style={styles.quickAccessButton} 
-            onPress={() => { try { navigation.navigate('Home', { screen: 'Challenges' }); } catch { navigation.navigate('Challenges'); } }}
+            onPress={() => { try { navigation.navigate('Today', { screen: 'Challenges' }); } catch { navigation.navigate('Challenges'); } }}
           >
             <Feather name="award" size={20} color={Colors.warning} />
             <Text style={styles.quickAccessText}>Challenges</Text>

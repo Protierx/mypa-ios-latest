@@ -31,6 +31,7 @@ class ApiService {
   private refreshToken: string | null = null;
   private isRefreshing = false;
   private refreshPromise: Promise<boolean> | null = null;
+  private requestTimeoutMs = 15000;
 
   constructor() {
     this.loadTokens();
@@ -94,7 +95,7 @@ class ApiService {
           return false;
         }
 
-        const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+        const response = await this.fetchWithTimeout(`${API_BASE_URL}/auth/refresh`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ refreshToken: this.refreshToken }),
@@ -139,14 +140,14 @@ class ApiService {
     }
 
     try {
-      let response = await fetch(url, { ...options, headers });
+      let response = await this.fetchWithTimeout(url, { ...options, headers });
 
       // If unauthorized, try to refresh token
       if (response.status === 401 && this.refreshToken) {
         const refreshed = await this.refreshAccessToken();
         if (refreshed) {
           headers['Authorization'] = `Bearer ${this.accessToken}`;
-          response = await fetch(url, { ...options, headers });
+          response = await this.fetchWithTimeout(url, { ...options, headers });
         } else {
           await this.clearTokens();
           return { success: false, error: 'Session expired. Please log in again.' };
@@ -159,8 +160,23 @@ class ApiService {
       console.error('API request failed:', error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Network error',
+        error:
+          error instanceof Error && error.name === 'AbortError'
+            ? 'Request timed out. Check your connection.'
+            : error instanceof Error
+              ? error.message
+              : 'Network error',
       };
+    }
+  }
+
+  private async fetchWithTimeout(url: string, options: RequestInit) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.requestTimeoutMs);
+    try {
+      return await fetch(url, { ...options, signal: controller.signal });
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 

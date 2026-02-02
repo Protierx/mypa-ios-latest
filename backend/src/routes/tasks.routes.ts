@@ -60,7 +60,9 @@ router.get('/today', async (req: Request, res: Response, next: NextFunction) => 
 
     res.json({
       success: true,
-      data: tasks,
+      data: {
+        tasks,
+      },
     });
   } catch (error) {
     next(error);

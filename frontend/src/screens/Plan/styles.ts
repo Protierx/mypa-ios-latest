@@ -228,4 +228,16 @@ export const styles = StyleSheet.create({
   summaryValue: { fontSize: 15, fontWeight: '700', color: '#0F172A', marginTop: 6 },
   summaryButton: { marginTop: 18, paddingVertical: 12, borderRadius: 12, backgroundColor: '#0F172A', alignItems: 'center' },
   summaryButtonText: { color: '#FFFFFF', fontWeight: '700' },
+
+  // Loading Overlay
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  loadingBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+  },
 });

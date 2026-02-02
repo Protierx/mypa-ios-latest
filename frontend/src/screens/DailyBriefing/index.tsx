@@ -87,23 +87,20 @@ export default function DailyBriefingScreen() {
       >
         {/* Header with Gradient */}
         <BriefingHeader
-          greeting={briefing.greeting}
+          briefing={briefing}
           pendingTasksCount={pendingTasks.length}
-          streak={briefing.stats?.streak || 0}
           colors={colors}
           fadeAnim={fadeAnim}
           slideAnim={slideAnim}
-          onBack={() => navigation.goBack()}
         />
 
         {/* Productivity Score Card */}
         <ProductivityScoreCard
           productivityScore={productivityScore}
           scoreInfo={scoreInfo}
-          completedCount={completedTasks.length}
-          totalCount={todaysTasks.length}
-          streak={briefing.stats?.streak || 0}
-          weeklyCompleted={briefing.stats?.weeklyCompleted || 0}
+          completedTasks={completedTasks}
+          todaysTasks={todaysTasks}
+          briefing={briefing}
           fadeAnim={fadeAnim}
           pulseAnim={pulseAnim}
         />
@@ -118,8 +115,7 @@ export default function DailyBriefingScreen() {
         {/* AI Insights */}
         {briefing.insights && briefing.insights.length > 0 && (
           <InsightsCard
-            insights={briefing.insights}
-            tip={briefing.tip}
+            briefing={briefing}
             colors={colors}
             fadeAnim={fadeAnim}
             scaleAnim={scaleAnim}
@@ -129,7 +125,7 @@ export default function DailyBriefingScreen() {
         {/* High Priority Tasks */}
         {highPriorityTasks.length > 0 && (
           <PriorityFocus
-            tasks={highPriorityTasks}
+            highPriorityTasks={highPriorityTasks}
             fadeAnim={fadeAnim}
             scaleAnim={scaleAnim}
           />
@@ -138,12 +134,11 @@ export default function DailyBriefingScreen() {
         {/* Today's Schedule */}
         <TodaysSchedule
           pendingTasks={pendingTasks}
-          completedCount={completedTasks.length}
-          totalCount={todaysTasks.length}
+          completedTasks={completedTasks}
+          todaysTasks={todaysTasks}
           colors={colors}
           fadeAnim={fadeAnim}
           scaleAnim={scaleAnim}
-          navigation={navigation}
         />
 
         {/* Weekly Progress */}
@@ -162,16 +157,13 @@ export default function DailyBriefingScreen() {
             assignments={assignments}
             fadeAnim={fadeAnim}
             scaleAnim={scaleAnim}
-            navigation={navigation}
           />
         )}
 
         {/* Quick Actions */}
         <QuickActions
-          colors={colors}
           fadeAnim={fadeAnim}
           scaleAnim={scaleAnim}
-          navigation={navigation}
         />
       </ScrollView>
     </SafeAreaView>

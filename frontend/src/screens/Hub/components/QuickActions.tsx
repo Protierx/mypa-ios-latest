@@ -46,6 +46,9 @@ export function QuickActions({ onNavigate }: QuickActionsProps) {
                 styles.quickActionCard,
                 pressed && styles.buttonPressed,
               ]}
+              accessibilityRole="button"
+              accessibilityLabel={`${action.label} quick action`}
+              accessibilityHint={`Navigate to ${action.label} screen`}
             >
               <BlurView intensity={40} tint="light" style={styles.quickActionBlur}>
                 <LinearGradient

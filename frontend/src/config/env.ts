@@ -5,14 +5,16 @@
 
 import Constants from 'expo-constants';
 
-// Get environment from Expo config or default to development
-const ENV = Constants.expoConfig?.extra?.environment || 'development';
+// Get environment from Expo config or default based on build type
+const ENV =
+  Constants.expoConfig?.extra?.environment ||
+  (typeof __DEV__ !== 'undefined' && __DEV__ ? 'development' : 'production');
 
 // Environment-specific configurations
 const environments = {
   development: {
-    apiUrl: 'http://192.168.1.31:3000', // Your local network IP
-    socketUrl: 'http://192.168.1.31:3000',
+    apiUrl: 'http://192.168.1.165:3000', // Your local network IP
+    socketUrl: 'http://192.168.1.165:3000',
     environment: 'development',
     enableLogging: true,
   },

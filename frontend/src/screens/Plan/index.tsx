@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   SafeAreaView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -200,7 +201,13 @@ export function PlanScreen({ navigation, route }: PlanScreenProps) {
         />
 
         {/* Date Pill */}
-        <TouchableOpacity style={styles.datePill} onPress={() => setShowCalendar(true)}>
+        <TouchableOpacity 
+          style={styles.datePill} 
+          onPress={() => setShowCalendar(true)}
+          accessibilityRole="button"
+          accessibilityLabel={`Select date: ${selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}`}
+          accessibilityHint="Opens calendar to choose a different date"
+        >
           <Text style={styles.datePillText}>
             {selectedDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
           </Text>
@@ -220,7 +227,12 @@ export function PlanScreen({ navigation, route }: PlanScreenProps) {
               }}
             />
             {Platform.OS === 'ios' && (
-              <TouchableOpacity style={styles.calendarCloseBtn} onPress={() => setShowCalendar(false)}>
+              <TouchableOpacity 
+                style={styles.calendarCloseBtn} 
+                onPress={() => setShowCalendar(false)}
+                accessibilityRole="button"
+                accessibilityLabel="Close calendar"
+              >
                 <Text style={styles.calendarCloseText}>Done</Text>
               </TouchableOpacity>
             )}
@@ -361,6 +373,14 @@ export function PlanScreen({ navigation, route }: PlanScreenProps) {
         session={showSessionSummary}
         onClose={() => setShowSessionSummary(null)}
       />
+
+      {/* Loading Overlay */}
+      {isLoading && (
+        <View style={styles.loadingOverlay}>
+          <View style={styles.loadingBackdrop} />
+          <ActivityIndicator size="large" color="#8b5cf6" />
+        </View>
+      )}
     </SafeAreaView>
   );
 }
