@@ -58,6 +58,9 @@ export const SwipeableTask: React.FC<SwipeableTaskProps> = ({
       <TouchableOpacity
         style={[styles.swipeBgRight, { backgroundColor: '#EF4444' }]}
         onPress={handleDeletePress}
+        accessibilityRole="button"
+        accessibilityLabel={`Delete task: ${task.title}`}
+        accessibilityHint="Permanently remove this task from your plan"
       >
         <Ionicons name="trash" size={18} color="#FFFFFF" />
       </TouchableOpacity>
@@ -73,7 +76,14 @@ export const SwipeableTask: React.FC<SwipeableTaskProps> = ({
         {...panResponder.panHandlers}
       >
         <View style={[styles.taskAccent, { backgroundColor: task.completed ? '#CBD5F5' : accent.bar }]} />
-        <TouchableOpacity style={styles.taskContent} onPress={onEdit} activeOpacity={0.8}>
+        <TouchableOpacity 
+          style={styles.taskContent} 
+          onPress={onEdit} 
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={`${task.title}, ${task.category}, ${task.duration}${task.priority === 'High' ? ', high priority' : ''}${task.completed ? ', completed' : ''}`}
+          accessibilityHint="Edit task details"
+        >
           <View style={styles.taskTimeBlock}>
             <Text style={[styles.taskTime, task.completed && styles.taskTimeCompleted]}>
               {task.time.replace(':00', '').replace(' ', '')}
@@ -81,15 +91,32 @@ export const SwipeableTask: React.FC<SwipeableTaskProps> = ({
           </View>
 
           {!task.completed && isQuick ? (
-            <TouchableOpacity style={styles.quickCheck} onPress={onComplete}>
+            <TouchableOpacity 
+              style={styles.quickCheck} 
+              onPress={onComplete}
+              accessibilityRole="checkbox"
+              accessibilityLabel="Mark task as complete"
+              accessibilityState={{ checked: false }}
+            >
               <View style={styles.quickCheckInner} />
             </TouchableOpacity>
           ) : task.completed ? (
-            <TouchableOpacity style={styles.completedCheck} onPress={onComplete}>
+            <TouchableOpacity 
+              style={styles.completedCheck} 
+              onPress={onComplete}
+              accessibilityRole="checkbox"
+              accessibilityLabel="Mark task as incomplete"
+              accessibilityState={{ checked: true }}
+            >
               <Ionicons name="checkmark" size={14} color="#FFFFFF" />
             </TouchableOpacity>
           ) : (
-            <TouchableOpacity style={[styles.focusPlay, isActive && styles.focusPlayActive]} onPress={onFocus}>
+            <TouchableOpacity 
+              style={[styles.focusPlay, isActive && styles.focusPlayActive]} 
+              onPress={onFocus}
+              accessibilityRole="button"
+              accessibilityLabel={isActive ? `Pause focus session for ${task.title}` : `Start focus session for ${task.title}`}
+            >
               <Ionicons name={isActive ? 'pause' : 'play'} size={12} color="#FFFFFF" />
             </TouchableOpacity>
           )}
@@ -115,7 +142,13 @@ export const SwipeableTask: React.FC<SwipeableTaskProps> = ({
           </View>
           
           {!task.completed && (
-            <TouchableOpacity style={styles.tomorrowBtn} onPress={onMoveTomorrow}>
+            <TouchableOpacity 
+              style={styles.tomorrowBtn} 
+              onPress={onMoveTomorrow}
+              accessibilityRole="button"
+              accessibilityLabel={`Move ${task.title} to tomorrow`}
+              accessibilityHint="Reschedule this task for the next day"
+            >
               <Ionicons name="arrow-forward" size={14} color="#64748B" />
               <Text style={styles.tomorrowText}>Tmrw</Text>
             </TouchableOpacity>

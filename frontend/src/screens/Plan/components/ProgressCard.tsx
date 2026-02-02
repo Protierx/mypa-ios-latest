@@ -58,7 +58,13 @@ export const ProgressCard: React.FC<ProgressCardProps> = ({
             <Text style={styles.progressMetaStrong}>{focusTasksCount}</Text> focus tasks
           </Text>
         </View>
-        <TouchableOpacity style={styles.dumpBtn} onPress={onNavigateSort}>
+        <TouchableOpacity 
+          style={styles.dumpBtn} 
+          onPress={onNavigateSort}
+          accessibilityRole="button"
+          accessibilityLabel={`Brain dump, ${focusTasksCount} focus tasks pending`}
+          accessibilityHint="Navigate to brain dump to organize tasks"
+        >
           <MaterialCommunityIcons name="star-four-points-outline" size={14} color="#64748B" />
           <Text style={styles.dumpBtnText}>Dump</Text>
         </TouchableOpacity>

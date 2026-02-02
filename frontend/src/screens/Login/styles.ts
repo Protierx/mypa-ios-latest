@@ -65,9 +65,15 @@ export const styles = StyleSheet.create({
     backgroundColor: '#F8F7FF',
     borderRadius: 12,
     paddingHorizontal: 16,
-    marginBottom: 16,
+    marginBottom: 4,
     borderWidth: 1,
     borderColor: '#E5E7EB',
+  },
+  errorText: {
+    color: '#EF4444',
+    fontSize: 12,
+    marginBottom: 12,
+    marginLeft: 4,
   },
   inputIcon: {
     marginRight: 12,

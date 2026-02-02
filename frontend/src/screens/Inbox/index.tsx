@@ -1,9 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
   FlatList,
-  ScrollView,
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -35,6 +34,17 @@ interface InboxScreenProps {
   navigation?: any;
 }
 
+// Section header component
+const SectionHeader = ({ title, count }: { title: string; count: number }) => (
+  <View style={styles.sectionHeader}>
+    <Text style={styles.sectionTitle}>{title}</Text>
+    <Text style={styles.sectionCount}>{count} {count === 1 ? 'task' : 'tasks'}</Text>
+  </View>
+);
+
+// Separator component
+const ItemSeparator = () => <View style={{ height: 12 }} />;
+
 export function InboxScreen({ navigation }: InboxScreenProps) {
   const nav = useNavigation<any>();
   const [circleInvitations, setCircleInvitations] = useState<any[]>([]);
@@ -52,7 +62,7 @@ export function InboxScreen({ navigation }: InboxScreenProps) {
     };
 
     if (homeStackRoutes[screen]) {
-      navigator.navigate('Home', { screen: homeStackRoutes[screen] });
+      navigator.navigate('Today', { screen: homeStackRoutes[screen] });
     } else if (screen === 'plan') {
       navigator.navigate('Plan', params || {});
     } else if (screen === 'circles' || screen === 'circle-home') {
@@ -149,6 +159,112 @@ export function InboxScreen({ navigation }: InboxScreenProps) {
     />
   );
 
+  // Memoize the combined list data to prevent unnecessary re-renders
+  const inboxListData = useMemo(() => {
+    const list: any[] = [];
+
+    // Add header if not in selection mode
+    if (!inboxData.selectionMode) {
+      list.push({ type: 'header', id: 'header' });
+      list.push({ type: 'tabs', id: 'tabs' });
+    }
+
+    // Add assignments section
+    if (inboxData.assignments.length > 0) {
+      list.push({
+        type: 'sectionHeader',
+        id: 'assignments-header',
+        title: 'Assigned to you',
+        count: inboxData.assignments.length,
+      });
+
+      inboxData.assignments.forEach((item) => {
+        list.push({ type: 'assignment', id: `assignment-${item.id}`, item });
+      });
+
+      list.push({ type: 'spacer', id: 'spacer-after-assignments' });
+    }
+
+    // Add activity section
+    list.push({
+      type: 'sectionHeader',
+      id: 'activity-header',
+      title: 'Activity',
+      count: inboxData.filtered.length,
+    });
+
+    if (inboxData.filtered.length === 0) {
+      list.push({ type: 'emptyState', id: 'empty' });
+    } else {
+      inboxData.filtered.forEach((item) => {
+        list.push({ type: 'notification', id: `notification-${item.id}`, item });
+      });
+    }
+
+    return list;
+  }, [inboxData.assignments, inboxData.filtered, inboxData.selectionMode]);
+
+  const renderListItem = ({ item }: { item: any }) => {
+    switch (item.type) {
+      case 'header':
+        return (
+          <InboxHeader
+            newCount={inboxData.newCount}
+            pendingCount={inboxData.pendingCount}
+            onBack={() => handleNavigate('hub')}
+            onMarkAllRead={inboxData.markAllRead}
+          />
+        );
+      case 'tabs':
+        return (
+          <TabsRow
+            activeTab={inboxData.activeTab}
+            onTabChange={inboxData.setActiveTab}
+          />
+        );
+      case 'sectionHeader':
+        return (
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>{item.title}</Text>
+            <Text style={styles.sectionCount}>{item.count}</Text>
+          </View>
+        );
+      case 'assignment':
+        return (
+          <AssignmentCard
+            item={item.item}
+            index={0}
+            isSelected={inboxData.selectedAssignments.has(item.item.id)}
+            selectionMode={inboxData.selectionMode}
+            actionFeedback={inboxData.actionFeedback}
+            onPress={() => actions.openAssignmentDetail(item.item)}
+            onLongPress={() => actions.handleLongPressAssignment(item.item)}
+            onAccept={() => actions.acceptAssignment(item.item.id)}
+            onDecline={() => actions.confirmDecline(item.item.id, item.item.title)}
+            onComplete={() => actions.completeAssignment(item.item.id)}
+            onToggleSelection={() => inboxData.toggleAssignmentSelection(item.item.id)}
+            onViewInPlan={() => {
+              const taskDate = item.item.dueDateFull ? new Date(item.item.dueDateFull).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+              handleNavigate('plan', { date: taskDate });
+            }}
+          />
+        );
+      case 'notification':
+        return renderNotification({ item: item.item, index: 0 });
+      case 'emptyState':
+        return (
+          <EmptyState
+            onViewPlan={() => handleNavigate('plan')}
+            onViewCircles={() => handleNavigate('circles')}
+          />
+        );
+      case 'spacer':
+        return <View style={{ height: 12 }} />;
+      default:
+        return null;
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <IOSStatusBar />
@@ -165,8 +281,12 @@ export function InboxScreen({ navigation }: InboxScreenProps) {
         />
       )}
 
-      <ScrollView 
-        contentContainerStyle={styles.scrollContent} 
+      {/* Optimized: Single FlatList as primary scroll container */}
+      <FlatList
+        data={inboxListData}
+        renderItem={renderListItem}
+        keyExtractor={item => item.id}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -174,62 +294,13 @@ export function InboxScreen({ navigation }: InboxScreenProps) {
             onRefresh={inboxData.onRefresh}
           />
         }
-      >
-        {/* Regular Header - hide when in selection mode */}
-        {!inboxData.selectionMode && (
-          <>
-            <InboxHeader
-              newCount={inboxData.newCount}
-              pendingCount={inboxData.pendingCount}
-              onBack={() => handleNavigate('hub')}
-              onMarkAllRead={inboxData.markAllRead}
-            />
-            <TabsRow
-              activeTab={inboxData.activeTab}
-              onTabChange={inboxData.setActiveTab}
-            />
-          </>
-        )}
-
-        {/* Assignments Section */}
-        {inboxData.assignments.length > 0 && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Assigned to you</Text>
-              <Text style={styles.sectionCount}>{inboxData.assignments.length} tasks</Text>
-            </View>
-            <FlatList
-              data={inboxData.assignments}
-              scrollEnabled={false}
-              keyExtractor={item => `assignment-${item.id}`}
-              ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
-              renderItem={renderAssignment}
-            />
-          </View>
-        )}
-
-        {/* Activity Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Activity</Text>
-            <Text style={styles.sectionCount}>{inboxData.filtered.length} items</Text>
-          </View>
-          {inboxData.filtered.length === 0 ? (
-            <EmptyState
-              onViewPlan={() => handleNavigate('plan')}
-              onViewCircles={() => handleNavigate('circles')}
-            />
-          ) : (
-            <FlatList
-              data={inboxData.filtered}
-              scrollEnabled={false}
-              keyExtractor={item => `item-${item.id}`}
-              ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
-              renderItem={renderNotification}
-            />
-          )}
-        </View>
-      </ScrollView>
+        // Performance optimizations
+        removeClippedSubviews={true}
+        initialNumToRender={10}
+        maxToRenderPerBatch={10}
+        updateCellsBatchingPeriod={50}
+        scrollIndicatorInsets={{ right: 1 }}
+      />
 
       {/* Modals */}
       <DetailModal

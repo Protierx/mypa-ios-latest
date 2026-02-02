@@ -3,6 +3,7 @@ import { Animated } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { RouteProp, useFocusEffect } from '@react-navigation/native';
 import { tasksApi, aiApi } from '../../../services/api';
+import { handleApiError } from '../../../utils/errorHandler';
 import { Task, FocusSession, FocusStats, AISuggestion } from '../types';
 import { STORAGE_KEYS, DEFAULT_STATS } from '../constants';
 import { 
@@ -111,8 +112,13 @@ export const usePlanData = ({ routeParams }: UsePlanDataProps) => {
         return true;
       }
       return false;
-    } catch (e) {
-      console.warn('Failed to load tasks from API:', e);
+    } catch (error) {
+      handleApiError(
+        error,
+        'Load Tasks',
+        true,
+        () => loadTasksFromApi() // Retry function
+      );
       return false;
     }
   }, []);
@@ -292,7 +298,11 @@ export const usePlanData = ({ routeParams }: UsePlanDataProps) => {
           });
         }
       } catch (error) {
-        console.error('AI categorization failed:', error);
+        handleApiError(
+          error,
+          'Get AI Suggestions',
+          false // Don't show retry for optional suggestions
+        );
       } finally {
         setIsLoadingAI(false);
       }

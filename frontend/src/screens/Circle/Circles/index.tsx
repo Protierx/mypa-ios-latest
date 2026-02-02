@@ -232,7 +232,7 @@ export function CirclesScreen({ onModalStateChange, navigation }: CirclesScreenP
     } else if (screen === 'plan') {
       navigation.navigate('Plan');
     } else if (screen === 'hub') {
-      navigation.navigate('Home', { screen: 'Hub' });
+      navigation.navigate('Today', { screen: 'Hub' });
     } else {
       navigation.navigate(screen, params);
     }
