@@ -6,6 +6,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { api, authApi, userApi } from '../services/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { socketService } from '../services/socket';
+import { setCalendarSyncUser } from '../services/calendarSync';
 
 export interface User {
   id: string;
@@ -65,6 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const storedUser = await authApi.getStoredUser();
       if (storedUser) {
         setUser(storedUser);
+        setCalendarSyncUser(storedUser.id); // Set user for calendar sync
       }
 
       // Then verify with server if we have a token
@@ -72,11 +74,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const response = await userApi.getProfile();
         if (response.success && response.data) {
           setUser(response.data);
+          setCalendarSyncUser(response.data.id); // Set user for calendar sync
           await AsyncStorage.setItem('mypa_user', JSON.stringify(response.data));
         } else {
           // Token invalid, clear everything
           await authApi.logout();
           setUser(null);
+          setCalendarSyncUser(null); // Clear user for calendar sync
         }
       }
     } catch (error) {
@@ -91,6 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const response = await authApi.login(email, password);
       if (response.success && response.data) {
         setUser(response.data.user);
+        setCalendarSyncUser(response.data.user.id); // Set user for calendar sync
         return { success: true };
       }
       return { success: false, error: response.error || 'Login failed' };
@@ -104,6 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const response = await authApi.register(email, password, name);
       if (response.success && response.data) {
         setUser(response.data.user);
+        setCalendarSyncUser(response.data.user.id); // Set user for calendar sync
         return { success: true };
       }
       return { success: false, error: response.error || 'Registration failed' };
@@ -114,6 +120,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function logout() {
     socketService.disconnect();
+    setCalendarSyncUser(null); // Clear user for calendar sync
     await authApi.logout();
     setUser(null);
   }

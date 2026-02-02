@@ -9,13 +9,15 @@ export const styles = StyleSheet.create({
   gradient: {
     flex: 1,
   },
+  safeArea: {
+    flex: 1,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 60,
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingVertical: 16,
   },
   closeButton: {
     width: 44,
@@ -167,7 +169,7 @@ export const styles = StyleSheet.create({
   },
   inputContainer: {
     paddingHorizontal: 20,
-    paddingBottom: 40,
+    paddingBottom: 16,
   },
   inputRow: {
     flexDirection: 'row',

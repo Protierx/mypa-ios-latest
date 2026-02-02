@@ -1,7 +1,13 @@
 /**
  * HubScreen - Premium Redesign
  * Clean, modern, million-dollar app aesthetic
- * Inspired by Linear, Notion, Apple Fitness
+ * 
+ * Inspired by successful apps:
+ * - Things 3: Clean task organization, contextual awareness
+ * - Todoist: Smart scheduling, productivity insights  
+ * - Apple Fitness: Gamification, progress celebration
+ * - Notion: Modern aesthetic, smooth interactions
+ * - Forest: Focus encouragement, streak motivation
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -12,6 +18,7 @@ import {
   Pressable,
   Animated,
   Easing,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -24,17 +31,31 @@ import {
   Zap,
   Target,
   Flame,
+  Sparkles,
+  Clock,
+  AlertCircle,
 } from 'lucide-react-native';
 
 // Import MYPAOrb
 import { MYPAOrb } from '../../components/MYPAOrb';
 
+// Import auth context
+import { useAuth } from '../../contexts/AuthContext';
+
+// Import API
+import { tasksApi } from '../../services/api';
+
+// Import onboarding
+import { OnboardingScreen } from '../Onboarding';
+
 // Import extracted components
 import {
   BriefingModal,
   BriefingBanner,
+  DaySummaryModal,
   FloatingActionButton,
   HubLoadingState,
+  QuickActions,
 } from './components';
 
 // Import extracted hooks
@@ -56,9 +77,31 @@ interface HubScreenProps {
 }
 
 export function HubScreen({ onVoiceClick, navigation }: HubScreenProps) {
+  const { user, refreshUser } = useAuth();
   const hubData = useHubData();
   const [showXpPopup, setShowXpPopup] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showSummary, setShowSummary] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  
+  // Check if user needs onboarding
+  useEffect(() => {
+    if (user && !user.isOnboarded) {
+      setShowOnboarding(true);
+    }
+  }, [user]);
+  
+  // Handle onboarding completion
+  const handleOnboardingComplete = useCallback(async () => {
+    setShowOnboarding(false);
+    await refreshUser();
+    // Refresh hub data to show new tasks
+    hubData.refreshData();
+  }, [refreshUser, hubData]);
   const [lastXpGain, setLastXpGain] = useState(0);
+  
+  // Animated progress value
+  const progressAnim = useRef(new Animated.Value(0)).current;
   
   // Pulse animation for hero card
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -112,12 +155,21 @@ export function HubScreen({ onVoiceClick, navigation }: HubScreenProps) {
   
   const animations = useHubAnimations(false, showXpPopup);
   
+  // Calculate real briefing data from actual tasks
+  const priorityTasks = hubData.displayTasks.filter(t => t.priority && !t.completed);
+  const completedToday = hubData.displayTasks.filter(t => t.completed);
+  
   const briefing = useBriefing(
     hubData.greeting.text,
     async (amount) => {
       setLastXpGain(amount);
       setShowXpPopup(true);
       await hubData.awardXp(amount);
+    },
+    {
+      tasksCount: hubData.displayTasks.filter(t => !t.completed).length,
+      priorityCount: priorityTasks.length,
+      completedCount: completedToday.length,
     }
   );
 
@@ -128,6 +180,9 @@ export function HubScreen({ onVoiceClick, navigation }: HubScreenProps) {
     setCompletedTasks,
     todayStats,
     awardXp,
+    nextTask,
+    overdueCount,
+    remainingMinutes,
   } = hubData;
 
   useEffect(() => {
@@ -136,17 +191,47 @@ export function HubScreen({ onVoiceClick, navigation }: HubScreenProps) {
     }
   }, [showXpPopup]);
 
-  const handleNavigate = useCallback((screen: string) => {
+  const handleNavigate = useCallback((screen: string, params?: any) => {
     if (navigation) {
       switch (screen) {
         case 'plan':
-          navigation.navigate('Plan');
+          navigation.navigate('Plan', params);
           break;
         case 'circles':
           navigation.navigate('Circles');
           break;
         case 'profile':
-          navigation.navigate('Profile');
+          navigation.navigate('You');
+          break;
+        case 'inbox':
+          navigation.navigate('Inbox');
+          break;
+        case 'wallet':
+          navigation.navigate('Wallet');
+          break;
+        case 'challenges':
+          navigation.navigate('Challenges');
+          break;
+        case 'analytics':
+          navigation.navigate('Analytics');
+          break;
+        case 'streak':
+          navigation.navigate('Streak');
+          break;
+        case 'level':
+          navigation.navigate('Level');
+          break;
+        case 'settings':
+          navigation.navigate('Settings');
+          break;
+        case 'aiinsights':
+          navigation.navigate('AIInsights');
+          break;
+        case 'dailybriefing':
+          navigation.navigate('DailyBriefing');
+          break;
+        case 'reset':
+          navigation.navigate('Reset');
           break;
         default:
           break;
@@ -154,23 +239,56 @@ export function HubScreen({ onVoiceClick, navigation }: HubScreenProps) {
     }
   }, [navigation]);
 
-  const handleTaskToggle = async (taskId: string | number) => {
-    const numericId = typeof taskId === 'string' ? parseInt(taskId, 10) : taskId;
-    if (!completedTasks.includes(numericId)) {
-      setCompletedTasks(prev => [...prev, numericId]);
-      setLastXpGain(5);
-      setShowXpPopup(true);
-      await awardXp(5);
+  const handleTaskToggle = useCallback(async (taskId: string | number) => {
+    // Always convert to string for consistency
+    const stringId = String(taskId);
+    
+    console.log('🔘 Task toggle called for ID:', taskId, '-> string:', stringId);
+    console.log('🔘 Current completedTasks:', completedTasks);
+    
+    // Check if already completed
+    if (completedTasks.includes(stringId)) {
+      console.log('🔘 Task already completed, skipping');
+      return;
     }
-  };
+    
+    // Update local state immediately for responsive UI
+    setCompletedTasks(prev => [...prev, stringId]);
+    setLastXpGain(5);
+    setShowXpPopup(true);
+    awardXp(5);
+    
+    // Persist to server
+    try {
+      await tasksApi.complete(stringId);
+      console.log('✅ Task completion saved to server:', stringId);
+    } catch (error) {
+      console.error('❌ Failed to save task completion:', error);
+      // Revert local state on error
+      setCompletedTasks(prev => prev.filter(id => id !== stringId));
+    }
+  }, [completedTasks, awardXp]);
 
   const completedCount = displayTasks.filter(
-    (t) => t.completed || completedTasks.includes(typeof t.id === 'string' ? parseInt(t.id, 10) : t.id as number)
+    (t) => t.completed || completedTasks.includes(String(t.id))
   ).length;
   
   const progressPercent = displayTasks.length > 0 
     ? Math.round((completedCount / displayTasks.length) * 100) 
     : 0;
+
+  // Animate progress bar when task completion changes
+  useEffect(() => {
+    const target = displayTasks.length > 0 
+      ? completedCount / displayTasks.length 
+      : 0;
+    Animated.spring(progressAnim, {
+      toValue: target,
+      tension: 40,
+      friction: 8,
+      useNativeDriver: false,
+    }).start();
+  }, [displayTasks.length, completedCount, progressAnim]);
 
   const getCategoryColor = (category: string) => {
     switch (category?.toLowerCase()) {
@@ -178,9 +296,28 @@ export function HubScreen({ onVoiceClick, navigation }: HubScreenProps) {
       case 'health': return '#10b981';
       case 'fitness': return '#f59e0b';
       case 'personal': return '#8b5cf6';
+      case 'errands': return '#ec4899';
+      case 'learning': return '#06b6d4';
       default: return '#8b5cf6';
     }
   };
+
+  // Pull-to-refresh handler
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await hubData.refreshData();
+    setRefreshing(false);
+  }, [hubData]);
+
+  // Show onboarding for new users
+  if (showOnboarding) {
+    return (
+      <OnboardingScreen 
+        onComplete={handleOnboardingComplete}
+        navigation={navigation}
+      />
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -222,6 +359,13 @@ export function HubScreen({ onVoiceClick, navigation }: HubScreenProps) {
             style={styles.scrollView}
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl 
+                refreshing={refreshing} 
+                onRefresh={onRefresh}
+                tintColor="#7c3aed"
+              />
+            }
           >
             {/* ============ HEADER ============ */}
             <View style={styles.header}>
@@ -249,7 +393,7 @@ export function HubScreen({ onVoiceClick, navigation }: HubScreenProps) {
                 <View style={styles.headerRight}>
                   <Pressable 
                     style={({ pressed }) => [styles.iconButton, pressed && styles.buttonPressed]}
-                    onPress={() => handleNavigate('notifications')}
+                    onPress={() => handleNavigate('inbox')}
                   >
                     <Bell color="#64748b" size={20} />
                     <View style={styles.notificationDot} />
@@ -271,14 +415,54 @@ export function HubScreen({ onVoiceClick, navigation }: HubScreenProps) {
               </View>
             </View>
 
+            {/* ============ STATS ROW ============ */}
+            <View style={styles.statsRow}>
+              <Pressable 
+                style={({ pressed }) => [styles.statCard, { backgroundColor: '#faf5ff' }, pressed && styles.buttonPressed]}
+                onPress={() => handleNavigate('level')}
+              >
+                <Zap color="#7c3aed" size={16} fill="#7c3aed" />
+                <Text style={[styles.statValue, { color: '#7c3aed' }]}>{todayStats.xp || 0}</Text>
+                <Text style={styles.statLabel}>XP</Text>
+              </Pressable>
+              <Pressable 
+                style={({ pressed }) => [styles.statCard, { backgroundColor: '#f0fdf4' }, pressed && styles.buttonPressed]}
+                onPress={() => handleNavigate('plan')}
+              >
+                <Target color="#10b981" size={16} />
+                <Text style={[styles.statValue, { color: '#10b981' }]}>{completedCount}/{displayTasks.length}</Text>
+                <Text style={styles.statLabel}>Tasks</Text>
+              </Pressable>
+              <Pressable 
+                style={({ pressed }) => [styles.statCard, { backgroundColor: '#fffbeb' }, pressed && styles.buttonPressed]}
+                onPress={() => handleNavigate('streak')}
+              >
+                <Flame color="#f59e0b" size={16} fill="#f59e0b" />
+                <Text style={[styles.statValue, { color: '#f59e0b' }]}>{todayStats.streak || 0}</Text>
+                <Text style={styles.statLabel}>Streak</Text>
+              </Pressable>
+            </View>
+
             <View style={styles.content}>
-              {/* ============ AI HERO CARD - Main CTA ============ */}
+              {/* ============ AI HERO CARD - Contextually Aware ============ */}
               <Pressable
-                onPress={briefing.startBriefing}
+                onPress={() => {
+                  // If all tasks are complete, show summary; otherwise show briefing
+                  if (completedCount === displayTasks.length && displayTasks.length > 0) {
+                    setShowSummary(true);
+                  } else {
+                    briefing.startBriefing();
+                  }
+                }}
                 style={({ pressed }) => [styles.heroCard, pressed && styles.cardPressed]}
               >
                 <LinearGradient
-                  colors={['#7c3aed', '#a855f7', '#ec4899']}
+                  colors={overdueCount > 0 
+                    ? ['#dc2626', '#f97316', '#fbbf24'] // Urgent red-orange
+                    : completedCount === displayTasks.length && displayTasks.length > 0
+                    ? ['#10b981', '#14b8a6', '#06b6d4'] // Success green-teal
+                    : ['#7c3aed', '#a855f7', '#ec4899'] // Default purple-pink
+                  }
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                   style={styles.heroGradient}
@@ -296,27 +480,53 @@ export function HubScreen({ onVoiceClick, navigation }: HubScreenProps) {
                     ]}>
                       <MYPAOrb size="sm" showGlow />
                     </Animated.View>
-                    <Text style={styles.heroTitle}>Your Daily Mission</Text>
+                    <Text style={styles.heroTitle}>
+                      {completedCount === displayTasks.length && displayTasks.length > 0
+                        ? "All Tasks Complete! 🎉"
+                        : overdueCount > 0
+                        ? `${overdueCount} Task${overdueCount > 1 ? 's' : ''} Overdue`
+                        : "Your Daily Mission"
+                      }
+                    </Text>
                     <Text style={styles.heroSubtitle}>
-                      {displayTasks.length} tasks planned • {todayStats.xp || 0} XP to earn
+                      {completedCount === displayTasks.length && displayTasks.length > 0
+                        ? `Amazing work! You earned ${todayStats.xp} XP today`
+                        : remainingMinutes > 0
+                        ? `${displayTasks.length - completedCount} tasks • ~${Math.round(remainingMinutes / 60)}h ${remainingMinutes % 60}m left`
+                        : `${displayTasks.length} tasks planned • ${todayStats.xp || 0} XP to earn`
+                      }
                     </Text>
                     <View style={styles.heroCta}>
-                      <Text style={styles.heroCtaText}>Start Briefing</Text>
+                      <Text style={styles.heroCtaText}>
+                        {completedCount === displayTasks.length && displayTasks.length > 0
+                          ? "View Summary"
+                          : "Start Briefing"
+                        }
+                      </Text>
                       <Play color="#7c3aed" size={16} fill="#7c3aed" />
                     </View>
                   </View>
                 </LinearGradient>
               </Pressable>
 
+              {/* ============ QUICK ACTIONS ============ */}
+              <QuickActions onNavigate={handleNavigate} />
+
               {/* ============ TODAY'S TASKS ============ */}
               <View style={styles.sectionHeader}>
                 <View style={styles.sectionTitleRow}>
-                  <View style={styles.progressRing}>
-                    <Text style={styles.progressRingText}>{progressPercent}%</Text>
-                  </View>
                   <View>
                     <Text style={styles.sectionTitle}>Today's Focus</Text>
-                    <Text style={styles.sectionSubtitle}>{completedCount} of {displayTasks.length} completed</Text>
+                    <Text style={styles.sectionSubtitle}>
+                      {overdueCount > 0 
+                        ? `⚠️ ${overdueCount} overdue - let's catch up!`
+                        : completedCount === 0 && displayTasks.length > 0 
+                        ? greeting.motivationalMessage || "Ready to start your day?"
+                        : completedCount === displayTasks.length && displayTasks.length > 0
+                        ? "🎉 All done for today!"
+                        : `${completedCount} of ${displayTasks.length} completed`
+                      }
+                    </Text>
                   </View>
                 </View>
                 <Pressable
@@ -328,57 +538,162 @@ export function HubScreen({ onVoiceClick, navigation }: HubScreenProps) {
                 </Pressable>
               </View>
 
+              {/* Animated Progress Bar with Time Estimate */}
+              {displayTasks.length > 0 && (
+                <View style={styles.progressBarContainer}>
+                  <View style={styles.progressBarTrack}>
+                    <Animated.View 
+                      style={[
+                        styles.progressBarFill,
+                        overdueCount > 0 && styles.progressBarFillOverdue,
+                        completedCount === displayTasks.length && styles.progressBarFillComplete,
+                        { 
+                          width: progressAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: ['0%', '100%'],
+                          })
+                        }
+                      ]} 
+                    />
+                  </View>
+                  <View style={styles.progressStats}>
+                    <Text style={[
+                      styles.progressBarText,
+                      overdueCount > 0 && styles.progressTextOverdue,
+                      completedCount === displayTasks.length && styles.progressTextComplete,
+                    ]}>
+                      {progressPercent}%
+                    </Text>
+                    {remainingMinutes > 0 && completedCount < displayTasks.length && (
+                      <Text style={styles.timeEstimate}>
+                        ~{remainingMinutes >= 60 
+                          ? `${Math.floor(remainingMinutes / 60)}h ${remainingMinutes % 60}m` 
+                          : `${remainingMinutes}m`
+                        }
+                      </Text>
+                    )}
+                  </View>
+                </View>
+              )}
+
               {/* Task List */}
               {displayTasks.length > 0 ? (
                 <View style={styles.taskList}>
                   {displayTasks.slice(0, 4).map((task, index) => {
-                    const numericId = typeof task.id === 'string' ? parseInt(task.id, 10) : task.id as number;
-                    const isCompleted = task.completed || completedTasks.includes(numericId);
-                    const isNextUp = !isCompleted && index === 0;
+                    const isCompleted = task.completed || completedTasks.includes(String(task.id));
+                    const isNextUp = task.isNextUp && !isCompleted;
                     const categoryColor = getCategoryColor(task.category || 'personal');
+                    // Create a unique key using both id and index to avoid duplicates
+                    const uniqueKey = `task-${task.id}-${index}`;
+                    // Tasks with duration > 5 mins require focus session
+                    const requiresFocusSession = task.durationMin > 5;
 
                     return (
                       <Pressable
-                        key={task.id}
-                        onPress={() => handleNavigate('plan')}
+                        key={uniqueKey}
+                        onPress={() => handleNavigate('plan', { taskId: task.id })}
                         style={({ pressed }) => [
                           styles.taskCard,
                           isNextUp && styles.taskCardActive,
                           isCompleted && styles.taskCardCompleted,
+                          task.isOverdue && !isCompleted && styles.taskCardOverdue,
+                          task.isUrgent && !isCompleted && styles.taskCardUrgent,
                           pressed && styles.cardPressed,
                         ]}
                       >
+                        {/* Category accent bar */}
+                        <View style={[
+                          styles.taskAccent, 
+                          { backgroundColor: isCompleted 
+                            ? '#cbd5e1' 
+                            : task.isOverdue 
+                            ? '#ef4444'
+                            : task.isUrgent 
+                            ? '#f59e0b'
+                            : categoryColor 
+                          }
+                        ]} />
+                        
                         <View style={styles.taskRow}>
                           <Pressable
-                            onPress={() => !isCompleted && handleTaskToggle(task.id)}
+                            onPress={() => {
+                              if (isCompleted) return;
+                              if (requiresFocusSession) {
+                                // Navigate to Plan to start focus session
+                                handleNavigate('plan', { taskId: task.id });
+                              } else {
+                                // Quick task - can be completed directly
+                                handleTaskToggle(task.id);
+                              }
+                            }}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                             style={[
                               styles.taskCheckbox,
                               isNextUp && styles.taskCheckboxActive,
                               isCompleted && styles.taskCheckboxCompleted,
+                              requiresFocusSession && !isCompleted && styles.taskCheckboxFocus,
                             ]}
                           >
-                            {isCompleted && <Check color="#fff" size={14} strokeWidth={3} />}
+                            {isCompleted ? (
+                              <Check color="#fff" size={14} strokeWidth={3} />
+                            ) : requiresFocusSession ? (
+                              <Play color="#7c3aed" size={12} fill="#7c3aed" />
+                            ) : null}
                           </Pressable>
                           <View style={styles.taskContent}>
-                            <Text style={[
-                              styles.taskTitle,
-                              isCompleted && styles.taskTitleCompleted,
-                            ]}>
-                              {task.title}
-                            </Text>
+                            <View style={styles.taskTitleRow}>
+                              <Text style={[
+                                styles.taskTitle,
+                                isCompleted && styles.taskTitleCompleted,
+                              ]} numberOfLines={1}>
+                                {task.title}
+                              </Text>
+                              {task.isOverdue && !isCompleted && (
+                                <View style={styles.overdueIndicator}>
+                                  <AlertCircle color="#ef4444" size={14} />
+                                </View>
+                              )}
+                              {task.priority && !isCompleted && !task.isOverdue && (
+                                <View style={styles.priorityIndicator}>
+                                  <Text style={styles.priorityText}>!</Text>
+                                </View>
+                              )}
+                            </View>
                             <View style={styles.taskMeta}>
-                              <Text style={styles.taskTime}>
-                                {task.duration ? `${task.duration}m` : '30m'}
+                              {task.time ? (
+                                <>
+                                  <Clock color={task.isOverdue ? '#ef4444' : task.isUrgent ? '#f59e0b' : '#64748b'} size={12} />
+                                  <Text style={[
+                                    styles.taskTime,
+                                    task.isOverdue && styles.taskTimeOverdue,
+                                    task.isUrgent && styles.taskTimeUrgent,
+                                  ]}>
+                                    {task.time}
+                                  </Text>
+                                  {task.timeUntil && !isCompleted && (
+                                    <Text style={[
+                                      styles.taskTimeUntil,
+                                      task.isOverdue && styles.taskTimeOverdue,
+                                      task.isUrgent && styles.taskTimeUrgent,
+                                    ]}>
+                                      ({task.timeUntil})
+                                    </Text>
+                                  )}
+                                  <View style={styles.taskDot} />
+                                </>
+                              ) : null}
+                              <Text style={styles.taskDuration}>
+                                {task.duration}
                               </Text>
                               <View style={styles.taskDot} />
                               <Text style={[styles.taskCategory, { color: categoryColor }]}>
-                                {task.category || 'Personal'}
+                                {task.category}
                               </Text>
                             </View>
                           </View>
                           {isNextUp && !isCompleted && (
                             <LinearGradient
-                              colors={['#7c3aed', '#a855f7']}
+                              colors={task.isOverdue ? ['#ef4444', '#f97316'] : ['#7c3aed', '#a855f7']}
                               style={styles.taskAction}
                             >
                               <Play color="#fff" size={16} fill="#fff" />
@@ -395,8 +710,19 @@ export function HubScreen({ onVoiceClick, navigation }: HubScreenProps) {
                   })}
                 </View>
               ) : (
-                <View style={styles.emptyTasks}>
-                  <Text style={styles.emptyTasksText}>No tasks for today. Add your first one!</Text>
+                <View style={styles.emptyState}>
+                  <View style={styles.emptyStateIcon}>
+                    <Sparkles color="#cbd5e1" size={32} />
+                  </View>
+                  <Text style={styles.emptyStateTitle}>Your day is wide open!</Text>
+                  <Text style={styles.emptyStateSubtitle}>What do you want to accomplish today?</Text>
+                  <Pressable 
+                    style={({ pressed }) => [styles.emptyStateCta, pressed && styles.buttonPressed]}
+                    onPress={() => handleNavigate('plan')}
+                  >
+                    <Plus color="#7c3aed" size={18} />
+                    <Text style={styles.emptyStateCtaText}>Add your first task</Text>
+                  </Pressable>
                 </View>
               )}
 
@@ -444,6 +770,27 @@ export function HubScreen({ onVoiceClick, navigation }: HubScreenProps) {
         waveAnims={animations.waveAnims}
         onClose={briefing.closeBriefing}
         onSkip={briefing.skipToEnd}
+      />
+
+      <DaySummaryModal
+        visible={showSummary}
+        onClose={() => setShowSummary(false)}
+        stats={{
+          tasksCompleted: completedCount,
+          totalTasks: displayTasks.length,
+          xpEarned: todayStats.xp || 0,
+          focusMinutes: user?.focusMinutes || 0,
+          streak: user?.currentStreak || 0,
+          level: user?.level || 1,
+        }}
+        completedTasks={displayTasks
+          .filter(t => t.completed || completedTasks.includes(String(t.id)))
+          .map(t => ({
+            id: t.id,
+            title: t.title,
+            category: t.category,
+            xp: 5,
+          }))}
       />
     </View>
   );

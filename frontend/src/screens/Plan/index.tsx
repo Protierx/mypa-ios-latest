@@ -198,6 +198,7 @@ export function PlanScreen({ navigation, route }: PlanScreenProps) {
           showCalendar={showCalendar}
           onToggleCalendar={() => setShowCalendar(!showCalendar)}
           onAddTask={() => setIsAdding(true)}
+          onReset={() => navigator.navigate('Reset')}
         />
 
         {/* Date Pill */}
@@ -274,24 +275,20 @@ export function PlanScreen({ navigation, route }: PlanScreenProps) {
           />
         )}
 
-        {/* Swipe Hint */}
-        {todayTasks.length > 0 && (
-          <Text style={styles.swipeHint}>Swipe tasks: → complete • ← delete</Text>
-        )}
-
         {/* Added Banner */}
         {showAddedBanner && <AddedBanner taskTitle={showAddedBanner} />}
 
         {/* Task List */}
         <View style={styles.taskList}>
           {todayTasks.map(task => (
-            <View key={task.id} style={[styles.taskListItem, highlightedTaskTitle === task.title && styles.highlightedTask]}>
+            <View key={`${task.isFromCalendar ? 'cal' : 'task'}-${task.id}`} style={[styles.taskListItem, highlightedTaskTitle === task.title && styles.highlightedTask]}>
               <SwipeableTask
                 task={task}
-                onComplete={() => handleComplete(task.id)}
-                onDelete={() => handleDelete(task.id)}
-                onEdit={() => openEditModal(task)}
+                onComplete={() => !task.isFromCalendar && handleComplete(task.id)}
+                onDelete={() => !task.isFromCalendar && handleDelete(task.id)}
+                onEdit={() => !task.isFromCalendar && openEditModal(task)}
                 onFocus={() => {
+                  if (task.isFromCalendar) return; // Calendar events can't be focused
                   if (activeTimerId === task.id) {
                     pauseTimer();
                   } else {
@@ -299,17 +296,17 @@ export function PlanScreen({ navigation, route }: PlanScreenProps) {
                     startTimer(task.id);
                   }
                 }}
-                onMoveTomorrow={() => handleMoveToTomorrow(task.id)}
+                onMoveTomorrow={() => !task.isFromCalendar && handleMoveToTomorrow(task.id)}
                 isActive={activeTimerId === task.id}
-                isQuick={isQuickTask(task)}
+                isQuick={task.isFromCalendar ? true : isQuickTask(task)}
                 isHighlighted={highlightedTaskId === String(task.id)}
               />
             </View>
           ))}
         </View>
 
-        {/* Empty State */}
-        {todayTasks.length === 0 && (
+        {/* Empty State - only show if no MYPA tasks (calendar events don't count) */}
+        {todayTasks.filter(t => !t.isFromCalendar).length === 0 && (
           <EmptyState
             onAddTask={() => setIsAdding(true)}
             onNavigateSort={() => handleNavigate('sort')}

@@ -6,6 +6,8 @@ import { tasksApi, aiApi } from '../../../services/api';
 import { handleApiError } from '../../../utils/errorHandler';
 import { Task, FocusSession, FocusStats, AISuggestion } from '../types';
 import { STORAGE_KEYS, DEFAULT_STATS } from '../constants';
+import { useBackgroundTimer } from './useBackgroundTimer';
+import * as calendarSync from '../../../services/calendarSync';
 import { 
   getTodayStr, 
   formatDuration, 
@@ -22,6 +24,7 @@ interface UsePlanDataProps {
 
 export const usePlanData = ({ routeParams }: UsePlanDataProps) => {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [calendarEvents, setCalendarEvents] = useState<Task[]>([]);
   const [selectedDate, setSelectedDate] = useState(() => {
     if (routeParams?.date) {
       return new Date(routeParams.date + 'T12:00:00');
@@ -80,14 +83,104 @@ export const usePlanData = ({ routeParams }: UsePlanDataProps) => {
 
   // Computed values
   const todayStr = useMemo(() => selectedDate.toISOString().split('T')[0], [selectedDate]);
-  const todayTasks = tasks.filter(t => t.date === todayStr);
-  const completedCount = todayTasks.filter(t => t.completed).length;
-  const totalCount = todayTasks.length;
+  
+  // Merge MYPA tasks with calendar events, sorted by time
+  const todayTasks = useMemo(() => {
+    const mypaTasks = tasks.filter(t => t.date === todayStr);
+    const todayCalendarEvents = calendarEvents.filter(t => t.date === todayStr);
+    
+    // Combine and sort by time
+    const combined = [...mypaTasks, ...todayCalendarEvents];
+    return combined.sort((a, b) => {
+      // Parse times for comparison
+      const parseTime = (time: string): number => {
+        const match = time.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+        if (!match) return 0;
+        let hours = parseInt(match[1], 10);
+        const minutes = parseInt(match[2], 10);
+        const ampm = match[3]?.toUpperCase();
+        if (ampm === 'PM' && hours !== 12) hours += 12;
+        if (ampm === 'AM' && hours === 12) hours = 0;
+        return hours * 60 + minutes;
+      };
+      return parseTime(a.time) - parseTime(b.time);
+    });
+  }, [tasks, calendarEvents, todayStr]);
+  
+  // Only count MYPA tasks for progress (not calendar events)
+  const mypaTodayTasks = tasks.filter(t => t.date === todayStr && !t.isFromCalendar);
+  const completedCount = mypaTodayTasks.filter(t => t.completed).length;
+  const totalCount = mypaTodayTasks.length;
   const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
-  const nextTask = todayTasks.find(t => !t.completed);
-  const totalMinutes = todayTasks.reduce((sum, t) => sum + t.durationMin, 0);
-  const completedMinutes = todayTasks.filter(t => t.completed).reduce((sum, t) => sum + t.durationMin, 0);
+  const nextTask = todayTasks.find(t => !t.completed && !t.isFromCalendar);
+  const totalMinutes = mypaTodayTasks.reduce((sum, t) => sum + t.durationMin, 0);
+  const completedMinutes = mypaTodayTasks.filter(t => t.completed).reduce((sum, t) => sum + t.durationMin, 0);
   const activeTask = activeTimerId ? tasks.find(t => t.id === activeTimerId) : null;
+
+  // Load calendar events
+  const loadCalendarEvents = useCallback(async () => {
+    try {
+      // Check if user has calendar sync enabled (user-specific setting)
+      const syncSettings = await calendarSync.getSyncSettings();
+      const selectedCalendars = await calendarSync.getSelectedCalendars();
+      
+      // If no sync settings saved or no calendars selected, user hasn't connected
+      if (!selectedCalendars || selectedCalendars.length === 0) {
+        setCalendarEvents([]);
+        return;
+      }
+
+      const hasPermission = await calendarSync.checkCalendarPermissions();
+      if (!hasPermission) {
+        setCalendarEvents([]);
+        return;
+      }
+
+      // Get events for the selected week
+      const startDate = new Date(selectedDate);
+      startDate.setHours(0, 0, 0, 0);
+      const endDate = new Date(startDate);
+      endDate.setDate(endDate.getDate() + 7);
+
+      const events = await calendarSync.getEventsFromCalendar(startDate, endDate);
+      
+      // Convert calendar events to Task format
+      const calendarTasks: Task[] = events.map((event, index) => {
+        const eventStart = new Date(event.startDate);
+        const eventEnd = new Date(event.endDate);
+        const durationMs = eventEnd.getTime() - eventStart.getTime();
+        const durationMin = Math.max(15, Math.round(durationMs / (1000 * 60)));
+        
+        // Format time
+        const hours = eventStart.getHours();
+        const minutes = eventStart.getMinutes();
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        const hour12 = hours % 12 || 12;
+        const time = `${hour12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+        
+        return {
+          id: -(Date.now() + index), // Negative ID to avoid conflicts with MYPA tasks
+          date: eventStart.toISOString().split('T')[0],
+          time,
+          duration: formatDuration(durationMin),
+          durationMin,
+          title: event.title,
+          category: 'Calendar',
+          priority: 'Normal' as const,
+          completed: false,
+          isFixed: true,
+          isFromCalendar: true,
+          calendarEventId: event.id,
+          calendarId: event.calendarId,
+        };
+      });
+      
+      setCalendarEvents(calendarTasks);
+    } catch (error) {
+      console.log('Error loading calendar events:', error);
+      setCalendarEvents([]);
+    }
+  }, [selectedDate]);
 
   // Load tasks from API
   const loadTasksFromApi = useCallback(async () => {
@@ -141,18 +234,21 @@ export const usePlanData = ({ routeParams }: UsePlanDataProps) => {
     useCallback(() => {
       if (!isLoading) {
         loadTasksFromApi();
+        loadCalendarEvents();
         if (routeParams?.date) {
           setSelectedDate(new Date(routeParams.date + 'T12:00:00'));
         }
       }
-    }, [isLoading, loadTasksFromApi, routeParams?.date])
+    }, [isLoading, loadTasksFromApi, loadCalendarEvents, routeParams?.date])
   );
 
   // Initial load
   useEffect(() => {
     const loadData = async () => {
       try {
+        // Load tasks and calendar events in parallel
         const apiLoaded = await loadTasksFromApi();
+        await loadCalendarEvents();
         
         if (!apiLoaded) {
           const storedTasks = await AsyncStorage.getItem(STORAGE_KEYS.tasks);
@@ -224,7 +320,14 @@ export const usePlanData = ({ routeParams }: UsePlanDataProps) => {
     };
 
     loadData();
-  }, [loadTasksFromApi]);
+  }, [loadTasksFromApi, loadCalendarEvents]);
+
+  // Reload calendar when date changes
+  useEffect(() => {
+    if (!isLoading) {
+      loadCalendarEvents();
+    }
+  }, [selectedDate, isLoading, loadCalendarEvents]);
 
   // Persist tasks
   useEffect(() => {
@@ -243,6 +346,15 @@ export const usePlanData = ({ routeParams }: UsePlanDataProps) => {
     if (isLoading) return;
     AsyncStorage.setItem(STORAGE_KEYS.stats, JSON.stringify(focusStats));
   }, [focusStats, isLoading]);
+
+  // Background timer support (notifications when app is in background)
+  const { saveSessionState } = useBackgroundTimer({
+    activeTimerId,
+    isRecording,
+    elapsedSeconds,
+    setElapsedSeconds,
+    tasks,
+  });
 
   // Timer tick
   useEffect(() => {

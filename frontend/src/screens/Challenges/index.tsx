@@ -216,7 +216,7 @@ export function ChallengesScreen({ navigation, route }: ChallengesScreenProps) {
                         data.setSelectedChallengeForOptions(challenge);
                         data.setShowOptionsModal(true);
                       }}
-                      onSubmitProof={() => actions.handleSubmitProof(challenge.id)}
+                      onSubmitProof={() => navigation.navigate('ProofCamera', { challengeId: challenge.id })}
                     />
                   );
                 })}

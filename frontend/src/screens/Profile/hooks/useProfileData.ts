@@ -12,6 +12,7 @@ import {
   TrendingUp,
   Award,
   Flame,
+  MapPin,
 } from 'lucide-react-native';
 
 interface UseProfileDataReturn {
@@ -87,6 +88,7 @@ export const useProfileData = (): UseProfileDataReturn => {
   const settingsItems: SettingsItem[] = [
     { id: 'privacy-controls', label: 'Privacy Controls', icon: Lock, colors: ['#a855f7', '#9333ea'] },
     { id: 'notifications', label: 'Notifications', icon: Bell, colors: ['#fb923c', '#f97316'] },
+    { id: 'saved-places', label: 'Saved Places', icon: MapPin, colors: ['#3b82f6', '#2563eb'] },
     { id: 'settings', label: 'App Settings', icon: Settings, colors: ['#64748b', '#475569'] },
     { id: 'help', label: 'Help & Support', icon: HelpCircle, colors: ['#10b981', '#059669'] },
   ];

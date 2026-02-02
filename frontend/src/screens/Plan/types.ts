@@ -24,6 +24,10 @@ export interface Task {
   priority: 'High' | 'Normal' | 'Low';
   completed: boolean;
   isFixed: boolean;
+  // Calendar integration
+  isFromCalendar?: boolean;
+  calendarEventId?: string;
+  calendarId?: string;
 }
 
 export interface FocusSession {

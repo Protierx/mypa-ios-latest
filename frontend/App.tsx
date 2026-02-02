@@ -35,6 +35,7 @@ import { AnalyticsScreen } from './src/screens/Analytics';
 import DailyBriefingScreen from './src/screens/DailyBriefing';
 import AIInsightsScreen from './src/screens/AIInsights';
 import NotificationSettingsScreen from './src/screens/Notification/NotificationSettings';
+import IntegrationsScreen from './src/screens/Integrations';
 import { colors } from './src/styles/colors';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 
@@ -54,16 +55,13 @@ function HomeStack() {
       <Stack.Screen name="Tasks" component={TasksScreen} />
       <Stack.Screen name="Streak" component={StreakScreen} />
       <Stack.Screen name="Level" component={LevelScreen} />
-      <Stack.Screen name="Reset" component={ResetScreen} />
       <Stack.Screen name="TaskSorting" component={TaskSortingScreen} />
-      <Stack.Screen name="ProofCamera" component={ProofCameraScreen} />
-      <Stack.Screen name="ProofConfirm" component={ProofConfirmScreen} />
       <Stack.Screen name="DailyLifeCard" component={DailyLifeCardScreen} />
       <Stack.Screen name="SavedPlaces" component={SavedPlacesScreen} />
       <Stack.Screen name="Analytics" component={AnalyticsScreen} />
-      <Stack.Screen name="DailyBriefing" component={DailyBriefingScreen} />
       <Stack.Screen name="AIInsights" component={AIInsightsScreen} />
       <Stack.Screen name="NotificationSettings" component={NotificationSettingsScreen} />
+      <Stack.Screen name="Integrations" component={IntegrationsScreen} />
     </Stack.Navigator>
   );
 }
@@ -74,9 +72,12 @@ function ProfileStack() {
       <Stack.Screen name="ProfileMain" component={ProfileScreen} />
       <Stack.Screen name="EditProfile" component={EditProfileScreen} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} />
+      <Stack.Screen name="NotificationSettings" component={NotificationSettingsScreen} />
       <Stack.Screen name="PrivacyControls" component={PrivacyControlsScreen} />
       <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
       <Stack.Screen name="SettingsFromProfile" component={SettingsScreen} />
+      <Stack.Screen name="Integrations" component={IntegrationsScreen} />
+      <Stack.Screen name="SavedPlaces" component={SavedPlacesScreen} />
     </Stack.Navigator>
   );
 }
@@ -268,6 +269,10 @@ function AppContent() {
           )}
         </RootStack.Screen>
         <RootStack.Screen name="CircleHome" component={CircleHomeScreen} />
+        <RootStack.Screen name="Reset" component={ResetScreen} options={{ animation: 'slide_from_bottom' }} />
+        <RootStack.Screen name="ProofCamera" component={ProofCameraScreen} options={{ animation: 'slide_from_bottom' }} />
+        <RootStack.Screen name="ProofConfirm" component={ProofConfirmScreen} options={{ animation: 'slide_from_right' }} />
+        <RootStack.Screen name="DailyBriefing" component={DailyBriefingScreen} options={{ animation: 'slide_from_bottom' }} />
       </RootStack.Navigator>
       <VoiceAssistantScreen
         visible={showListening}

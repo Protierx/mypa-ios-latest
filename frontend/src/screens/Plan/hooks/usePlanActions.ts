@@ -1,6 +1,7 @@
 import { useCallback, MutableRefObject } from 'react';
 import { Task, FocusSession, FocusStats } from '../types';
 import { getTodayStr, getYesterdayStr, parseDuration } from '../utils';
+import { tasksApi } from '../../../services/api';
 
 interface UsePlanActionsProps {
   tasks: Task[];
@@ -201,22 +202,73 @@ export const usePlanActions = ({
   }, [elapsedSeconds, tasks, activeTimerId, saveSession, setShowAbandonConfirm, setActiveTimerId, setElapsedSeconds, setIsRecording, sessionStartTime]);
 
   // Task actions
-  const handleComplete = useCallback((id: number) => {
-    setTasks(prev => prev.map(t => (t.id === id ? { ...t, completed: !t.completed } : t)));
+  const handleComplete = useCallback(async (id: number) => {
+    // Find the task to check current state
+    const task = tasks.find(t => t.id === id);
+    if (!task) return;
+    
+    const newCompletedState = !task.completed;
+    
+    // Update local state immediately for responsive UI
+    setTasks(prev => prev.map(t => (t.id === id ? { ...t, completed: newCompletedState } : t)));
     if (activeTimerId === id) stopTimer(true);
-  }, [setTasks, activeTimerId, stopTimer]);
+    
+    // Skip API call for calendar events (they're not stored in our backend)
+    if (task.isFromCalendar) return;
+    
+    // Persist to server
+    try {
+      if (newCompletedState) {
+        await tasksApi.complete(String(id));
+      } else {
+        // If uncompleting, update the task with completed: false
+        await tasksApi.update(String(id), { completed: false });
+      }
+    } catch (error) {
+      console.error('Failed to update task completion:', error);
+      // Revert local state on error
+      setTasks(prev => prev.map(t => (t.id === id ? { ...t, completed: !newCompletedState } : t)));
+    }
+  }, [tasks, setTasks, activeTimerId, stopTimer]);
 
-  const handleDelete = useCallback((id: number) => {
+  const handleDelete = useCallback(async (id: number) => {
+    const task = tasks.find(t => t.id === id);
+    
+    // Update local state immediately
     setTasks(prev => prev.filter(t => t.id !== id));
     if (activeTimerId === id) stopTimer(true);
-  }, [setTasks, activeTimerId, stopTimer]);
+    
+    // Skip API call for calendar events
+    if (task?.isFromCalendar) return;
+    
+    // Persist to server
+    try {
+      await tasksApi.delete(String(id));
+    } catch (error) {
+      console.error('Failed to delete task:', error);
+      // Could re-add the task on error, but for now just log
+    }
+  }, [tasks, setTasks, activeTimerId, stopTimer]);
 
-  const handleMoveToTomorrow = useCallback((id: number) => {
+  const handleMoveToTomorrow = useCallback(async (id: number) => {
+    const task = tasks.find(t => t.id === id);
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     const tomorrowStr = tomorrow.toISOString().split('T')[0];
+    
+    // Update local state
     setTasks(prev => prev.map(t => (t.id === id ? { ...t, date: tomorrowStr } : t)));
-  }, [setTasks]);
+    
+    // Skip API call for calendar events
+    if (task?.isFromCalendar) return;
+    
+    // Persist to server
+    try {
+      await tasksApi.update(String(id), { date: tomorrowStr });
+    } catch (error) {
+      console.error('Failed to move task:', error);
+    }
+  }, [tasks, setTasks]);
 
   const completeTimedTask = useCallback((taskId: number) => {
     saveSession(true, false);
