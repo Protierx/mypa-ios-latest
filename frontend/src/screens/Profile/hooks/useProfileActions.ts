@@ -33,6 +33,7 @@ export const useProfileActions = ({
       notifications: 'Notifications',
       settings: 'SettingsFromProfile',
       help: 'HelpSupport',
+      integrations: 'Integrations',
     };
 
     const homeStackRoutes: { [key: string]: string } = {
@@ -40,6 +41,7 @@ export const useProfileActions = ({
       streak: 'Streak',
       wallet: 'Wallet',
       challenges: 'Challenges',
+      'saved-places': 'SavedPlaces',
     };
 
     if (profileStackRoutes[screen]) {

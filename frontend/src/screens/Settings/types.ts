@@ -5,6 +5,8 @@ export interface SettingItem {
   title: string;
   type: 'toggle' | 'navigation' | 'value';
   value?: string | boolean;
+  navigateTo?: string;
+  subtitle?: string;
 }
 
 export interface SettingsSection {

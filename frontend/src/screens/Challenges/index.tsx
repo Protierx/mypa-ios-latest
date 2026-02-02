@@ -153,6 +153,10 @@ export function ChallengesScreen({ navigation, route }: ChallengesScreenProps) {
                           style={[styles.joinButton, data.joiningChallengeId === challenge.id && { opacity: 0.5 }]}
                           onPress={() => actions.handleJoinChallenge(challenge.id)}
                           disabled={data.joiningChallengeId === challenge.id}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Join ${challenge.title} challenge`}
+                          accessibilityHint="Participate in this challenge to earn XP"
+                          accessibilityState={{ disabled: data.joiningChallengeId === challenge.id }}
                         >
                           <Text style={styles.joinButtonText}>
                             {data.joiningChallengeId === challenge.id ? 'Joining...' : 'Join'}
@@ -177,6 +181,9 @@ export function ChallengesScreen({ navigation, route }: ChallengesScreenProps) {
                   <TouchableOpacity
                     style={{ marginTop: 16, paddingHorizontal: 20, paddingVertical: 10, backgroundColor: '#0F172A', borderRadius: 12 }}
                     onPress={() => data.setShowCreateModal(true)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Create new challenge"
+                    accessibilityHint="Opens dialog to create your first challenge"
                   >
                     <Text style={{ color: '#FFFFFF', fontWeight: '600' }}>Create Challenge</Text>
                   </TouchableOpacity>
@@ -209,7 +216,7 @@ export function ChallengesScreen({ navigation, route }: ChallengesScreenProps) {
                         data.setSelectedChallengeForOptions(challenge);
                         data.setShowOptionsModal(true);
                       }}
-                      onSubmitProof={() => actions.handleSubmitProof(challenge.id)}
+                      onSubmitProof={() => navigation.navigate('ProofCamera', { challengeId: challenge.id })}
                     />
                   );
                 })}
@@ -225,6 +232,9 @@ export function ChallengesScreen({ navigation, route }: ChallengesScreenProps) {
                     key={tf}
                     style={[styles.timeframeButton, data.selectedTimeframe === tf && styles.timeframeButtonActive]}
                     onPress={() => data.setSelectedTimeframe(tf)}
+                    accessibilityRole="tab"
+                    accessibilityLabel={tf === 'week' ? 'This week' : tf === 'month' ? 'This month' : 'All time'}
+                    accessibilityState={{ selected: data.selectedTimeframe === tf }}
                   >
                     <Text style={[styles.timeframeButtonText, data.selectedTimeframe === tf && styles.timeframeButtonTextActive]}>
                       {tf === 'week' ? 'This Week' : tf === 'month' ? 'This Month' : 'All Time'}

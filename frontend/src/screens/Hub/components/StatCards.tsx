@@ -32,6 +32,9 @@ export function StreakCard({ streak, onPress }: StreakCardProps) {
         styles.streakCard,
         pressed && styles.cardPressed,
       ]}
+      accessibilityRole="button"
+      accessibilityLabel={`${streak} day streak, 1.5x XP boost active`}
+      accessibilityHint="View your streak details and history"
     >
       <LinearGradient
         colors={['#f97316', '#f59e0b']}
@@ -56,6 +59,9 @@ export function LevelCard({ level, xpToNext, onPress }: LevelCardProps) {
         styles.levelCard,
         pressed && styles.cardPressed,
       ]}
+      accessibilityRole="button"
+      accessibilityLabel={`Level ${level}, ${xpToNext > 0 ? xpToNext : 0} XP to next level`}
+      accessibilityHint="View your level progression and rewards"
     >
       <LinearGradient
         colors={['#8b5cf6', '#9333ea']}

@@ -2,6 +2,11 @@ import { useState, useCallback } from 'react';
 import { Alert } from 'react-native';
 import { useAuth } from '../../../contexts/AuthContext';
 import { TEST_PASSWORD } from '../constants';
+import { 
+  validateEmail, 
+  validatePassword,
+  type ValidationError 
+} from '../../../utils/validation';
 
 export const useLoginData = () => {
   const { login, register } = useAuth();
@@ -11,16 +16,40 @@ export const useLoginData = () => {
   const [name, setName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [emailError, setEmailError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [nameError, setNameError] = useState('');
 
   const handleSubmit = useCallback(async () => {
-    if (!email.trim() || !password.trim()) {
-      Alert.alert('Error', 'Please fill in all fields');
+    // Clear previous errors
+    setEmailError('');
+    setPasswordError('');
+    setNameError('');
+
+    // Validate email
+    const emailValidation = validateEmail(email);
+    if (emailValidation) {
+      setEmailError(emailValidation.message);
       return;
     }
 
-    if (!isLogin && !name.trim()) {
-      Alert.alert('Error', 'Please enter your name');
+    // Validate password
+    const passwordValidation = validatePassword(password);
+    if (passwordValidation) {
+      setPasswordError(passwordValidation.message);
       return;
+    }
+
+    // Validate name for registration
+    if (!isLogin) {
+      if (!name || name.trim().length < 2) {
+        setNameError('Name must be at least 2 characters');
+        return;
+      }
+      if (name.trim().length > 50) {
+        setNameError('Name is too long');
+        return;
+      }
     }
 
     setIsLoading(true);
@@ -68,6 +97,9 @@ export const useLoginData = () => {
     name,
     isLoading,
     showPassword,
+    emailError,
+    passwordError,
+    nameError,
     setEmail,
     setPassword,
     setName,

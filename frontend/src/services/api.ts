@@ -242,6 +242,7 @@ export const userApi = {
   getStats: () => api.get('/users/me/stats'),
   getSettings: () => api.get('/users/me/settings'),
   updateSettings: (data: any) => api.patch('/users/me/settings', data),
+  completeOnboarding: () => api.post('/users/me/onboarding'),
 };
 
 // Tasks API
@@ -277,8 +278,13 @@ export const brainDumpApi = {
     api.post('/brain-dump', { content, autoProcess }),
   batchCreate: (items: string[]) => api.post('/brain-dump/batch', { items }),
   process: (id: string) => api.post(`/brain-dump/${id}/process`),
-  convert: (id: string, overrides?: any) =>
-    api.post(`/brain-dump/${id}/convert`, overrides || {}),
+  convertToTask: (id: string, overrides?: {
+    title?: string;
+    category?: string;
+    priority?: 'LOW' | 'NORMAL' | 'HIGH';
+    durationMin?: number;
+    date?: string;
+  }) => api.post(`/brain-dump/${id}/convert`, overrides || {}),
   delete: (id: string) => api.delete(`/brain-dump/${id}`),
   getStats: () => api.get('/brain-dump/stats'),
   

@@ -6,3 +6,5 @@ export { ToggleSwitch } from './ToggleSwitch';
 export { VoicePill } from './VoicePill';
 export { TabBar } from './TabBar';
 export { AnimatedCard } from './AnimatedCard';
+export { ErrorBoundary } from './ErrorBoundary';
+export { LoadingOverlay } from './LoadingOverlay';

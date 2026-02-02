@@ -1,41 +1,60 @@
 /**
- * HubScreen - Refactored
- * Main dashboard screen with AI briefing and task overview
+ * HubScreen - Premium Redesign
+ * Clean, modern, million-dollar app aesthetic
  * 
- * This component has been refactored from a 1,841-line file into a modular architecture:
- * - Components: BriefingModal, TaskCard, StatCards, QuickActions
- * - Hooks: useHubAnimations, useHubData, useBriefing
- * - Styles: Centralized in styles.ts
+ * Inspired by successful apps:
+ * - Things 3: Clean task organization, contextual awareness
+ * - Todoist: Smart scheduling, productivity insights  
+ * - Apple Fitness: Gamification, progress celebration
+ * - Notion: Modern aesthetic, smooth interactions
+ * - Forest: Focus encouragement, streak motivation
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
   ScrollView,
   Pressable,
   Animated,
+  Easing,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
-  Inbox,
+  Bell,
   ChevronRight,
-  Target,
-  Sparkles,
-  Star,
-  Mic,
-  ArrowUpRight,
+  Check,
   Plus,
   Play,
+  Zap,
+  Target,
+  Flame,
+  Sparkles,
+  Clock,
+  AlertCircle,
 } from 'lucide-react-native';
+
+// Import MYPAOrb
+import { MYPAOrb } from '../../components/MYPAOrb';
+
+// Import auth context
+import { useAuth } from '../../contexts/AuthContext';
+
+// Import API
+import { tasksApi } from '../../services/api';
+
+// Import onboarding
+import { OnboardingScreen } from '../Onboarding';
 
 // Import extracted components
 import {
   BriefingModal,
-  TaskCard,
-  StreakCard,
-  LevelCard,
+  BriefingBanner,
+  DaySummaryModal,
+  FloatingActionButton,
+  HubLoadingState,
   QuickActions,
 } from './components';
 
@@ -46,6 +65,9 @@ import {
   useBriefing,
 } from './hooks';
 
+// Import types
+import type { DisplayTask } from './hooks/useHubData';
+
 // Import styles
 import { styles } from './styles';
 
@@ -55,15 +77,87 @@ interface HubScreenProps {
 }
 
 export function HubScreen({ onVoiceClick, navigation }: HubScreenProps) {
-  // Use extracted hooks
+  const { user, refreshUser } = useAuth();
   const hubData = useHubData();
   const [showXpPopup, setShowXpPopup] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showSummary, setShowSummary] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  
+  // Check if user needs onboarding
+  useEffect(() => {
+    if (user && !user.isOnboarded) {
+      setShowOnboarding(true);
+    }
+  }, [user]);
+  
+  // Handle onboarding completion
+  const handleOnboardingComplete = useCallback(async () => {
+    setShowOnboarding(false);
+    await refreshUser();
+    // Refresh hub data to show new tasks
+    hubData.refreshData();
+  }, [refreshUser, hubData]);
   const [lastXpGain, setLastXpGain] = useState(0);
   
-  const animations = useHubAnimations(
-    false, // isSpeaking handled by briefing
-    showXpPopup
-  );
+  // Animated progress value
+  const progressAnim = useRef(new Animated.Value(0)).current;
+  
+  // Pulse animation for hero card
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const glowAnim = useRef(new Animated.Value(0.3)).current;
+  
+  useEffect(() => {
+    // Breathing pulse animation
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.05,
+          duration: 1500,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1500,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    
+    // Glow intensity animation
+    const glow = Animated.loop(
+      Animated.sequence([
+        Animated.timing(glowAnim, {
+          toValue: 0.6,
+          duration: 1200,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(glowAnim, {
+          toValue: 0.3,
+          duration: 1200,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    
+    pulse.start();
+    glow.start();
+    
+    return () => {
+      pulse.stop();
+      glow.stop();
+    };
+  }, []);
+  
+  const animations = useHubAnimations(false, showXpPopup);
+  
+  // Calculate real briefing data from actual tasks
+  const priorityTasks = hubData.displayTasks.filter(t => t.priority && !t.completed);
+  const completedToday = hubData.displayTasks.filter(t => t.completed);
   
   const briefing = useBriefing(
     hubData.greeting.text,
@@ -71,10 +165,14 @@ export function HubScreen({ onVoiceClick, navigation }: HubScreenProps) {
       setLastXpGain(amount);
       setShowXpPopup(true);
       await hubData.awardXp(amount);
+    },
+    {
+      tasksCount: hubData.displayTasks.filter(t => !t.completed).length,
+      priorityCount: priorityTasks.length,
+      completedCount: completedToday.length,
     }
   );
 
-  // Destructure for easier access
   const {
     greeting,
     displayTasks,
@@ -82,82 +180,148 @@ export function HubScreen({ onVoiceClick, navigation }: HubScreenProps) {
     setCompletedTasks,
     todayStats,
     awardXp,
+    nextTask,
+    overdueCount,
+    remainingMinutes,
   } = hubData;
 
-  // XP popup animation effect
   useEffect(() => {
     if (showXpPopup) {
       animations.startXpPopupAnimation(() => setShowXpPopup(false));
     }
   }, [showXpPopup]);
 
-  // Navigation helper
-  const handleNavigate = (screen: string) => {
-    if (!navigation) return;
-    const homeStackRoutes: { [key: string]: string } = {
-      inbox: 'Inbox',
-      streak: 'Streak',
-      level: 'Level',
-      sort: 'TaskSorting',
-      challenges: 'Challenges',
-      wallet: 'Wallet',
-      reset: 'Reset',
-      Analytics: 'Analytics',
-      DailyBriefing: 'DailyBriefing',
-      AIInsights: 'AIInsights',
-    };
-
-    if (homeStackRoutes[screen]) {
-      navigation.navigate(homeStackRoutes[screen]);
-    } else if (screen === 'profile') {
-      navigation.navigate('Profile', { screen: 'ProfileMain' });
-    } else if (screen === 'plan') {
-      navigation.navigate('Plan');
-    } else if (screen === 'circles') {
-      navigation.navigate('Circles', { screen: 'CirclesList' });
-    } else {
-      navigation.navigate(screen);
+  const handleNavigate = useCallback((screen: string, params?: any) => {
+    if (navigation) {
+      switch (screen) {
+        case 'plan':
+          navigation.navigate('Plan', params);
+          break;
+        case 'circles':
+          navigation.navigate('Circles');
+          break;
+        case 'profile':
+          navigation.navigate('You');
+          break;
+        case 'inbox':
+          navigation.navigate('Inbox');
+          break;
+        case 'wallet':
+          navigation.navigate('Wallet');
+          break;
+        case 'challenges':
+          navigation.navigate('Challenges');
+          break;
+        case 'analytics':
+          navigation.navigate('Analytics');
+          break;
+        case 'streak':
+          navigation.navigate('Streak');
+          break;
+        case 'level':
+          navigation.navigate('Level');
+          break;
+        case 'settings':
+          navigation.navigate('Settings');
+          break;
+        case 'aiinsights':
+          navigation.navigate('AIInsights');
+          break;
+        case 'dailybriefing':
+          navigation.navigate('DailyBriefing');
+          break;
+        case 'reset':
+          navigation.navigate('Reset');
+          break;
+        default:
+          break;
+      }
     }
-  };
+  }, [navigation]);
 
-  // Handle task completion toggle
-  const handleToggleTask = async (taskId: string | number) => {
-    const numericId = typeof taskId === 'string' ? parseInt(taskId, 10) : taskId;
-    const isCompleted = completedTasks.includes(numericId);
+  const handleTaskToggle = useCallback(async (taskId: string | number) => {
+    // Always convert to string for consistency
+    const stringId = String(taskId);
     
-    if (isCompleted) {
-      setCompletedTasks(prev => prev.filter(id => id !== numericId));
-    } else {
-      setCompletedTasks(prev => [...prev, numericId]);
-      setLastXpGain(5);
-      setShowXpPopup(true);
-      await awardXp(5);
+    console.log('🔘 Task toggle called for ID:', taskId, '-> string:', stringId);
+    console.log('🔘 Current completedTasks:', completedTasks);
+    
+    // Check if already completed
+    if (completedTasks.includes(stringId)) {
+      console.log('🔘 Task already completed, skipping');
+      return;
     }
-  };
+    
+    // Update local state immediately for responsive UI
+    setCompletedTasks(prev => [...prev, stringId]);
+    setLastXpGain(5);
+    setShowXpPopup(true);
+    awardXp(5);
+    
+    // Persist to server
+    try {
+      await tasksApi.complete(stringId);
+      console.log('✅ Task completion saved to server:', stringId);
+    } catch (error) {
+      console.error('❌ Failed to save task completion:', error);
+      // Revert local state on error
+      setCompletedTasks(prev => prev.filter(id => id !== stringId));
+    }
+  }, [completedTasks, awardXp]);
 
-  // Calculate completed count
   const completedCount = displayTasks.filter(
-    (t) => t.completed || completedTasks.includes(typeof t.id === 'string' ? parseInt(t.id, 10) : t.id as number)
+    (t) => t.completed || completedTasks.includes(String(t.id))
   ).length;
+  
   const progressPercent = displayTasks.length > 0 
     ? Math.round((completedCount / displayTasks.length) * 100) 
     : 0;
 
+  // Animate progress bar when task completion changes
+  useEffect(() => {
+    const target = displayTasks.length > 0 
+      ? completedCount / displayTasks.length 
+      : 0;
+    Animated.spring(progressAnim, {
+      toValue: target,
+      tension: 40,
+      friction: 8,
+      useNativeDriver: false,
+    }).start();
+  }, [displayTasks.length, completedCount, progressAnim]);
+
+  const getCategoryColor = (category: string) => {
+    switch (category?.toLowerCase()) {
+      case 'work': return '#3b82f6';
+      case 'health': return '#10b981';
+      case 'fitness': return '#f59e0b';
+      case 'personal': return '#8b5cf6';
+      case 'errands': return '#ec4899';
+      case 'learning': return '#06b6d4';
+      default: return '#8b5cf6';
+    }
+  };
+
+  // Pull-to-refresh handler
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await hubData.refreshData();
+    setRefreshing(false);
+  }, [hubData]);
+
+  // Show onboarding for new users
+  if (showOnboarding) {
+    return (
+      <OnboardingScreen 
+        onComplete={handleOnboardingComplete}
+        navigation={navigation}
+      />
+    );
+  }
+
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={['#f8fafc', '#ffffff', '#f8fafc']}
-        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
-      />
-
-      {/* Ambient Background Elements */}
-      <View style={styles.ambientContainer} pointerEvents="none">
-        <View style={[styles.ambientBlob, styles.ambientBlob1]} />
-        <View style={[styles.ambientBlob, styles.ambientBlob2]} />
-        <View style={[styles.ambientBlob, styles.ambientBlob3]} />
-      </View>
-
-      {/* XP Popup */}
+      {/* XP Popup Animation */}
       {showXpPopup && (
         <Animated.View
           style={[
@@ -168,7 +332,7 @@ export function HubScreen({ onVoiceClick, navigation }: HubScreenProps) {
                 {
                   translateY: animations.xpPopupAnim.interpolate({
                     inputRange: [0, 1],
-                    outputRange: [0, -40],
+                    outputRange: [20, 0],
                   }),
                 },
               ],
@@ -176,239 +340,427 @@ export function HubScreen({ onVoiceClick, navigation }: HubScreenProps) {
           ]}
         >
           <LinearGradient
-            colors={['#8b5cf6', '#9333ea']}
+            colors={['#7c3aed', '#a855f7']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={styles.xpPopupGradient}
           >
-            <Star color="#fff" size={16} />
+            <Zap color="#fff" size={16} fill="#fff" />
             <Text style={styles.xpPopupText}>+{lastXpGain} XP</Text>
           </LinearGradient>
         </Animated.View>
       )}
 
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Header */}
-          <View style={styles.header}>
-            <View>
-              <Text style={styles.greetingText}>{greeting.text}</Text>
-              <Text style={styles.userName}>{todayStats.userName}</Text>
-            </View>
-            <View style={styles.headerButtons}>
-              <Pressable
-                onPress={() => handleNavigate('inbox')}
-                style={({ pressed }) => [
-                  styles.headerButton,
-                  pressed && styles.buttonPressed,
-                ]}
-              >
-                <Inbox color="#475569" size={16} />
-                <View style={styles.notificationBadge}>
-                  <Text style={styles.notificationText}>3</Text>
+        {hubData.isLoading && displayTasks.length === 0 ? (
+          <HubLoadingState />
+        ) : (
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl 
+                refreshing={refreshing} 
+                onRefresh={onRefresh}
+                tintColor="#7c3aed"
+              />
+            }
+          >
+            {/* ============ HEADER ============ */}
+            <View style={styles.header}>
+              <View style={styles.headerTop}>
+                <View style={styles.headerLeft}>
+                  <View style={styles.greetingRow}>
+                    <Text style={styles.greeting}>{greeting.text}</Text>
+                    {(todayStats.level || 1) > 0 && (
+                      <View style={styles.levelBadge}>
+                        <Zap color="#7c3aed" size={10} />
+                        <Text style={styles.levelText}>Lv {todayStats.level || 1}</Text>
+                      </View>
+                    )}
+                  </View>
+                  <View style={styles.nameRow}>
+                    <Text style={styles.userName}>{todayStats.userName}</Text>
+                    {(todayStats.streak || 0) > 0 && (
+                      <View style={styles.streakBadge}>
+                        <Flame color="#f59e0b" size={14} />
+                        <Text style={styles.streakText}>{todayStats.streak}</Text>
+                      </View>
+                    )}
+                  </View>
                 </View>
+                <View style={styles.headerRight}>
+                  <Pressable 
+                    style={({ pressed }) => [styles.iconButton, pressed && styles.buttonPressed]}
+                    onPress={() => handleNavigate('inbox')}
+                  >
+                    <Bell color="#64748b" size={20} />
+                    <View style={styles.notificationDot} />
+                  </Pressable>
+                  <Pressable 
+                    style={({ pressed }) => [pressed && styles.buttonPressed]}
+                    onPress={() => handleNavigate('profile')}
+                  >
+                    <LinearGradient
+                      colors={['#7c3aed', '#a855f7']}
+                      style={styles.avatar}
+                    >
+                      <Text style={styles.avatarText}>
+                        {todayStats.userName?.[0]?.toUpperCase() || 'U'}
+                      </Text>
+                    </LinearGradient>
+                  </Pressable>
+                </View>
+              </View>
+            </View>
+
+            {/* ============ STATS ROW ============ */}
+            <View style={styles.statsRow}>
+              <Pressable 
+                style={({ pressed }) => [styles.statCard, { backgroundColor: '#faf5ff' }, pressed && styles.buttonPressed]}
+                onPress={() => handleNavigate('level')}
+              >
+                <Zap color="#7c3aed" size={16} fill="#7c3aed" />
+                <Text style={[styles.statValue, { color: '#7c3aed' }]}>{todayStats.xp || 0}</Text>
+                <Text style={styles.statLabel}>XP</Text>
               </Pressable>
+              <Pressable 
+                style={({ pressed }) => [styles.statCard, { backgroundColor: '#f0fdf4' }, pressed && styles.buttonPressed]}
+                onPress={() => handleNavigate('plan')}
+              >
+                <Target color="#10b981" size={16} />
+                <Text style={[styles.statValue, { color: '#10b981' }]}>{completedCount}/{displayTasks.length}</Text>
+                <Text style={styles.statLabel}>Tasks</Text>
+              </Pressable>
+              <Pressable 
+                style={({ pressed }) => [styles.statCard, { backgroundColor: '#fffbeb' }, pressed && styles.buttonPressed]}
+                onPress={() => handleNavigate('streak')}
+              >
+                <Flame color="#f59e0b" size={16} fill="#f59e0b" />
+                <Text style={[styles.statValue, { color: '#f59e0b' }]}>{todayStats.streak || 0}</Text>
+                <Text style={styles.statLabel}>Streak</Text>
+              </Pressable>
+            </View>
+
+            <View style={styles.content}>
+              {/* ============ AI HERO CARD - Contextually Aware ============ */}
               <Pressable
-                onPress={() => handleNavigate('profile')}
-                style={({ pressed }) => [pressed && styles.buttonPressed]}
+                onPress={() => {
+                  // If all tasks are complete, show summary; otherwise show briefing
+                  if (completedCount === displayTasks.length && displayTasks.length > 0) {
+                    setShowSummary(true);
+                  } else {
+                    briefing.startBriefing();
+                  }
+                }}
+                style={({ pressed }) => [styles.heroCard, pressed && styles.cardPressed]}
               >
                 <LinearGradient
-                  colors={['#8b5cf6', '#9333ea']}
-                  style={styles.profileButton}
+                  colors={overdueCount > 0 
+                    ? ['#dc2626', '#f97316', '#fbbf24'] // Urgent red-orange
+                    : completedCount === displayTasks.length && displayTasks.length > 0
+                    ? ['#10b981', '#14b8a6', '#06b6d4'] // Success green-teal
+                    : ['#7c3aed', '#a855f7', '#ec4899'] // Default purple-pink
+                  }
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.heroGradient}
                 >
-                  <Text style={styles.profileInitial}>{todayStats.userName[0]}</Text>
+                  <View style={styles.heroContent}>
+                    <Animated.View style={[
+                      styles.heroIconWrap,
+                      {
+                        transform: [{ scale: pulseAnim }],
+                        opacity: glowAnim.interpolate({
+                          inputRange: [0.3, 0.6],
+                          outputRange: [0.9, 1],
+                        }),
+                      }
+                    ]}>
+                      <MYPAOrb size="sm" showGlow />
+                    </Animated.View>
+                    <Text style={styles.heroTitle}>
+                      {completedCount === displayTasks.length && displayTasks.length > 0
+                        ? "All Tasks Complete! 🎉"
+                        : overdueCount > 0
+                        ? `${overdueCount} Task${overdueCount > 1 ? 's' : ''} Overdue`
+                        : "Your Daily Mission"
+                      }
+                    </Text>
+                    <Text style={styles.heroSubtitle}>
+                      {completedCount === displayTasks.length && displayTasks.length > 0
+                        ? `Amazing work! You earned ${todayStats.xp} XP today`
+                        : remainingMinutes > 0
+                        ? `${displayTasks.length - completedCount} tasks • ~${Math.round(remainingMinutes / 60)}h ${remainingMinutes % 60}m left`
+                        : `${displayTasks.length} tasks planned • ${todayStats.xp || 0} XP to earn`
+                      }
+                    </Text>
+                    <View style={styles.heroCta}>
+                      <Text style={styles.heroCtaText}>
+                        {completedCount === displayTasks.length && displayTasks.length > 0
+                          ? "View Summary"
+                          : "Start Briefing"
+                        }
+                      </Text>
+                      <Play color="#7c3aed" size={16} fill="#7c3aed" />
+                    </View>
+                  </View>
                 </LinearGradient>
               </Pressable>
-            </View>
-          </View>
 
-          <View style={styles.content}>
-            {/* MYPA AI Briefing Card */}
-            <Pressable
-              onPress={briefing.startBriefing}
-              style={({ pressed }) => [pressed && styles.cardPressed]}
-            >
-              <LinearGradient
-                colors={['#1e1b4b', '#312e81', '#1e1b4b']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.briefingCard}
-              >
-                <View style={styles.briefingOverlay} />
-                <View style={styles.briefingContent}>
-                  {/* Orb */}
-                  <Animated.View style={[styles.orbContainer, { transform: [{ scale: animations.pulseAnim }] }]}>
-                    <View style={styles.orbRipple} />
-                    <LinearGradient
-                      colors={['#a78bfa', '#8b5cf6', '#6366f1']}
-                      style={styles.orb}
-                    >
-                      <Sparkles color="#fff" size={20} />
-                    </LinearGradient>
-                  </Animated.View>
+              {/* ============ QUICK ACTIONS ============ */}
+              <QuickActions onNavigate={handleNavigate} />
 
-                  {/* Content */}
-                  <View style={styles.briefingTextContainer}>
-                    <View style={styles.briefingTitleRow}>
-                      <Text style={styles.briefingTitle}>MYPA</Text>
-                      <View style={styles.aiBadge}>
-                        <Text style={styles.aiBadgeText}>AI</Text>
-                      </View>
-                    </View>
-                    <Text style={styles.briefingSubtitle}>Tap for your daily briefing</Text>
-                  </View>
-
-                  {/* Play Button */}
-                  <View style={styles.playButton}>
-                    <Play color="#7c3aed" size={16} style={{ marginLeft: 2 }} />
-                  </View>
-                </View>
-              </LinearGradient>
-            </Pressable>
-
-            {/* Streak & Level Row */}
-            <View style={styles.statsRow}>
-              <StreakCard
-                streak={todayStats.streak}
-                onPress={() => handleNavigate('streak')}
-              />
-              <LevelCard
-                level={todayStats.level}
-                xpToNext={todayStats.xpToNext}
-                onPress={() => handleNavigate('level')}
-              />
-            </View>
-
-            {/* Today's Focus Section */}
-            <View style={styles.section}>
+              {/* ============ TODAY'S TASKS ============ */}
               <View style={styles.sectionHeader}>
                 <View style={styles.sectionTitleRow}>
-                  <View style={styles.sectionIconContainer}>
-                    <Target color="#fff" size={16} />
-                  </View>
                   <View>
                     <Text style={styles.sectionTitle}>Today's Focus</Text>
-                    <Text style={styles.sectionSubtitle}>{completedCount}/{displayTasks.length} completed</Text>
+                    <Text style={styles.sectionSubtitle}>
+                      {overdueCount > 0 
+                        ? `⚠️ ${overdueCount} overdue - let's catch up!`
+                        : completedCount === 0 && displayTasks.length > 0 
+                        ? greeting.motivationalMessage || "Ready to start your day?"
+                        : completedCount === displayTasks.length && displayTasks.length > 0
+                        ? "🎉 All done for today!"
+                        : `${completedCount} of ${displayTasks.length} completed`
+                      }
+                    </Text>
                   </View>
                 </View>
                 <Pressable
                   onPress={() => handleNavigate('plan')}
-                  style={({ pressed }) => [
-                    styles.seeAllButton,
-                    pressed && styles.buttonPressed,
-                  ]}
+                  style={({ pressed }) => [styles.seeAllButton, pressed && styles.buttonPressed]}
                 >
-                  <Text style={styles.seeAllText}>Full Plan</Text>
+                  <Text style={styles.seeAllText}>See all</Text>
                   <ChevronRight color="#7c3aed" size={16} />
                 </Pressable>
               </View>
 
-              {/* Progress Bar */}
-              <View style={styles.progressContainer}>
-                <View style={styles.progressBar}>
-                  <View
-                    style={[
-                      styles.progressFill,
-                      { width: `${progressPercent}%` },
-                    ]}
-                  />
+              {/* Animated Progress Bar with Time Estimate */}
+              {displayTasks.length > 0 && (
+                <View style={styles.progressBarContainer}>
+                  <View style={styles.progressBarTrack}>
+                    <Animated.View 
+                      style={[
+                        styles.progressBarFill,
+                        overdueCount > 0 && styles.progressBarFillOverdue,
+                        completedCount === displayTasks.length && styles.progressBarFillComplete,
+                        { 
+                          width: progressAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: ['0%', '100%'],
+                          })
+                        }
+                      ]} 
+                    />
+                  </View>
+                  <View style={styles.progressStats}>
+                    <Text style={[
+                      styles.progressBarText,
+                      overdueCount > 0 && styles.progressTextOverdue,
+                      completedCount === displayTasks.length && styles.progressTextComplete,
+                    ]}>
+                      {progressPercent}%
+                    </Text>
+                    {remainingMinutes > 0 && completedCount < displayTasks.length && (
+                      <Text style={styles.timeEstimate}>
+                        ~{remainingMinutes >= 60 
+                          ? `${Math.floor(remainingMinutes / 60)}h ${remainingMinutes % 60}m` 
+                          : `${remainingMinutes}m`
+                        }
+                      </Text>
+                    )}
+                  </View>
                 </View>
-                <Text style={styles.progressText}>{progressPercent}%</Text>
-              </View>
+              )}
 
               {/* Task List */}
-              <View style={styles.taskList}>
-                {displayTasks.length > 0 ? displayTasks.map((task, index) => {
-                  const numericId = typeof task.id === 'string' ? parseInt(task.id, 10) : task.id as number;
-                  const isCompleted = task.completed || completedTasks.includes(numericId);
-                  const isNextUp = !isCompleted && !displayTasks.slice(0, index).some((t) => {
-                    const tId = typeof t.id === 'string' ? parseInt(t.id, 10) : t.id as number;
-                    return !(t.completed || completedTasks.includes(tId));
-                  });
+              {displayTasks.length > 0 ? (
+                <View style={styles.taskList}>
+                  {displayTasks.slice(0, 4).map((task, index) => {
+                    const isCompleted = task.completed || completedTasks.includes(String(task.id));
+                    const isNextUp = task.isNextUp && !isCompleted;
+                    const categoryColor = getCategoryColor(task.category || 'personal');
+                    // Create a unique key using both id and index to avoid duplicates
+                    const uniqueKey = `task-${task.id}-${index}`;
+                    // Tasks with duration > 5 mins require focus session
+                    const requiresFocusSession = task.durationMin > 5;
 
-                  return (
-                    <TaskCard
-                      key={task.id}
-                      task={task}
-                      isCompleted={isCompleted}
-                      isNextUp={isNextUp}
-                      onPress={() => !isCompleted && handleNavigate('plan')}
-                      onToggleComplete={() => handleToggleTask(task.id)}
-                    />
-                  );
-                }) : (
-                  <View style={styles.emptyTasks}>
-                    <Text style={styles.emptyTasksText}>No tasks yet. Add your first task!</Text>
+                    return (
+                      <Pressable
+                        key={uniqueKey}
+                        onPress={() => handleNavigate('plan', { taskId: task.id })}
+                        style={({ pressed }) => [
+                          styles.taskCard,
+                          isNextUp && styles.taskCardActive,
+                          isCompleted && styles.taskCardCompleted,
+                          task.isOverdue && !isCompleted && styles.taskCardOverdue,
+                          task.isUrgent && !isCompleted && styles.taskCardUrgent,
+                          pressed && styles.cardPressed,
+                        ]}
+                      >
+                        {/* Category accent bar */}
+                        <View style={[
+                          styles.taskAccent, 
+                          { backgroundColor: isCompleted 
+                            ? '#cbd5e1' 
+                            : task.isOverdue 
+                            ? '#ef4444'
+                            : task.isUrgent 
+                            ? '#f59e0b'
+                            : categoryColor 
+                          }
+                        ]} />
+                        
+                        <View style={styles.taskRow}>
+                          <Pressable
+                            onPress={() => {
+                              if (isCompleted) return;
+                              if (requiresFocusSession) {
+                                // Navigate to Plan to start focus session
+                                handleNavigate('plan', { taskId: task.id });
+                              } else {
+                                // Quick task - can be completed directly
+                                handleTaskToggle(task.id);
+                              }
+                            }}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            style={[
+                              styles.taskCheckbox,
+                              isNextUp && styles.taskCheckboxActive,
+                              isCompleted && styles.taskCheckboxCompleted,
+                              requiresFocusSession && !isCompleted && styles.taskCheckboxFocus,
+                            ]}
+                          >
+                            {isCompleted ? (
+                              <Check color="#fff" size={14} strokeWidth={3} />
+                            ) : requiresFocusSession ? (
+                              <Play color="#7c3aed" size={12} fill="#7c3aed" />
+                            ) : null}
+                          </Pressable>
+                          <View style={styles.taskContent}>
+                            <View style={styles.taskTitleRow}>
+                              <Text style={[
+                                styles.taskTitle,
+                                isCompleted && styles.taskTitleCompleted,
+                              ]} numberOfLines={1}>
+                                {task.title}
+                              </Text>
+                              {task.isOverdue && !isCompleted && (
+                                <View style={styles.overdueIndicator}>
+                                  <AlertCircle color="#ef4444" size={14} />
+                                </View>
+                              )}
+                              {task.priority && !isCompleted && !task.isOverdue && (
+                                <View style={styles.priorityIndicator}>
+                                  <Text style={styles.priorityText}>!</Text>
+                                </View>
+                              )}
+                            </View>
+                            <View style={styles.taskMeta}>
+                              {task.time ? (
+                                <>
+                                  <Clock color={task.isOverdue ? '#ef4444' : task.isUrgent ? '#f59e0b' : '#64748b'} size={12} />
+                                  <Text style={[
+                                    styles.taskTime,
+                                    task.isOverdue && styles.taskTimeOverdue,
+                                    task.isUrgent && styles.taskTimeUrgent,
+                                  ]}>
+                                    {task.time}
+                                  </Text>
+                                  {task.timeUntil && !isCompleted && (
+                                    <Text style={[
+                                      styles.taskTimeUntil,
+                                      task.isOverdue && styles.taskTimeOverdue,
+                                      task.isUrgent && styles.taskTimeUrgent,
+                                    ]}>
+                                      ({task.timeUntil})
+                                    </Text>
+                                  )}
+                                  <View style={styles.taskDot} />
+                                </>
+                              ) : null}
+                              <Text style={styles.taskDuration}>
+                                {task.duration}
+                              </Text>
+                              <View style={styles.taskDot} />
+                              <Text style={[styles.taskCategory, { color: categoryColor }]}>
+                                {task.category}
+                              </Text>
+                            </View>
+                          </View>
+                          {isNextUp && !isCompleted && (
+                            <LinearGradient
+                              colors={task.isOverdue ? ['#ef4444', '#f97316'] : ['#7c3aed', '#a855f7']}
+                              style={styles.taskAction}
+                            >
+                              <Play color="#fff" size={16} fill="#fff" />
+                            </LinearGradient>
+                          )}
+                          {!isNextUp && !isCompleted && (
+                            <View style={styles.taskAction}>
+                              <ChevronRight color="#94a3b8" size={18} />
+                            </View>
+                          )}
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              ) : (
+                <View style={styles.emptyState}>
+                  <View style={styles.emptyStateIcon}>
+                    <Sparkles color="#cbd5e1" size={32} />
                   </View>
-                )}
-              </View>
+                  <Text style={styles.emptyStateTitle}>Your day is wide open!</Text>
+                  <Text style={styles.emptyStateSubtitle}>What do you want to accomplish today?</Text>
+                  <Pressable 
+                    style={({ pressed }) => [styles.emptyStateCta, pressed && styles.buttonPressed]}
+                    onPress={() => handleNavigate('plan')}
+                  >
+                    <Plus color="#7c3aed" size={18} />
+                    <Text style={styles.emptyStateCtaText}>Add your first task</Text>
+                  </Pressable>
+                </View>
+              )}
 
-              {/* Quick Add Button */}
+              {/* Add Task Button */}
               <Pressable
                 onPress={() => handleNavigate('plan')}
-                style={({ pressed }) => [
-                  styles.addTaskButton,
-                  pressed && styles.cardPressed,
-                ]}
+                style={({ pressed }) => [styles.addTaskButton, pressed && styles.buttonPressed]}
               >
-                <View style={styles.addTaskIcon}>
-                  <Plus color="#64748b" size={14} />
-                </View>
+                <Plus color="#64748b" size={18} />
                 <Text style={styles.addTaskText}>Add task</Text>
               </Pressable>
-            </View>
 
-            {/* Quick Actions */}
-            <QuickActions onNavigate={handleNavigate} />
-
-            {/* Ask MYPA CTA */}
-            <Pressable
-              onPress={() => onVoiceClick?.()}
-              style={({ pressed }) => [pressed && styles.cardPressed]}
-            >
-              <LinearGradient
-                colors={['#7c3aed', '#9333ea', '#6366f1']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.askMypaCard}
+              {/* ============ SOCIAL TEASER - Compact ============ */}
+              <Pressable
+                onPress={() => handleNavigate('circles')}
+                style={({ pressed }) => [styles.socialTeaser, pressed && styles.cardPressed]}
               >
-                <Animated.View
-                  style={[
-                    styles.shimmerOverlay,
-                    { transform: [{ translateX: animations.shimmerTranslate }] },
-                  ]}
-                />
-                <View style={styles.askMypaContent}>
-                  <View style={styles.askMypaIcon}>
-                    <Mic color="#fff" size={20} />
+                <View style={styles.socialTeaserLeft}>
+                  <View style={styles.socialAvatarsCompact}>
+                    {['A', 'J', 'M'].map((initial, idx) => (
+                      <View key={idx} style={[styles.socialAvatarSmall, idx > 0 && styles.socialAvatarOverlap]}>
+                        <Text style={styles.socialAvatarSmallText}>{initial}</Text>
+                      </View>
+                    ))}
                   </View>
-                  <View style={styles.askMypaTextContainer}>
-                    <Text style={styles.askMypaTitle}>Ask MYPA Anything</Text>
-                    <Text style={styles.askMypaSubtitle}>"What should I focus on next?"</Text>
-                  </View>
-                  <ArrowUpRight color="rgba(255,255,255,0.7)" size={20} />
+                  <Text style={styles.socialTeaserText}>
+                    <Text style={styles.socialTeaserBold}>3 friends</Text> completed tasks today
+                  </Text>
                 </View>
-              </LinearGradient>
-            </Pressable>
+                <ChevronRight color="#94a3b8" size={18} />
+              </Pressable>
+            </View>
+          </ScrollView>
+        )}
 
-            {/* Reset Day Link */}
-            <Pressable
-              onPress={() => handleNavigate('reset')}
-              style={styles.resetButton}
-            >
-              <Text style={styles.resetText}>
-                Overwhelmed? <Text style={styles.resetLink}>Reset your day</Text>
-              </Text>
-            </Pressable>
-          </View>
-        </ScrollView>
+        {onVoiceClick && <FloatingActionButton onPress={onVoiceClick} />}
       </SafeAreaView>
 
-      {/* AI Briefing Modal */}
       <BriefingModal
         visible={briefing.showBriefing}
         briefingStep={briefing.briefingStep}
@@ -418,6 +770,27 @@ export function HubScreen({ onVoiceClick, navigation }: HubScreenProps) {
         waveAnims={animations.waveAnims}
         onClose={briefing.closeBriefing}
         onSkip={briefing.skipToEnd}
+      />
+
+      <DaySummaryModal
+        visible={showSummary}
+        onClose={() => setShowSummary(false)}
+        stats={{
+          tasksCompleted: completedCount,
+          totalTasks: displayTasks.length,
+          xpEarned: todayStats.xp || 0,
+          focusMinutes: user?.focusMinutes || 0,
+          streak: user?.currentStreak || 0,
+          level: user?.level || 1,
+        }}
+        completedTasks={displayTasks
+          .filter(t => t.completed || completedTasks.includes(String(t.id)))
+          .map(t => ({
+            id: t.id,
+            title: t.title,
+            category: t.category,
+            xp: 5,
+          }))}
       />
     </View>
   );

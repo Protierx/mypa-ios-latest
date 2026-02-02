@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { MYPAOrb } from './MYPAOrb';
 
 interface TabBarProps {
@@ -35,22 +36,37 @@ export function TabBar({
         key={tab.id}
         onPress={() => onTabChange?.(tab.id)}
         style={styles.tabButton}
-        activeOpacity={0.7}
+        activeOpacity={0.8}
       >
-        <View style={[styles.tabIconContainer, isActive && { backgroundColor: tab.color }]}>
-          <Ionicons
-            name={(isActive ? tab.icon : tab.iconOutline) as any}
-            size={22}
-            color={isActive ? '#FFFFFF' : '#64748B'}
-          />
-          {badgeCount && badgeCount > 0 && !isActive && (
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>
-                {badgeCount > 9 ? '9+' : badgeCount}
-              </Text>
-            </View>
-          )}
-        </View>
+        {isActive ? (
+          <LinearGradient
+            colors={[tab.color, tab.color]}
+            style={[styles.tabIconContainer, styles.tabIconContainerActive]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <Ionicons
+              name={tab.icon as any}
+              size={22}
+              color="#FFFFFF"
+            />
+          </LinearGradient>
+        ) : (
+          <View style={styles.tabIconContainer}>
+            <Ionicons
+              name={tab.iconOutline as any}
+              size={22}
+              color="#94A3B8"
+            />
+            {badgeCount && badgeCount > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>
+                  {badgeCount > 9 ? '9+' : badgeCount}
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
         <Text style={[styles.tabLabel, isActive && styles.tabLabelActive]}>
           {tab.label}
         </Text>
@@ -92,83 +108,91 @@ const styles = StyleSheet.create({
     right: 12,
     bottom: 12,
     height: 70,
-    borderRadius: 24,
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    shadowColor: 'rgba(181, 140, 255, 0.15)',
+    borderRadius: 28,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 1,
-    shadowRadius: 30,
-    elevation: 10,
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.6)',
+    borderColor: '#F1F5F9',
   },
   content: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     justifyContent: 'space-evenly',
-    paddingHorizontal: 24,
-    paddingBottom: 16,
+    paddingHorizontal: 16,
+    paddingBottom: 14,
     paddingTop: 8,
     height: 76,
   },
   tabButton: {
     alignItems: 'center',
-    gap: 2,
-    width: 60,
+    gap: 4,
+    width: 56,
   },
   tabIconContainer: {
     position: 'relative',
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#F8FAFC',
+  },
+  tabIconContainerActive: {
+    backgroundColor: undefined,
   },
   badge: {
     position: 'absolute',
-    top: -4,
-    right: -4,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
+    top: -6,
+    right: -6,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
     backgroundColor: '#EF4444',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
   },
   badgeText: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '700',
     color: '#FFFFFF',
   },
   tabLabel: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '600',
-    color: '#64748B',
+    color: '#94A3B8',
   },
   tabLabelActive: {
-    color: '#0F172A',
+    color: '#1E293B',
+    fontWeight: '700',
   },
   voiceButton: {
     alignItems: 'center',
-    marginTop: -24,
+    marginTop: -28,
+    gap: 4,
   },
   voiceGlow: {
     position: 'absolute',
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: 'rgba(139, 92, 246, 0.2)',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(139, 92, 246, 0.15)',
   },
   voiceOrbContainer: {
-    width: 52,
-    height: 52,
+    width: 56,
+    height: 56,
     alignItems: 'center',
     justifyContent: 'center',
+    borderRadius: 16,
   },
   voiceLabel: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#8B5CF6',
-    marginTop: 4,
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#7C3AED',
   },
 });

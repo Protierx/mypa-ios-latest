@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   SafeAreaView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -197,10 +198,17 @@ export function PlanScreen({ navigation, route }: PlanScreenProps) {
           showCalendar={showCalendar}
           onToggleCalendar={() => setShowCalendar(!showCalendar)}
           onAddTask={() => setIsAdding(true)}
+          onReset={() => navigator.navigate('Reset')}
         />
 
         {/* Date Pill */}
-        <TouchableOpacity style={styles.datePill} onPress={() => setShowCalendar(true)}>
+        <TouchableOpacity 
+          style={styles.datePill} 
+          onPress={() => setShowCalendar(true)}
+          accessibilityRole="button"
+          accessibilityLabel={`Select date: ${selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}`}
+          accessibilityHint="Opens calendar to choose a different date"
+        >
           <Text style={styles.datePillText}>
             {selectedDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
           </Text>
@@ -220,7 +228,12 @@ export function PlanScreen({ navigation, route }: PlanScreenProps) {
               }}
             />
             {Platform.OS === 'ios' && (
-              <TouchableOpacity style={styles.calendarCloseBtn} onPress={() => setShowCalendar(false)}>
+              <TouchableOpacity 
+                style={styles.calendarCloseBtn} 
+                onPress={() => setShowCalendar(false)}
+                accessibilityRole="button"
+                accessibilityLabel="Close calendar"
+              >
                 <Text style={styles.calendarCloseText}>Done</Text>
               </TouchableOpacity>
             )}
@@ -262,24 +275,20 @@ export function PlanScreen({ navigation, route }: PlanScreenProps) {
           />
         )}
 
-        {/* Swipe Hint */}
-        {todayTasks.length > 0 && (
-          <Text style={styles.swipeHint}>Swipe tasks: → complete • ← delete</Text>
-        )}
-
         {/* Added Banner */}
         {showAddedBanner && <AddedBanner taskTitle={showAddedBanner} />}
 
         {/* Task List */}
         <View style={styles.taskList}>
           {todayTasks.map(task => (
-            <View key={task.id} style={[styles.taskListItem, highlightedTaskTitle === task.title && styles.highlightedTask]}>
+            <View key={`${task.isFromCalendar ? 'cal' : 'task'}-${task.id}`} style={[styles.taskListItem, highlightedTaskTitle === task.title && styles.highlightedTask]}>
               <SwipeableTask
                 task={task}
-                onComplete={() => handleComplete(task.id)}
-                onDelete={() => handleDelete(task.id)}
-                onEdit={() => openEditModal(task)}
+                onComplete={() => !task.isFromCalendar && handleComplete(task.id)}
+                onDelete={() => !task.isFromCalendar && handleDelete(task.id)}
+                onEdit={() => !task.isFromCalendar && openEditModal(task)}
                 onFocus={() => {
+                  if (task.isFromCalendar) return; // Calendar events can't be focused
                   if (activeTimerId === task.id) {
                     pauseTimer();
                   } else {
@@ -287,17 +296,17 @@ export function PlanScreen({ navigation, route }: PlanScreenProps) {
                     startTimer(task.id);
                   }
                 }}
-                onMoveTomorrow={() => handleMoveToTomorrow(task.id)}
+                onMoveTomorrow={() => !task.isFromCalendar && handleMoveToTomorrow(task.id)}
                 isActive={activeTimerId === task.id}
-                isQuick={isQuickTask(task)}
+                isQuick={task.isFromCalendar ? true : isQuickTask(task)}
                 isHighlighted={highlightedTaskId === String(task.id)}
               />
             </View>
           ))}
         </View>
 
-        {/* Empty State */}
-        {todayTasks.length === 0 && (
+        {/* Empty State - only show if no MYPA tasks (calendar events don't count) */}
+        {todayTasks.filter(t => !t.isFromCalendar).length === 0 && (
           <EmptyState
             onAddTask={() => setIsAdding(true)}
             onNavigateSort={() => handleNavigate('sort')}
@@ -361,6 +370,14 @@ export function PlanScreen({ navigation, route }: PlanScreenProps) {
         session={showSessionSummary}
         onClose={() => setShowSessionSummary(null)}
       />
+
+      {/* Loading Overlay */}
+      {isLoading && (
+        <View style={styles.loadingOverlay}>
+          <View style={styles.loadingBackdrop} />
+          <ActivityIndicator size="large" color="#8b5cf6" />
+        </View>
+      )}
     </SafeAreaView>
   );
 }

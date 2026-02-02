@@ -6,7 +6,7 @@ import { styles } from '../styles';
 interface MessagesListProps {
   messages: Message[];
   currentTranscript: string;
-  scrollViewRef: React.RefObject<ScrollView>;
+  scrollViewRef: React.RefObject<ScrollView | null>;
 }
 
 export function MessagesList({ messages, currentTranscript, scrollViewRef }: MessagesListProps) {

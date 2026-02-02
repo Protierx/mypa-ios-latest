@@ -18,6 +18,9 @@ export function LoginScreen() {
     name,
     isLoading,
     showPassword,
+    emailError,
+    passwordError,
+    nameError,
     setEmail,
     setPassword,
     setName,
@@ -49,6 +52,9 @@ export function LoginScreen() {
             name={name}
             isLoading={isLoading}
             showPassword={showPassword}
+            emailError={emailError}
+            passwordError={passwordError}
+            nameError={nameError}
             onEmailChange={setEmail}
             onPasswordChange={setPassword}
             onNameChange={setName}

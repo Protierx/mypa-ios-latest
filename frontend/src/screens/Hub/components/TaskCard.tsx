@@ -9,6 +9,7 @@ import {
   Pressable,
   StyleSheet,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Clock, Check, Play, ChevronRight, Briefcase, Heart, Home, Dumbbell, FileText } from 'lucide-react-native';
 
 interface TaskCardProps {
@@ -28,13 +29,47 @@ interface TaskCardProps {
 }
 
 const getCategoryStyle = (category: string) => {
-  switch (category) {
-    case 'Work':
-      return { bg: '#3b82f6', light: '#eff6ff', text: '#2563eb', border: '#bfdbfe' };
-    case 'Health':
-      return { bg: '#10b981', light: '#ecfdf5', text: '#059669', border: '#a7f3d0' };
+  switch (category?.toLowerCase()) {
+    case 'work':
+      return { 
+        bg: '#3b82f6', 
+        gradient: ['#3b82f6', '#2563eb'] as const,
+        light: '#eff6ff', 
+        text: '#1e40af',
+        darkText: '#1e3a8a',
+        border: '#bfdbfe',
+        lightGradient: ['#eff6ff', '#dbeafe'] as const,
+      };
+    case 'health':
+      return { 
+        bg: '#10b981', 
+        gradient: ['#10b981', '#059669'] as const,
+        light: '#ecfdf5', 
+        text: '#065f46',
+        darkText: '#064e3b',
+        border: '#a7f3d0',
+        lightGradient: ['#ecfdf5', '#d1fae5'] as const,
+      };
+    case 'fitness':
+      return { 
+        bg: '#f59e0b', 
+        gradient: ['#f59e0b', '#d97706'] as const,
+        light: '#fef3c7', 
+        text: '#92400e',
+        darkText: '#78350f',
+        border: '#fde68a',
+        lightGradient: ['#fef3c7', '#fde68a'] as const,
+      };
     default:
-      return { bg: '#8b5cf6', light: '#f5f3ff', text: '#7c3aed', border: '#ddd6fe' };
+      return { 
+        bg: '#8b5cf6', 
+        gradient: ['#8b5cf6', '#7c3aed'] as const,
+        light: '#f5f3ff', 
+        text: '#5b21b6',
+        darkText: '#4c1d95',
+        border: '#ddd6fe',
+        lightGradient: ['#f5f3ff', '#ede9fe'] as const,
+      };
   }
 };
 
@@ -62,109 +97,178 @@ export function TaskCard({
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [
-        styles.taskCard,
-        isCompleted && styles.taskCompleted,
-        isNextUp && { backgroundColor: catStyle.light, borderColor: catStyle.border, borderWidth: 1 },
-        !isCompleted && !isNextUp && styles.taskDefault,
-        pressed && !isCompleted && styles.cardPressed,
+        styles.taskCardWrapper,
+        pressed && !isCompleted && styles.cardWrapperPressed,
       ]}
+      accessibilityRole="button"
+      accessibilityLabel={`${task.title}, ${task.category}, ${task.time}, ${isCompleted ? 'completed' : 'not completed'}${isNextUp ? ', next up' : ''}`}
+      accessibilityHint={isCompleted ? "Tap to view task details" : "Tap to mark as complete or view details"}
     >
-      {/* Category Accent Bar */}
-      <View
-        style={[
-          styles.taskAccent,
-          { backgroundColor: isCompleted ? '#cbd5e1' : catStyle.bg },
-        ]}
-      />
+      {isNextUp && !isCompleted ? (
+        <LinearGradient
+          colors={catStyle.lightGradient}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.taskCard}
+        >
+          <View style={[styles.taskAccent, { backgroundColor: catStyle.bg }]} />
+          <View style={styles.taskContent}>
+            {/* Time */}
+            <View style={styles.taskTimeContainer}>
+              <Text style={[styles.taskTime, { color: catStyle.darkText }]}>
+                {task.time.replace(':00', '').replace(' ', '')}
+              </Text>
+            </View>
 
-      {/* Next Up Badge */}
-      {isNextUp && (
-        <View style={[styles.nextBadge, { backgroundColor: catStyle.bg }]}>
-          <Text style={styles.nextBadgeText}>Next</Text>
-        </View>
-      )}
+            {/* Checkbox */}
+            <Pressable
+              onPress={onToggleComplete}
+              style={[styles.checkbox, { borderColor: catStyle.bg, backgroundColor: '#fff' }]}
+              accessibilityRole="checkbox"
+              accessibilityLabel={`Mark task as ${isCompleted ? 'incomplete' : 'complete'}`}
+              accessibilityState={{ checked: isCompleted }}
+            >
+              {isCompleted && <Check color="#fff" size={14} strokeWidth={3} />}
+            </Pressable>
 
-      <View style={styles.taskContent}>
-        {/* Time */}
-        <View style={styles.taskTimeContainer}>
-          <Text
-            style={[
-              styles.taskTime,
-              isCompleted && styles.taskTimeCompleted,
-              isNextUp && { color: catStyle.text },
-            ]}
-          >
-            {task.time.replace(':00', '').replace(' ', '')}
-          </Text>
-        </View>
+            {/* Task Info */}
+            <View style={styles.taskInfo}>
+              <View style={styles.taskTitleRow}>
+                <Text style={[styles.taskTitle, { color: catStyle.darkText }]} numberOfLines={1}>
+                  {task.title}
+                </Text>
+                {task.priority && !isCompleted && (
+                  <View style={[styles.priorityBadge, { backgroundColor: catStyle.bg }]}>
+                    <Text style={styles.priorityText}>!</Text>
+                  </View>
+                )}
+              </View>
+              <View style={styles.taskMeta}>
+                <Clock color={catStyle.bg} size={12} />
+                <Text style={[styles.taskDuration, { color: catStyle.text }]}>{task.duration}</Text>
+                <Text style={[styles.taskDot, { color: catStyle.border }]}>·</Text>
+                <Text style={[styles.taskCategory, { color: catStyle.bg, fontWeight: '600' }]}>
+                  {task.category}
+                </Text>
+              </View>
+            </View>
 
-        {/* Checkbox */}
-        <Pressable
-          onPress={onToggleComplete}
+            {/* Action Button */}
+            <LinearGradient
+              colors={catStyle.gradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.taskPlayButton}
+            >
+              <Play color="#fff" size={16} style={{ marginLeft: 2 }} fill="#fff" />
+            </LinearGradient>
+          </View>
+        </LinearGradient>
+      ) : (
+        <View
           style={[
-            styles.checkbox,
-            isCompleted && styles.checkboxCompleted,
-            !isCompleted && isNextUp && { borderColor: catStyle.text },
+            styles.taskCard,
+            isCompleted ? styles.taskCompleted : styles.taskDefault,
           ]}
         >
-          {isCompleted && <Check color="#fff" size={14} strokeWidth={3} />}
-        </Pressable>
+          <View
+            style={[
+              styles.taskAccent,
+              { backgroundColor: isCompleted ? '#cbd5e1' : catStyle.bg },
+            ]}
+          />
 
-        {/* Task Info */}
-        <View style={styles.taskInfo}>
-          <View style={styles.taskTitleRow}>
-            <Text
+          <View style={styles.taskContent}>
+            {/* Time */}
+            <View style={styles.taskTimeContainer}>
+              <Text
+                style={[
+                  styles.taskTime,
+                  isCompleted && styles.taskTimeCompleted,
+                ]}
+              >
+                {task.time.replace(':00', '').replace(' ', '')}
+              </Text>
+            </View>
+
+            {/* Checkbox */}
+            <Pressable
+              onPress={onToggleComplete}
               style={[
-                styles.taskTitle,
-                isCompleted && styles.taskTitleCompleted,
+                styles.checkbox,
+                isCompleted && styles.checkboxCompleted,
               ]}
-              numberOfLines={1}
+              accessibilityRole="checkbox"
+              accessibilityLabel={`Mark task as ${isCompleted ? 'incomplete' : 'complete'}`}
+              accessibilityState={{ checked: isCompleted }}
             >
-              {task.title}
-            </Text>
-            {task.priority && !isCompleted && (
-              <View style={styles.priorityBadge}>
-                <Text style={styles.priorityText}>!</Text>
+              {isCompleted && <Check color="#fff" size={14} strokeWidth={3} />}
+            </Pressable>
+
+            {/* Task Info */}
+            <View style={styles.taskInfo}>
+              <View style={styles.taskTitleRow}>
+                <Text
+                  style={[
+                    styles.taskTitle,
+                    isCompleted && styles.taskTitleCompleted,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {task.title}
+                </Text>
+                {task.priority && !isCompleted && (
+                  <View style={styles.priorityBadge}>
+                    <Text style={styles.priorityText}>!</Text>
+                  </View>
+                )}
               </View>
+              <View style={styles.taskMeta}>
+                <Clock color="#94a3b8" size={12} />
+                <Text style={styles.taskDuration}>{task.duration}</Text>
+                <Text style={styles.taskDot}>·</Text>
+                <Text style={[styles.taskCategory, { color: catStyle.text }]}>
+                  {task.category}
+                </Text>
+              </View>
+            </View>
+
+            {/* Action Button */}
+            {!isCompleted && (
+              <ChevronRight color="#cbd5e1" size={20} />
             )}
           </View>
-          <View style={styles.taskMeta}>
-            <Clock color="#94a3b8" size={12} />
-            <Text style={styles.taskDuration}>{task.duration}</Text>
-            <Text style={styles.taskDot}>·</Text>
-            <Text style={[styles.taskCategory, { color: catStyle.text }]}>
-              {task.category}
-            </Text>
-          </View>
         </View>
-
-        {/* Action Button */}
-        {!isCompleted && (
-          isNextUp ? (
-            <View style={[styles.taskPlayButton, { backgroundColor: catStyle.bg }]}>
-              <Play color="#fff" size={14} style={{ marginLeft: 2 }} fill="#fff" />
-            </View>
-          ) : (
-            <ChevronRight color="#cbd5e1" size={20} />
-          )
-        )}
-      </View>
+      )}
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
+  taskCardWrapper: {
+    marginHorizontal: 20,
+    marginBottom: 14,
+  },
+  cardWrapperPressed: {
+    opacity: 0.85,
+  },
   taskCard: {
     position: 'relative',
-    borderRadius: 16,
+    borderRadius: 20,
     overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 5,
   },
   taskCompleted: {
     backgroundColor: '#f8fafc',
-    opacity: 0.6,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
   },
   taskDefault: {
-    backgroundColor: '#fff',
+    backgroundColor: '#ffffff',
     borderWidth: 1,
     borderColor: '#f1f5f9',
   },
@@ -173,50 +277,68 @@ const styles = StyleSheet.create({
     left: 0,
     top: 0,
     bottom: 0,
-    width: 4,
+    width: 6,
+    borderTopLeftRadius: 20,
+    borderBottomLeftRadius: 20,
   },
   nextBadge: {
     position: 'absolute',
-    top: 8,
-    right: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+    top: 14,
+    right: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
     borderRadius: 999,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 5,
   },
   nextBadgeText: {
-    fontSize: 9,
+    fontSize: 11,
     fontWeight: '700',
     color: '#fff',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
   },
   taskContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 14,
-    paddingLeft: 16,
-    gap: 12,
+    padding: 18,
+    paddingLeft: 20,
+    gap: 14,
   },
   taskTimeContainer: {
-    width: 48,
-    alignItems: 'center',
-  },
-  taskTime: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#334155',
-  },
-  taskTimeCompleted: {
-    color: '#94a3b8',
-  },
-  checkbox: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    borderWidth: 2,
-    borderColor: '#cbd5e1',
+    width: 52,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  taskTime: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#334155',
+    letterSpacing: -0.3,
+  },
+  taskTimeCompleted: {
+    color: '#cbd5e1',
+  },
+  checkbox: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 2.5,
+    borderColor: '#e2e8f0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ffffff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 2,
+    elevation: 1,
   },
   checkboxCompleted: {
     backgroundColor: '#10b981',
@@ -230,56 +352,68 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    marginBottom: 5,
   },
   taskTitle: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
-    color: '#1e293b',
+    color: '#0f172a',
     flex: 1,
+    letterSpacing: -0.2,
   },
   taskTitleCompleted: {
     textDecorationLine: 'line-through',
-    color: '#94a3b8',
+    color: '#cbd5e1',
+    fontWeight: '500',
   },
   priorityBadge: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     backgroundColor: '#ef4444',
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#ef4444',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 3,
   },
   priorityText: {
-    fontSize: 9,
-    fontWeight: '700',
+    fontSize: 11,
+    fontWeight: '800',
     color: '#fff',
   },
   taskMeta: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    marginTop: 2,
+    gap: 6,
   },
   taskDuration: {
-    fontSize: 11,
-    color: '#64748b',
+    fontSize: 12,
+    color: '#94a3b8',
     fontWeight: '500',
+    letterSpacing: -0.1,
   },
   taskDot: {
     color: '#cbd5e1',
+    fontSize: 10,
   },
   taskCategory: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
+    letterSpacing: -0.1,
   },
   taskPlayButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  cardPressed: {
-    transform: [{ scale: 0.98 }],
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
   },
 });

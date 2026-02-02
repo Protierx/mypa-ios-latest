@@ -35,7 +35,9 @@ import { AnalyticsScreen } from './src/screens/Analytics';
 import DailyBriefingScreen from './src/screens/DailyBriefing';
 import AIInsightsScreen from './src/screens/AIInsights';
 import NotificationSettingsScreen from './src/screens/Notification/NotificationSettings';
+import IntegrationsScreen from './src/screens/Integrations';
 import { colors } from './src/styles/colors';
+import { ErrorBoundary } from './src/components/ErrorBoundary';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -45,6 +47,7 @@ function HomeStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Hub" component={HubScreen} />
+      <Stack.Screen name="Plan" component={PlanScreen} />
       <Stack.Screen name="Inbox" component={InboxScreen} />
       <Stack.Screen name="Wallet" component={WalletScreen} />
       <Stack.Screen name="Challenges" component={ChallengesScreen} />
@@ -52,16 +55,13 @@ function HomeStack() {
       <Stack.Screen name="Tasks" component={TasksScreen} />
       <Stack.Screen name="Streak" component={StreakScreen} />
       <Stack.Screen name="Level" component={LevelScreen} />
-      <Stack.Screen name="Reset" component={ResetScreen} />
       <Stack.Screen name="TaskSorting" component={TaskSortingScreen} />
-      <Stack.Screen name="ProofCamera" component={ProofCameraScreen} />
-      <Stack.Screen name="ProofConfirm" component={ProofConfirmScreen} />
       <Stack.Screen name="DailyLifeCard" component={DailyLifeCardScreen} />
       <Stack.Screen name="SavedPlaces" component={SavedPlacesScreen} />
       <Stack.Screen name="Analytics" component={AnalyticsScreen} />
-      <Stack.Screen name="DailyBriefing" component={DailyBriefingScreen} />
       <Stack.Screen name="AIInsights" component={AIInsightsScreen} />
       <Stack.Screen name="NotificationSettings" component={NotificationSettingsScreen} />
+      <Stack.Screen name="Integrations" component={IntegrationsScreen} />
     </Stack.Navigator>
   );
 }
@@ -72,9 +72,12 @@ function ProfileStack() {
       <Stack.Screen name="ProfileMain" component={ProfileScreen} />
       <Stack.Screen name="EditProfile" component={EditProfileScreen} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} />
+      <Stack.Screen name="NotificationSettings" component={NotificationSettingsScreen} />
       <Stack.Screen name="PrivacyControls" component={PrivacyControlsScreen} />
       <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
       <Stack.Screen name="SettingsFromProfile" component={SettingsScreen} />
+      <Stack.Screen name="Integrations" component={IntegrationsScreen} />
+      <Stack.Screen name="SavedPlaces" component={SavedPlacesScreen} />
     </Stack.Navigator>
   );
 }
@@ -92,11 +95,11 @@ function VoicePlaceholder() {
 }
 
 const tabConfig = [
-  { name: 'Home', icon: 'home', iconOutline: 'home-outline', color: '#8B5CF6' },
-  { name: 'Plan', icon: 'calendar', iconOutline: 'calendar-outline', color: '#3B82F6' },
-  { name: 'Voice', icon: 'mic', iconOutline: 'mic-outline', color: '#8B5CF6' },
-  { name: 'Circles', icon: 'people', iconOutline: 'people-outline', color: '#EC4899' },
-  { name: 'Profile', icon: 'person', iconOutline: 'person-outline', color: '#10B981' },
+  { name: 'Today', icon: 'today', iconOutline: 'today-outline', color: '#8B5CF6', label: 'Today' },
+  { name: 'Capture', icon: 'add-circle', iconOutline: 'add-circle-outline', color: '#3B82F6', label: 'Capture' },
+  { name: 'Voice', icon: 'mic', iconOutline: 'mic-outline', color: '#8B5CF6', label: 'Talk' },
+  { name: 'Circles', icon: 'people', iconOutline: 'people-outline', color: '#EC4899', label: 'Circles' },
+  { name: 'You', icon: 'person', iconOutline: 'person-outline', color: '#10B981', label: 'You' },
 ];
 
 interface CustomTabBarProps {
@@ -167,7 +170,7 @@ function CustomTabBar({ state, descriptors, navigation, onVoicePress }: CustomTa
                 />
               </View>
               <Text style={[styles.tabLabel, isFocused && styles.tabLabelActive]}>
-                {tab.name}
+                {tab.label}
               </Text>
             </TouchableOpacity>
           );
@@ -179,9 +182,11 @@ function CustomTabBar({ state, descriptors, navigation, onVoicePress }: CustomTa
 
 export default function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
 
@@ -197,11 +202,11 @@ function MainTabs({ onVoicePress }: { onVoicePress: () => void }) {
         )}
         screenOptions={{ headerShown: false }}
       >
-        <Tab.Screen name="Home" component={HomeStack} />
-        <Tab.Screen name="Plan" component={PlanScreen} />
+        <Tab.Screen name="Today" component={HomeStack} />
+        <Tab.Screen name="Capture" component={TaskSortingScreen} />
         <Tab.Screen name="Voice" component={VoicePlaceholder} />
         <Tab.Screen name="Circles" component={CirclesStack} />
-        <Tab.Screen name="Profile" component={ProfileStack} />
+        <Tab.Screen name="You" component={ProfileStack} />
       </Tab.Navigator>
     </>
   );
@@ -264,6 +269,10 @@ function AppContent() {
           )}
         </RootStack.Screen>
         <RootStack.Screen name="CircleHome" component={CircleHomeScreen} />
+        <RootStack.Screen name="Reset" component={ResetScreen} options={{ animation: 'slide_from_bottom' }} />
+        <RootStack.Screen name="ProofCamera" component={ProofCameraScreen} options={{ animation: 'slide_from_bottom' }} />
+        <RootStack.Screen name="ProofConfirm" component={ProofConfirmScreen} options={{ animation: 'slide_from_right' }} />
+        <RootStack.Screen name="DailyBriefing" component={DailyBriefingScreen} options={{ animation: 'slide_from_bottom' }} />
       </RootStack.Navigator>
       <VoiceAssistantScreen
         visible={showListening}

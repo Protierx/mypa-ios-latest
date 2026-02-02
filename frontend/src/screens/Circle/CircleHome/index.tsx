@@ -147,7 +147,7 @@ export default function CircleHomeScreen({ navigation, route }: CircleHomeScreen
   const navigateToHomeStack = (screen: string, params?: any) => {
     const parentNav = navigation?.getParent?.();
     const rootNav = parentNav?.getParent?.() || parentNav || navigation;
-    rootNav.navigate('MainTabs', { screen: 'Home', params: { screen, params } });
+    rootNav.navigate('MainTabs', { screen: 'Today', params: { screen, params } });
   };
 
   // Use extracted hooks
@@ -714,6 +714,9 @@ export default function CircleHomeScreen({ navigation, route }: CircleHomeScreen
               postSelect.setSelectedPosts(new Set());
             }}
             style={postSelectionStyles.cancelButton}
+            accessibilityRole="button"
+            accessibilityLabel="Cancel selection"
+            accessibilityHint="Deselect all posts and exit selection mode"
           >
             <Feather name="x" size={24} color="#FFFFFF" />
           </TouchableOpacity>
@@ -753,6 +756,9 @@ export default function CircleHomeScreen({ navigation, route }: CircleHomeScreen
                 );
               }}
               style={postSelectionStyles.deleteButton}
+              accessibilityRole="button"
+              accessibilityLabel={`Delete ${postSelect.selectedPosts.size} selected post(s)`}
+              accessibilityHint="Permanently remove selected posts from this circle"
             >
               {deletingSelectedPosts ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />
@@ -771,6 +777,9 @@ export default function CircleHomeScreen({ navigation, route }: CircleHomeScreen
             <TouchableOpacity
               onPress={() => navigation.goBack()}
               style={styles.backButton}
+              accessibilityRole="button"
+              accessibilityLabel="Go back to circles list"
+              accessibilityHint="Return to previous screen"
             >
               <Feather name="arrow-left" size={24} color={Colors.mutedForeground} />
             </TouchableOpacity>
@@ -786,12 +795,18 @@ export default function CircleHomeScreen({ navigation, route }: CircleHomeScreen
             <TouchableOpacity
               onPress={() => modals.setShowMembersModal(true)}
               style={styles.headerIconButton}
+              accessibilityRole="button"
+              accessibilityLabel="View circle members"
+              accessibilityHint="See all members of this circle"
             >
               <Feather name="users" size={22} color={Colors.mutedForeground} />
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => modals.setShowActionMenu(true)}
               style={styles.headerIconButton}
+              accessibilityRole="button"
+              accessibilityLabel="More options"
+              accessibilityHint="Open circle actions menu"
             >
               <Feather name="more-vertical" size={22} color={Colors.mutedForeground} />
             </TouchableOpacity>

@@ -1,12 +1,14 @@
 /**
- * Hub Screen Styles
- * Centralized styles for the Hub module
+ * Hub Screen Styles - Premium Redesign
+ * Clean, modern, million-dollar app aesthetic
+ * Inspired by Linear, Notion, Apple Fitness
  */
 import { StyleSheet, Dimensions } from 'react-native';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export const styles = StyleSheet.create({
+  // Base Container
   container: {
     flex: 1,
     backgroundColor: '#f8fafc',
@@ -18,41 +20,466 @@ export const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 120,
+    paddingBottom: 140,
   },
-  
-  // Ambient Background
-  ambientContainer: {
-    ...StyleSheet.absoluteFillObject,
-    overflow: 'hidden',
+
+  // ============ HEADER SECTION ============
+  header: {
+    paddingHorizontal: 24,
+    paddingTop: 8,
+    paddingBottom: 16,
   },
-  ambientBlob: {
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  headerLeft: {
+    flex: 1,
+  },
+  greeting: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#64748b',
+  },
+  greetingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  levelBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#ede9fe',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  levelText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#7c3aed',
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  userName: {
+    fontSize: 26,
+    fontWeight: '700',
+    color: '#0f172a',
+    letterSpacing: -0.5,
+  },
+  streakBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#fef3c7',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+  },
+  streakText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#b45309',
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  iconButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  notificationDot: {
     position: 'absolute',
-    borderRadius: 999,
+    top: 10,
+    right: 10,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#ef4444',
   },
-  ambientBlob1: {
-    top: 80,
-    right: -80,
-    width: 256,
-    height: 256,
-    backgroundColor: 'rgba(221, 214, 254, 0.3)',
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#7c3aed',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  ambientBlob2: {
-    top: 240,
-    left: -80,
-    width: 192,
-    height: 192,
-    backgroundColor: 'rgba(191, 219, 254, 0.3)',
+  avatarText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#ffffff',
   },
-  ambientBlob3: {
-    bottom: 160,
-    right: 40,
-    width: 128,
-    height: 128,
-    backgroundColor: 'rgba(253, 230, 138, 0.3)',
+
+  // ============ CONTENT ============
+  content: {
+    paddingHorizontal: 24,
   },
-  
-  // XP Popup
+
+  // ============ AI HERO CARD ============
+  heroCard: {
+    borderRadius: 28,
+    overflow: 'hidden',
+    marginBottom: 28,
+    shadowColor: '#7c3aed',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 12,
+  },
+  heroGradient: {
+    padding: 28,
+    alignItems: 'center',
+  },
+  heroContent: {
+    alignItems: 'center',
+  },
+  heroIconWrap: {
+    width: 64,
+    height: 64,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  heroTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#ffffff',
+    marginBottom: 8,
+    letterSpacing: -0.5,
+  },
+  heroSubtitle: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: 'rgba(255,255,255,0.85)',
+    marginBottom: 24,
+  },
+  heroCta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 16,
+  },
+  heroCtaText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#7c3aed',
+  },
+
+  // ============ SECTION HEADER ============
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 24,
+    marginBottom: 16,
+  },
+  sectionTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  progressRing: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#ede9fe',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: '#7c3aed',
+  },
+  progressRingText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#7c3aed',
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  sectionSubtitle: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#64748b',
+    marginTop: 2,
+  },
+  seeAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: '#ede9fe',
+  },
+  seeAllText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#7c3aed',
+  },
+
+  // ============ TASK CARDS ============
+  taskList: {
+    gap: 10,
+  },
+  taskCard: {
+    flexDirection: 'row',
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  taskAccent: {
+    width: 4,
+    alignSelf: 'stretch',
+  },
+  taskCardActive: {
+    borderColor: '#7c3aed',
+    borderWidth: 1.5,
+    shadowColor: '#7c3aed',
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+  },
+  taskCardCompleted: {
+    opacity: 0.6,
+    backgroundColor: '#f8fafc',
+  },
+  taskCardOverdue: {
+    borderColor: '#fecaca',
+    borderWidth: 1.5,
+    backgroundColor: '#fef2f2',
+  },
+  taskCardUrgent: {
+    borderColor: '#fed7aa',
+    borderWidth: 1.5,
+    backgroundColor: '#fffbeb',
+  },
+  taskRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+  },
+  taskCheckbox: {
+    width: 26,
+    height: 26,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#cbd5e1',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
+  },
+  taskCheckboxActive: {
+    borderColor: '#7c3aed',
+  },
+  taskCheckboxCompleted: {
+    backgroundColor: '#7c3aed',
+    borderColor: '#7c3aed',
+  },
+  taskCheckboxFocus: {
+    borderColor: '#7c3aed',
+    backgroundColor: '#f3e8ff',
+  },
+  taskContent: {
+    flex: 1,
+  },
+  taskTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  taskTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#0f172a',
+    flex: 1,
+  },
+  taskTitleCompleted: {
+    textDecorationLine: 'line-through',
+    color: '#94a3b8',
+  },
+  taskMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  taskTime: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#475569',
+    marginLeft: 4,
+  },
+  taskTimeOverdue: {
+    color: '#ef4444',
+    fontWeight: '700',
+  },
+  taskTimeUrgent: {
+    color: '#f59e0b',
+    fontWeight: '700',
+  },
+  taskTimeUntil: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#94a3b8',
+    marginLeft: 2,
+  },
+  taskDuration: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#64748b',
+  },
+  taskDot: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: '#cbd5e1',
+  },
+  taskCategory: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#7c3aed',
+  },
+  overdueIndicator: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#fef2f2',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  priorityIndicator: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#fef3c7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  priorityText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#f59e0b',
+  },
+  taskAction: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // ============ ADD TASK BUTTON ============
+  addTaskButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 16,
+    marginTop: 12,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: '#cbd5e1',
+  },
+  addTaskText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+
+  // ============ SOCIAL TEASER - Compact ============
+  socialTeaser: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 16,
+    marginTop: 20,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  socialTeaserLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  socialAvatarsCompact: {
+    flexDirection: 'row',
+  },
+  socialAvatarSmall: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: '#7c3aed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#ffffff',
+  },
+  socialAvatarOverlap: {
+    marginLeft: -10,
+  },
+  socialAvatarSmallText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  socialTeaserText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#64748b',
+    flex: 1,
+  },
+  socialTeaserBold: {
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+
+  // ============ XP POPUP ============
   xpPopup: {
     position: 'absolute',
     top: 100,
@@ -63,334 +490,203 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
     borderRadius: 999,
+    shadowColor: '#7c3aed',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 12,
   },
   xpPopupText: {
     color: '#fff',
     fontWeight: '700',
-    fontSize: 14,
+    fontSize: 15,
   },
-  
-  // Header
-  header: {
-    flexDirection: 'row',
+
+  // ============ EMPTY STATE ============
+  emptyTasks: {
+    paddingVertical: 40,
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 8,
   },
-  greetingText: {
-    fontSize: 12,
-    color: '#64748b',
+  emptyTasksText: {
+    fontSize: 14,
     fontWeight: '500',
+    color: '#6b7280',
   },
-  userName: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#0f172a',
-    letterSpacing: -0.5,
-  },
-  headerButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  headerButton: {
-    position: 'relative',
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: '#f1f5f9',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  notificationBadge: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: '#ef4444',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  notificationText: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: '#fff',
-  },
-  profileButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  profileInitial: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#fff',
-  },
-  
-  // Content
-  content: {
-    paddingHorizontal: 20,
-    gap: 12,
-  },
-  
-  // Briefing Card
-  briefingCard: {
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  briefingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    opacity: 0.3,
-  },
-  briefingContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    gap: 12,
-  },
-  orbContainer: {
-    position: 'relative',
-  },
-  orbRipple: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 999,
-    backgroundColor: 'rgba(167, 139, 250, 0.2)',
-  },
-  orb: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  briefingTextContainer: {
-    flex: 1,
-  },
-  briefingTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  briefingTitle: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  aiBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    backgroundColor: 'rgba(167, 139, 250, 0.3)',
-  },
-  aiBadgeText: {
-    fontSize: 8,
-    fontWeight: '700',
-    color: '#ddd6fe',
-  },
-  briefingSubtitle: {
-    color: 'rgba(221, 214, 254, 0.8)',
-    fontSize: 12,
-  },
-  playButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  
-  // Stats Row
+
+  // ============ STATS ROW ============
   statsRow: {
     flexDirection: 'row',
-    gap: 8,
-  },
-  
-  // Section
-  section: {
-    marginTop: 4,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  sectionTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    marginHorizontal: 24,
     gap: 10,
+    marginBottom: 16,
   },
-  sectionIconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 12,
-    backgroundColor: '#0f172a',
+  statCard: {
+    flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#0f172a',
-  },
-  sectionSubtitle: {
-    fontSize: 12,
-    color: '#64748b',
-  },
-  seeAllButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    borderRadius: 16,
     gap: 4,
   },
-  seeAllText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#7c3aed',
+  statValue: {
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: -0.5,
   },
-  
-  // Progress
-  progressContainer: {
+  statLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748b',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+
+  // ============ QUICK ACTIONS ============
+  quickActionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 0,
+    marginBottom: 24,
+  },
+  quickActionItem: {
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  quickActionIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  quickActionText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+
+  // ============ PROGRESS BAR ============
+  progressBarContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     marginBottom: 16,
   },
-  progressBar: {
+  progressBarTrack: {
     flex: 1,
-    height: 6,
-    backgroundColor: '#f1f5f9',
-    borderRadius: 3,
+    height: 8,
+    backgroundColor: '#e2e8f0',
+    borderRadius: 4,
     overflow: 'hidden',
   },
-  progressFill: {
+  progressBarFill: {
     height: '100%',
-    backgroundColor: '#0f172a',
-    borderRadius: 3,
+    backgroundColor: '#7c3aed',
+    borderRadius: 4,
   },
-  progressText: {
-    fontSize: 12,
+  progressBarFillOverdue: {
+    backgroundColor: '#ef4444',
+  },
+  progressBarFillComplete: {
+    backgroundColor: '#10b981',
+  },
+  progressStats: {
+    alignItems: 'flex-end',
+    minWidth: 50,
+  },
+  progressBarText: {
+    fontSize: 14,
     fontWeight: '700',
-    color: '#0f172a',
+    color: '#7c3aed',
   },
-  
-  // Task List
-  taskList: {
-    gap: 10,
+  progressTextOverdue: {
+    color: '#ef4444',
   },
-  emptyTasks: {
-    padding: 24,
+  progressTextComplete: {
+    color: '#10b981',
+  },
+  timeEstimate: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#94a3b8',
+    marginTop: 2,
+  },
+
+  // ============ EMPTY STATE ============
+  emptyState: {
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f8fafc',
-    borderRadius: 12,
+    paddingVertical: 40,
+    backgroundColor: '#fff',
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: '#e2e8f0',
-    borderStyle: 'dashed',
   },
-  emptyTasksText: {
+  emptyStateIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  emptyStateTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#0f172a',
+    marginBottom: 4,
+  },
+  emptyStateSubtitle: {
     fontSize: 14,
-    color: '#94a3b8',
+    color: '#64748b',
+    marginBottom: 20,
     textAlign: 'center',
   },
-  
-  // Add Task Button
-  addTaskButton: {
+  emptyStateCta: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
     gap: 8,
-    marginTop: 12,
-    padding: 14,
-    borderRadius: 16,
-    backgroundColor: '#f8fafc',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-  },
-  addTaskIcon: {
-    width: 24,
-    height: 24,
+    backgroundColor: '#ede9fe',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
     borderRadius: 12,
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
-  addTaskText: {
-    fontSize: 13,
+  emptyStateCtaText: {
+    fontSize: 14,
     fontWeight: '600',
-    color: '#64748b',
+    color: '#7c3aed',
   },
-  
-  // Ask MYPA Card
-  askMypaCard: {
-    borderRadius: 16,
-    overflow: 'hidden',
-    padding: 16,
+
+  // ============ UTILITY STYLES ============
+  cardPressed: {
+    opacity: 0.85,
+    transform: [{ scale: 0.98 }],
   },
-  shimmerOverlay: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    width: 100,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  askMypaContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  askMypaIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  askMypaTextContainer: {
-    flex: 1,
-  },
-  askMypaTitle: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 15,
-  },
-  askMypaSubtitle: {
-    color: 'rgba(255, 255, 255, 0.7)',
-    fontSize: 12,
-  },
-  
-  // Reset Button
-  resetButton: {
-    paddingVertical: 8,
-    alignItems: 'center',
-  },
-  resetText: {
-    fontSize: 12,
-    color: '#94a3b8',
-  },
-  resetLink: {
-    color: '#8b5cf6',
-    fontWeight: '500',
-  },
-  
-  // Button States
   buttonPressed: {
     opacity: 0.7,
-    transform: [{ scale: 0.98 }],
   },
-  cardPressed: {
-    transform: [{ scale: 0.98 }],
+
+  // Loading State
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#000',
+    opacity: 0.2,
   },
 });

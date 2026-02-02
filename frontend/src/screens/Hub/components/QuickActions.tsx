@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import { Calendar, Brain, Trophy, Wallet } from 'lucide-react-native';
+import { Calendar, BarChart3, Trophy, Wallet } from 'lucide-react-native';
 
 interface QuickAction {
   icon: typeof Calendar;
@@ -26,8 +26,8 @@ interface QuickActionsProps {
 
 const quickActions: QuickAction[] = [
   { icon: Calendar, label: 'Plan', color: ['#3b82f6', '#06b6d4'], screen: 'plan' },
-  { icon: Brain, label: 'Dump', color: ['#374151', '#111827'], screen: 'sort' },
-  { icon: Trophy, label: 'Compete', color: ['#f97316', '#f59e0b'], screen: 'challenges' },
+  { icon: BarChart3, label: 'Analytics', color: ['#7c3aed', '#a855f7'], screen: 'analytics' },
+  { icon: Trophy, label: 'Challenges', color: ['#f97316', '#f59e0b'], screen: 'challenges' },
   { icon: Wallet, label: 'Wallet', color: ['#10b981', '#14b8a6'], screen: 'wallet' },
 ];
 
@@ -46,6 +46,9 @@ export function QuickActions({ onNavigate }: QuickActionsProps) {
                 styles.quickActionCard,
                 pressed && styles.buttonPressed,
               ]}
+              accessibilityRole="button"
+              accessibilityLabel={`${action.label} quick action`}
+              accessibilityHint={`Navigate to ${action.label} screen`}
             >
               <BlurView intensity={40} tint="light" style={styles.quickActionBlur}>
                 <LinearGradient
