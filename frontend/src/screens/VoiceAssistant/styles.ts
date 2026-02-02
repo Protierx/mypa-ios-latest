@@ -1,10 +1,17 @@
 import { StyleSheet, Dimensions } from 'react-native';
 
 const { width, height } = Dimensions.get('window');
+export const SCREEN_HEIGHT = height;
+export const ORB_SIZE = Math.min(width * 0.45, 180);
 
 export const styles = StyleSheet.create({
+  // Container
   container: {
     flex: 1,
+    backgroundColor: '#0F172A',
+  },
+  gradientContainer: {
+    ...StyleSheet.absoluteFillObject,
   },
   gradient: {
     flex: 1,
@@ -12,111 +19,70 @@ export const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
   },
+
+  // Header - minimal and floating
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 16,
-  },
-  closeButton: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerCenter: {
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#fff',
-  },
-  statusContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 6,
-  },
-  statusText: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.7)',
-  },
-  settingsButton: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  messagesContainer: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
-  messagesContent: {
-    paddingVertical: 20,
-  },
-  messageBubble: {
-    flexDirection: 'row',
-    marginBottom: 16,
-  },
-  userBubble: {
-    justifyContent: 'flex-end',
-  },
-  assistantBubble: {
-    justifyContent: 'flex-start',
-  },
-  assistantAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(139,92,246,0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
-  },
-  avatarImage: {
-    width: 28,
-    height: 28,
-  },
-  messageContent: {
-    maxWidth: '75%',
-    borderRadius: 20,
-    paddingHorizontal: 16,
     paddingVertical: 12,
   },
-  userContent: {
-    backgroundColor: '#8B5CF6',
-    borderBottomRightRadius: 4,
+  closeButton: {
+    padding: 8,
   },
-  assistantContent: {
+  closeButtonInner: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: 'rgba(255,255,255,0.1)',
-    borderBottomLeftRadius: 4,
-  },
-  transcriptContent: {
-    opacity: 0.7,
-  },
-  messageText: {
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  userText: {
-    color: '#fff',
-  },
-  assistantText: {
-    color: 'rgba(255,255,255,0.9)',
-  },
-  transcriptText: {
-    fontStyle: 'italic',
-  },
-  orbContainer: {
     alignItems: 'center',
-    paddingVertical: 30,
+    justifyContent: 'center',
+  },
+  settingsButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Main Content
+  mainContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  // Response text at top
+  responseContainer: {
+    position: 'absolute',
+    top: 20,
+    left: 32,
+    right: 32,
+    maxHeight: height * 0.25,
+  },
+  responseScroll: {
+    alignItems: 'center',
+  },
+  responseText: {
+    fontSize: 18,
+    lineHeight: 28,
+    color: 'rgba(255,255,255,0.85)',
+    textAlign: 'center',
+    fontWeight: '400',
+  },
+
+  // Orb Section - the star of the show
+  orbSection: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rippleRing: {
+    position: 'absolute',
+    width: ORB_SIZE,
+    height: ORB_SIZE,
+    borderRadius: ORB_SIZE / 2,
+    borderWidth: 1,
   },
   orbTouchable: {
     alignItems: 'center',
@@ -124,100 +90,139 @@ export const styles = StyleSheet.create({
   },
   orbGlow: {
     position: 'absolute',
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    backgroundColor: '#8B5CF6',
-  },
-  orbRing: {
-    position: 'absolute',
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    borderWidth: 2,
-    borderColor: 'rgba(139,92,246,0.3)',
+    width: ORB_SIZE * 1.6,
+    height: ORB_SIZE * 1.6,
+    borderRadius: ORB_SIZE * 0.8,
   },
   orbMain: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: ORB_SIZE,
+    height: ORB_SIZE,
+    borderRadius: ORB_SIZE / 2,
+    overflow: 'hidden',
+  },
+  orbGradient: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(139,92,246,0.2)',
+    borderRadius: ORB_SIZE / 2,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
   },
-  orbImage: {
-    width: 90,
-    height: 90,
-  },
-  wavesContainer: {
-    position: 'absolute',
-    bottom: -30,
+  orbWaves: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 4,
+    alignItems: 'center',
+    gap: 6,
   },
-  wave: {
+  orbWave: {
     width: 4,
-    height: 30,
-    backgroundColor: '#8B5CF6',
+    height: 24,
+    backgroundColor: 'rgba(255,255,255,0.6)',
     borderRadius: 2,
   },
-  orbHint: {
-    marginTop: 16,
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.5)',
+  orbWaveTall: {
+    height: 36,
   },
-  inputContainer: {
+  orbWaveTallest: {
+    height: 48,
+  },
+  processingDots: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  dot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: 'rgba(255,255,255,0.8)',
+  },
+
+  // Status text
+  statusText: {
+    marginTop: 32,
+    fontSize: 17,
+    fontWeight: '500',
+    color: 'rgba(255,255,255,0.7)',
+    letterSpacing: 0.3,
+  },
+
+  // Live transcript
+  transcriptContainer: {
+    position: 'absolute',
+    bottom: 40,
+    left: 32,
+    right: 32,
+  },
+  transcriptText: {
+    fontSize: 16,
+    color: 'rgba(255,255,255,0.5)',
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+
+  // Bottom Area
+  bottomArea: {
     paddingHorizontal: 20,
     paddingBottom: 16,
   },
-  inputRow: {
+  quickActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+  },
+  quickAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  quickActionText: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.7)',
+    fontWeight: '500',
+  },
+  quickActionTextActive: {
+    color: '#10B981',
+  },
+  quickActionDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+  },
+
+  // Text Input
+  textInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.1)',
-    borderRadius: 30,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  inputToggle: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  textInputWrapper: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
+    borderRadius: 28,
+    paddingLeft: 20,
+    paddingRight: 6,
+    paddingVertical: 6,
   },
   textInput: {
     flex: 1,
     fontSize: 16,
     color: '#fff',
-    paddingHorizontal: 10,
+    paddingVertical: 12,
   },
   sendButton: {
-    width: 36,
-    height: 36,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#8B5CF6',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  inputHint: {
-    flex: 1,
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.5)',
-    textAlign: 'center',
+  sendButtonDisabled: {
+    backgroundColor: 'rgba(139,92,246,0.3)',
   },
-  continuousToggle: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 20,
-  },
-  continuousToggleActive: {
-    backgroundColor: 'rgba(16,185,129,0.2)',
-  },
+
+  // Settings Modal styles
   settingsOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.7)',
