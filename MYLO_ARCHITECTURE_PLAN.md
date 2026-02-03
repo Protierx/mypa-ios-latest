@@ -47,7 +47,744 @@
 18. [AI Orb Technical Details](#18-ai-orb-technical-details)
 19. [Testing Strategy](#19-testing-strategy)
 20. [Deployment Architecture](#20-deployment-architecture)
-21. [Summary](#summary)
+21. [**COMPLETE APP REFERENCE**](#22-complete-app-reference)
+22. [Summary](#summary)
+
+---
+
+# 22. COMPLETE APP REFERENCE
+
+> **This is the master reference for EVERY screen, modal, function, API endpoint, and interaction in Mylo.**
+> A senior developer can use this section to understand the entire application.
+
+---
+
+## 22.1 ALL SCREENS (37 Total)
+
+### Core Navigation Screens
+| Screen | File Path | Purpose | Entry Point |
+|--------|-----------|---------|-------------|
+| **AI Home** | `screens/AIHome/` | Central hub, AI orb, greeting, quick actions | App launch, gesture navigation |
+| **Tasks View** | `screens/GestureTasks/` | Task list with filters, AI sorting | Swipe left from AI Home |
+| **Social View** | `screens/GestureSocial/` | Circles & challenges list | Swipe right from AI Home |
+| **Profile View** | `screens/GestureProfile/` | Stats, unlocks, settings access | Swipe down from AI Home |
+| **Focus Modal** | `screens/FocusModal/` | Timer, AI encouragement, session tracking | Swipe up from AI Home |
+
+### Task Management Screens
+| Screen | File Path | Purpose | Entry Point |
+|--------|-----------|---------|-------------|
+| **Tasks (Legacy)** | `screens/Tasks/` | Full task management | Tab bar (deprecated) |
+| **Task Detail** | `screens/Tasks/TaskDetail` | View/edit single task | Tap task card |
+| **Task Sorting** | `screens/TaskSorting/` | Drag-drop reorder | Settings or long-press |
+| **Recurring Tasks** | `screens/RecurringTasks/` | Manage repeating tasks | Settings |
+| **Plan** | `screens/Plan/` | Daily/weekly planning view | Legacy tab |
+
+### Social & Circles Screens
+| Screen | File Path | Purpose | Entry Point |
+|--------|-----------|---------|-------------|
+| **Circles List** | `screens/Circle/Circles/` | All user's circles | Social View |
+| **Circle Home** | `screens/Circle/CircleHome/` | Single circle: members, feed, challenges | Tap circle card |
+| **Challenges** | `screens/Challenges/` | All challenges list | Social View tab |
+| **Challenge Detail** | Within Challenges | Single challenge: leaderboard, progress | Tap challenge card |
+
+### Profile & Settings Screens
+| Screen | File Path | Purpose | Entry Point |
+|--------|-----------|---------|-------------|
+| **Profile** | `screens/Profile/` | User stats, achievements, settings link | Profile View |
+| **Edit Profile** | `screens/EditProfile/` | Edit name, avatar, bio | Profile → Edit |
+| **Settings** | `screens/Settings/` | All app settings | Profile → Settings gear |
+| **Privacy Controls** | `screens/PrivacyControls/` | Data sharing, visibility | Settings |
+| **Notification Settings** | `screens/Notification/` | Push notification preferences | Settings |
+| **Help & Support** | `screens/HelpSupport/` | FAQ, contact, feedback | Settings |
+
+### AI & Voice Screens
+| Screen | File Path | Purpose | Entry Point |
+|--------|-----------|---------|-------------|
+| **Voice Assistant** | `screens/VoiceAssistant/` | Full voice conversation UI | Orb tap or dedicated button |
+| **Listening** | `screens/Listening/` | Voice input capture | Orb tap |
+| **AI Insights** | `screens/AIInsights/` | AI-generated insights display | Profile → Insights |
+| **Daily Briefing** | `screens/DailyBriefing/` | Morning/evening AI summary | Notification tap or home |
+
+### Gamification Screens
+| Screen | File Path | Purpose | Entry Point |
+|--------|-----------|---------|-------------|
+| **Streak** | `screens/Streak/` | Streak details, history | Tap streak card |
+| **Level** | `screens/Level/` | XP breakdown, level progress | Tap XP/level card |
+| **Wallet** | `screens/Wallet/` | XP wallet, rewards history | Profile |
+| **Proof** | `screens/Proof/` | Assignment proof submission | Assignment completion |
+
+### Authentication Screens
+| Screen | File Path | Purpose | Entry Point |
+|--------|-----------|---------|-------------|
+| **Login** | `screens/Login/` | Email/password login | App launch (unauthenticated) |
+| **Reset Password** | `screens/Reset/` | Password reset flow | Login → Forgot password |
+| **Onboarding** | `screens/Onboarding/` | First-time user flow | After registration |
+
+### Other Screens
+| Screen | File Path | Purpose | Entry Point |
+|--------|-----------|---------|-------------|
+| **Hub** | `screens/Hub/` | Legacy home screen | Deprecated |
+| **Analytics** | `screens/Analytics/` | Detailed productivity stats | Profile or settings |
+| **Inbox** | `screens/Inbox/` | Notifications, invitations | Notification icon |
+| **Integrations** | `screens/Integrations/` | Third-party connections | Settings |
+| **Subscription** | `screens/Subscription/` | Premium features, billing | Settings or paywall |
+| **Saved Places** | `screens/SavedPlaces/` | Location-based reminders | Settings |
+| **Daily Life Card** | `screens/DailyLifeCard/` | Daily summary card generation | Social feed |
+
+---
+
+## 22.2 ALL MODALS (45+ Total)
+
+### Task Modals
+| Modal | Location | Trigger | Purpose |
+|-------|----------|---------|---------|
+| **TaskModal** | `Tasks/modals/TaskModal.tsx` | FAB tap, "Add Task" | Create/edit task with AI suggestions |
+| **TaskDetailModal** | Within Tasks | Tap task (mobile) | Quick view task details |
+| **DatePickerModal** | Task creation | Tap date field | Select due date |
+| **TimePickerModal** | Task creation | Tap time field | Select due time with AI suggestions |
+| **DurationPickerModal** | Task creation | Tap duration | Select estimated duration |
+| **PriorityPickerModal** | Task creation | Tap priority | Select HIGH/MEDIUM/LOW |
+| **CategoryPickerModal** | Task creation | Tap category | Select or create category |
+| **RepeatModal** | Task creation | Tap repeat | Set recurring schedule |
+| **TaskDeleteConfirmModal** | Task swipe left | Swipe + confirm | Confirm task deletion |
+| **TaskCompleteModal** | Task completion | After completion | Celebrate with XP animation |
+
+### Focus Modals
+| Modal | Location | Trigger | Purpose |
+|-------|----------|---------|---------|
+| **FocusSessionModal** | `FocusModal/` | Swipe up, "Start Focus" | Timer, AI messages, controls |
+| **FocusTaskSelectModal** | Focus start | Optional task selection | Choose task to focus on |
+| **FocusCompleteModal** | Timer ends | Auto on 00:00 | Celebration, XP earned, stats |
+| **FocusPauseConfirmModal** | Pause button | Tap pause | Confirm pausing session |
+| **FocusAbandonConfirmModal** | End early | Tap end | Confirm ending without completion |
+
+### Circle Modals
+| Modal | Location | Trigger | Purpose |
+|-------|----------|---------|---------|
+| **CreateCircleModal** | Circles screen | "Create Circle" | Name, emoji, privacy settings |
+| **JoinCircleModal** | Circles screen | "Join Circle" | Enter invite code |
+| **CircleSettingsModal** | Circle Home | Settings gear | Edit circle, manage members |
+| **InviteMembersModal** | Circle Home | "Invite" button | Search users, share link |
+| **CircleMemberModal** | Circle Home | Tap member avatar | View member profile, nudge |
+| **NudgeConfirmModal** | Member modal | "Nudge" button | Confirm sending nudge |
+| **LeaveCircleConfirmModal** | Circle settings | "Leave Circle" | Confirm leaving |
+| **DeleteCircleConfirmModal** | Circle settings | "Delete Circle" | Confirm deletion |
+| **KickMemberConfirmModal** | Circle settings | Kick option | Confirm removing member |
+
+### Challenge Modals
+| Modal | Location | Trigger | Purpose |
+|-------|----------|---------|---------|
+| **CreateChallengeModal** | Challenges screen | "Create Challenge" | Type, target, duration, XP |
+| **JoinChallengeConfirmModal** | Challenge card | "Join" button | Confirm joining |
+| **LeaveChallengeConfirmModal** | Challenge detail | "Leave" button | Confirm leaving |
+| **ChallengeLeaderboardModal** | Challenge detail | "Leaderboard" | Full standings |
+| **ChallengePrizeModal** | Challenge complete | Win condition | Celebration for winners |
+
+### Assignment Modals
+| Modal | Location | Trigger | Purpose |
+|-------|----------|---------|---------|
+| **CreateAssignmentModal** | Circle Home | "Assign Task" | Create assignment for member |
+| **AssignmentDetailModal** | Inbox/Circle | Tap assignment | View assignment details |
+| **AcceptDeclineModal** | Assignment received | Auto on receive | Accept or decline with reason |
+| **SubmitProofModal** | Assignment complete | "Submit Proof" | Upload photo/note as proof |
+| **ProofReviewModal** | Creator view | Tap submitted proof | Review and approve proof |
+
+### Profile Modals
+| Modal | Location | Trigger | Purpose |
+|-------|----------|---------|---------|
+| **AchievementsModal** | `Profile/modals/` | Tap achievements | All badges and achievements |
+| **LogoutModal** | `Profile/modals/` | "Logout" button | Confirm logout |
+| **DeleteAccountModal** | Settings | "Delete Account" | Confirm account deletion |
+| **StreakDetailModal** | Profile | Tap streak | Calendar, streak history |
+| **XPBreakdownModal** | Profile | Tap XP | Sources of XP earned |
+| **EditAvatarModal** | Edit Profile | Tap avatar | Change profile picture |
+
+### Unlock Modals
+| Modal | Location | Trigger | Purpose |
+|-------|----------|---------|---------|
+| **UnlockCelebrationModal** | Any screen | Feature unlocked | Confetti, explanation |
+| **UnlockDetailsModal** | `Unlock/UnlockProgressCard.tsx` | Tap locked feature | Progress, requirements |
+| **UnlockListModal** | Profile | "View All Unlocks" | All features with status |
+
+### System Modals
+| Modal | Location | Trigger | Purpose |
+|-------|----------|---------|---------|
+| **PermissionModal** | Various | First use | Request mic/notifications/calendar |
+| **ErrorModal** | Global | API error | Display error with retry |
+| **OfflineBanner** | Global | Network lost | "You're offline" indicator |
+| **UpdateAvailableModal** | App launch | New version | Prompt to update |
+| **RateAppModal** | After milestones | Conditions met | Request App Store rating |
+| **FeedbackModal** | Help & Support | "Send Feedback" | User feedback form |
+| **WhatsNewModal** | After update | First launch | New features showcase |
+
+### Quick Action Modals
+| Modal | Location | Trigger | Purpose |
+|-------|----------|---------|---------|
+| **QuickCaptureModal** | `QuickCapture.tsx` | Widget, Siri, 3D Touch | Fast task entry |
+| **ShareModal** | `ShareModal/` | Share action | Share achievement/invite |
+| **ActionSheetModal** | Various | Long press | Context actions |
+
+---
+
+## 22.3 ALL API ENDPOINTS (80+ Endpoints)
+
+### Authentication Endpoints
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| POST | `/auth/register` | Create new account |
+| POST | `/auth/login` | Authenticate user |
+| POST | `/auth/logout` | Logout (invalidate tokens) |
+| POST | `/auth/refresh` | Refresh access token |
+| POST | `/auth/forgot-password` | Request password reset |
+| POST | `/auth/reset-password` | Complete password reset |
+| POST | `/auth/verify-email` | Verify email address |
+
+### User Endpoints
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/users/me` | Get current user profile |
+| PATCH | `/users/me` | Update profile (name, avatar, bio) |
+| DELETE | `/users/me` | Delete account |
+| GET | `/users/me/stats` | Get user statistics |
+| POST | `/users/me/onboarding` | Complete onboarding |
+| GET | `/users/me/settings` | Get user settings |
+| PATCH | `/users/me/settings` | Update settings |
+| GET | `/users/check-username/:username` | Check username availability |
+| GET | `/users/:username` | Get public profile by username |
+
+### Task Endpoints
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/tasks` | Get all tasks |
+| GET | `/tasks/today` | Get today's tasks |
+| GET | `/tasks/open` | Get incomplete tasks |
+| GET | `/tasks/stats` | Get task statistics |
+| POST | `/tasks` | Create new task |
+| GET | `/tasks/:id` | Get single task |
+| PATCH | `/tasks/:id` | Update task |
+| DELETE | `/tasks/:id` | Delete task |
+| POST | `/tasks/:id/complete` | Mark task complete |
+| POST | `/tasks/:id/uncomplete` | Mark task incomplete |
+| POST | `/tasks/:id/defer` | Defer task to tomorrow |
+
+### Focus Endpoints
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/focus/active` | Get active session |
+| POST | `/focus/start` | Start new session |
+| POST | `/focus/pause` | Pause session |
+| POST | `/focus/resume` | Resume session |
+| POST | `/focus/complete` | Complete session |
+| POST | `/focus/abandon` | Abandon session |
+| GET | `/focus/history` | Get session history |
+| GET | `/focus/stats` | Get focus statistics |
+
+### AI Endpoints
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| POST | `/ai/conversation` | Main AI chat endpoint |
+| POST | `/ai/process-command` | Process voice command |
+| GET | `/ai/briefing` | Get morning briefing |
+| GET | `/ai/evening-summary` | Get evening recap |
+| GET | `/ai/suggestion` | Get proactive suggestion |
+| GET | `/ai/task-suggestions` | Get task optimization tips |
+| POST | `/ai/categorize-task` | Auto-categorize task |
+| POST | `/ai/smart-schedule` | AI task scheduling |
+| GET | `/ai/daily-insights` | Get AI insights |
+| POST | `/ai/chat` | Simple Q&A |
+| POST | `/ai/transcribe-base64` | Transcribe audio |
+| POST | `/ai/suggest-challenge` | Generate challenge idea |
+
+### TTS Endpoints
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| POST | `/tts/speak` | Generate speech audio |
+| POST | `/tts/stream` | Stream speech audio |
+
+### Circle Endpoints
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/circles` | Get user's circles |
+| POST | `/circles` | Create new circle |
+| GET | `/circles/:id` | Get circle details |
+| PATCH | `/circles/:id` | Update circle |
+| DELETE | `/circles/:id` | Delete circle |
+| POST | `/circles/:id/join` | Join circle |
+| POST | `/circles/join/:code` | Join by invite code |
+| POST | `/circles/:id/leave` | Leave circle |
+| GET | `/circles/preview/:code` | Preview circle by code |
+| GET | `/circles/:id/members` | Get circle members |
+| PATCH | `/circles/:id/members/:userId` | Update member role |
+| DELETE | `/circles/:id/members/:userId` | Remove member |
+| POST | `/circles/:id/invite-code` | Regenerate invite code |
+| GET | `/circles/:id/feed` | Get circle activity feed |
+| POST | `/circles/:id/posts` | Create post in circle |
+| POST | `/circles/:id/posts/daily-card` | Generate daily card |
+| GET | `/circles/:id/assignments` | Get circle assignments |
+| POST | `/circles/:id/assignments` | Create assignment |
+
+### Challenge Endpoints
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/challenges` | Get all challenges |
+| GET | `/challenges/mine` | Get joined challenges |
+| GET | `/challenges/active` | Get active challenges |
+| POST | `/challenges` | Create challenge |
+| GET | `/challenges/:id` | Get challenge details |
+| PUT | `/challenges/:id` | Update challenge |
+| DELETE | `/challenges/:id` | Delete challenge |
+| POST | `/challenges/:id/join` | Join challenge |
+| POST | `/challenges/:id/leave` | Leave challenge |
+| POST | `/challenges/:id/progress` | Update progress |
+| GET | `/challenges/:id/leaderboard` | Get leaderboard |
+
+### Assignment Endpoints
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/assignments/mine` | Get my assignments |
+| GET | `/assignments/:id` | Get assignment details |
+| PUT | `/assignments/:id` | Update assignment |
+| DELETE | `/assignments/:id` | Delete assignment |
+| POST | `/assignments/:id/accept` | Accept assignment |
+| POST | `/assignments/:id/decline` | Decline assignment |
+| POST | `/assignments/:id/complete` | Complete with proof |
+| PUT | `/assignments/:id/response` | Update response |
+
+### Brain Dump Endpoints
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/brain-dump` | Get all brain dump items |
+| POST | `/brain-dump` | Create brain dump item |
+| POST | `/brain-dump/batch` | Batch create items |
+| POST | `/brain-dump/:id/process` | Process with AI |
+| POST | `/brain-dump/:id/convert` | Convert to task |
+| DELETE | `/brain-dump/:id` | Delete item |
+| GET | `/brain-dump/stats` | Get statistics |
+| POST | `/brain-dump/smart-schedule` | AI schedule items |
+| POST | `/brain-dump/quick-schedule` | Quick schedule text |
+
+### Notification Endpoints
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| POST | `/notifications/register-token` | Register push token |
+| DELETE | `/notifications/token` | Remove push token |
+| GET | `/notifications` | Get notification history |
+| GET | `/notifications/unread-count` | Get unread count |
+| PUT | `/notifications/:id/read` | Mark as read |
+| PUT | `/notifications/read-all` | Mark all read |
+| DELETE | `/notifications/:id` | Delete notification |
+| DELETE | `/notifications` | Clear all |
+| GET | `/notifications/settings` | Get settings |
+| PUT | `/notifications/settings` | Update settings |
+| POST | `/notifications/test` | Send test notification |
+
+### Analytics Endpoints
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/analytics/daily` | Get daily stats |
+| GET | `/analytics/weekly` | Get weekly stats |
+| GET | `/analytics/trends` | Get trends |
+| GET | `/analytics/insights` | Get insights |
+| GET | `/analytics/dashboard` | Get dashboard overview |
+| GET | `/analytics/leaderboard/global` | Global leaderboard |
+| GET | `/analytics/leaderboard/circle/:id` | Circle leaderboard |
+| GET | `/analytics/circle/:id` | Circle analytics |
+
+### Event Logging Endpoints
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| POST | `/events` | Log single event |
+| POST | `/events/batch` | Log batch events |
+| GET | `/events` | Get event history |
+| GET | `/events/patterns` | Get learned patterns |
+
+### Unlock Endpoints
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/unlocks` | Get all unlocks |
+| GET | `/unlocks/:featureId` | Get specific unlock |
+| GET | `/unlocks/check/:featureId` | Check if unlocked |
+| POST | `/unlocks/check` | Trigger unlock check |
+
+### Recurring Task Endpoints
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/recurring` | Get recurring tasks |
+| POST | `/recurring` | Create recurring task |
+| PUT | `/recurring/:id` | Update recurring task |
+| POST | `/recurring/:id/pause` | Pause recurring |
+| POST | `/recurring/:id/resume` | Resume recurring |
+| DELETE | `/recurring/:id` | Delete recurring |
+| POST | `/recurring/generate` | Generate due instances |
+
+### Calendar Endpoints
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| POST | `/calendar/connect` | Connect calendar provider |
+| DELETE | `/calendar/disconnect/:provider` | Disconnect provider |
+| GET | `/calendar/connections` | Get connections |
+| POST | `/calendar/sync/:connectionId` | Sync calendar |
+| GET | `/calendar/events` | Get calendar events |
+| GET | `/calendar/timeline` | Get merged timeline |
+| POST | `/calendar/export/:taskId` | Export task to calendar |
+| GET | `/calendar/conflicts` | Check for conflicts |
+| GET | `/calendar/suggest-slots` | Get suggested times |
+
+### Invitation Endpoints
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/invitations/mine` | Get my invitations |
+| POST | `/invitations/circle/:id/invite/:userId` | Send invitation |
+| POST | `/invitations/:id/accept` | Accept invitation |
+| POST | `/invitations/:id/decline` | Decline invitation |
+| GET | `/invitations/search/:circleId` | Search users to invite |
+
+### Post Endpoints
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/posts/:id` | Get single post |
+| PATCH | `/posts/:id` | Update post |
+| DELETE | `/posts/:id` | Delete post |
+| POST | `/posts/:id/react` | Add reaction |
+| DELETE | `/posts/:id/react` | Remove reaction |
+| GET | `/posts/:id/reactions` | Get all reactions |
+
+### Brief Endpoints
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/brief/daily` | Get daily brief |
+| GET | `/brief/evening` | Get evening recap |
+| GET | `/brief/quick` | Get quick status |
+
+---
+
+## 22.4 ALL COMPONENTS (150+ Components)
+
+### Core UI Components
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| **AIOrb** | `components/AIOrb/` | Central AI interaction orb |
+| **MYPAOrb** | `components/MYPAOrb.tsx` | Simplified orb variant |
+| **DualInputBar** | `components/DualInputBar.tsx` | Voice + text input bar |
+| **VoicePill** | `components/VoicePill.tsx` | Voice recording indicator |
+| **QuickCapture** | `components/QuickCapture.tsx` | Quick task entry |
+| **TabBar** | `components/TabBar.tsx` | Legacy navigation bar |
+| **FloatingMYPAButton** | `components/FloatingMYPAButton.tsx` | Floating action button |
+| **IOSStatusBar** | `components/IOSStatusBar.tsx` | Custom status bar |
+| **ErrorBoundary** | `components/ErrorBoundary.tsx` | Error catching wrapper |
+| **LoadingOverlay** | `components/LoadingOverlay.tsx` | Full-screen loading |
+| **CelebrationOverlay** | `components/CelebrationOverlay.tsx` | Confetti celebration |
+| **AnimatedCard** | `components/AnimatedCard.tsx` | Animated card wrapper |
+| **ToggleSwitch** | `components/ToggleSwitch.tsx` | iOS-style toggle |
+
+### Card Components
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| **TaskCard** | `screens/Tasks/components/TaskCard` | Task list item |
+| **CircleCard** | `screens/Circle/components/CircleCard` | Circle list item |
+| **ChallengeCard** | `screens/Challenges/components/ChallengeCard` | Challenge list item |
+| **StatsCard** | Various | Statistics display |
+| **InsightCard** | `AIInsights/components/` | AI insight display |
+| **DailyBriefingCard** | `components/DailyBriefingCard.tsx` | Morning summary |
+| **MissionCard** | `components/MissionCard.tsx` | Daily mission item |
+| **MemberCard** | Circle components | Circle member display |
+| **AssignmentCard** | Assignment components | Assignment display |
+| **NotificationCard** | Inbox components | Notification item |
+| **AchievementCard** | Profile components | Achievement badge |
+
+### Unlock Components
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| **UnlockProgressCard** | `components/Unlock/` | Show unlock progress |
+| **UnlockDetailsModal** | `components/Unlock/` | Unlock details popup |
+| **UnlockCelebration** | `components/Unlock/` | Celebration animation |
+
+### Form Components
+| Component | Purpose |
+|-----------|---------|
+| **TextInput** | Text entry |
+| **DatePicker** | Date selection |
+| **TimePicker** | Time selection |
+| **PriorityPicker** | Priority selection |
+| **CategoryPicker** | Category selection |
+| **DurationPicker** | Duration selection |
+| **EmojiPicker** | Emoji selection |
+| **ColorPicker** | Color selection |
+| **SearchInput** | Search bar |
+
+### List Components
+| Component | Purpose |
+|-----------|---------|
+| **TaskList** | Task list container |
+| **CircleList** | Circle list container |
+| **ChallengeList** | Challenge list container |
+| **MemberList** | Member list container |
+| **NotificationList** | Notification list |
+| **FilterTabs** | Filter tab bar |
+| **SortOptions** | Sort dropdown |
+
+### Layout Components
+| Component | Purpose |
+|-----------|---------|
+| **ScreenContainer** | Screen wrapper with safe areas |
+| **Header** | Screen header |
+| **BottomSheet** | Bottom sheet modal |
+| **ActionSheet** | Action sheet modal |
+| **Divider** | Section divider |
+| **Spacer** | Spacing utility |
+| **Row** | Horizontal layout |
+| **Column** | Vertical layout |
+
+### State Components
+| Component | Purpose |
+|-----------|---------|
+| **EmptyState** | Empty list placeholder |
+| **ErrorState** | Error display |
+| **LoadingState** | Loading spinner |
+| **SkeletonLoader** | Skeleton loading |
+| **OfflineBanner** | Offline indicator |
+| **SyncIndicator** | Sync status |
+
+---
+
+## 22.5 ALL FILTER TABS
+
+### Tasks View Filters
+| Tab | Filter | Query |
+|-----|--------|-------|
+| **Today** | Tasks due today | `dueDate = today` |
+| **Tomorrow** | Tasks due tomorrow | `dueDate = tomorrow` |
+| **This Week** | Tasks due this week | `dueDate >= today && dueDate <= endOfWeek` |
+| **All** | All incomplete tasks | `status != COMPLETED` |
+| **High Priority** | High priority only | `priority = HIGH` |
+| **Completed** | Completed tasks | `status = COMPLETED` |
+| **Overdue** | Past due date | `dueDate < today && status != COMPLETED` |
+
+### Social View Tabs
+| Tab | Content |
+|-----|---------|
+| **Circles** | User's circles list |
+| **Challenges** | Active challenges |
+| **Activity** | Recent activity feed |
+
+### Circle Feed Filters
+| Tab | Filter |
+|-----|--------|
+| **All** | All post types |
+| **Tasks** | Task-related posts |
+| **Achievements** | Milestone posts |
+| **Daily Cards** | Daily summary cards |
+
+### Challenge Filters
+| Tab | Filter |
+|-----|--------|
+| **Active** | Currently running |
+| **Upcoming** | Starting soon |
+| **Completed** | Finished challenges |
+| **My Challenges** | User-created |
+
+### Notification Filters
+| Tab | Filter |
+|-----|--------|
+| **All** | All notifications |
+| **Unread** | Unread only |
+| **Invitations** | Circle invites |
+| **Assignments** | Assignment notifications |
+| **Social** | Social activity |
+
+---
+
+## 22.6 ALL SETTINGS OPTIONS
+
+### Account Settings
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| **Name** | text | From signup | Display name |
+| **Username** | text | Auto-generated | Unique @username |
+| **Email** | text | From signup | Account email |
+| **Avatar** | image | Default | Profile picture |
+| **Bio** | text | Empty | Short bio |
+
+### Notification Settings
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| **Push Enabled** | toggle | true | Master push toggle |
+| **Task Reminders** | toggle | true | Due date reminders |
+| **Assignment Alerts** | toggle | true | New assignments |
+| **Streak Reminders** | toggle | true | Streak at risk |
+| **Daily Briefing** | toggle | true | Morning brief |
+| **Level Up Alerts** | toggle | true | XP milestones |
+| **Challenge Updates** | toggle | true | Challenge activity |
+| **Circle Activity** | toggle | true | Circle posts |
+| **AI Insights** | toggle | true | AI recommendations |
+| **Weekly Digest** | toggle | false | Weekly summary |
+| **Sound Enabled** | toggle | true | Notification sounds |
+| **Vibration Enabled** | toggle | true | Haptic feedback |
+| **Badge Enabled** | toggle | true | App badge count |
+| **Quiet Hours Enabled** | toggle | false | Do not disturb |
+| **Quiet Hours Start** | time | 22:00 | DND start time |
+| **Quiet Hours End** | time | 08:00 | DND end time |
+
+### Privacy Settings
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| **Profile Visibility** | enum | PUBLIC | Who can see profile |
+| **Activity Visibility** | enum | CIRCLES | Who sees activity |
+| **Show Stats** | toggle | true | Display stats publicly |
+| **Allow Nudges** | toggle | true | Allow nudge notifications |
+| **Allow Invites** | toggle | true | Allow circle invites |
+| **Analytics Opt-in** | toggle | true | Anonymous usage data |
+
+### App Settings
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| **Theme** | enum | SYSTEM | Light/Dark/System |
+| **Default Focus Duration** | number | 25 | Focus timer default |
+| **Auto-Complete Voice** | toggle | true | End voice on silence |
+| **Haptic Feedback** | toggle | true | Touch feedback |
+| **Voice Type** | enum | nova | TTS voice selection |
+| **Language** | enum | en | App language |
+
+### Data Settings
+| Setting | Action | Description |
+|---------|--------|-------------|
+| **Export Data** | button | Download all data (GDPR) |
+| **Clear Cache** | button | Clear local cache |
+| **Delete Account** | button | Permanently delete |
+
+---
+
+## 22.7 ALL SERVICES (Frontend)
+
+| Service | File | Purpose |
+|---------|------|---------|
+| **api** | `services/api.ts` | HTTP client with auth |
+| **authApi** | `services/api.ts` | Authentication methods |
+| **userApi** | `services/api.ts` | User profile methods |
+| **tasksApi** | `services/api.ts` | Task CRUD methods |
+| **focusApi** | `services/api.ts` | Focus session methods |
+| **aiApi** | `services/api.ts` | AI conversation methods |
+| **ttsApi** | `services/api.ts` | Text-to-speech methods |
+| **circlesApi** | `services/api.ts` | Circle methods |
+| **challengesApi** | `services/api.ts` | Challenge methods |
+| **assignmentsApi** | `services/api.ts` | Assignment methods |
+| **brainDumpApi** | `services/api.ts` | Brain dump methods |
+| **notificationsApi** | `services/api.ts` | Notification methods |
+| **analyticsApi** | `services/api.ts` | Analytics methods |
+| **eventsApi** | `services/api.ts` | Event logging methods |
+| **unlocksApi** | `services/api.ts` | Unlock methods |
+| **recurringApi** | `services/api.ts` | Recurring task methods |
+| **calendarApi** | `services/api.ts` | Calendar sync methods |
+| **briefApi** | `services/api.ts` | Daily brief methods |
+| **postsApi** | `services/api.ts` | Social post methods |
+| **invitationsApi** | `services/api.ts` | Invitation methods |
+| **voiceAssistant** | `services/voiceAssistant.ts` | Voice recording/TTS |
+| **intentParser** | `services/intentParser.ts` | Parse voice commands |
+| **voiceActionExecutor** | `services/voiceActionExecutor.ts` | Execute voice actions |
+| **pushNotifications** | `services/pushNotifications.ts` | Push token management |
+| **socket** | `services/socket.ts` | WebSocket connection |
+| **calendarSync** | `services/calendarSync.ts` | Calendar integration |
+| **widgetService** | `services/widgetService.ts` | iOS widget data |
+
+---
+
+## 22.8 ALL BACKEND SERVICES
+
+| Service | File | Purpose |
+|---------|------|---------|
+| **AuthService** | `auth.service.ts` | Authentication logic |
+| **UserService** | `user.service.ts` | User management |
+| **TaskService** | `task.service.ts` | Task CRUD |
+| **FocusService** | `focus.service.ts` | Focus sessions |
+| **AIService** | `ai.service.ts` | AI integration |
+| **CircleService** | `circle.service.ts` | Circle management |
+| **ChallengeService** | `challenge.service.ts` | Challenge logic |
+| **AssignmentService** | `assignment.service.ts` | Assignment logic |
+| **BraindumpService** | `braindump.service.ts` | Brain dump logic |
+| **AnalyticsService** | `analytics.service.ts` | Analytics calculations |
+| **PostService** | `post.service.ts` | Social posts |
+| **InvitationService** | `invitation.service.ts` | Invitations |
+| **PushService** | `push.service.ts` | Push notifications |
+| **SocketService** | `socket.service.ts` | WebSocket handling |
+| **SchedulerService** | `scheduler.service.ts` | Cron jobs |
+
+---
+
+## 22.9 ALL EVENT TYPES (For AI Learning)
+
+| Event Type | Trigger | Metadata |
+|------------|---------|----------|
+| `app_opened` | App launch | timestamp, source |
+| `task_created` | Create task | taskId, category, priority, source |
+| `task_completed` | Complete task | taskId, completionTime, hourOfDay |
+| `task_deferred` | Defer task | taskId, deferredTo |
+| `task_deleted` | Delete task | taskId, category |
+| `focus_started` | Start focus | sessionId, taskId, duration |
+| `focus_completed` | Finish focus | sessionId, actualDuration, xpEarned |
+| `focus_abandoned` | Abandon focus | sessionId, duration |
+| `voice_command` | Voice input | command, intent, screen |
+| `challenge_joined` | Join challenge | challengeId |
+| `challenge_completed` | Finish challenge | challengeId, position |
+| `circle_joined` | Join circle | circleId |
+| `assignment_accepted` | Accept assignment | assignmentId |
+| `assignment_completed` | Complete assignment | assignmentId, withProof |
+| `nudge_sent` | Send nudge | targetUserId, circleId |
+| `unlock_earned` | Earn unlock | featureId, via |
+| `screen_viewed` | View screen | screenName, duration |
+| `swipe_navigation` | Gesture nav | direction, fromScreen |
+
+---
+
+## 22.10 MISSING FOR PRODUCTION (Senior Dev Would Add)
+
+### Legal & Compliance (CRITICAL)
+- [ ] Terms of Service screen (content exists, no UI)
+- [ ] Privacy Policy screen (content exists, no UI)
+- [ ] GDPR consent flow on signup
+- [ ] Cookie consent (web version)
+- [ ] Data deletion confirmation flow
+- [ ] Data export feature (download my data)
+
+### Error Handling
+- [ ] Global error modal with retry
+- [ ] Network error specific handling
+- [ ] Session expired modal (auto-redirect)
+- [ ] Rate limit exceeded modal
+- [ ] Server maintenance modal
+
+### Account Management
+- [ ] Email verification flow UI
+- [ ] Change password screen
+- [ ] Two-factor authentication
+- [ ] Connected accounts (social login)
+- [ ] Account recovery flow
+
+### Deep Linking
+- [ ] Universal links setup
+- [ ] Task deep links (`mylo://task/:id`)
+- [ ] Circle invite links (`mylo://circle/join/:code`)
+- [ ] Challenge links (`mylo://challenge/:id`)
+- [ ] Notification action links
+
+### Engagement
+- [ ] App rating prompt (after milestones)
+- [ ] What's new screen (after updates)
+- [ ] Feature tips/tooltips
+- [ ] Achievement share cards
+
+### Accessibility
+- [ ] VoiceOver/TalkBack support audit
+- [ ] Dynamic font sizes
+- [ ] High contrast mode
+- [ ] Reduced motion option
+- [ ] Color blind friendly palette
+
+### Performance
+- [ ] Image lazy loading
+- [ ] List virtualization verification
+- [ ] Memory leak audit
+- [ ] Bundle size optimization
+- [ ] Startup time optimization
 
 ---
 
