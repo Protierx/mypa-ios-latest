@@ -1,5 +1,5 @@
 import { Animated } from 'react-native';
-import { AssistantState, VoiceCommand } from '../../../services/voiceAssistant';
+import { AssistantState, VoiceCommand } from '../../services/voiceAssistant';
 
 export interface VoiceAssistantScreenProps {
   visible: boolean;

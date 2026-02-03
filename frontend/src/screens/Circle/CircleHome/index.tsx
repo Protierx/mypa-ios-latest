@@ -1554,7 +1554,7 @@ export default function CircleHomeScreen({ navigation, route }: CircleHomeScreen
         onToggleAdmin={async (memberId) => {
           try {
             const member = circleMembers.find((m: any) => m.id === memberId);
-            const newRole = member?.role === 'admin' ? 'member' : 'admin';
+            const newRole = member?.role === 'admin' ? 'MEMBER' : 'ADMIN';
             const response = await circlesApi.updateMemberRole(circleId, memberId, newRole);
             if (response.success) {
               fetchCircleMembers();
@@ -1607,10 +1607,11 @@ export default function CircleHomeScreen({ navigation, route }: CircleHomeScreen
           if (!selectedAssignmentForProof) return;
           setSubmittingProof(true);
           try {
-            const response = await assignmentsApi.submitProof(selectedAssignmentForProof.id, {
+            const response = await assignmentsApi.submitProof(
+              selectedAssignmentForProof.id,
               proofUrl,
-              note: proofNote,
-            });
+              proofNote
+            );
             if (response.success) {
               Alert.alert('Success', 'Proof submitted!');
               fetchAssignments();

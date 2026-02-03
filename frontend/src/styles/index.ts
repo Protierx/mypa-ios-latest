@@ -1,4 +1,4 @@
-export { colors, darkColors } from './colors';
+export { colors, darkColors, lightColors, structuredColors } from './colors';
 export { 
   theme,
   typography,
@@ -6,8 +6,10 @@ export {
   spacing,
   radius,
   shadows,
-  cardStyles,
-  textStyles,
+  layout,
+  componentSizes,
+  animations,
+  haptics,
 } from './theme';
 export {
   animationDurations,

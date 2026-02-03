@@ -11,8 +11,8 @@ const ENV = Constants.expoConfig?.extra?.environment || 'development';
 // Environment-specific configurations
 const environments = {
   development: {
-    apiUrl: 'http://192.168.1.31:3000', // Your local network IP
-    socketUrl: 'http://192.168.1.31:3000',
+    apiUrl: 'http://192.168.1.165:3000', // Your local network IP
+    socketUrl: 'http://192.168.1.165:3000',
     environment: 'development',
     enableLogging: true,
   },

@@ -12,6 +12,7 @@ import { colors as Colors } from '../../../../styles/colors';
 
 interface Post {
   id: string;
+  content?: string;
   user?: {
     id: string;
     name?: string;

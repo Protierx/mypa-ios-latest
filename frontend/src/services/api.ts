@@ -285,6 +285,13 @@ export const brainDumpApi = {
     durationMin?: number;
     date?: string;
   }) => api.post(`/brain-dump/${id}/convert`, overrides || {}),
+  convert: (id: string, overrides?: {
+    title?: string;
+    category?: string;
+    priority?: 'LOW' | 'NORMAL' | 'HIGH';
+    durationMin?: number;
+    date?: string;
+  }) => api.post(`/brain-dump/${id}/convert`, overrides || {}),
   delete: (id: string) => api.delete(`/brain-dump/${id}`),
   getStats: () => api.get('/brain-dump/stats'),
   
@@ -340,6 +347,9 @@ export const aiApi = {
   
   // Suggest a challenge based on user prompt
   suggestChallenge: (prompt: string) => api.post('/ai/suggest-challenge', { prompt }),
+  
+  // Get AI insights for the home screen
+  getInsights: () => api.get('/ai/daily-insights'),
 };
 
 // TTS API - Text to Speech
@@ -431,6 +441,8 @@ export const circlesApi = {
     api.patch(`/circles/${circleId}/members/${userId}`, { role }),
   kickMember: (circleId: string, userId: string) =>
     api.delete(`/circles/${circleId}/members/${userId}`),
+  removeMember: (circleId: string, userId: string) =>
+    api.delete(`/circles/${circleId}/members/${userId}`),
   
   // Invite code
   regenerateInviteCode: (circleId: string) => api.post(`/circles/${circleId}/invite-code`),
@@ -497,6 +509,8 @@ export const assignmentsApi = {
   decline: (id: string, reason?: string) => api.post(`/assignments/${id}/decline`, { reason }),
   complete: (id: string, proof?: { proofUrl?: string; proofNote?: string }) =>
     api.post(`/assignments/${id}/complete`, proof || {}),
+  submitProof: (id: string, proofUrl: string, proofNote?: string) =>
+    api.post(`/assignments/${id}/complete`, { proofUrl, proofNote }),
   delete: (id: string) => api.delete(`/assignments/${id}`),
   // Update assignment details (creator only)
   update: (id: string, data: {
@@ -517,6 +531,7 @@ export const assignmentsApi = {
 export const postsApi = {
   getById: (id: string) => api.get(`/posts/${id}`),
   delete: (id: string) => api.delete(`/posts/${id}`),
+  update: (id: string, data: { content?: string }) => api.patch(`/posts/${id}`, data),
   react: (id: string, emoji: string) => api.post(`/posts/${id}/react`, { emoji }),
   removeReaction: (id: string) => api.delete(`/posts/${id}/react`),
   getReactions: (id: string) => api.get(`/posts/${id}/reactions`),
@@ -558,6 +573,9 @@ export const analyticsApi = {
     const query = weekStart ? `?weekStart=${weekStart}` : '';
     return api.get(`/analytics/weekly${query}`);
   },
+  
+  // Get overview for today (combined stats)
+  getOverview: () => api.get('/analytics/dashboard'),
   
   // Get productivity trends
   getTrends: () => api.get('/analytics/trends'),
@@ -642,6 +660,168 @@ export const notificationsApi = {
   
   // Send test notification
   sendTest: () => api.post('/notifications/test'),
+};
+
+// ==========================================
+// MYLO V2 - AI LEARNING & PRODUCTIVITY APIS
+// ==========================================
+
+// Events API - Track user behavior for AI learning
+export const eventsApi = {
+  // Log a single event
+  log: (eventType: string, metadata?: Record<string, any>) =>
+    api.post('/events', { eventType, metadata }),
+  
+  // Log multiple events (batch)
+  logBatch: (events: Array<{ eventType: string; metadata?: Record<string, any>; timestamp?: string }>) =>
+    api.post('/events/batch', { events }),
+  
+  // Get my event history (debugging/analytics)
+  getHistory: (options?: { eventType?: string; limit?: number; startDate?: string; endDate?: string }) => {
+    const params = new URLSearchParams();
+    if (options?.eventType) params.set('eventType', options.eventType);
+    if (options?.limit) params.set('limit', String(options.limit));
+    if (options?.startDate) params.set('startDate', options.startDate);
+    if (options?.endDate) params.set('endDate', options.endDate);
+    const query = params.toString();
+    return api.get(`/events${query ? `?${query}` : ''}`);
+  },
+};
+
+// Unlocks API - Progressive feature unlocks
+export const unlocksApi = {
+  // Get all unlocks and progress
+  getAll: () => api.get('/unlocks'),
+  
+  // Get specific unlock status
+  getUnlock: (featureId: string) => api.get(`/unlocks/${featureId}`),
+  
+  // Check if a feature is unlocked
+  check: (featureId: string) => api.get(`/unlocks/check/${featureId}`),
+  
+  // Manually trigger unlock check (after milestone)
+  triggerCheck: () => api.post('/unlocks/check'),
+};
+
+// Recurring Tasks API
+export const recurringApi = {
+  // Get all recurring task templates
+  getAll: (includeInactive = false) => {
+    const query = includeInactive ? '?includeInactive=true' : '';
+    return api.get(`/recurring${query}`);
+  },
+  
+  // Create a recurring task
+  create: (data: {
+    title: string;
+    description?: string;
+    category?: string;
+    priority?: string;
+    durationMin?: number;
+    defaultTime?: string;
+    recurrence: {
+      frequency: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY';
+      interval?: number;
+      daysOfWeek?: number[];  // 0-6 for weekly
+      dayOfMonth?: number;    // 1-31 for monthly
+      endDate?: string;
+      endAfterOccurrences?: number;
+    };
+  }) => api.post('/recurring', data),
+  
+  // Update a recurring task
+  update: (id: string, data: any) => api.put(`/recurring/${id}`, data),
+  
+  // Pause a recurring task
+  pause: (id: string) => api.post(`/recurring/${id}/pause`),
+  
+  // Resume a recurring task
+  resume: (id: string) => api.post(`/recurring/${id}/resume`),
+  
+  // Delete a recurring task
+  delete: (id: string, deleteInstances = false) => {
+    const query = deleteInstances ? '?deleteInstances=true' : '';
+    return api.delete(`/recurring/${id}${query}`);
+  },
+  
+  // Manually generate due instances
+  generate: () => api.post('/recurring/generate'),
+};
+
+// Calendar Integration API
+export const calendarApi = {
+  // Connect a calendar provider
+  connect: (data: {
+    provider: 'apple' | 'google' | 'outlook';
+    accessToken: string;
+    refreshToken?: string;
+    calendarId?: string;
+    syncDirection?: 'import' | 'export' | 'bidirectional';
+  }) => api.post('/calendar/connect', data),
+  
+  // Disconnect a provider
+  disconnect: (provider: 'apple' | 'google' | 'outlook') =>
+    api.delete(`/calendar/disconnect/${provider}`),
+  
+  // Get all connections
+  getConnections: () => api.get('/calendar/connections'),
+  
+  // Sync a specific connection
+  sync: (connectionId: string) => api.post(`/calendar/sync/${connectionId}`),
+  
+  // Get calendar events
+  getEvents: (startDate: string, endDate: string) =>
+    api.get(`/calendar/events?startDate=${startDate}&endDate=${endDate}`),
+  
+  // Get merged timeline (tasks + calendar)
+  getTimeline: (date?: string) => {
+    const query = date ? `?date=${date}` : '';
+    return api.get(`/calendar/timeline${query}`);
+  },
+  
+  // Export a task to calendar
+  exportTask: (taskId: string, connectionId: string) =>
+    api.post(`/calendar/export/${taskId}`, { connectionId }),
+  
+  // Check for conflicts
+  checkConflicts: (startTime: string, endTime: string, excludeTaskId?: string) => {
+    const params = new URLSearchParams({ startTime, endTime });
+    if (excludeTaskId) params.set('excludeTaskId', excludeTaskId);
+    return api.get(`/calendar/conflicts?${params.toString()}`);
+  },
+  
+  // Get suggested time slots
+  suggestSlots: (options: {
+    date?: string;
+    duration: number;
+    preferredTimes?: string[];  // ['morning', 'afternoon', 'evening']
+  }) => {
+    const params = new URLSearchParams({ duration: String(options.duration) });
+    if (options.date) params.set('date', options.date);
+    if (options.preferredTimes) params.set('preferredTimes', options.preferredTimes.join(','));
+    return api.get(`/calendar/suggest-slots?${params.toString()}`);
+  },
+};
+
+// Daily Brief API - Personalized daily briefings
+export const briefApi = {
+  // Get full daily brief
+  getDaily: () => api.get('/brief/daily'),
+  
+  // Get evening recap
+  getEvening: () => api.get('/brief/evening'),
+  
+  // Get quick status (for widgets/notifications)
+  getQuick: () => api.get('/brief/quick'),
+};
+
+// Learning API - Get AI model insights
+export const learningApi = {
+  // Get AI suggestions based on learned patterns
+  getSuggestions: () => api.get('/unlocks'), // Uses unlock check endpoint that includes suggestions
+  
+  // Get learned patterns
+  getPatterns: () => api.get('/events/patterns'),
 };
 
 export default api;

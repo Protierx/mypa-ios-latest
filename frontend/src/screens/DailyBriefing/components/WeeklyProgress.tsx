@@ -60,7 +60,8 @@ export const WeeklyProgress: React.FC<WeeklyProgressProps> = ({
         <View style={styles.weekDays}>
           {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, i) => {
             const isToday = i === (new Date().getDay() + 6) % 7;
-            const hasActivity = weeklyStats.dailyData?.[i]?.completed > 0;
+            const dayData = weeklyStats.dailyData?.[i];
+            const hasActivity = (dayData?.completed ?? 0) > 0;
 
             return (
               <View key={i} style={styles.weekDay}>

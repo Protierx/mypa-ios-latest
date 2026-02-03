@@ -4,10 +4,11 @@ import * as Clipboard from 'expo-clipboard';
 import { circlesApi } from '../../../../services/api';
 import { Circle, CardAnimation } from '../types';
 import { generateInviteCode } from '../utils';
+import { SetStateAction, Dispatch } from 'react';
 
 interface UseCirclesActionsParams {
   circles: Circle[];
-  setCircles: (circles: Circle[]) => void;
+  setCircles: Dispatch<SetStateAction<Circle[]>>;
   newName: string;
   newMembers: string;
   newPrivacy: 'public' | 'private';
@@ -20,7 +21,7 @@ interface UseCirclesActionsParams {
   setJoinCode: (code: string) => void;
   setJoinError: (error: string) => void;
   setJoinSuccess: (success: boolean) => void;
-  setExpandedCard: (id: string | null) => void;
+  setExpandedCard: Dispatch<SetStateAction<string | null>>;
   setLongPressedCard: (circle: Circle | null) => void;
   longPressedCard: Circle | null;
   showToast: (message: string, type?: 'success' | 'info') => void;
@@ -62,8 +63,7 @@ export function useCirclesActions({
 
       const response = await circlesApi.create({
         name: newName,
-        privacy: newPrivacy,
-        memberNames,
+        isPrivate: newPrivacy === 'private',
       });
 
       const created = response.data?.data ?? response.data;
@@ -130,7 +130,7 @@ export function useCirclesActions({
   // Join an existing circle
   const handleJoinCircle = useCallback(async () => {
     try {
-      const response = await circlesApi.join({ inviteCode: joinCode.trim() });
+      const response = await circlesApi.joinByCode(joinCode.trim());
       const joined = response.data?.data ?? response.data;
 
       const joinedCircle: Circle = {

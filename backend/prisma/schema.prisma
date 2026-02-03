@@ -1,4 +1,4 @@
-// Prisma Schema for MYPA Backend
+// Prisma Schema for Mylo Backend
 // Run: npx prisma db push (to sync with database)
 // NOTE: Using SQLite for local development. Switch to PostgreSQL for production.
 
@@ -79,6 +79,19 @@ model User {
   // Google integration
   googleRefreshToken String?
   googleConnectedAt  DateTime?
+  
+  // AI Learning System relations
+  userModel         UserModel?
+  userUnlocks       UserUnlock[]
+  userEvents        UserEvent[]
+  conversations     Conversation[]
+  
+  // Recurring tasks
+  recurringTemplates RecurringTaskTemplate[]
+  
+  // Calendar integration
+  calendarConnections CalendarConnection[]
+  calendarEvents      CalendarEvent[]
 
   @@map("users")
 }
@@ -176,6 +189,13 @@ model Task {
   // AI metadata
   aiCategorized Boolean @default(false)
   aiSuggestions String?
+  aiEstimatedMinutes Int?
+  
+  // Recurring task support
+  isRecurring           Boolean  @default(false)
+  recurringTemplateId   String?
+  recurringTemplate     RecurringTaskTemplate? @relation("RecurringTaskInstances", fields: [recurringTemplateId], references: [id], onDelete: SetNull)
+  recurrenceInstanceDate DateTime?  // Which date this instance represents
   
   // Status
   completed   Boolean   @default(false)
@@ -608,4 +628,268 @@ model ScheduledNotification {
   updatedAt    DateTime @updatedAt
 
   @@map("scheduled_notifications")
+}
+
+// ==========================================
+// AI LEARNING SYSTEM (Mylo Intelligence)
+// ==========================================
+
+model UserModel {
+  id                  String   @id @default(uuid())
+  userId              String   @unique
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Learned peak productivity hours (JSON array of hour numbers 0-23)
+  peakHours           String   @default("[]")
+  
+  // Best day of week for different activities (0-6, Sun-Sat)
+  bestDayForPlanning  Int?
+  bestDayForFocus     Int?
+  bestDayForTasks     Int?
+  
+  // Productivity patterns (JSON)
+  patterns            String   @default("{}")
+  
+  // Task duration estimates (JSON: category -> avg minutes)
+  durationEstimates   String   @default("{}")
+  
+  // Category preferences (JSON: weighted list)
+  categoryPreferences String   @default("[]")
+  
+  // Streak behavior
+  streakMaintenanceScore Float @default(0.5)
+  
+  // Focus session patterns
+  avgFocusDuration    Int?
+  preferredFocusTime  String?
+  
+  // Voice command patterns
+  commonCommands      String   @default("[]")
+  
+  // Confidence scores (0-1)
+  peakHoursConfidence Float    @default(0)
+  patternConfidence   Float    @default(0)
+  
+  // Learning metadata
+  totalEventsAnalyzed Int      @default(0)
+  lastAnalyzedAt      DateTime?
+  
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@map("user_models")
+}
+
+model UserUnlock {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Feature identifier (e.g., "peak_hours", "smart_scheduling", "pattern_insights")
+  feature     String
+  
+  // How it was unlocked: TIME (day X), MILESTONE (completed Y), HYBRID
+  unlockType  String   @default("TIME")
+  
+  // Day number when time-unlock became available
+  availableAtDay Int?
+  
+  // Milestone that triggered unlock (if applicable)
+  milestoneTrigger String?
+  
+  // When the feature was actually unlocked
+  unlockedAt  DateTime @default(now())
+  
+  // Whether user has seen the celebration modal
+  seenByUser  Boolean  @default(false)
+  seenAt      DateTime?
+  
+  @@unique([userId, feature])
+  @@index([seenByUser])
+  @@map("user_unlocks")
+}
+
+model UserEvent {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Event type (app_opened, task_created, task_completed, focus_started, etc.)
+  type        String
+  
+  // Screen where event occurred
+  screen      String?
+  
+  // Additional metadata (JSON)
+  metadata    String   @default("{}")
+  
+  // Timestamp with timezone info
+  timestamp   DateTime @default(now())
+  
+  // Session tracking
+  sessionId   String?
+  
+  // For batching analysis
+  processed   Boolean  @default(false)
+  processedAt DateTime?
+  
+  @@index([userId, timestamp])
+  @@index([userId, type])
+  @@index([processed])
+  @@map("user_events")
+}
+
+model Conversation {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // User's input (voice transcription or text)
+  userInput   String
+  
+  // AI's response
+  aiResponse  String
+  
+  // Parsed intent (if applicable)
+  intent      String?
+  
+  // Action taken (if any)
+  action      String?
+  actionData  String?
+  
+  // Response time in ms
+  responseTimeMs Int?
+  
+  // User feedback
+  isHelpful   Boolean?
+  feedbackAt  DateTime?
+  
+  // Voice-specific metadata
+  isVoice     Boolean  @default(false)
+  voiceDurationMs Int?
+  
+  createdAt   DateTime @default(now())
+  
+  @@index([userId, createdAt])
+  @@map("conversations")
+}
+
+// ==========================================
+// RECURRING TASKS
+// ==========================================
+
+model RecurringTaskTemplate {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  title       String
+  description String?
+  category    String   @default("Personal")
+  priority    String   @default("NORMAL")
+  durationMin Int      @default(30)
+  
+  // Recurrence rule (RRULE format or simplified)
+  // e.g., "FREQ=DAILY", "FREQ=WEEKLY;BYDAY=MO,WE,FR", "FREQ=MONTHLY;BYMONTHDAY=15"
+  recurrenceRule String
+  
+  // Simplified recurrence fields for easy querying
+  frequency   String   // DAILY, WEEKLY, MONTHLY, YEARLY
+  interval    Int      @default(1)  // Every X days/weeks/months
+  daysOfWeek  String?  // JSON array [0,1,2,3,4,5,6] for weekly
+  dayOfMonth  Int?     // For monthly
+  
+  // Time of day
+  defaultTime String?  // "09:00"
+  
+  // End conditions
+  endDate     DateTime?
+  endAfterOccurrences Int?
+  occurrencesGenerated Int @default(0)
+  
+  // Status
+  isActive    Boolean  @default(true)
+  pausedAt    DateTime?
+  
+  // Last generated instance
+  lastGeneratedDate DateTime?
+  nextDueDate DateTime?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Generated task instances
+  instances   Task[]   @relation("RecurringTaskInstances")
+
+  @@index([userId, isActive])
+  @@index([nextDueDate])
+  @@map("recurring_task_templates")
+}
+
+// ==========================================
+// CALENDAR INTEGRATION
+// ==========================================
+
+model CalendarConnection {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Provider: GOOGLE, APPLE, OUTLOOK
+  provider      String
+  
+  // OAuth tokens (encrypted in production)
+  accessToken   String
+  refreshToken  String?
+  tokenExpiresAt DateTime?
+  
+  // Connected calendar IDs (JSON array)
+  calendarIds   String   @default("[]")
+  
+  // Sync settings
+  syncEnabled   Boolean  @default(true)
+  lastSyncedAt  DateTime?
+  syncErrors    String?
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([userId, provider])
+  @@map("calendar_connections")
+}
+
+model CalendarEvent {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // External reference
+  externalId    String
+  provider      String
+  calendarId    String
+  
+  // Event details
+  title         String
+  description   String?
+  location      String?
+  
+  // Timing
+  startTime     DateTime
+  endTime       DateTime
+  isAllDay      Boolean  @default(false)
+  timezone      String?
+  
+  // Status
+  status        String   @default("confirmed")  // confirmed, tentative, cancelled
+  
+  // Sync metadata
+  lastSyncedAt  DateTime @default(now())
+  etag          String?
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([userId, externalId, provider])
+  @@index([userId, startTime])
+  @@map("calendar_events")
 }

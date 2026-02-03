@@ -6,7 +6,7 @@ import { styles } from '../styles';
 interface MessageListProps {
   messages: Message[];
   isTyping: boolean;
-  scrollViewRef: React.RefObject<ScrollView>;
+  scrollViewRef: React.RefObject<ScrollView | null>;
 }
 
 export const MessageList: React.FC<MessageListProps> = ({

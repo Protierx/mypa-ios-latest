@@ -22,7 +22,13 @@ export const getStatusText = (state: AssistantState): string => {
 };
 
 export const getStatusColor = (state: AssistantState): string => {
-  return STATUS_COLORS[state] || STATUS_COLORS.idle;
+  const colors: Record<AssistantState, string> = {
+    listening: '#10B981',
+    processing: '#F59E0B',
+    speaking: '#8B5CF6',
+    idle: '#64748B',
+  };
+  return colors[state] || '#64748B';
 };
 
 export const getOrbHint = (state: AssistantState): string => {

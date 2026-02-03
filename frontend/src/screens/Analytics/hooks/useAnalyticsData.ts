@@ -31,7 +31,7 @@ export const useAnalyticsData = (): UseAnalyticsDataReturn => {
 
   const fetchData = useCallback(async () => {
     try {
-      const [dailyData, weeklyData, insightsData, trendsData] =
+      const [dailyRes, weeklyRes, insightsRes, trendsRes] =
         await Promise.all([
           analyticsApi.getDaily(),
           analyticsApi.getWeekly(),
@@ -39,10 +39,10 @@ export const useAnalyticsData = (): UseAnalyticsDataReturn => {
           analyticsApi.getTrends(),
         ]);
 
-      setDailyStats(dailyData);
-      setWeeklyStats(weeklyData);
-      setInsights(insightsData);
-      setTrends(trendsData);
+      setDailyStats(dailyRes.data ?? null);
+      setWeeklyStats(weeklyRes.data ?? null);
+      setInsights(insightsRes.data ?? null);
+      setTrends(trendsRes.data ?? null);
     } catch (error) {
       console.error('Error fetching analytics:', error);
     } finally {

@@ -306,4 +306,168 @@ export const styles = StyleSheet.create({
   toggleKnobActive: {
     transform: [{ translateX: 22 }],
   },
+
+  // Header styles
+  headerCenter: {
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#fff',
+    letterSpacing: 1,
+  },
+  statusContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+
+  // Input Bar styles
+  inputContainer: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  inputToggle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(139, 92, 246, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  textInputWrapper: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 22,
+    paddingHorizontal: 16,
+  },
+  inputHint: {
+    flex: 1,
+    fontSize: 15,
+    color: 'rgba(255, 255, 255, 0.5)',
+    textAlign: 'center',
+  },
+  continuousToggle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  continuousToggleActive: {
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+  },
+
+  // Message List styles
+  messagesContainer: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  messagesContent: {
+    paddingVertical: 20,
+    gap: 16,
+  },
+  messageBubble: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 8,
+  },
+  userBubble: {
+    flexDirection: 'row-reverse',
+  },
+  assistantBubble: {
+    flexDirection: 'row',
+  },
+  assistantAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(139, 92, 246, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: 24,
+    height: 24,
+    resizeMode: 'contain',
+  },
+  messageContent: {
+    maxWidth: '75%',
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  userContent: {
+    backgroundColor: '#8B5CF6',
+    borderBottomRightRadius: 4,
+  },
+  assistantContent: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderBottomLeftRadius: 4,
+  },
+  transcriptContent: {
+    opacity: 0.7,
+  },
+  messageText: {
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  userText: {
+    color: '#fff',
+  },
+  assistantText: {
+    color: 'rgba(255, 255, 255, 0.9)',
+  },
+
+  // Voice Orb styles  
+  orbContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 30,
+  },
+  orbRing: {
+    position: 'absolute',
+    borderWidth: 2,
+    borderColor: 'rgba(139, 92, 246, 0.3)',
+    borderRadius: 100,
+  },
+  orbImage: {
+    width: 120,
+    height: 120,
+    resizeMode: 'contain',
+  },
+  wavesContainer: {
+    position: 'absolute',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  wave: {
+    width: 4,
+    height: 20,
+    backgroundColor: 'rgba(139, 92, 246, 0.6)',
+    borderRadius: 2,
+  },
+  orbHint: {
+    marginTop: 20,
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.5)',
+    textAlign: 'center',
+  },
 });

@@ -339,7 +339,7 @@ export async function joinChallenge(challengeId: string, userId: string) {
     },
     include: {
       challenge: {
-        select: { title: true, emoji: true, targetValue: true },
+        select: { title: true, emoji: true, targetValue: true, circleId: true },
       },
     },
   });
@@ -414,7 +414,7 @@ export async function updateProgress(
     },
     include: {
       challenge: {
-        select: { title: true, emoji: true, targetValue: true, xpReward: true },
+        select: { title: true, emoji: true, targetValue: true, xpReward: true, circleId: true },
       },
     },
   });

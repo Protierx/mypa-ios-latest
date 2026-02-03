@@ -990,7 +990,7 @@ export function CirclesScreen({ onModalStateChange, navigation }: CirclesScreenP
                         try {
                           const targetCircle = circles.find(c => c.id === longPressedCard);
                           if (!targetCircle) return;
-                          const response = await circlesApi.leave(targetCircle.id);
+                          const response = await circlesApi.leave(String(targetCircle.id));
                           if (response.success) {
                             setCircles(circles.filter(c => c.id !== longPressedCard));
                             setLongPressedCard(null);

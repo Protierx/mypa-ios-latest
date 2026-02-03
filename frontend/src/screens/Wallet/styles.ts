@@ -527,6 +527,13 @@ export const styles = StyleSheet.create({
   },
 
   // How It Works
+  card: {
+    marginHorizontal: 20,
+    borderRadius: 16,
+    overflow: 'hidden',
+    padding: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+  },
   howItWorksCard: {
     marginHorizontal: 20,
     borderRadius: 16,
@@ -561,6 +568,9 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,
+  },
+  howItWorksEmoji: {
+    fontSize: 20,
   },
   howItWorksTitle: {
     fontSize: 13,

@@ -20,7 +20,7 @@ interface UseResetDataReturn {
   breathePhase: BreathePhase;
   breatheScale: Animated.Value;
   glowOpacity: Animated.Value;
-  scrollViewRef: React.RefObject<ScrollView>;
+  scrollViewRef: React.RefObject<ScrollView | null>;
   setInputText: (text: string) => void;
   sendMessage: (text: string) => void;
   toggleRecording: () => void;

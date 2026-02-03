@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet, ActivityIndicator } from 'react-native';
-import { colors, spacing } from '../../styles';
+import { colors, spacing } from '../styles';
 
 export function LoadingOverlay() {
   return (

@@ -19,6 +19,12 @@ import postsRoutes, { circleFeedRouter, circlePostsRouter } from './routes/posts
 import invitationsRoutes from './routes/invitations.routes.js';
 import analyticsRoutes from './routes/analytics.routes.js';
 import notificationsRoutes from './routes/notifications.routes.js';
+// Mylo v2 - AI Learning & Productivity
+import eventsRoutes from './routes/events.routes.js';
+import unlocksRoutes from './routes/unlocks.routes.js';
+import recurringRoutes from './routes/recurring.routes.js';
+import calendarRoutes from './routes/calendar.routes.js';
+import briefRoutes from './routes/brief.routes.js';
 
 export function createApp(): Application {
   const app = express();
@@ -67,6 +73,13 @@ export function createApp(): Application {
   // Phase 5: AI & Polish
   app.use('/analytics', analyticsRoutes);
   app.use('/notifications', notificationsRoutes);
+
+  // Mylo v2 - AI Learning & Productivity System
+  app.use('/events', eventsRoutes);
+  app.use('/unlocks', unlocksRoutes);
+  app.use('/recurring', recurringRoutes);
+  app.use('/calendar', calendarRoutes);
+  app.use('/brief', briefRoutes);
 
   // Error handling
   app.use(notFoundHandler);

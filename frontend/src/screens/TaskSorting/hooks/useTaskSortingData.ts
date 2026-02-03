@@ -41,7 +41,7 @@ interface UseTaskSortingDataReturn {
   isLoading: boolean;
   
   // Refs
-  inputRef: React.RefObject<TextInput>;
+  inputRef: React.RefObject<TextInput | null>;
   fadeAnims: { [key: string]: Animated.Value };
   slideAnims: { [key: string]: Animated.Value };
   checkAnims: { [key: string]: Animated.Value };
