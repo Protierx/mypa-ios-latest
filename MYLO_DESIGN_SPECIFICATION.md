@@ -6,6 +6,16 @@
 
 ---
 
+## Related Documentation
+
+| Document | Purpose | When to Use |
+|----------|---------|-------------|
+| [MYLO_ARCHITECTURE_PLAN.md](./MYLO_ARCHITECTURE_PLAN.md) | Technical architecture, user flows, AI functions, navigation | Understanding feature logic and AI integration |
+| **This File (Design)** | Pixel-perfect UI specs, colors, typography, component states, visual feedback | Implementing visual design |
+| [MYLO_FULL_IMPLEMENTATION_GUIDE.md](./MYLO_FULL_IMPLEMENTATION_GUIDE.md) | Step-by-step implementation, code examples, API details | Building features phase by phase |
+
+---
+
 ## Table of Contents
 
 1. [Color Specification](#section-1-color-specification)
@@ -27,6 +37,726 @@
 17. [NEW: Quick Capture](#section-17-quick-capture)
 18. [NEW: Daily Brief & Notifications](#section-18-daily-brief--notifications)
 19. [NEW: Celebration System](#section-19-celebration-system)
+20. [**USER INTERACTION FLOWS**](#section-20-user-interaction-flows)
+21. [**COMPONENT STATES & BEHAVIORS**](#section-21-component-states--behaviors)
+22. [**AI VISUAL FEEDBACK**](#section-22-ai-visual-feedback)
+
+---
+
+# SECTION 20: USER INTERACTION FLOWS
+
+> **This section details exactly what the user sees and experiences during every interaction, with pixel-perfect visual specifications.**
+
+## 20.1 App Launch Flow
+
+### Visual Sequence
+```
+┌─────────────────────────────────────┐
+│           SPLASH SCREEN             │
+│                                     │
+│            ┌───────┐               │
+│            │       │               │  Mylo logo: 80px, centered
+│            │ MYLO  │               │  Background: #000000
+│            │       │               │  Duration: 0.5s
+│            └───────┘               │
+│                                     │
+└─────────────────────────────────────┘
+                 │
+                 │ Fade transition (0.3s)
+                 ▼
+┌─────────────────────────────────────┐
+│           AI HOME LOADS             │
+│                                     │
+│ 1. Background fades to #000000      │
+│ 2. Orb scales from 0.5 → 1.0        │
+│    (spring animation, 0.4s)         │
+│ 3. Greeting text fades in (0.3s)    │
+│ 4. Stats cards slide up (0.3s)      │
+│ 5. Orb begins idle pulse            │
+│                                     │
+└─────────────────────────────────────┘
+```
+
+### Timing
+- Splash display: 500ms minimum
+- Logo fade out: 300ms ease-out
+- Screen fade in: 300ms ease-in
+- Elements stagger: 100ms between each
+- Total perceived load: < 1.5s
+
+## 20.2 Tap Orb → Voice Input Flow
+
+### Step-by-Step Visual States
+
+**Step 1: User Touches Orb**
+```
+┌─────────────────────────────────────┐
+│ Visual Change:                      │
+│ - Orb scales to 0.95 (50ms)         │
+│ - Glow intensifies 20%              │
+│ - Haptic: Medium impact             │
+│                                     │
+│ Orb State: "pressed"                │
+│ Color: Same gradient                │
+│ Scale: 0.95                         │
+└─────────────────────────────────────┘
+```
+
+**Step 2: User Releases → Listening Begins**
+```
+┌─────────────────────────────────────┐
+│ Visual Change:                      │
+│ - Orb scales to 1.1 (200ms spring)  │
+│ - Inner ring appears (voice wave)   │
+│ - Glow pulses rhythmically          │
+│ - "Listening..." text appears below │
+│                                     │
+│ Orb State: "listening"              │
+│ Inner Animation: Voice wave rings   │
+│ Glow: Pulsing at 1Hz                │
+│ Text: "Listening..." in body,       │
+│       text-secondary, centered      │
+└─────────────────────────────────────┘
+```
+
+**Step 3: User Speaks → Real-time Transcription**
+```
+┌─────────────────────────────────────┐
+│ Visual Change:                      │
+│ - Voice waves react to volume       │
+│ - Transcription text appears        │
+│ - Text types character by character │
+│                                     │
+│ Transcription Area:                 │
+│ Position: Below orb, 24px margin    │
+│ Width: 280px max, centered          │
+│ Text: body-medium, text-primary     │
+│ Background: #161616, radius-lg      │
+│ Padding: 16px                       │
+│                                     │
+│ ┌─────────────────────────────────┐ │
+│ │ "Add task buy gro|"             │ │ Cursor blinks
+│ └─────────────────────────────────┘ │
+└─────────────────────────────────────┘
+```
+
+**Step 4: User Stops → Processing**
+```
+┌─────────────────────────────────────┐
+│ Visual Change:                      │
+│ - Voice waves collapse to center    │
+│ - Orb shows loading spinner inside  │
+│ - "Thinking..." replaces text       │
+│                                     │
+│ Orb State: "processing"             │
+│ Animation: Circular spinner (1.5s)  │
+│ Spinner: 40px, #A78BFA, 2px stroke  │
+│ Text: "Thinking..." in footnote,    │
+│       text-tertiary                 │
+└─────────────────────────────────────┘
+```
+
+**Step 5: AI Responds**
+```
+┌─────────────────────────────────────┐
+│ Visual Change:                      │
+│ - Spinner fades out                 │
+│ - Orb pulses once (success)         │
+│ - Response text streams in          │
+│ - TTS audio plays                   │
+│ - Haptic: Light impact              │
+│                                     │
+│ Orb State: "speaking"               │
+│ Glow: Steady, brighter (40%)        │
+│                                     │
+│ Response Bubble:                    │
+│ Background: #161616                 │
+│ Border-left: 3px #7C3AED            │
+│ Text: body, text-primary            │
+│ Streams word by word (50ms/word)    │
+│                                     │
+│ ┌─────────────────────────────────┐ │
+│ │ ┃ "Added 'buy groceries' to     │ │
+│ │ ┃ your tasks for today."        │ │
+│ └─────────────────────────────────┘ │
+│                                     │
+│ Action Confirmation (if task added):│
+│ ┌─────────────────────────────────┐ │
+│ │ ✓ buy groceries         +10 XP  │ │ Success toast, slides up
+│ └─────────────────────────────────┘ │
+└─────────────────────────────────────┘
+```
+
+**Step 6: Return to Idle**
+```
+┌─────────────────────────────────────┐
+│ After 3 seconds of no interaction:  │
+│ - Response bubble fades (0.5s)      │
+│ - Orb returns to idle state         │
+│ - Greeting updates if relevant      │
+│                                     │
+│ Orb State: "idle"                   │
+│ Animation: Gentle breathing pulse   │
+└─────────────────────────────────────┘
+```
+
+## 20.3 Swipe Navigation Flow
+
+### Swipe LEFT (AI Home → Tasks)
+
+**Phase 1: Touch Down**
+```
+Position: User touches anywhere on screen
+Response: None (waiting for movement)
+```
+
+**Phase 2: Dragging**
+```
+┌─────────────────────────────────────┐
+│ As finger moves LEFT:               │
+│                                     │
+│ - AI Home content translates LEFT   │
+│   (follows finger 1:1)              │
+│ - Tasks View peeks from right edge  │
+│ - Tasks View: 20% visible initially │
+│ - Parallax: AI Home moves faster    │
+│   than Tasks (1.2:1 ratio)          │
+│                                     │
+│ Edge Peek Visual:                   │
+│ ┌───────────────────────┬──────────┐
+│ │                       │  Tasks   │
+│ │      AI HOME          │  Preview │
+│ │     (translating)     │  (peek)  │
+│ │                       │          │
+│ └───────────────────────┴──────────┘
+│                                     │
+│ At 50px drag: Light haptic          │
+│ At 100px drag: Threshold reached    │
+│               Medium haptic         │
+└─────────────────────────────────────┘
+```
+
+**Phase 3: Release (Past Threshold)**
+```
+┌─────────────────────────────────────┐
+│ Spring animation to Tasks View      │
+│                                     │
+│ Config:                             │
+│ - damping: 20                       │
+│ - mass: 0.8                         │
+│ - stiffness: 150                    │
+│ - Duration: ~300ms                  │
+│                                     │
+│ AI Home: Slides fully off-left      │
+│ Tasks: Springs to full position     │
+│                                     │
+│ Post-animation:                     │
+│ - Mini orb fades in (top-right)     │
+│ - Task list loads/refreshes         │
+│ - Filter tabs become interactive    │
+└─────────────────────────────────────┘
+```
+
+**Phase 3B: Release (Before Threshold)**
+```
+┌─────────────────────────────────────┐
+│ Snap back animation                 │
+│                                     │
+│ AI Home: Springs back to center     │
+│ Tasks peek: Disappears              │
+│ Haptic: None (gesture cancelled)    │
+└─────────────────────────────────────┘
+```
+
+## 20.4 Task Creation Flow
+
+### Entry Points (Visual Differences)
+
+**Via FAB Button:**
+```
+1. User taps FAB (+) in bottom-right
+2. FAB scales to 0.9 (50ms)
+3. Haptic: Light impact
+4. Modal slides up from bottom (300ms)
+5. Title input auto-focused
+6. Keyboard rises
+```
+
+**Via Voice ("Add task..."):**
+```
+1. AI parses command
+2. Task creation modal slides up
+3. Fields pre-filled by AI:
+   - Title: From voice command
+   - Category: AI-detected (chip shown)
+   - Duration: AI-estimated (chip shown)
+   - Priority: AI-suggested (highlighted)
+4. User can modify or tap "Add Task"
+```
+
+### Task Creation Modal Layout
+```
+┌─────────────────────────────────────┐
+│ ────────── (drag handle)            │ 36×4px, #3F3F46, centered
+│                                     │
+│ New Task                       ✕    │ title-2, close button 44px
+├─────────────────────────────────────┤
+│                                     │
+│ ┌─────────────────────────────────┐ │
+│ │ What do you need to do?         │ │ Input: height 56px
+│ └─────────────────────────────────┘ │
+│                                     │
+│ AI Suggestions (appear as typing):  │
+│ ┌─────────────────────────────────┐ │
+│ │ 🏷️ Work  ⏱️ ~25 min  🔥 Medium │ │ Chips row
+│ └─────────────────────────────────┘ │
+│                                     │
+│ Schedule                            │ subhead, text-secondary
+│ ┌────────────┐  ┌────────────┐     │
+│ │ 📅 Today   │  │ 🕐 2:00 PM │     │ Picker buttons
+│ └────────────┘  └────────────┘     │
+│                                     │
+│ Priority                            │
+│ ┌────────┐ ┌────────┐ ┌────────┐   │
+│ │  LOW   │ │ MEDIUM │ │  HIGH  │   │ AI highlights suggested
+│ └────────┘ └────────┘ └────────┘   │
+│                                     │
+│ ┌─────────────────────────────────┐ │
+│ │          Add Task               │ │ Primary button, full width
+│ └─────────────────────────────────┘ │
+│                                     │
+│ (safe area)                         │
+└─────────────────────────────────────┘
+```
+
+### AI Suggestion Chips Behavior
+```
+As User Types "gym workout tomorrow":
+
+1. "gym" detected → Health category chip appears
+2. "workout" → Duration updates to ~45 min
+3. "tomorrow" → Date picker updates to tomorrow
+4. Chips animate in with spring (scale 0→1)
+5. Each chip: #1C1C1E bg, radius-sm, padding 6px 12px
+6. Icon: 16px, left of text
+7. Text: caption-1, text-secondary
+```
+
+## 20.5 Task Completion Flow
+
+### Tap Checkbox Method
+```
+┌─────────────────────────────────────┐
+│ Before:                             │
+│ ┌─────────────────────────────────┐ │
+│ │ ○  Buy groceries         ~15min │ │ Checkbox: 24px, border #52525B
+│ │    Personal · Today             │ │
+│ └─────────────────────────────────┘ │
+│                                     │
+│ User taps checkbox:                 │
+│ 1. Haptic: Success notification     │
+│ 2. Checkbox fills green (0→100%)    │
+│    Animation: 200ms ease-out        │
+│ 3. Checkmark draws in (SVG anim)    │
+│ 4. Task title strikes through       │
+│    Color: text-secondary → tertiary │
+│ 5. Row fades to 60% opacity         │
+│ 6. XP toast slides up from bottom   │
+│                                     │
+│ After:                              │
+│ ┌─────────────────────────────────┐ │
+│ │ ✓  Buy groceries         ~15min │ │ Green fill: #22C55E
+│ │    Personal · Today             │ │ Strikethrough on title
+│ └─────────────────────────────────┘ │
+│                                     │
+│ XP Toast (appears for 2s):          │
+│ ┌─────────────────────────────────┐ │
+│ │ ✓ Task completed!       +10 XP  │ │ #161616 bg, success border
+│ └─────────────────────────────────┘ │
+└─────────────────────────────────────┘
+```
+
+### Swipe Right to Complete
+```
+┌─────────────────────────────────────┐
+│ User swipes task row RIGHT:         │
+│                                     │
+│ ┌─────────────────────────────────┐ │
+│ │ ✓ │○  Buy groceries      ~15min │ │ Green action reveals
+│ │   │   Personal · Today          │ │ from left edge
+│ └───┴─────────────────────────────┘ │
+│                                     │
+│ Action area:                        │
+│ - Background: #22C55E (success)     │
+│ - Icon: Checkmark, 24px, white      │
+│ - Reveals as user drags (max 80px)  │
+│                                     │
+│ If released past 60px:              │
+│ - Row collapses to 0 height (200ms) │
+│ - Same completion animation plays   │
+│ - Haptic: Success                   │
+│                                     │
+│ If released before 60px:            │
+│ - Row springs back                  │
+│ - Action hides                      │
+└─────────────────────────────────────┘
+```
+
+## 20.6 Focus Session Flow
+
+### Starting Focus
+```
+┌─────────────────────────────────────┐
+│ Trigger: Tap "Focus" or swipe up    │
+│                                     │
+│ Animation sequence:                 │
+│ 1. Bottom sheet rises (300ms)       │
+│    - From: translateY(100%)         │
+│    - To: translateY(0)              │
+│    - Spring config: medium          │
+│                                     │
+│ 2. Backdrop fades in                │
+│    - From: opacity 0                │
+│    - To: opacity 0.6                │
+│    - Background: #000000            │
+│                                     │
+│ 3. Sheet content fades in (stagger) │
+│    - Timer: 0ms delay               │
+│    - Orb: 100ms delay               │
+│    - Message: 200ms delay           │
+│    - Buttons: 300ms delay           │
+│                                     │
+│ 4. Timer begins countdown           │
+│    - 25:00 default (or last used)   │
+│    - Digits: SF Mono, 48px bold     │
+└─────────────────────────────────────┘
+```
+
+### Timer Display States
+```
+┌─────────────────────────────────────┐
+│ Running:                            │
+│   25:00 → 24:59 → ...               │
+│   Color: text-primary               │
+│   Colon blinks every second         │
+│                                     │
+│ Under 5 minutes:                    │
+│   04:32                             │
+│   Color: #EAB308 (warning)          │
+│   Subtle pulse animation            │
+│                                     │
+│ Under 1 minute:                     │
+│   00:45                             │
+│   Color: #22C55E (success)          │
+│   Numbers scale up slightly (1.05)  │
+│                                     │
+│ Completed:                          │
+│   00:00                             │
+│   Color: #22C55E                    │
+│   Celebration animation triggers    │
+└─────────────────────────────────────┘
+```
+
+### Focus Completion Celebration
+```
+┌─────────────────────────────────────┐
+│ When timer reaches 00:00:           │
+│                                     │
+│ 1. Haptic: Success (strong)         │
+│                                     │
+│ 2. Orb celebration animation:       │
+│    - Scale: 1.0 → 1.3 → 1.0 (bounce)│
+│    - Glow: 40% → 80% → 40%          │
+│    - Particles emit from center     │
+│                                     │
+│ 3. XP counter animates:             │
+│    ┌───────────────────────────────┐│
+│    │        ✨ +25 XP ✨           ││ Scales up from 0
+│    └───────────────────────────────┘│
+│                                     │
+│ 4. AI message updates:              │
+│    "Amazing! 25 minutes of focus.   │
+│     That's your 5th session today!" │
+│                                     │
+│ 5. Auto-dismiss after 3 seconds     │
+│    OR tap anywhere to dismiss       │
+└─────────────────────────────────────┘
+```
+
+---
+
+# SECTION 21: COMPONENT STATES & BEHAVIORS
+
+## 21.1 AI Orb States
+
+| State | Visual | Animation | Trigger |
+|-------|--------|-----------|---------|
+| **Idle** | Purple gradient, soft glow | Gentle breathing (scale 1.0↔1.02, 3s loop) | Default state |
+| **Pressed** | Same gradient, reduced glow | Scale 0.95, 50ms | Touch down on orb |
+| **Listening** | Brighter glow, inner voice rings | Rings pulse with audio input, 1Hz base | After tap release |
+| **Processing** | Circular spinner inside | Spinner rotates (1.5s loop) | After voice input ends |
+| **Speaking** | Steady bright glow | None (stable) | AI response playing |
+| **Success** | Green tint overlay | Single pulse (scale 1.0→1.1→1.0) | Action completed |
+| **Error** | Red tint briefly | Shake (translateX -5→5→0) | Error occurred |
+| **Focused** | Dimmed, smaller (120px) | Slow breathing (5s loop) | During focus session |
+
+## 21.2 Button States
+
+### Primary Button
+| State | Background | Shadow | Scale | Text |
+|-------|------------|--------|-------|------|
+| Default | Gradient (#7C3AED→#9333EA) | Purple glow | 1.0 | #FFFFFF |
+| Pressed | Same | Reduced glow | 0.97 | #FFFFFF |
+| Disabled | #3F3F46 | None | 1.0 | #71717A |
+| Loading | Same | Same | 1.0 | Spinner (white, 20px) |
+
+### Secondary Button
+| State | Background | Border | Scale | Text |
+|-------|------------|--------|-------|------|
+| Default | #1C1C1E | 1px #3F3F46 | 1.0 | #FFFFFF |
+| Pressed | #2C2C2E | 1px #52525B | 0.98 | #FFFFFF |
+| Disabled | #1C1C1E | 1px #2C2C2E | 1.0 | #52525B |
+
+## 21.3 Task Card States
+
+| State | Background | Left Border | Checkbox | Title | Opacity |
+|-------|------------|-------------|----------|-------|---------|
+| Default | #161616 | None | Empty, #52525B | Normal | 100% |
+| AI Suggested | #161616 | 3px #7C3AED | Empty, #52525B | Normal | 100% |
+| Pressed | #1C1C1E | Same | Same | Same | 100% |
+| Completed | #161616 | None | Filled #22C55E | Strikethrough | 60% |
+| Overdue | #161616 | 3px #EF4444 | Empty, #EF4444 | Normal | 100% |
+| Swiping Right | Slides right | Green action reveals | Same | Same | 100% |
+| Swiping Left | Slides left | Red action reveals | Same | Same | 100% |
+
+## 21.4 Input Field States
+
+| State | Background | Border | Placeholder | Text |
+|-------|------------|--------|-------------|------|
+| Default | #161616 | 1px #3F3F46 | #52525B | - |
+| Focused | #161616 | 2px #7C3AED + glow | Hidden | #FFFFFF |
+| Filled | #161616 | 1px #3F3F46 | Hidden | #FFFFFF |
+| Error | #161616 | 2px #EF4444 | Hidden | #FFFFFF |
+| Disabled | #0D0D0D | 1px #2C2C2E | #3F3F46 | #52525B |
+
+## 21.5 Filter Tab States
+
+| State | Background | Text | Scale |
+|-------|------------|------|-------|
+| Inactive | Transparent | #71717A | 1.0 |
+| Active | #7C3AED | #FFFFFF | 1.0 |
+| Pressed (inactive) | #7C3AED20 | #71717A | 0.98 |
+
+---
+
+# SECTION 22: AI VISUAL FEEDBACK
+
+> **This section defines how AI interactions are visualized to the user.**
+
+## 22.1 AI Message Displays
+
+### Greeting (AI Home)
+```
+Position: 32px below safe area, centered
+Style: title-1, text-primary
+Animation: Fade in (0.3s) on load
+Update: Smooth crossfade when greeting changes
+
+Examples:
+- "Good morning, Alex" (5am-12pm)
+- "Good afternoon, Alex" (12pm-5pm)
+- "Hey Alex, burning the midnight oil?" (9pm-5am)
+```
+
+### Contextual Message (Below Orb)
+```
+Position: 24px below orb, centered
+Style: body, text-secondary
+Max Width: 280px (wrap if longer)
+Animation: Types in word by word (50ms/word) after greeting
+
+Examples:
+- "How can I help you today?"
+- "You have 5 tasks. Want to focus?"
+- "Great progress this week!"
+```
+
+### Response Bubble (After Voice Command)
+```
+┌─────────────────────────────────────┐
+│ Position: Below orb, centered       │
+│ Width: 280px max                    │
+│ Background: #161616                 │
+│ Border-left: 3px #7C3AED            │
+│ Border-radius: 12px                 │
+│ Padding: 16px                       │
+│ Text: body, text-primary            │
+│                                     │
+│ Animation:                          │
+│ - Slides up from 20px below (200ms) │
+│ - Fades in (200ms)                  │
+│ - Text streams word by word         │
+│ - Auto-dismisses after 5s           │
+└─────────────────────────────────────┘
+```
+
+## 22.2 AI Action Confirmations
+
+### Task Added Toast
+```
+┌─────────────────────────────────────┐
+│ ✓ Added "buy groceries"    +10 XP   │
+└─────────────────────────────────────┘
+Position: Bottom, 100px from safe area
+Background: #161616
+Border: 1px #22C55E (left only, 3px)
+Icon: Checkmark, 20px, #22C55E
+Text: body-medium, text-primary
+XP: caption-1, #22C55E
+Animation: Slide up (200ms), hold 2s, fade out (300ms)
+```
+
+### Task Completed Toast
+```
+┌─────────────────────────────────────┐
+│ ✓ Task completed!          +10 XP   │
+└─────────────────────────────────────┘
+Same styling as above
+```
+
+### Focus Started Toast
+```
+┌─────────────────────────────────────┐
+│ ⏱️ Focus session started    25:00   │
+└─────────────────────────────────────┘
+Border: 1px #7C3AED (left)
+Icon: Timer, 20px, #7C3AED
+```
+
+## 22.3 AI Insight Cards
+
+### Unlocked Insight Display
+```
+┌─────────────────────────────────────┐
+│ Peak Hours                    🔓    │ title-3, text-primary
+├─────────────────────────────────────┤
+│                                     │
+│ ┌─────────────────────────────────┐ │
+│ │  █████████░░░░░░░░░░░░         │ │ Visual: Bar chart
+│ │  9am     12pm    3pm    6pm    │ │ Peak hours highlighted
+│ └─────────────────────────────────┘ │
+│                                     │
+│ "You're most productive between     │ body, text-secondary
+│  9-11am. I'll suggest important     │
+│  tasks during this window."         │
+│                                     │
+└─────────────────────────────────────┘
+Background: #161616
+Border-radius: 14px
+Padding: 20px
+Lock icon: 16px, #22C55E (unlocked)
+```
+
+### Locked Insight Display
+```
+┌─────────────────────────────────────┐
+│ 🔒 Peak Hours                       │ title-3, text-tertiary
+├─────────────────────────────────────┤
+│                                     │
+│ "I'm still learning when you work   │ body, text-tertiary
+│  best. Use Mylo for 4 more days     │
+│  to unlock this insight."           │
+│                                     │
+│ Progress:                           │
+│ ████████░░░░░░░░ 3/7 days          │ Progress bar: #7C3AED fill
+│                                     │
+│ — OR —                              │ footnote, text-disabled
+│                                     │
+│ ██████████████░░ 8/10 tasks        │ Alternative progress
+│                                     │
+└─────────────────────────────────────┘
+Background: #0D0D0D (darker, indicating locked)
+Border: 1px dashed #3F3F46
+```
+
+## 22.4 AI Suggestion Highlights
+
+### Time Picker with AI Suggestion
+```
+When AI suggests optimal time (peak hours):
+
+┌─────────────────────────────────────┐
+│ Select Time                         │
+├─────────────────────────────────────┤
+│  8:00 AM                            │ Normal: text-secondary
+│  9:00 AM  ⚡ Peak hour              │ Highlighted: #7C3AED bg tint
+│ 10:00 AM  ⚡ Peak hour              │ "⚡ Peak hour" badge
+│ 11:00 AM  ⚡ Peak hour              │
+│ 12:00 PM                            │
+│  1:00 PM                            │
+└─────────────────────────────────────┘
+
+Highlight: Background rgba(124,58,237,0.15)
+Badge: caption-2, #A78BFA, left of time
+```
+
+### Priority with AI Suggestion
+```
+When AI suggests priority:
+
+┌────────┐ ┌────────┐ ┌────────┐
+│  LOW   │ │ MEDIUM │ │  HIGH  │  ← AI suggests
+└────────┘ └────────┘ └────────┘
+                          │
+                          └─ Pulsing border: 2px #7C3AED
+                             Subtle glow animation
+                             "AI suggests" label below
+```
+
+## 22.5 AI Encouragement in Focus
+
+### Message Rotation
+```
+During focus session, AI shows encouragement:
+
+Position: Below orb (24px)
+Style: body, text-secondary
+Max width: 280px, centered
+
+Rotation timing:
+- Initial: Shown immediately
+- Every 5 minutes: Crossfade to new message
+
+Messages (examples):
+- "Stay focused, you're doing great."
+- "Deep work mode activated."
+- "15 minutes down, keep going!"
+- "Almost there, finish strong!"
+- "You're in the zone."
+
+Animation: Crossfade (0.5s) between messages
+```
+
+### Milestone Announcements
+```
+At specific times during focus:
+
+5 minutes in:
+  "5 minutes of focus! 💪"
+  (Toast appears briefly)
+
+Halfway (12:30 remaining):
+  "Halfway there!"
+  Orb pulses once
+
+2 minutes left:
+  "Final stretch!"
+  Timer color changes to success green
+
+Completion:
+  "You did it! 25 minutes of focus."
+  Full celebration animation
+```
 
 ---
 

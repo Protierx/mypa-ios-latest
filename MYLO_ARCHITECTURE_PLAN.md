@@ -5,6 +5,16 @@
 
 ---
 
+## Related Documentation
+
+| Document | Purpose | When to Use |
+|----------|---------|-------------|
+| **This File (Architecture)** | Technical architecture, user flows, AI functions, navigation | Understanding how features work and connect |
+| [MYLO_DESIGN_SPECIFICATION.md](./MYLO_DESIGN_SPECIFICATION.md) | Pixel-perfect UI specs, colors, typography, component states | Implementing visual design |
+| [MYLO_FULL_IMPLEMENTATION_GUIDE.md](./MYLO_FULL_IMPLEMENTATION_GUIDE.md) | Step-by-step implementation, code examples, API details | Building features phase by phase |
+
+---
+
 ## Table of Contents
 
 1. [Core Philosophy](#1-core-philosophy)
@@ -91,6 +101,254 @@ Voice-first does NOT mean voice-only. Many situations make voice impractical:
 - Social anxiety about talking to phone
 
 **Solution: Text input as equal partner**
+
+---
+
+## 1.5 Complete User Interaction Reference
+
+> **This section documents every user interaction, what happens when it's triggered, where the user navigates to, and how AI is integrated.**
+
+### 1.5.1 AI Home Screen Interactions
+
+| User Action | What Happens | AI Involvement | Navigation |
+|-------------|--------------|----------------|------------|
+| **Opens app** | Splash screen (0.5s) → AI Home loads → Greeting animates in → Orb pulses idle | AI generates personalized greeting based on time of day, name, task count, streak, challenges | Stays on AI Home |
+| **Tap AI Orb** | Haptic feedback (medium) → Orb transitions to "listening" state → Microphone activates → "Listening..." text appears | AI prepares to receive voice command | Overlay appears for voice input |
+| **Speak command** | Live transcription displays → Voice waves animate → User taps again OR stops speaking → Orb transitions to "processing" | AI parses intent → executes action if needed → generates contextual response | Depends on command (see Voice Commands below) |
+| **Type in text field** | Keyboard rises → User types → Send button appears → User taps send | Same AI processing as voice | Depends on command |
+| **Tap "Focus" quick action** | Button scales 0.97 → Haptic (light) → Focus modal slides up from bottom | AI selects next suggested task OR allows selection | Focus Session modal opens |
+| **Tap "+ Task" quick action** | Button scales 0.97 → Haptic (light) → New task modal slides up | AI pre-fills duration estimate based on task patterns | Task creation modal opens |
+| **Tap stats card (tasks)** | Haptic (light) → Card highlights | None | Swipes to Tasks View |
+| **Tap stats card (streak)** | Haptic (light) → Celebration if milestone | AI congratulates on milestones | Profile View (streak detail) |
+| **Tap stats card (rank)** | Haptic (light) | None | Social View (challenge standings) |
+| **Swipe LEFT** | Screen pans left with finger → Edge peek shows Tasks → Release past threshold triggers navigation | None | Tasks View |
+| **Swipe RIGHT** | Screen pans right with finger → Edge peek shows Social → Release past threshold triggers navigation | None | Social View |
+| **Swipe UP** | Screen pans up → Focus modal begins to appear | AI suggests task to focus on | Focus Session modal |
+| **Swipe DOWN** | Screen pans down → Profile edge peeks | None | Profile View |
+
+### 1.5.2 Tasks View Interactions
+
+| User Action | What Happens | AI Involvement | Navigation |
+|-------------|--------------|----------------|------------|
+| **Enter Tasks View** | Header animates in → Filter tabs load → Task list fetches → Mini orb appears top-right | AI silently sorts tasks by: (1) User's peak hours (2) Priority (3) Due time | Stays on Tasks View |
+| **Tap filter tab (Today/Tomorrow/All/High)** | Tab highlights purple → List filters → Smooth scroll to top | AI applies smart sorting to filtered list | Stays on Tasks View |
+| **Tap task checkbox** | Checkbox fills green → Task fades/strikes through → Haptic (success) → XP toast (+10 XP) → Task moves to completed section | AI logs completion → Updates user model → May trigger streak update | Stays on Tasks View |
+| **Tap task row** | Row highlights → Slides to Task Detail | AI shows task insights if unlocked | Task Detail screen |
+| **Swipe task LEFT** | Delete action reveals (red) → Confirm or release to cancel | AI logs deletion pattern | Delete or stay |
+| **Swipe task RIGHT** | Complete action reveals (green) → Same as checkbox tap | AI logs completion | Stays on Tasks View |
+| **Long press task** | Context menu appears (Edit, Delete, Move to Tomorrow, Start Focus) | AI may suggest "Best time for this task" | Context menu |
+| **Tap mini orb** | Same as main orb - enters listening mode | Full AI voice capability | Voice input overlay |
+| **Tap FAB (+)** | New task modal slides up → Title input focused | AI pre-fills category & duration estimate as user types | Task creation modal |
+| **Swipe RIGHT (from edge)** | Navigate back to AI Home | None | AI Home |
+| **Pull to refresh** | Refresh indicator → Tasks re-fetch from server | AI re-sorts with latest data | Stays on Tasks View |
+
+### 1.5.3 Task Creation Flow (Detailed)
+
+| Step | User Action | System Response | AI Integration |
+|------|-------------|-----------------|----------------|
+| 1 | Tap FAB or say "Add task" | Modal slides up OR voice acknowledges "Adding task..." | AI ready to parse |
+| 2 | Enter task title | Title input captures text | AI analyzes keywords in real-time |
+| 3 | (Auto) Category detected | Category chip appears (Work/Personal/Health/etc) | **AI FUNCTION:** `categorizeTask(title)` - Uses NLP to detect category from keywords ("gym" → Health, "meeting" → Work) |
+| 4 | (Auto) Duration estimated | Duration chip shows "~25 min" | **AI FUNCTION:** `estimateDuration(title, category, userHistory)` - Uses historical data: user's avg duration for similar tasks |
+| 5 | Tap calendar icon | Date picker appears | None |
+| 6 | Select date | Date chip updates | None |
+| 7 | Tap clock icon | Time picker appears | **AI FUNCTION:** `suggestOptimalTime(date, taskPriority)` - Highlights user's peak hours in picker |
+| 8 | Select time | Time chip updates | None |
+| 9 | Tap priority selector | HIGH/MEDIUM/LOW options | **AI FUNCTION:** `suggestPriority(title, dueDate)` - Pre-selects based on urgency keywords ("urgent", "ASAP") |
+| 10 | Tap "Add Task" | Modal dismisses → Task appears in list → Haptic (success) → Toast "Task added" | AI logs event → Updates recommendations |
+| 11 | (Voice alternative) Full sentence | "Add task call dentist tomorrow at 2pm high priority" parsed completely | **AI FUNCTION:** `parseNaturalLanguageTask()` - Extracts: title, date, time, priority from natural speech |
+
+### 1.5.4 Focus Session Interactions
+
+| User Action | What Happens | AI Involvement | Navigation |
+|-------------|--------------|----------------|------------|
+| **Start focus (no task)** | Timer initializes to 25:00 → Orb shows "focused" state → Ambient animation begins | AI says "Let's focus. I'll keep it quiet." | Focus modal active |
+| **Start focus (with task)** | Same + task name shows "Working on: [Task]" | AI says "Focusing on [task]. You've got this." | Focus modal active |
+| **Timer counts down** | Display updates every second → Progress ring fills | AI sends encouragement at milestones (5 min, halfway, 2 min left) | Stays in Focus |
+| **Tap Pause** | Timer pauses → Orb dims → Buttons change to Resume/End | AI says "Taking a break? I'll be here." | Stays in Focus |
+| **Tap Resume** | Timer continues → Orb brightens | AI says "Welcome back. Let's finish strong." | Stays in Focus |
+| **Tap End Session** | Confirmation dialog → If confirmed: XP calculated → Celebration → Modal dismisses | AI announces: "Great session! +[XP] XP earned. [Insight]" | Returns to previous screen |
+| **Timer reaches 0** | Celebration animation → Haptic (success) → Chime sound → XP awarded | AI says "You did it! [Minutes] minutes of focus. That's [streak position] this week." | Auto-dismisses after 3s |
+| **Say "Add 5 minutes"** | Timer adds 5:00 → Haptic (light) | AI says "Added 5 minutes. Keep going!" | Stays in Focus |
+| **Say "What's next?"** | AI reads next task without stopping focus | AI says "After this, you have [next task]." | Stays in Focus |
+| **Swipe down** | Modal dismisses (with confirmation if timer active) | None | Returns to previous screen |
+| **App backgrounded** | Timer continues → Push notification at completion | AI sends: "Your focus session completed! Come back to claim XP." | N/A |
+
+### 1.5.5 Social View Interactions
+
+| User Action | What Happens | AI Involvement | Navigation |
+|-------------|--------------|----------------|------------|
+| **Enter Social View** | Header animates → Circles list loads → Challenges section loads → Mini orb appears | AI generates activity summary if unlocked | Stays on Social View |
+| **Tap circle card** | Card highlights → Navigates to Circle Home | AI shows circle-specific insights | Circle Home screen |
+| **Tap challenge card** | Card highlights → Navigates to Challenge Detail | AI shows position and prediction | Challenge Detail screen |
+| **Tap "Create Circle" button** | Creation modal opens → Name input focused | AI suggests circle name based on existing circles | Circle creation modal |
+| **Tap "Invite" on circle** | Share sheet opens with invite link | None | System share sheet |
+| **Tap member avatar** | Member profile modal opens → Shows their stats | AI compares: "Sarah completes 20% more tasks on Mondays" | Member modal |
+| **Tap "Nudge" button** | Confirmation → Push notification sent to member | AI crafts encouraging nudge message | Toast confirmation |
+| **Swipe LEFT (from edge)** | Navigate back to AI Home | None | AI Home |
+
+### 1.5.6 Profile View Interactions
+
+| User Action | What Happens | AI Involvement | Navigation |
+|-------------|--------------|----------------|------------|
+| **Enter Profile View** | Stats cards load → Unlock progress shows → Insights section loads | AI prepares personalized insights | Stays on Profile View |
+| **Tap streak card** | Streak detail modal → Shows calendar of activity | AI says streak encouragement or recovery tips | Streak modal |
+| **Tap XP card** | XP breakdown modal → Shows earning sources | AI says "Most of your XP comes from [source]" | XP modal |
+| **Tap unlock progress card** | Full unlock list → Shows all features + progress | AI explains what each locked feature will do | Unlocks screen |
+| **Tap "Insights" section** | Expands to show all unlocked insights | AI-generated insights based on user data | Expands inline |
+| **Tap individual insight** | Detail view with charts/graphs | AI explains the insight in natural language | Insight detail modal |
+| **Tap settings gear** | Settings screen opens | None | Settings screen |
+| **Swipe UP (from edge)** | Navigate back to AI Home | None | AI Home |
+
+### 1.5.7 Voice Command Processing (Complete Reference)
+
+| Command Pattern | Intent Parsed | Action Executed | AI Response | Navigation |
+|-----------------|---------------|-----------------|-------------|------------|
+| "Add task [title]" | `add_task` | Creates task with AI-parsed details | "Added '[title]' to your tasks." | Optional: Tasks View |
+| "I need to [action]" | `add_task` | Same as above | "Got it, I'll remind you to [action]." | None |
+| "Mark [task] as done" | `complete_task` | Finds task by fuzzy match → Completes | "Nice! [task] is done. +10 XP." | None |
+| "Complete [task]" | `complete_task` | Same as above | Same as above | None |
+| "Delete [task]" | `delete_task` | Finds task → Confirms → Deletes | "Removed [task] from your list." | None |
+| "What do I have today?" | `query_tasks` | Fetches today's tasks | "You have [X] tasks today. Top priority is [task]." | None |
+| "How am I doing?" | `query_status` | Fetches stats | "You've completed [X] tasks this week. Streak: [Y] days. [Insight]." | None |
+| "What's my streak?" | `query_streak` | Fetches streak | "You're on a [X] day streak! [Encouragement]." | None |
+| "Start focus" | `start_focus` | Opens focus modal | "Let's focus. Ready when you are." | Focus modal |
+| "Focus on [task]" | `start_focus` | Opens focus with task selected | "Focusing on [task]. Timer starting." | Focus modal |
+| "Stop" / "I'm done" | `end_focus` | Ends current focus session | "Great session! [X] minutes focused." | Closes Focus |
+| "Add [X] minutes" | `extend_focus` | Adds time to timer | "Added [X] minutes. Keep going!" | Stays in Focus |
+| "Nudge [name]" | `send_nudge` | Sends push to circle member | "Sent [name] an encouraging nudge!" | None |
+| "I'm overwhelmed" | `conversation` | No action | **AI FUNCTION:** `generateEmpathyResponse()` + `suggestPrioritization()` | None |
+| "Help me prioritize" | `conversation` | No action | **AI FUNCTION:** `analyzeTasksAndPrioritize()` - AI analyzes all tasks, suggests top 3 | None |
+| [Unrecognized] | `conversation` | No action | **AI FUNCTION:** `generateConversationalResponse()` - Contextual AI chat | None |
+
+### 1.5.8 AI Functions Reference
+
+| Function Name | Trigger | Input | Processing | Output |
+|---------------|---------|-------|------------|--------|
+| `generateGreeting()` | App open, AI Home load | userId, timeOfDay | Fetches user name, task count, streak, challenges → Builds prompt → OpenAI generates | Personalized greeting string |
+| `categorizeTask()` | Task title entered | title string | NLP keyword matching + ML classification | Category enum (WORK/PERSONAL/HEALTH/FINANCE/SOCIAL/OTHER) |
+| `estimateDuration()` | Task creation | title, category, userId | Queries UserModel for avg duration by category → Falls back to defaults | Minutes integer |
+| `suggestOptimalTime()` | Time picker opened | date, userId | Queries UserModel.peakHours → Finds free slots on date | Array of suggested times |
+| `suggestPriority()` | Task creation | title, dueDate | Keyword analysis ("urgent", "ASAP", "important") + time until due | Priority enum |
+| `parseNaturalLanguageTask()` | Voice command with full details | command string | OpenAI function calling to extract structured data | { title, date, time, priority, category, duration } |
+| `parseIntent()` | Any voice command | command string | Rule-based pattern matching → Falls back to OpenAI | Intent object with type + params |
+| `executeAction()` | Intent has action | intent object, userId | Switch on action type → Call appropriate service | Action result |
+| `generateResponse()` | After action or for conversation | context, actionResult | Builds prompt with user context + unlocks → OpenAI generates | Response string |
+| `calculatePeakHours()` | Nightly batch job (3 AM) | 30 days of UserEvents | Clusters completion times → Finds hours with highest completion rate | Array of peak hours (0-23) |
+| `detectOverwhelmThreshold()` | Nightly batch job | 30 days of UserEvents | Correlates task count with completion rate drop | Threshold integer |
+| `checkUnlockEligibility()` | After events logged | userId, eventCounts | Checks days since signup + milestone counts | Array of newly eligible features |
+| `generateInsight()` | Profile view, unlocked feature | feature type, UserModel | Builds insight-specific prompt → OpenAI generates explanation | Insight object with title + description + data |
+
+### 1.5.9 Navigation Flow Diagram
+
+```
+                              ┌─────────────────┐
+                              │   SPLASH SCREEN │
+                              │    (0.5s auto)  │
+                              └────────┬────────┘
+                                       │
+                                       ▼
+                  ┌────────────────────────────────────────┐
+                  │                                        │
+    ┌─────────────┤           AI HOME (Center)             ├─────────────┐
+    │  Swipe LEFT │                                        │ Swipe RIGHT │
+    │             │    Tap Orb → Voice/Text Input          │             │
+    │             │    Tap Focus → Focus Modal             │             │
+    │             │    Tap + Task → Task Creation          │             │
+    │             │    Swipe UP → Focus Modal              │             │
+    │             │    Swipe DOWN → Profile View           │             │
+    │             │                                        │             │
+    │             └──────────────────┬─────────────────────┘             │
+    │                                │ Swipe DOWN                        │
+    ▼                                ▼                                   ▼
+┌───────────┐               ┌────────────────┐               ┌───────────┐
+│   TASKS   │               │    PROFILE     │               │  SOCIAL   │
+│   VIEW    │               │     VIEW       │               │   VIEW    │
+├───────────┤               ├────────────────┤               ├───────────┤
+│ Swipe →   │               │ Swipe UP       │               │ Swipe ←   │
+│ = AI Home │               │ = AI Home      │               │ = AI Home │
+│           │               │                │               │           │
+│ Tap Task  │               │ Tap Streak     │               │ Tap Circle│
+│ = Detail  │               │ = Streak Modal │               │ = Circle  │
+│           │               │                │               │   Home    │
+│ Tap FAB   │               │ Tap Unlock     │               │           │
+│ = Create  │               │ = Unlock List  │               │ Tap Chal. │
+│   Task    │               │                │               │ = Chal.   │
+└─────┬─────┘               │ Tap Settings   │               │   Detail  │
+      │                     │ = Settings     │               └─────┬─────┘
+      │                     └────────────────┘                     │
+      ▼                                                            ▼
+┌───────────────┐                                      ┌───────────────────┐
+│  TASK DETAIL  │                                      │    CIRCLE HOME    │
+├───────────────┤                                      ├───────────────────┤
+│ Edit fields   │                                      │ See members       │
+│ Start focus   │                                      │ See activity      │
+│ Delete task   │                                      │ Invite members    │
+│ ← Back        │                                      │ Nudge members     │
+└───────────────┘                                      │ ← Back            │
+                                                       └───────────────────┘
+
+                    ┌─────────────────────────────┐
+                    │       FOCUS SESSION         │
+                    │        (Modal)              │
+                    ├─────────────────────────────┤
+                    │ Timer countdown             │
+                    │ AI encouragement            │
+                    │ Pause/Resume/End            │
+                    │ Voice commands active       │
+                    │ Swipe down = dismiss        │
+                    └─────────────────────────────┘
+
+                    ┌─────────────────────────────┐
+                    │    UNLOCK CELEBRATION       │
+                    │        (Modal)              │
+                    ├─────────────────────────────┤
+                    │ Confetti animation          │
+                    │ Feature icon + name         │
+                    │ AI explanation              │
+                    │ "Awesome!" dismisses        │
+                    └─────────────────────────────┘
+```
+
+### 1.5.10 Screen Entry Points
+
+| Screen | How User Gets There | What Loads | What AI Does |
+|--------|---------------------|------------|--------------|
+| **AI Home** | App open, back navigation from any view | Greeting, orb, context cards, quick actions | Generates greeting, prepares context |
+| **Tasks View** | Swipe left from AI Home | Task list with filters, mini orb | Sorts tasks by priority + peak hours |
+| **Social View** | Swipe right from AI Home | Circles list, challenges, activity feed | Generates activity summary |
+| **Profile View** | Swipe down from AI Home | Stats, unlocks, insights, settings | Prepares personalized insights |
+| **Focus Session** | Swipe up from AI Home, tap Focus button, voice command | Timer, orb (focused state), task label | Selects/suggests task, provides encouragement |
+| **Task Detail** | Tap task from Tasks View | Task info, edit fields, actions | Shows task-specific insights if unlocked |
+| **Task Creation** | Tap FAB, voice "add task" | Empty form with AI suggestions | Real-time categorization, duration estimation |
+| **Circle Home** | Tap circle from Social View | Members, activity, challenges | Generates circle-specific insights |
+| **Challenge Detail** | Tap challenge from Social View | Standings, rules, progress | Shows position prediction |
+| **Settings** | Tap gear from Profile View | App settings, notification preferences | None |
+| **Unlock List** | Tap unlock card from Profile | All features with progress | Explains each feature's benefit |
+
+### 1.5.11 Error States & Recovery
+
+| Error Scenario | User Sees | Recovery Action | AI Involvement |
+|----------------|-----------|-----------------|----------------|
+| **Network offline** | "You're offline. Changes will sync when connected." | Local storage saves actions → Syncs on reconnect | AI uses cached responses, indicates "offline mode" |
+| **Voice recognition fails** | "I didn't catch that. Try again or type instead." | Orb resets to idle → Text input highlighted | AI apologizes naturally: "Sorry, could you say that again?" |
+| **AI service timeout** | Orb shows brief error state → Falls back to local | Local intent parsing for basic commands | Canned responses for common commands |
+| **Task creation fails** | "Couldn't save task. Tap to retry." | Task saved locally → Retry button shown | None |
+| **Auth token expired** | Seamless refresh in background OR login screen | Auto-refresh → If fails, smooth re-auth | None |
+| **Unlock check fails** | Silent failure → Retries next app open | Background retry | None |
+
+### 1.5.12 Haptic Feedback Reference
+
+| Interaction | Haptic Type | iOS Equivalent | When |
+|-------------|-------------|----------------|------|
+| Tap orb | Medium impact | `UIImpactFeedbackGenerator(.medium)` | On touch down |
+| Complete task | Success | `UINotificationFeedbackGenerator(.success)` | On completion |
+| Delete task | Warning | `UINotificationFeedbackGenerator(.warning)` | On confirmation |
+| Button press | Light impact | `UIImpactFeedbackGenerator(.light)` | On touch down |
+| Swipe threshold reached | Medium impact | `UIImpactFeedbackGenerator(.medium)` | When past threshold |
+| Error | Error | `UINotificationFeedbackGenerator(.error)` | On error |
+| Focus complete | Success | `UINotificationFeedbackGenerator(.success)` | Timer reaches 0 |
+| Unlock earned | Success + Heavy | Sequence: success then heavy impact | On unlock modal show |
 
 ```
 ┌─────────────────────────────────────────────┐

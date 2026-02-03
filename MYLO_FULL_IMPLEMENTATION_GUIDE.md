@@ -6,6 +6,13 @@
 
 ---
 
+## Related Documentation
+
+- **Architecture & User Flows**: See [MYLO_ARCHITECTURE_PLAN.md](./MYLO_ARCHITECTURE_PLAN.md) for complete user interaction reference, navigation flows, and AI function descriptions
+- **Design & Visuals**: See [MYLO_DESIGN_SPECIFICATION.md](./MYLO_DESIGN_SPECIFICATION.md) for pixel-perfect UI specs, component states, and visual feedback
+
+---
+
 ## What You Already Have
 
 Based on your codebase:
@@ -55,6 +62,987 @@ Based on your codebase:
 | **8** | 1 week | Deployment |
 
 **Total: ~10-11 weeks**
+
+---
+
+# COMPLETE FUNCTION IMPLEMENTATION REFERENCE
+
+> **This section documents every function, what it does, when it's called, and how to implement it.**
+
+## Backend Function Reference
+
+### Authentication Functions
+
+#### `AuthService.register()`
+```typescript
+/**
+ * Registers a new user account
+ * 
+ * WHEN CALLED: User taps "Sign Up" on registration screen
+ * 
+ * INPUT:
+ * - email: string (validated email format)
+ * - password: string (min 8 chars, 1 uppercase, 1 number)
+ * - name: string (display name)
+ * 
+ * WHAT HAPPENS:
+ * 1. Validates email format (regex)
+ * 2. Checks if email already exists (unique constraint)
+ * 3. Hashes password with bcrypt (12 rounds)
+ * 4. Creates User record in database
+ * 5. Creates initial UserModel record (for AI learning)
+ * 6. Generates JWT access token (1 hour expiry)
+ * 7. Generates refresh token (30 day expiry)
+ * 8. Returns tokens + user object
+ * 
+ * OUTPUT:
+ * {
+ *   user: { id, email, name, createdAt },
+ *   accessToken: string,
+ *   refreshToken: string
+ * }
+ * 
+ * ERRORS:
+ * - 400: Invalid email format
+ * - 400: Password too weak
+ * - 409: Email already registered
+ * - 500: Database error
+ * 
+ * NAVIGATION AFTER: User sent to Onboarding flow (first-time) or AI Home
+ */
+```
+
+#### `AuthService.login()`
+```typescript
+/**
+ * Authenticates existing user
+ * 
+ * WHEN CALLED: User taps "Login" on login screen
+ * 
+ * INPUT:
+ * - email: string
+ * - password: string
+ * 
+ * WHAT HAPPENS:
+ * 1. Finds user by email
+ * 2. Compares password hash with bcrypt
+ * 3. Updates lastLoginAt timestamp
+ * 4. Generates new JWT tokens
+ * 5. Logs 'app_opened' event
+ * 
+ * OUTPUT: Same as register()
+ * 
+ * ERRORS:
+ * - 401: Invalid credentials (never reveal which field is wrong)
+ * - 429: Too many attempts (5 per 15 min)
+ * 
+ * NAVIGATION AFTER: User sent to AI Home screen
+ */
+```
+
+#### `AuthService.refreshToken()`
+```typescript
+/**
+ * Exchanges refresh token for new access token
+ * 
+ * WHEN CALLED: Automatically by axios interceptor when 401 received
+ * 
+ * INPUT:
+ * - refreshToken: string (from secure storage)
+ * 
+ * WHAT HAPPENS:
+ * 1. Verifies refresh token signature
+ * 2. Checks token not expired (30 days)
+ * 3. Checks token not revoked (blacklist table)
+ * 4. Generates new access token
+ * 5. Optionally rotates refresh token
+ * 
+ * OUTPUT:
+ * {
+ *   accessToken: string,
+ *   refreshToken?: string (if rotated)
+ * }
+ * 
+ * ERRORS:
+ * - 401: Invalid/expired refresh token → Redirect to login
+ * 
+ * NAVIGATION AFTER: None (silent background refresh)
+ */
+```
+
+### Task Functions
+
+#### `TaskService.createTask()`
+```typescript
+/**
+ * Creates a new task
+ * 
+ * WHEN CALLED:
+ * - User taps "Add Task" button after filling form
+ * - AI processes voice command "Add task..."
+ * - Quick capture from widget or Siri
+ * 
+ * INPUT:
+ * {
+ *   title: string,
+ *   description?: string,
+ *   dueDate?: Date,
+ *   dueTime?: string (HH:mm),
+ *   priority: 'HIGH' | 'MEDIUM' | 'LOW',
+ *   category?: 'WORK' | 'PERSONAL' | 'HEALTH' | 'FINANCE' | 'SOCIAL' | 'OTHER',
+ *   estimatedMinutes?: number,
+ *   challengeId?: string (if part of challenge),
+ *   source: 'manual' | 'voice' | 'widget' | 'siri'
+ * }
+ * 
+ * WHAT HAPPENS:
+ * 1. Validate input (title required, max 500 chars)
+ * 2. If no category: AI categorizes from title keywords
+ * 3. If no duration: AI estimates from historical data
+ * 4. If no priority: AI suggests based on keywords + due date
+ * 5. Create Task record in database
+ * 6. Log 'task_created' event for learning
+ * 7. Update UserModel.totalTasksCreated
+ * 8. Check if this completes any unlock milestones
+ * 9. Broadcast via WebSocket to other devices
+ * 10. Update widget data
+ * 
+ * OUTPUT:
+ * {
+ *   task: { id, title, priority, category, dueDate, ... },
+ *   aiSuggestions: {
+ *     category: 'WORK',
+ *     estimatedMinutes: 25,
+ *     suggestedTime: '09:00'  // if peak hours unlocked
+ *   }
+ * }
+ * 
+ * AI INTEGRATION:
+ * - categorizeTask() called if category not provided
+ * - estimateDuration() called if duration not provided
+ * - suggestOptimalTime() called if time not provided AND peak_hours unlocked
+ * 
+ * ERRORS:
+ * - 400: Title required
+ * - 400: Invalid priority value
+ * - 401: Unauthorized
+ * - 500: Database error
+ * 
+ * NAVIGATION AFTER:
+ * - From modal: Modal dismisses, task appears in list
+ * - From voice: Toast confirmation, stay on AI Home
+ * - From widget: None (background operation)
+ */
+```
+
+#### `TaskService.completeTask()`
+```typescript
+/**
+ * Marks a task as completed
+ * 
+ * WHEN CALLED:
+ * - User taps checkbox on task card
+ * - User swipes right on task card
+ * - AI processes voice command "Mark X as done"
+ * 
+ * INPUT:
+ * - taskId: string
+ * 
+ * WHAT HAPPENS:
+ * 1. Find task by ID (verify ownership)
+ * 2. Update status to 'COMPLETED'
+ * 3. Set completedAt timestamp
+ * 4. Calculate XP earned (base 10, bonuses for priority/streak)
+ * 5. Update user's totalXP
+ * 6. Log 'task_completed' event with metadata:
+ *    - taskId, category, priority
+ *    - completionTime (ms from creation)
+ *    - hourOfDay, dayOfWeek
+ *    - wasFocusSession: boolean
+ * 7. Check streak status (first completion today?)
+ * 8. Update UserModel.totalTasksCompleted
+ * 9. Check unlock milestones
+ * 10. If part of challenge: update challenge progress
+ * 11. Broadcast completion to circle members
+ * 
+ * OUTPUT:
+ * {
+ *   task: { id, status: 'COMPLETED', completedAt },
+ *   xp: {
+ *     earned: 15,
+ *     breakdown: { base: 10, priority: 5, streak: 0 }
+ *   },
+ *   streak: {
+ *     current: 7,
+ *     updated: true  // if this completion extended streak
+ *   },
+ *   unlocks: []  // any newly unlocked features
+ * }
+ * 
+ * AI INTEGRATION:
+ * - Event logged feeds into pattern learning
+ * - Completion time used for duration estimation
+ * - Hour/day used for peak hours calculation
+ * 
+ * VISUAL FEEDBACK:
+ * - Checkbox fills with green checkmark animation
+ * - Task row fades to 60% opacity
+ * - Strikethrough animates across title
+ * - XP toast slides up (+10 XP)
+ * - Haptic: Success notification
+ * 
+ * NAVIGATION AFTER: Stays on current screen
+ */
+```
+
+#### `TaskService.getTasks()`
+```typescript
+/**
+ * Fetches tasks with filters and AI sorting
+ * 
+ * WHEN CALLED:
+ * - User enters Tasks View
+ * - User taps filter tab
+ * - Pull to refresh
+ * - AI query "What do I have today?"
+ * 
+ * INPUT:
+ * {
+ *   filter: 'today' | 'tomorrow' | 'week' | 'all' | 'high_priority',
+ *   includeCompleted?: boolean (default: true for today),
+ *   limit?: number (default: 50),
+ *   cursor?: string (for pagination)
+ * }
+ * 
+ * WHAT HAPPENS:
+ * 1. Build date range based on filter
+ * 2. Query tasks with filter + user ownership
+ * 3. If AI sorting unlocked: Apply smart sort
+ *    - Peak hours tasks first (during peak hours)
+ *    - High priority + near deadline first
+ *    - Estimated duration fits remaining time
+ * 4. Group by time period (morning/afternoon/evening)
+ * 5. Include AI suggestions if available
+ * 
+ * OUTPUT:
+ * {
+ *   tasks: [
+ *     {
+ *       id, title, status, priority, category,
+ *       dueDate, dueTime, estimatedMinutes,
+ *       aiSuggested: boolean,  // true if AI moved it up
+ *       aiReason?: string      // "Scheduled during your peak hours"
+ *     }
+ *   ],
+ *   groups: [
+ *     { name: 'MORNING', tasks: [...] },
+ *     { name: 'AFTERNOON', tasks: [...] }
+ *   ],
+ *   pagination: { hasMore, nextCursor }
+ * }
+ * 
+ * AI INTEGRATION:
+ * - If 'ai_task_sorting' unlocked: Tasks sorted by AI
+ * - AI adds 'aiSuggested' flag to highlight recommendations
+ * - AI adds 'aiReason' explaining why task is prioritized
+ * 
+ * NAVIGATION AFTER: Tasks render in list view
+ */
+```
+
+### AI Functions
+
+#### `AIService.generateGreeting()`
+```typescript
+/**
+ * Generates personalized AI greeting for home screen
+ * 
+ * WHEN CALLED:
+ * - User opens app
+ * - User returns to AI Home from other screen
+ * - Pull to refresh on AI Home
+ * 
+ * INPUT:
+ * - userId: string
+ * 
+ * WHAT HAPPENS:
+ * 1. Get current time → determine time of day
+ * 2. Fetch user profile (name)
+ * 3. Fetch today's task count
+ * 4. Fetch current streak status
+ * 5. Fetch active challenges
+ * 6. Check what insights are unlocked
+ * 7. Build context object
+ * 8. Generate greeting using OpenAI (if personalized_greeting unlocked)
+ *    OR use template greeting (if not unlocked)
+ * 
+ * OUTPUT:
+ * {
+ *   greeting: "Good morning, Alex!",
+ *   message: "You have 5 tasks today. Your focus time starts at 9am.",
+ *   stats: {
+ *     tasksToday: 5,
+ *     streak: 7,
+ *     challengePosition: 2
+ *   }
+ * }
+ * 
+ * GREETING TEMPLATES (Pre-unlock):
+ * - Morning (5am-12pm): "Good morning, {name}!"
+ * - Afternoon (12pm-5pm): "Good afternoon, {name}!"
+ * - Evening (5pm-9pm): "Good evening, {name}!"
+ * - Night (9pm-5am): "Hey {name}, burning the midnight oil?"
+ * 
+ * AI-GENERATED (Post-unlock):
+ * System prompt includes user's patterns, preferences
+ * Example: "Morning, Alex! Ready to crush those 3 high-priority tasks? Your peak focus time starts in 30 minutes."
+ * 
+ * NAVIGATION AFTER: None (greeting displays on AI Home)
+ */
+```
+
+#### `AIService.processVoiceCommand()`
+```typescript
+/**
+ * Main voice command processing pipeline
+ * 
+ * WHEN CALLED:
+ * - User speaks command via orb
+ * - User types in text input
+ * 
+ * INPUT:
+ * {
+ *   command: string,          // Raw transcribed text
+ *   history?: Message[],      // Previous conversation (for context)
+ *   screen: string            // Current screen for context
+ * }
+ * 
+ * WHAT HAPPENS:
+ * 1. Log 'voice_command' event
+ * 2. Parse intent using parseIntent()
+ *    - Returns: { type, action?, params?, navigation? }
+ * 3. If intent has action:
+ *    - Execute via executeAction()
+ *    - Get action result
+ * 4. Generate response via generateResponse()
+ *    - Uses context + action result
+ * 5. Return complete response
+ * 
+ * OUTPUT:
+ * {
+ *   message: string,           // AI response text (for display + TTS)
+ *   action?: {
+ *     type: 'task_created' | 'task_completed' | 'focus_started' | ...,
+ *     data: { ... }            // Result data (e.g., created task)
+ *   },
+ *   navigation?: string        // Screen to navigate to (optional)
+ * }
+ * 
+ * INTENT TYPES:
+ * - add_task: Creates new task
+ * - complete_task: Marks task done
+ * - delete_task: Removes task
+ * - query_tasks: Lists tasks
+ * - query_status: Gets user stats
+ * - start_focus: Begins focus session
+ * - end_focus: Ends focus session
+ * - extend_focus: Adds time to focus
+ * - send_nudge: Nudges circle member
+ * - conversation: General AI chat
+ * 
+ * EXAMPLES:
+ * "Add task buy groceries" → { type: 'add_task', params: { title: 'buy groceries' } }
+ * "What do I have today?" → { type: 'query_tasks', params: { filter: 'today' } }
+ * "Mark dentist as done" → { type: 'complete_task', params: { taskName: 'dentist' } }
+ * "I'm overwhelmed" → { type: 'conversation' } (empathy response)
+ * 
+ * NAVIGATION AFTER: Depends on navigation field in response
+ */
+```
+
+#### `AIService.parseIntent()`
+```typescript
+/**
+ * Parses user command into structured intent
+ * 
+ * WHEN CALLED: By processVoiceCommand()
+ * 
+ * INPUT:
+ * - command: string (raw user input)
+ * 
+ * WHAT HAPPENS:
+ * 1. Lowercase and trim input
+ * 2. Try rule-based pattern matching FIRST (faster, cheaper):
+ *    - Task patterns: "add task", "remind me to", "create"
+ *    - Query patterns: "what do i have", "how am i doing"
+ *    - Action patterns: "start focus", "stop", "nudge"
+ * 3. If no pattern match: Use OpenAI function calling
+ *    - Send command with intent schema
+ *    - AI returns structured intent
+ * 4. Validate and return intent
+ * 
+ * OUTPUT:
+ * {
+ *   type: 'add_task' | 'complete_task' | ... | 'conversation',
+ *   action?: {
+ *     type: string,
+ *     params: { ... }
+ *   },
+ *   navigation?: string
+ * }
+ * 
+ * RULE-BASED PATTERNS:
+ * /^(add|create|new) task:?\s*(.+)/i → add_task
+ * /^(i need to|remind me to)\s*(.+)/i → add_task
+ * /^(mark|complete|finish|done with)\s*(.+)/i → complete_task
+ * /^what('s| is| do i have)/i → query_tasks
+ * /^(start|begin) focus/i → start_focus
+ * 
+ * AI FALLBACK:
+ * Used for complex/conversational commands
+ * Example: "I'm feeling overwhelmed and don't know what to do"
+ */
+```
+
+#### `AIService.categorizeTask()`
+```typescript
+/**
+ * AI-powered task categorization
+ * 
+ * WHEN CALLED:
+ * - User creates task without selecting category
+ * - Voice command creates task (category not specified)
+ * 
+ * INPUT:
+ * - title: string (task title)
+ * 
+ * WHAT HAPPENS:
+ * 1. Check keyword dictionary first (fast):
+ *    - "gym", "workout", "run" → HEALTH
+ *    - "meeting", "email", "report" → WORK
+ *    - "call mom", "birthday" → PERSONAL
+ *    - "pay", "bill", "budget" → FINANCE
+ * 2. If no keyword match: Use OpenAI for classification
+ * 3. Cache result for similar future tasks
+ * 
+ * OUTPUT:
+ * {
+ *   category: 'WORK' | 'PERSONAL' | 'HEALTH' | 'FINANCE' | 'SOCIAL' | 'OTHER',
+ *   confidence: 0.85  // How confident AI is (0-1)
+ * }
+ * 
+ * KEYWORD DICTIONARY:
+ * HEALTH: gym, workout, exercise, run, doctor, dentist, vitamins, sleep
+ * WORK: meeting, email, report, deadline, project, client, presentation
+ * PERSONAL: call, birthday, gift, clean, laundry, groceries
+ * FINANCE: pay, bill, budget, invoice, expense, tax
+ * SOCIAL: party, dinner, drinks, hangout, visit
+ * 
+ * VISUAL FEEDBACK:
+ * - Category chip appears in task creation form
+ * - Animates in with spring (scale 0→1)
+ */
+```
+
+#### `AIService.estimateDuration()`
+```typescript
+/**
+ * AI-powered task duration estimation
+ * 
+ * WHEN CALLED:
+ * - User creates task without setting duration
+ * - Voice command creates task (duration not specified)
+ * 
+ * INPUT:
+ * {
+ *   title: string,
+ *   category: string,
+ *   userId: string
+ * }
+ * 
+ * WHAT HAPPENS:
+ * 1. Query UserModel for historical durations by category
+ * 2. If user has enough data (10+ tasks in category):
+ *    - Use personalized average
+ * 3. Else use category defaults:
+ *    - WORK: 30 min
+ *    - PERSONAL: 15 min
+ *    - HEALTH: 45 min
+ *    - FINANCE: 20 min
+ *    - SOCIAL: 60 min
+ *    - OTHER: 25 min
+ * 4. Adjust based on title keywords:
+ *    - "quick", "brief" → -10 min
+ *    - "deep", "detailed" → +15 min
+ * 
+ * OUTPUT:
+ * {
+ *   estimatedMinutes: 25,
+ *   source: 'user_history' | 'category_default' | 'keyword_adjusted',
+ *   confidence: 0.75
+ * }
+ * 
+ * VISUAL FEEDBACK:
+ * - Duration chip appears in task creation form
+ * - Shows "~25 min" with clock icon
+ * - Chip color: #A78BFA (brand secondary)
+ */
+```
+
+#### `AIService.suggestOptimalTime()`
+```typescript
+/**
+ * Suggests best time for task based on user patterns
+ * REQUIRES: 'peak_hours' feature unlocked
+ * 
+ * WHEN CALLED:
+ * - User opens time picker in task creation
+ * - AI proactively suggests during task creation
+ * 
+ * INPUT:
+ * {
+ *   date: Date,
+ *   priority: string,
+ *   duration: number,
+ *   userId: string
+ * }
+ * 
+ * WHAT HAPPENS:
+ * 1. Check if peak_hours unlocked for user
+ * 2. If not unlocked: Return null (no suggestions)
+ * 3. Fetch UserModel.peakHours (array of hours 0-23)
+ * 4. Fetch existing tasks/calendar for date
+ * 5. Find free slots during peak hours
+ * 6. For HIGH priority: Suggest peak hours
+ * 7. For LOW priority: Suggest non-peak hours
+ * 8. Return available time slots
+ * 
+ * OUTPUT:
+ * {
+ *   suggestions: [
+ *     { time: '09:00', reason: 'Peak productivity hour', isPeak: true },
+ *     { time: '10:00', reason: 'Peak productivity hour', isPeak: true },
+ *     { time: '14:00', reason: 'Available slot', isPeak: false }
+ *   ],
+ *   peakHours: [9, 10, 11]  // For highlighting in picker
+ * }
+ * 
+ * VISUAL FEEDBACK:
+ * - Time picker highlights peak hours with purple tint
+ * - "⚡ Peak hour" badge next to suggested times
+ */
+```
+
+### Focus Session Functions
+
+#### `FocusService.startSession()`
+```typescript
+/**
+ * Starts a focus session
+ * 
+ * WHEN CALLED:
+ * - User taps "Focus" button on AI Home
+ * - User swipes up on AI Home
+ * - AI processes "Start focus" command
+ * - User taps "Start Focus" on task detail
+ * 
+ * INPUT:
+ * {
+ *   taskId?: string,        // Optional: Focus on specific task
+ *   duration?: number,      // Minutes (default: 25)
+ *   userId: string
+ * }
+ * 
+ * WHAT HAPPENS:
+ * 1. If taskId provided: Fetch task, verify ownership
+ * 2. Create FocusSession record in database:
+ *    - status: 'ACTIVE'
+ *    - startedAt: now()
+ *    - plannedDuration: duration
+ *    - taskId: taskId or null
+ * 3. Log 'focus_started' event
+ * 4. Enable Do Not Disturb mode (if permitted)
+ * 5. Start iOS Live Activity (if available)
+ * 6. Return session info
+ * 
+ * OUTPUT:
+ * {
+ *   session: {
+ *     id: string,
+ *     taskId: string | null,
+ *     taskTitle: string | null,
+ *     duration: 25,
+ *     startedAt: Date
+ *   },
+ *   aiMessage: "Let's focus on [task]. You've got this!"
+ * }
+ * 
+ * AI INTEGRATION:
+ * - AI generates encouraging start message
+ * - If task provided: Message references task
+ * - Message varies based on time of day, streak
+ * 
+ * VISUAL FEEDBACK:
+ * - Focus modal slides up from bottom
+ * - Timer shows 25:00
+ * - Orb transitions to "focused" state (dimmer, slower pulse)
+ * 
+ * NAVIGATION AFTER: Focus Session modal opens
+ */
+```
+
+#### `FocusService.endSession()`
+```typescript
+/**
+ * Ends a focus session
+ * 
+ * WHEN CALLED:
+ * - Timer reaches 00:00
+ * - User taps "End Session" button
+ * - AI processes "Stop" or "I'm done" command
+ * 
+ * INPUT:
+ * {
+ *   sessionId: string,
+ *   completedNaturally: boolean  // true if timer reached 0
+ * }
+ * 
+ * WHAT HAPPENS:
+ * 1. Fetch session, verify active + ownership
+ * 2. Calculate actual duration (endedAt - startedAt)
+ * 3. Calculate XP earned:
+ *    - Base: 1 XP per minute
+ *    - Bonus: +5 XP if completed naturally
+ *    - Bonus: +5 XP if task was attached
+ * 4. Update FocusSession record:
+ *    - status: 'COMPLETED'
+ *    - endedAt: now()
+ *    - actualDuration: calculated
+ *    - xpEarned: calculated
+ * 5. Update User.totalXP
+ * 6. Log 'focus_completed' event with:
+ *    - duration, completedNaturally, taskId
+ * 7. Update UserModel.totalFocusMinutes
+ * 8. If task attached: Update task.focusMinutes
+ * 9. Check unlock milestones
+ * 10. Disable Do Not Disturb
+ * 11. End iOS Live Activity
+ * 
+ * OUTPUT:
+ * {
+ *   session: {
+ *     id, actualDuration, xpEarned, completedNaturally
+ *   },
+ *   stats: {
+ *     todayFocusMinutes: 120,
+ *     weekFocusMinutes: 540,
+ *     totalSessions: 50
+ *   },
+ *   aiMessage: "Amazing! 25 minutes of deep work. That's your 5th session today!",
+ *   unlocks: []  // Any newly unlocked features
+ * }
+ * 
+ * AI INTEGRATION:
+ * - AI generates completion message with stats
+ * - If milestone reached: Special celebration message
+ * - Event feeds into duration estimation learning
+ * 
+ * VISUAL FEEDBACK:
+ * - Timer shows 00:00
+ * - Celebration animation plays
+ * - XP counter animates (+25 XP)
+ * - Modal auto-dismisses after 3 seconds
+ * 
+ * NAVIGATION AFTER: Returns to previous screen (AI Home or Tasks)
+ */
+```
+
+### Unlock Functions
+
+#### `UnlockService.checkEligibility()`
+```typescript
+/**
+ * Checks if user has earned any new feature unlocks
+ * 
+ * WHEN CALLED:
+ * - After task_created event
+ * - After task_completed event
+ * - After focus_completed event
+ * - Daily at midnight (batch job)
+ * 
+ * INPUT:
+ * - userId: string
+ * 
+ * WHAT HAPPENS:
+ * 1. Fetch user's daysSinceSignup
+ * 2. Fetch UserModel (milestone counts)
+ * 3. Fetch existing UserUnlocks
+ * 4. For each locked feature, check BOTH paths:
+ *    - Time path: daysSinceSignup >= required days
+ *    - Milestone path: milestone count >= required
+ * 5. If either path satisfied: Feature is earned
+ * 6. Create UserUnlock records for newly earned
+ * 7. Return list of new unlocks
+ * 
+ * OUTPUT:
+ * {
+ *   newUnlocks: [
+ *     {
+ *       feature: 'peak_hours',
+ *       unlockedVia: 'milestone',  // or 'time'
+ *       milestone: { type: 'tasks_completed', count: 10 }
+ *     }
+ *   ]
+ * }
+ * 
+ * UNLOCK REQUIREMENTS:
+ * | Feature | Days | OR Milestone |
+ * |---------|------|--------------|
+ * | personalized_greeting | 3 | 5 app opens |
+ * | peak_hours | 7 | 10 task completions |
+ * | ai_task_sorting | 7 | 15 tasks created |
+ * | duration_estimation | 14 | 20 focus sessions |
+ * | completion_patterns | 14 | 30 tasks created |
+ * | predictive_mode | 30 | 50 tasks + 10 focus |
+ * | overwhelm_detection | 30 | 5 high-load days |
+ * 
+ * NAVIGATION AFTER: If unlocks found, celebration modal shown
+ */
+```
+
+#### `UnlockService.triggerCelebration()`
+```typescript
+/**
+ * Displays unlock celebration modal
+ * 
+ * WHEN CALLED:
+ * - After checkEligibility() finds new unlocks
+ * - When user opens app and has unseen unlocks
+ * 
+ * INPUT:
+ * {
+ *   feature: string,
+ *   userId: string
+ * }
+ * 
+ * WHAT HAPPENS:
+ * 1. Fetch unlock details (icon, title, description)
+ * 2. Generate AI explanation for this user
+ * 3. Show celebration modal
+ * 4. Play celebration animation
+ * 5. After user dismisses: Mark unlock as seen
+ * 
+ * OUTPUT: None (modal displayed)
+ * 
+ * MODAL CONTENT:
+ * - Confetti animation (3 seconds)
+ * - Feature icon (48px, in purple circle)
+ * - "New AI Ability!" title
+ * - Feature name in purple
+ * - AI explanation of what this enables
+ * - "Awesome!" dismiss button
+ * 
+ * AI INTEGRATION:
+ * - AI generates personalized explanation
+ * - Example: "After 7 days, I've learned when you work best. 
+ *   Your peak hours are 9-11am. I'll suggest important tasks then."
+ * 
+ * VISUAL FEEDBACK:
+ * - Modal fades in over backdrop
+ * - Confetti particles fall
+ * - Icon pulses with glow
+ * - Haptic: Success + Heavy impact
+ * 
+ * NAVIGATION AFTER: Modal dismisses, user continues
+ */
+```
+
+### Event Logging Functions
+
+#### `EventService.logEvent()`
+```typescript
+/**
+ * Logs user event for AI learning (fire-and-forget)
+ * 
+ * WHEN CALLED: After every significant user action
+ * 
+ * INPUT:
+ * {
+ *   type: 'task_created' | 'task_completed' | 'task_deferred' |
+ *         'app_opened' | 'voice_command' | 'focus_started' |
+ *         'focus_completed' | 'challenge_joined' | 'swipe_navigation',
+ *   screen: string,
+ *   metadata: {
+ *     taskId?: string,
+ *     duration?: number,
+ *     completionTime?: number,  // ms from creation
+ *     source?: 'voice' | 'manual' | 'widget',
+ *     ...any additional data
+ *   }
+ * }
+ * 
+ * WHAT HAPPENS:
+ * 1. Add timestamp, hourOfDay, dayOfWeek
+ * 2. Fire async POST to /api/events (don't await!)
+ * 3. Backend creates UserEvent record
+ * 
+ * IMPORTANT: Never block UI for event logging!
+ * 
+ * CODE PATTERN:
+ * // Fire and forget - don't await
+ * logEvent('task_completed', 'tasks', { taskId: task.id })
+ *   .catch(e => console.warn('Event log failed (non-critical)'));
+ * 
+ * BATCH JOB USAGE:
+ * Events are processed nightly to:
+ * - Calculate peak hours
+ * - Calculate completion patterns
+ * - Detect overwhelm threshold
+ * - Update UserModel
+ */
+```
+
+---
+
+## Frontend Component Reference
+
+### GestureNavigator
+```typescript
+/**
+ * Main navigation container using gesture-based navigation
+ * 
+ * REPLACES: Traditional tab bar or stack navigation
+ * 
+ * SCREENS MANAGED:
+ * - AI Home (center)
+ * - Tasks View (swipe left)
+ * - Social View (swipe right)
+ * - Profile View (swipe down)
+ * - Focus Session (swipe up - modal)
+ * 
+ * GESTURES HANDLED:
+ * | Direction | From Center | Result |
+ * |-----------|-------------|--------|
+ * | ← Left | AI Home | Tasks View |
+ * | → Right | AI Home | Social View |
+ * | ↓ Down | AI Home | Profile View |
+ * | ↑ Up | AI Home | Focus Modal |
+ * | → Right | Tasks | AI Home |
+ * | ← Left | Social | AI Home |
+ * | ↑ Up | Profile | AI Home |
+ * 
+ * ANIMATION CONFIG:
+ * - Spring: { damping: 20, mass: 0.8, stiffness: 150 }
+ * - Threshold: 100px to trigger navigation
+ * - Parallax: 1.2:1 ratio between screens
+ * 
+ * HAPTIC FEEDBACK:
+ * - 50px drag: Light impact (feeling the edge)
+ * - 100px drag (threshold): Medium impact (committing)
+ * 
+ * IMPLEMENTATION:
+ * - Uses react-native-gesture-handler Pan gesture
+ * - Uses react-native-reanimated for 60fps animations
+ * - Shared values for translateX, translateY
+ */
+```
+
+### AIOrb Component
+```typescript
+/**
+ * Central AI interaction orb component
+ * 
+ * PROPS:
+ * {
+ *   size: 'large' | 'medium' | 'mini',  // 160px | 120px | 44px
+ *   onPress: () => void,                 // Triggers voice input
+ *   state: 'idle' | 'listening' | 'processing' | 'speaking' | 'focused'
+ * }
+ * 
+ * VISUAL STATES:
+ * | State | Animation | Glow | Inner |
+ * |-------|-----------|------|-------|
+ * | idle | Breathing pulse 3s | 30% | Gradient |
+ * | listening | Voice waves | 50% | Rings |
+ * | processing | Spinner | 40% | Spinner |
+ * | speaking | Steady bright | 60% | Gradient |
+ * | focused | Slow pulse 5s | 20% | Gradient (dim) |
+ * 
+ * ANIMATIONS (Reanimated):
+ * - Breathing: scale 1.0 ↔ 1.02 (3s loop)
+ * - Voice waves: 3 concentric circles pulse with audio
+ * - Spinner: rotate 360° (1.5s loop)
+ * 
+ * IMPLEMENTATION:
+ * - Gradient: react-native-linear-gradient (conic)
+ * - Glow: Shadow with blur radius
+ * - Touch: Pressable with scale feedback
+ */
+```
+
+### TaskCard Component
+```typescript
+/**
+ * Individual task item in list
+ * 
+ * PROPS:
+ * {
+ *   task: Task,
+ *   onComplete: (id: string) => void,
+ *   onPress: (id: string) => void,
+ *   onSwipeLeft: (id: string) => void,   // Delete
+ *   onSwipeRight: (id: string) => void,  // Complete
+ *   aiSuggested?: boolean,
+ *   aiReason?: string
+ * }
+ * 
+ * VISUAL STATES:
+ * - Default: #161616 background, white title
+ * - AI Suggested: 3px purple left border
+ * - Completed: Strikethrough, 60% opacity, green checkbox
+ * - Overdue: 3px red left border
+ * 
+ * SWIPE ACTIONS:
+ * - Right swipe: Green background, checkmark icon
+ * - Left swipe: Red background, trash icon
+ * - Threshold: 60px to trigger action
+ * 
+ * CONTENT LAYOUT:
+ * | Checkbox | Title + Metadata | Duration | Priority |
+ * | 24px | Flex 1 | Auto | Color dot |
+ * 
+ * IMPLEMENTATION:
+ * - Uses Swipeable from react-native-gesture-handler
+ * - Animated checkbox fill
+ * - Priority color: HIGH=#EF4444, MEDIUM=#EAB308, LOW=#3B82F6
+ */
+```
+
+---
+
+## API Endpoint Quick Reference
+
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| POST | `/api/auth/register` | Create new user | No |
+| POST | `/api/auth/login` | Authenticate user | No |
+| POST | `/api/auth/refresh` | Refresh access token | Refresh token |
+| POST | `/api/tasks` | Create task | Yes |
+| GET | `/api/tasks` | Get tasks with filters | Yes |
+| PUT | `/api/tasks/:id` | Update task | Yes |
+| DELETE | `/api/tasks/:id` | Delete task | Yes |
+| POST | `/api/tasks/:id/complete` | Complete task | Yes |
+| GET | `/api/ai/greeting` | Get AI greeting | Yes |
+| POST | `/api/ai/voice-command` | Process voice command | Yes |
+| POST | `/api/ai/categorize` | Categorize task title | Yes |
+| POST | `/api/ai/estimate-duration` | Estimate task duration | Yes |
+| POST | `/api/focus/start` | Start focus session | Yes |
+| POST | `/api/focus/end` | End focus session | Yes |
+| GET | `/api/unlocks` | Get all unlock statuses | Yes |
+| GET | `/api/unlocks/pending` | Get unseen unlocks | Yes |
+| POST | `/api/unlocks/:feature/seen` | Mark unlock as seen | Yes |
+| POST | `/api/events` | Log user event | Yes |
+| GET | `/api/health` | Health check | No |
 
 ---
 
