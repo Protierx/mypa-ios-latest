@@ -1,0 +1,274 @@
+/**
+ * Gesture Navigator
+ * 
+ * Main navigation component using swipe gestures.
+ * - CENTER: AI Hub (default)
+ * - LEFT: Tasks View
+ * - RIGHT: Social View
+ * - DOWN: Profile View
+ * - UP: Focus Modal (opens as overlay)
+ */
+
+import React, { useCallback, useMemo } from 'react';
+import { View, Dimensions, StyleSheet } from 'react-native';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  runOnJS,
+} from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
+
+import { useGestureNavigation, Screen } from './useGestureNavigation';
+import { GestureProvider } from './GestureContext';
+import { SwipeIndicator } from './SwipeIndicator';
+
+// Import screens
+import { AIHubScreen } from '../screens-v2/AIHub';
+import { TasksViewScreen } from '../screens-v2/TasksView';
+import { SocialViewScreen } from '../screens-v2/SocialView';
+import { ProfileViewScreen } from '../screens-v2/ProfileView';
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+// Swipe thresholds
+const HORIZONTAL_THRESHOLD = 100;
+const VERTICAL_THRESHOLD = 80;
+
+// Spring config for smooth animations
+const SPRING_CONFIG = {
+  damping: 20,
+  stiffness: 200,
+  mass: 1,
+};
+
+function GestureNavigatorContent() {
+  const { currentScreen, navigateTo, canSwipe } = useGestureNavigation();
+  
+  // Animated values for screen positions
+  const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
+  
+  // Track if we're currently transitioning
+  const isTransitioning = useSharedValue(false);
+
+  // Haptic feedback helper
+  const triggerHaptic = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  }, []);
+
+  // Navigate with animation
+  const animateToScreen = useCallback((screen: Screen) => {
+    'worklet';
+    
+    isTransitioning.value = true;
+    
+    switch (screen) {
+      case 'tasks':
+        translateX.value = withSpring(SCREEN_WIDTH, SPRING_CONFIG, () => {
+          isTransitioning.value = false;
+        });
+        translateY.value = withSpring(0, SPRING_CONFIG);
+        break;
+      case 'social':
+        translateX.value = withSpring(-SCREEN_WIDTH, SPRING_CONFIG, () => {
+          isTransitioning.value = false;
+        });
+        translateY.value = withSpring(0, SPRING_CONFIG);
+        break;
+      case 'profile':
+        translateY.value = withSpring(-SCREEN_HEIGHT, SPRING_CONFIG, () => {
+          isTransitioning.value = false;
+        });
+        translateX.value = withSpring(0, SPRING_CONFIG);
+        break;
+      case 'ai_hub':
+      default:
+        translateX.value = withSpring(0, SPRING_CONFIG, () => {
+          isTransitioning.value = false;
+        });
+        translateY.value = withSpring(0, SPRING_CONFIG);
+        break;
+    }
+    
+    runOnJS(navigateTo)(screen);
+    runOnJS(triggerHaptic)();
+  }, [navigateTo, triggerHaptic]);
+
+  // Pan gesture handler
+  const panGesture = useMemo(() => Gesture.Pan()
+    .onUpdate((event) => {
+      if (isTransitioning.value) return;
+      
+      // Allow drag preview
+      if (currentScreen === 'ai_hub') {
+        translateX.value = event.translationX * 0.5;
+        translateY.value = event.translationY * 0.5;
+      } else if (currentScreen === 'tasks') {
+        // Can only swipe right to return
+        translateX.value = SCREEN_WIDTH + Math.max(0, event.translationX * 0.5);
+      } else if (currentScreen === 'social') {
+        // Can only swipe left to return
+        translateX.value = -SCREEN_WIDTH + Math.min(0, event.translationX * 0.5);
+      } else if (currentScreen === 'profile') {
+        // Can only swipe up to return
+        translateY.value = -SCREEN_HEIGHT + Math.min(0, event.translationY * 0.5);
+      }
+    })
+    .onEnd((event) => {
+      if (isTransitioning.value) return;
+      
+      const { translationX, translationY, velocityX, velocityY } = event;
+      
+      // From AI Hub - can go any direction
+      if (currentScreen === 'ai_hub') {
+        if (translationX < -HORIZONTAL_THRESHOLD || velocityX < -500) {
+          // Swipe left → Tasks
+          animateToScreen('tasks');
+        } else if (translationX > HORIZONTAL_THRESHOLD || velocityX > 500) {
+          // Swipe right → Social
+          animateToScreen('social');
+        } else if (translationY < -VERTICAL_THRESHOLD || velocityY < -500) {
+          // Swipe up → Focus (handled separately)
+          animateToScreen('ai_hub'); // Snap back for now
+        } else if (translationY > VERTICAL_THRESHOLD || velocityY > 500) {
+          // Swipe down → Profile
+          animateToScreen('profile');
+        } else {
+          // Snap back
+          animateToScreen('ai_hub');
+        }
+      }
+      // From Tasks - can only swipe right to return
+      else if (currentScreen === 'tasks') {
+        if (translationX > HORIZONTAL_THRESHOLD || velocityX > 500) {
+          animateToScreen('ai_hub');
+        } else {
+          animateToScreen('tasks');
+        }
+      }
+      // From Social - can only swipe left to return
+      else if (currentScreen === 'social') {
+        if (translationX < -HORIZONTAL_THRESHOLD || velocityX < -500) {
+          animateToScreen('ai_hub');
+        } else {
+          animateToScreen('social');
+        }
+      }
+      // From Profile - can only swipe up to return
+      else if (currentScreen === 'profile') {
+        if (translationY < -VERTICAL_THRESHOLD || velocityY < -500) {
+          animateToScreen('ai_hub');
+        } else {
+          animateToScreen('profile');
+        }
+      }
+    }), [currentScreen, animateToScreen]);
+
+  // Animated styles for the screen container
+  const animatedContainerStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: translateX.value },
+      { translateY: translateY.value },
+    ],
+  }));
+
+  return (
+    <GestureDetector gesture={panGesture}>
+      <View style={styles.container}>
+        <Animated.View style={[styles.screenContainer, animatedContainerStyle]}>
+          {/* Tasks View - LEFT */}
+          <View style={[styles.screen, styles.leftScreen]}>
+            <TasksViewScreen />
+          </View>
+          
+          {/* AI Hub - CENTER */}
+          <View style={[styles.screen, styles.centerScreen]}>
+            <AIHubScreen />
+          </View>
+          
+          {/* Social View - RIGHT */}
+          <View style={[styles.screen, styles.rightScreen]}>
+            <SocialViewScreen />
+          </View>
+          
+          {/* Profile View - DOWN (above center) */}
+          <View style={[styles.screen, styles.bottomScreen]}>
+            <ProfileViewScreen />
+          </View>
+        </Animated.View>
+        
+        {/* Swipe Indicators */}
+        {currentScreen === 'ai_hub' && (
+          <>
+            <SwipeIndicator direction="left" label="Tasks" visible />
+            <SwipeIndicator direction="right" label="Social" visible />
+            <SwipeIndicator direction="down" label="Profile" visible />
+            <SwipeIndicator direction="up" label="Focus" visible />
+          </>
+        )}
+        {currentScreen === 'tasks' && (
+          <SwipeIndicator direction="right" label="Back" visible />
+        )}
+        {currentScreen === 'social' && (
+          <SwipeIndicator direction="left" label="Back" visible />
+        )}
+        {currentScreen === 'profile' && (
+          <SwipeIndicator direction="up" label="Back" visible />
+        )}
+      </View>
+    </GestureDetector>
+  );
+}
+
+export function GestureNavigator() {
+  return (
+    <GestureHandlerRootView style={styles.root}>
+      <GestureProvider>
+        <GestureNavigatorContent />
+      </GestureProvider>
+    </GestureHandlerRootView>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
+  container: {
+    flex: 1,
+    backgroundColor: '#000',
+    overflow: 'hidden',
+  },
+  screenContainer: {
+    width: SCREEN_WIDTH * 3,
+    height: SCREEN_HEIGHT * 2,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  screen: {
+    width: SCREEN_WIDTH,
+    height: SCREEN_HEIGHT,
+  },
+  leftScreen: {
+    position: 'absolute',
+    left: -SCREEN_WIDTH,
+    top: 0,
+  },
+  centerScreen: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+  },
+  rightScreen: {
+    position: 'absolute',
+    left: SCREEN_WIDTH,
+    top: 0,
+  },
+  bottomScreen: {
+    position: 'absolute',
+    left: 0,
+    top: SCREEN_HEIGHT,
+  },
+});

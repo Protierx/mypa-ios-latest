@@ -8,3 +8,4 @@ export { TabBar } from './TabBar';
 export { AnimatedCard } from './AnimatedCard';
 export { ErrorBoundary } from './ErrorBoundary';
 export { LoadingOverlay } from './LoadingOverlay';
+export { UnlockCelebrationModal, useUnlockCelebrations } from './UnlockCelebrationModal';

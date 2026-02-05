@@ -4,7 +4,7 @@
     "slug": "mypa-app",
     "version": "1.0.0",
     "sdkVersion": "54.0.0",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",

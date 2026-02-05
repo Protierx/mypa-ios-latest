@@ -4,9 +4,15 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
+import { SupabaseAuthProvider, useSupabaseAuth } from './src/contexts/SupabaseAuthContext';
+import { VoiceProvider } from './src/contexts/VoiceContext';
+import { UserModelProvider } from './src/contexts/UserModelContext';
+import { FEATURE_FLAGS } from './src/config/featureFlags';
 import { usePushNotifications } from './src/services/pushNotifications';
+import { eventLogger } from './src/services/eventLogger';
 import { LoginScreen } from './src/screens/Login';
 import { HubScreen } from './src/screens/Hub';
 import PlanScreen from './src/screens/Plan';
@@ -38,6 +44,10 @@ import NotificationSettingsScreen from './src/screens/Notification/NotificationS
 import IntegrationsScreen from './src/screens/Integrations';
 import { colors } from './src/styles/colors';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
+import { UnlockCelebrationModal, useUnlockCelebrations } from './src/components/UnlockCelebrationModal';
+
+// New gesture-based navigation
+import { GestureNavigator } from './src/navigation-v2/GestureNavigator';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -181,12 +191,91 @@ function CustomTabBar({ state, descriptors, navigation, onVoicePress }: CustomTa
 }
 
 export default function App() {
+  // Use different auth providers based on feature flag
+  if (FEATURE_FLAGS.USE_GESTURE_NAV) {
+    return (
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <ErrorBoundary>
+          <SupabaseAuthProvider>
+            <UserModelProvider>
+              <VoiceProvider>
+                <NewAppContent />
+              </VoiceProvider>
+            </UserModelProvider>
+          </SupabaseAuthProvider>
+        </ErrorBoundary>
+      </GestureHandlerRootView>
+    );
+  }
+
+  // Legacy: Old auth provider
   return (
-    <ErrorBoundary>
-      <AuthProvider>
-        <AppContent />
-      </AuthProvider>
-    </ErrorBoundary>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ErrorBoundary>
+        <AuthProvider>
+          <AppContent />
+        </AuthProvider>
+      </ErrorBoundary>
+    </GestureHandlerRootView>
+  );
+}
+
+// New gesture-based navigation content
+function NewAppContent() {
+  const { user, isLoading } = useSupabaseAuth();
+
+  // Initialize event logging when user is authenticated
+  useEffect(() => {
+    if (user) {
+      // Initialize event logger (gets user from Supabase auth internally)
+      eventLogger.initialize();
+      // Log app opened event
+      eventLogger.logAppOpened();
+    }
+  }, [user]);
+
+  // Show loading screen while checking auth
+  if (isLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Image
+          source={require('./assets/mypa-orb.png')}
+          style={styles.loadingOrb}
+          resizeMode="contain"
+        />
+        <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 20 }} />
+      </View>
+    );
+  }
+
+  // Show login screen if not authenticated
+  if (!user) {
+    // Import and use the new v2 login screen
+    const { LoginScreenV2 } = require('./src/screens-v2/Auth');
+    return <LoginScreenV2 />;
+  }
+
+  // Authenticated user - show main app with celebrations
+  return <AuthenticatedApp />;
+}
+
+// Separate component for authenticated state to use hooks that require UserModelProvider
+function AuthenticatedApp() {
+  // Unlock celebrations hook - must be used within UserModelProvider
+  const { currentUnlock, modalVisible, handleDismiss } = useUnlockCelebrations();
+  
+  return (
+    <>
+      <StatusBar barStyle="light-content" />
+      <GestureNavigator />
+      
+      {/* Unlock Celebration Modal */}
+      <UnlockCelebrationModal
+        visible={modalVisible}
+        feature={currentUnlock || ''}
+        onDismiss={handleDismiss}
+      />
+    </>
   );
 }
 
@@ -259,6 +348,7 @@ function AppContent() {
     return <LoginScreen />;
   }
 
+  // Legacy tab-based navigation (only used when USE_GESTURE_NAV is false)
   return (
     <NavigationContainer>
       <StatusBar barStyle="dark-content" />
@@ -375,3 +465,5 @@ const styles = StyleSheet.create({
     height: 100,
   },
 });
+
+export default App;

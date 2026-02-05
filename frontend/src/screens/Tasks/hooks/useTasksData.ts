@@ -3,6 +3,7 @@ import { Animated } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Task, FilterType, PriorityType } from '../types';
 import { initialTasks, categoryIcons, STORAGE_KEY } from '../constants';
+import { eventLogger } from '@/services/eventLogger';
 
 export function useTasksData() {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -59,6 +60,13 @@ export function useTasksData() {
   }, [addPulse]);
 
   const toggleTask = useCallback((id: string) => {
+    const task = tasks.find(t => t.id === id);
+    if (task) {
+      if (!task.completed) {
+        // Completing task
+        eventLogger.logTaskCompleted(id, task.title, task.priority);
+      }
+    }
     setTasks(tasks.map(task =>
       task.id === id ? { ...task, completed: !task.completed } : task
     ));
@@ -88,6 +96,12 @@ export function useTasksData() {
     if (!titleInput.trim()) return;
     const categoryIcon = categoryIcons[categoryInput] || 'briefcase';
     if (editingTask) {
+      // Editing task - log edit event
+      eventLogger.log('task_edited', {
+        taskId: editingTask.id,
+        taskTitle: titleInput.trim(),
+        taskPriority: priorityInput,
+      });
       setTasks(prev =>
         prev.map(task =>
           task.id === editingTask.id
@@ -104,8 +118,11 @@ export function useTasksData() {
         )
       );
     } else {
+      // Creating new task - log create event
+      const newTaskId = `${Date.now()}`;
+      eventLogger.logTaskCreated(newTaskId, titleInput.trim(), priorityInput);
       const newTask: Task = {
-        id: `${Date.now()}`,
+        id: newTaskId,
         title: titleInput.trim(),
         description: descInput.trim() || 'No description',
         priority: priorityInput,
@@ -121,6 +138,11 @@ export function useTasksData() {
 
   const deleteTask = useCallback(() => {
     if (!editingTask) return;
+    // Log delete event
+    eventLogger.log('task_deleted', {
+      taskId: editingTask.id,
+      taskTitle: editingTask.title,
+    });
     setTasks(prev => prev.filter(task => task.id !== editingTask.id));
     setShowTaskModal(false);
   }, [editingTask]);

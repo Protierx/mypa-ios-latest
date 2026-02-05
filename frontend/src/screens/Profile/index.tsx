@@ -12,6 +12,7 @@ import {
   SettingsCard,
   LogoutButton,
   VersionText,
+  AIUnlocksSection,
 } from './components';
 import { LogoutModal, AchievementsModal } from './modals';
 import { styles } from './styles';
@@ -90,6 +91,9 @@ export function ProfileScreen({ navigation }: ProfileScreenProps) {
             achievements={achievements}
             onPress={handleOpenAchievements}
           />
+
+          {/* AI Unlocks Section */}
+          <AIUnlocksSection />
 
           {/* Settings */}
           <SettingsCard
