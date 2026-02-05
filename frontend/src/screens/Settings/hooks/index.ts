@@ -1,1 +1,0 @@
-export { useSettingsData } from './useSettingsData';

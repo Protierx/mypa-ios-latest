@@ -1,1 +1,0 @@
-export { useLoginData } from './useLoginData';

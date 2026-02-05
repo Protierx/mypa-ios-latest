@@ -1,1 +1,0 @@
-export { useNotificationSettingsData } from './useNotificationSettingsData';

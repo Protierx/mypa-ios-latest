@@ -4947,7 +4947,7 @@ STATES WITH VISUAL MAPPING:
    - Center glow brightens (70% opacity)
    - Voice waveform appears
    - Colors shift warmer (#4a4a6a → #6a5a7a)
-
+i
 3. PROCESSING - Thinking
    - Gradient swirls concentrically
    - Particles spiral inward

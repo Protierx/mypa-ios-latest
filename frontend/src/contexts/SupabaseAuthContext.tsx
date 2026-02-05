@@ -95,14 +95,19 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
   // Initialize auth state
   useEffect(() => {
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session?.user) {
-        fetchProfile(session.user);
-      } else {
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        setSession(session);
+        if (session?.user) {
+          fetchProfile(session.user);
+        } else {
+          setIsLoading(false);
+        }
+      })
+      .catch((error) => {
+        console.error('Error getting session:', error);
         setIsLoading(false);
-      }
-    });
+      });
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
