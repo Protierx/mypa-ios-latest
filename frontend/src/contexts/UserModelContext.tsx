@@ -214,8 +214,12 @@ export function UserModelProvider({ children }: UserModelProviderProps) {
 
   /**
    * Fetch unlocks and stats from Edge Function
+   * Includes retry logic for auth timing issues
    */
-  const fetchUnlocks = useCallback(async () => {
+  const fetchUnlocks = useCallback(async (retryCount = 0): Promise<{ unlocks: UnlockItem[]; stats: UserStats }> => {
+    const MAX_RETRIES = 2;
+    const RETRY_DELAY = 500; // ms
+
     try {
       const response = await supabaseApi.checkUnlocks();
       return {
@@ -228,7 +232,13 @@ export function UserModelProvider({ children }: UserModelProviderProps) {
         stats: response.stats,
       };
     } catch (err) {
-      console.error('[UserModel] Failed to fetch unlocks:', err);
+      // Retry on auth errors (Edge Function may not have received token yet)
+      if (retryCount < MAX_RETRIES) {
+        console.log(`[UserModel] Retrying fetchUnlocks (attempt ${retryCount + 2}/${MAX_RETRIES + 1})...`);
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+        return fetchUnlocks(retryCount + 1);
+      }
+      console.error('[UserModel] Failed to fetch unlocks after retries:', err);
       return { unlocks: [], stats: DEFAULT_STATS };
     }
   }, []);
@@ -237,6 +247,17 @@ export function UserModelProvider({ children }: UserModelProviderProps) {
    * Refresh all data
    */
   const refresh = useCallback(async () => {
+    // Check for active session first
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      // No session yet, skip fetching
+      console.log('[UserModel] No session, skipping refresh');
+      setIsLoading(false);
+      return;
+    }
+    
+    console.log('[UserModel] Refreshing with session for user:', session.user?.id?.substring(0, 8) + '...');
+
     setIsLoading(true);
     setError(null);
 
@@ -251,6 +272,7 @@ export function UserModelProvider({ children }: UserModelProviderProps) {
       setUnlocks(unlockData.unlocks);
       setStats(unlockData.stats);
     } catch (err) {
+      console.error('[UserModel] Error refreshing:', err);
       setError(err instanceof Error ? err.message : 'Failed to load user model');
     } finally {
       setIsLoading(false);
@@ -266,7 +288,8 @@ export function UserModelProvider({ children }: UserModelProviderProps) {
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_IN') {
-        refresh();
+        // Small delay to ensure token is propagated to Edge Functions
+        setTimeout(() => refresh(), 300);
       } else if (event === 'SIGNED_OUT') {
         setModel(null);
         setUnlocks([]);

@@ -140,11 +140,8 @@ export function useUnlocks(): UseUnlocksReturn {
     if (!session) return;
 
     try {
-      const { data, error } = await supabase.functions.invoke('calculate-unlocks', {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
+      // Let Supabase client handle auth automatically
+      const { data, error } = await supabase.functions.invoke('calculate-unlocks');
 
       if (error) throw error;
 

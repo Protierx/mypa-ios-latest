@@ -99,8 +99,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Drop existing trigger
+-- Drop existing triggers
 DROP TRIGGER IF EXISTS on_task_completed ON public.tasks;
+DROP TRIGGER IF EXISTS on_task_created_completed ON public.tasks;
 
 -- Create trigger
 CREATE TRIGGER on_task_completed

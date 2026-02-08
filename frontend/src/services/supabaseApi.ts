@@ -60,8 +60,12 @@ class SupabaseApiService {
   private getAuthHeader = async (): Promise<Record<string, string>> => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) {
+      console.log('[SupabaseApi] No session or access token available');
       throw new Error('No active session');
     }
+    // Log token info for debugging (first/last 8 chars only)
+    const token = session.access_token;
+    console.log(`[SupabaseApi] Using token: ${token.substring(0, 8)}...${token.substring(token.length - 8)}`);
     return {
       Authorization: `Bearer ${session.access_token}`,
     };
@@ -107,13 +111,21 @@ class SupabaseApiService {
    * Check and calculate user unlocks
    */
   async checkUnlocks(): Promise<UnlocksResponse> {
-    const headers = await this.getAuthHeader();
+    // First verify we have a session
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      console.log('[SupabaseApi] checkUnlocks: No session available');
+      throw new Error('No active session');
+    }
+    console.log(`[SupabaseApi] checkUnlocks: Using session for user ${session.user?.id?.substring(0, 8)}...`);
 
-    const { data, error } = await supabase.functions.invoke('calculate-unlocks', {
-      headers,
-    });
+    // Let Supabase client handle auth automatically
+    const { data, error } = await supabase.functions.invoke('calculate-unlocks');
 
-    if (error) throw error;
+    if (error) {
+      console.error('[SupabaseApi] checkUnlocks error:', error.message, error);
+      throw error;
+    }
     return data as UnlocksResponse;
   }
 

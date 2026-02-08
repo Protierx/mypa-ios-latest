@@ -181,9 +181,11 @@ export function VoiceFeedback({
         )}
         
         {/* Hint text */}
-        <Text style={styles.footerHint}>
-          {isListening ? 'Tap anywhere to send' : isSpeaking ? 'Tap to stop' : ''}
-        </Text>
+        {(isListening || isSpeaking) && (
+          <Text style={styles.footerHint}>
+            {isListening ? 'Tap anywhere to send' : 'Tap to stop'}
+          </Text>
+        )}
       </BlurView>
     </Animated.View>
   );
