@@ -420,13 +420,13 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
             </View>
 
             {/* Streak Card */}
-            {user?.currentStreak && user.currentStreak > 0 && (
+            {(user?.currentStreak ?? 0) > 0 && (
               <View style={styles.contextCard}>
                 <View style={styles.cardRow}>
                   <Ionicons name="flame" size={18} color={darkColors.warning} />
                   <Text style={styles.cardLabel}>Streak</Text>
                 </View>
-                <Text style={styles.cardValue}>{user.currentStreak} days</Text>
+                <Text style={styles.cardValue}>{user?.currentStreak} days</Text>
               </View>
             )}
 

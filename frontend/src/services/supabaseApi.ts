@@ -1,9 +1,19 @@
 /**
  * Supabase API Service
  * Wrapper for calling Edge Functions
+ *
+ * All calls rely on the Supabase JS client auto-attaching the current
+ * session's JWT in the Authorization header. We do NOT pass explicit
+ * headers so the client always sends the freshest token.
+ *
+ * On 401 errors we attempt one session refresh before giving up.
  */
 import { supabase } from '@/lib/supabase';
-import { Session, FunctionsHttpError } from '@supabase/supabase-js';
+import { FunctionsHttpError } from '@supabase/supabase-js';
+
+// ---------------------------------------------------------------------------
+// Response types
+// ---------------------------------------------------------------------------
 
 interface GreetingResponse {
   greeting: string;
@@ -56,120 +66,114 @@ interface DailyBriefResponse {
   briefText: string;
 }
 
-class SupabaseApiService {
-  private getAuthHeader = async (): Promise<Record<string, string>> => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) {
-      console.log('[SupabaseApi] No session or access token available');
-      throw new Error('No active session');
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Try to refresh the session once. Returns true if refresh succeeded. */
+async function tryRefreshSession(): Promise<boolean> {
+  try {
+    const { error } = await supabase.auth.refreshSession();
+    if (error) {
+      console.warn('[SupabaseApi] Session refresh failed:', error.message);
+      return false;
     }
-    // Log token info for debugging (first/last 8 chars only)
-    const token = session.access_token;
-    console.log(`[SupabaseApi] Using token: ${token.substring(0, 8)}...${token.substring(token.length - 8)}`);
-    return {
-      Authorization: `Bearer ${session.access_token}`,
-    };
-  };
+    console.log('[SupabaseApi] Session refreshed successfully');
+    return true;
+  } catch {
+    return false;
+  }
+}
 
-  /**
-   * Get personalized AI greeting for the AI Hub
-   */
-  async getGreeting(): Promise<GreetingResponse> {
-    const headers = await this.getAuthHeader();
-    
-    const { data, error } = await supabase.functions.invoke('ai-greeting', {
-      headers,
-    });
+/** Invoke an Edge Function with automatic 401-retry (one refresh attempt). */
+async function invokeWithRetry<T>(
+  fnName: string,
+  options?: { body?: Record<string, unknown> },
+): Promise<T> {
+  // Attempt 1
+  const { data, error } = await supabase.functions.invoke(fnName, options);
 
-    if (error) throw error;
-    return data as GreetingResponse;
+  if (!error) return data as T;
+
+  // If 401, try refreshing the session and retry once
+  if (error instanceof FunctionsHttpError && error.context?.status === 401) {
+    console.warn('[SupabaseApi] ' + fnName + ': 401 - attempting session refresh...');
+    const refreshed = await tryRefreshSession();
+    if (refreshed) {
+      const retry = await supabase.functions.invoke(fnName, options);
+      if (!retry.error) return retry.data as T;
+      if (retry.error instanceof FunctionsHttpError) {
+        logFunctionsError(fnName, retry.error);
+      }
+      throw retry.error;
+    }
   }
 
-  /**
-   * Process a voice command
-   */
+  // Log and re-throw
+  if (error instanceof FunctionsHttpError) {
+    logFunctionsError(fnName, error);
+  }
+  throw error;
+}
+
+function logFunctionsError(fnName: string, error: FunctionsHttpError): void {
+  try {
+    error.context.json().then((body: Record<string, unknown>) => {
+      console.warn('[SupabaseApi] ' + fnName + ' error:', error.context.status, JSON.stringify(body));
+    }).catch(() => {
+      console.warn('[SupabaseApi] ' + fnName + ' error:', error.context.status, error.message);
+    });
+  } catch {
+    console.warn('[SupabaseApi] ' + fnName + ' error:', error.message);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Service
+// ---------------------------------------------------------------------------
+
+class SupabaseApiService {
+  /** Get personalized AI greeting for the AI Hub */
+  async getGreeting(): Promise<GreetingResponse> {
+    return invokeWithRetry<GreetingResponse>('ai-greeting');
+  }
+
+  /** Process a voice command */
   async processVoiceCommand(
     transcript: string,
     context?: {
       screen?: string;
       selectedTaskId?: string;
       focusActive?: boolean;
-    }
+    },
   ): Promise<VoiceCommandResponse> {
-    const headers = await this.getAuthHeader();
-
-    const { data, error } = await supabase.functions.invoke('voice-command', {
-      headers,
+    return invokeWithRetry<VoiceCommandResponse>('voice-command', {
       body: { transcript, context },
     });
-
-    if (error) throw error;
-    return data as VoiceCommandResponse;
   }
 
-  /**
-   * Check and calculate user unlocks
-   */
+  /** Check and calculate user unlocks */
   async checkUnlocks(): Promise<UnlocksResponse> {
-    // First verify we have a session
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) {
-      console.log('[SupabaseApi] checkUnlocks: No session available');
-      throw new Error('No active session');
-    }
-    console.log(`[SupabaseApi] checkUnlocks: Using session for user ${session.user?.id?.substring(0, 8)}...`);
-
-    // Let Supabase client handle auth automatically
-    const { data, error } = await supabase.functions.invoke('calculate-unlocks');
-
-    if (error) {
-      console.error('[SupabaseApi] checkUnlocks error:', error.message, error);
-      throw error;
-    }
-    return data as UnlocksResponse;
+    return invokeWithRetry<UnlocksResponse>('calculate-unlocks');
   }
 
-  /**
-   * Send push notification (admin/system use)
-   */
+  /** Send push notification (admin/system use) */
   async sendPush(
     userId: string,
     title: string,
     body: string,
-    data?: Record<string, any>
+    data?: Record<string, unknown>,
   ): Promise<{ success: boolean }> {
-    // Note: This should only be called from server-side or admin functions
-    // The service_role_key is required, not anon key
-    const { data: result, error } = await supabase.functions.invoke('send-push', {
+    return invokeWithRetry<{ success: boolean }>('send-push', {
       body: { userId, title, body, data },
     });
-
-    if (error) throw error;
-    return result;
   }
 
-  /**
-   * Get personalized daily brief
-   * Returns task summary, peak hour suggestions, challenge updates, and AI-generated brief
-   */
+  /** Get personalized daily brief */
   async getDailyBrief(options?: { check_cache?: boolean }): Promise<DailyBriefResponse> {
-    // Let the Supabase client auto-attach the session (don't pass headers to avoid overwriting)
-    const { data, error } = await supabase.functions.invoke('daily-brief', {
+    return invokeWithRetry<DailyBriefResponse>('daily-brief', {
       body: { check_cache: options?.check_cache ?? false },
     });
-
-    if (error) {
-      if (error instanceof FunctionsHttpError) {
-        try {
-          const body = await error.context.json() as { error?: string };
-          console.warn('[SupabaseApi] daily-brief error:', error.context.status, body?.error ?? body);
-        } catch {
-          console.warn('[SupabaseApi] daily-brief error:', error.context.status, error.message);
-        }
-      }
-      throw error;
-    }
-    return data as DailyBriefResponse;
   }
 }
 
@@ -180,9 +184,9 @@ export const api = new SupabaseApiService();
 export const getGreeting = () => api.getGreeting();
 export const processVoiceCommand = (
   transcript: string,
-  context?: { screen?: string; selectedTaskId?: string; focusActive?: boolean }
+  context?: { screen?: string; selectedTaskId?: string; focusActive?: boolean },
 ) => api.processVoiceCommand(transcript, context);
 export const checkUnlocks = () => api.checkUnlocks();
-export const getDailyBrief = () => api.getDailyBrief();
+export const getDailyBrief = (options?: { check_cache?: boolean }) => api.getDailyBrief(options);
 
 export default api;

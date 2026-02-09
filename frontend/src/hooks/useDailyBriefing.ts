@@ -46,7 +46,6 @@ function getTodayInTimezone(timezone: string): string {
   try {
     return new Date().toLocaleDateString('en-CA', { timeZone: timezone });
   } catch {
-    // Fallback if timezone string is invalid
     return new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
   }
 }
@@ -63,14 +62,23 @@ export function useDailyBriefing(userId: string | undefined): UseDailyBriefingRe
     error: null,
   });
 
+  // Stable ref for userId so fetchBriefing doesn't recreate on every render
+  const userIdRef = useRef(userId);
+  userIdRef.current = userId;
+
   // Guard against re-triggering after the briefing has been marked as played
   const briefingPlayedRef = useRef(false);
-  // Track whether the initial check has run
+  // Track whether the initial check has run (prevents infinite loop)
   const hasCheckedRef = useRef(false);
+  // Track if a fetch is in-flight
+  const isFetchingRef = useRef(false);
 
   const fetchBriefing = useCallback(async () => {
-    if (!userId || briefingPlayedRef.current) return;
+    const uid = userIdRef.current;
+    if (!uid || briefingPlayedRef.current || isFetchingRef.current) return;
 
+    isFetchingRef.current = true;
+    hasCheckedRef.current = true;
     setState(prev => ({ ...prev, isLoading: true, error: null }));
 
     try {
@@ -78,7 +86,7 @@ export function useDailyBriefing(userId: string | undefined): UseDailyBriefingRe
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('briefing_date, timezone')
-        .eq('id', userId)
+        .eq('id', uid)
         .single();
 
       if (profileError) throw profileError;
@@ -111,8 +119,8 @@ export function useDailyBriefing(userId: string | undefined): UseDailyBriefingRe
       const httpErr = err as { context?: { status: number; json?: () => Promise<{ error?: string }> } } | null;
       if (httpErr?.context) {
         if (httpErr.context.status === 401) {
-          message = "Session expired. Please sign in again.";
-        } else if (typeof httpErr.context.json === "function") {
+          message = 'Session expired. Please sign in again.';
+        } else if (typeof httpErr.context.json === 'function') {
           try {
             const body = await httpErr.context.json();
             if (body?.error) message = body.error;
@@ -123,17 +131,18 @@ export function useDailyBriefing(userId: string | undefined): UseDailyBriefingRe
       }
       setState({
         shouldBrief: false,
-        briefText: "",
+        briefText: '',
         isLoading: false,
         error: message,
       });
+    } finally {
+      isFetchingRef.current = false;
     }
-  }, [userId]);
+  }, []); // No deps -- uses refs for userId
 
-  // Run on mount when user is authenticated
+  // Run once when user is authenticated
   useEffect(() => {
-    if (userId && !hasCheckedRef.current) {
-      hasCheckedRef.current = true;
+    if (userId && !hasCheckedRef.current && !briefingPlayedRef.current) {
       fetchBriefing();
     }
   }, [userId, fetchBriefing]);
@@ -141,6 +150,7 @@ export function useDailyBriefing(userId: string | undefined): UseDailyBriefingRe
   const retry = useCallback(() => {
     hasCheckedRef.current = false;
     briefingPlayedRef.current = false;
+    isFetchingRef.current = false;
     fetchBriefing();
   }, [fetchBriefing]);
 
