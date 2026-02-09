@@ -94,9 +94,22 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
 
   // Initialize auth state
   useEffect(() => {
+    let cancelled = false;
+
+    // Timeout: if auth check takes too long (e.g. no network, bad Supabase URL), show login
+    const timeoutId = setTimeout(() => {
+      if (cancelled) return;
+      console.warn('[Auth] Initial session check timed out – showing login');
+      setIsLoading(false);
+      setUser(null);
+      setSession(null);
+    }, 8000);
+
     // Get initial session
     supabase.auth.getSession()
       .then(({ data: { session } }) => {
+        if (cancelled) return;
+        clearTimeout(timeoutId);
         setSession(session);
         if (session?.user) {
           fetchProfile(session.user);
@@ -105,6 +118,8 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
         }
       })
       .catch((error) => {
+        if (cancelled) return;
+        clearTimeout(timeoutId);
         console.error('Error getting session:', error);
         setIsLoading(false);
       });
@@ -124,7 +139,11 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
       }
     );
 
-    return () => subscription.unsubscribe();
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+      subscription.unsubscribe();
+    };
   }, []);
 
   // Fetch profile from profiles table

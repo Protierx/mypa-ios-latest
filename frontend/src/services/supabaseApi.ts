@@ -3,7 +3,7 @@
  * Wrapper for calling Edge Functions
  */
 import { supabase } from '@/lib/supabase';
-import { Session } from '@supabase/supabase-js';
+import { Session, FunctionsHttpError } from '@supabase/supabase-js';
 
 interface GreetingResponse {
   greeting: string;
@@ -152,14 +152,23 @@ class SupabaseApiService {
    * Get personalized daily brief
    * Returns task summary, peak hour suggestions, challenge updates, and AI-generated brief
    */
-  async getDailyBrief(): Promise<DailyBriefResponse> {
-    const headers = await this.getAuthHeader();
-
+  async getDailyBrief(options?: { check_cache?: boolean }): Promise<DailyBriefResponse> {
+    // Let the Supabase client auto-attach the session (don't pass headers to avoid overwriting)
     const { data, error } = await supabase.functions.invoke('daily-brief', {
-      headers,
+      body: { check_cache: options?.check_cache ?? false },
     });
 
-    if (error) throw error;
+    if (error) {
+      if (error instanceof FunctionsHttpError) {
+        try {
+          const body = await error.context.json() as { error?: string };
+          console.warn('[SupabaseApi] daily-brief error:', error.context.status, body?.error ?? body);
+        } catch {
+          console.warn('[SupabaseApi] daily-brief error:', error.context.status, error.message);
+        }
+      }
+      throw error;
+    }
     return data as DailyBriefResponse;
   }
 }

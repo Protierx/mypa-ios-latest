@@ -18,7 +18,6 @@ import {
   CORS_HEADERS,
   CONFIRMATION_REQUIRED_ACTIONS,
   QUERY_ACTIONS,
-  ACTION_MODEL_TIER,
 } from '../_shared/config.ts'
 
 // ============================================================================
@@ -312,7 +311,7 @@ serve(async (req) => {
     const choice = gptData.choices?.[0]
     const usage = gptData.usage || {}
     const modelUsed = gptData.model || MODEL_CONFIG.fast
-    const tokensUsed = (usage.prompt_tokens || 0) + (usage.completion_tokens || 0)
+    let tokensUsed = (usage.prompt_tokens || 0) + (usage.completion_tokens || 0)
 
     // ── Parse GPT Response ───────────────────────────────────────────
     let actionName = 'unknown'
@@ -394,8 +393,7 @@ serve(async (req) => {
         responseText = respData.choices?.[0]?.message?.content || ''
         const respUsage = respData.usage || {}
         // Add response generation tokens to total
-        const additionalTokens = (respUsage.prompt_tokens || 0) + (respUsage.completion_tokens || 0)
-        // Note: tokensUsed is const, we report combined in the response below
+        tokensUsed += (respUsage.prompt_tokens || 0) + (respUsage.completion_tokens || 0)
       }
 
       // Fallback response if generation failed

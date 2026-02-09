@@ -197,12 +197,28 @@ CREATE TABLE IF NOT EXISTS public.invitations (
 );
 
 -- =====================================================
--- Enable Realtime for key tables
+-- Enable Realtime for key tables (idempotent: skip if already in publication)
 -- =====================================================
-ALTER PUBLICATION supabase_realtime ADD TABLE public.tasks;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.challenges;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.challenge_participants;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.tasks;
+EXCEPTION WHEN SQLSTATE '42710' THEN NULL; -- already member of publication
+END $$;
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.challenges;
+EXCEPTION WHEN SQLSTATE '42710' THEN NULL;
+END $$;
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.challenge_participants;
+EXCEPTION WHEN SQLSTATE '42710' THEN NULL;
+END $$;
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
+EXCEPTION WHEN SQLSTATE '42710' THEN NULL;
+END $$;
 
 -- =====================================================
 -- Grant necessary permissions

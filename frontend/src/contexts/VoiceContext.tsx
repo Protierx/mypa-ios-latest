@@ -13,7 +13,6 @@ import { supabase } from '../lib/supabase';
 import { eventLogger } from '../services/eventLogger';
 import {
   executeAction,
-  processVoiceResponse,
   type ActionJSON,
   type VoiceCommandResponse,
 } from '../services/actionExecutor';

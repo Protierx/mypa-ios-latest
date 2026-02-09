@@ -58,6 +58,11 @@ export type EventType =
   | 'daily_brief_shown'
   | 'unlock_earned'
   | 'unlock_celebration_shown'
+
+  // Briefing tracking (PRD R2.5)
+  | 'briefing_started'
+  | 'briefing_progress'
+  | 'briefing_skipped'
   
   // Engagement metrics
   | 'feature_used'
@@ -113,6 +118,11 @@ export interface EventMetadata {
   feature?: string;
   unlockType?: string;
   
+  // Briefing (PRD R2.5)
+  briefingLengthChars?: number;
+  briefingProgressPercent?: number;
+  skippedAtPercent?: number;
+
   // Generic
   [key: string]: any;
 }
@@ -401,6 +411,33 @@ class EventLoggerService {
   logUnlockEarned(feature: string): void {
     this.log('unlock_earned', {
       feature,
+    });
+  }
+
+  /**
+   * Log daily briefing started (PRD R2.5)
+   */
+  logBriefingStarted(lengthChars: number): void {
+    this.log('briefing_started', {
+      briefingLengthChars: lengthChars,
+    });
+  }
+
+  /**
+   * Log daily briefing progress (PRD R2.5)
+   */
+  logBriefingProgress(percent: 25 | 50 | 100): void {
+    this.log('briefing_progress', {
+      briefingProgressPercent: percent,
+    });
+  }
+
+  /**
+   * Log daily briefing skipped / barge-in (PRD R2.5)
+   */
+  logBriefingSkipped(skippedAtPercent: number): void {
+    this.log('briefing_skipped', {
+      skippedAtPercent,
     });
   }
 

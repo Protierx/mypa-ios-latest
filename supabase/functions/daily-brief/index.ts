@@ -14,11 +14,9 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { MODEL_CONFIG, CORS_HEADERS } from '../_shared/config.ts'
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+const corsHeaders = CORS_HEADERS
 
 // MYPA Daily Brief Personality
 const MYPA_BRIEF_PERSONALITY = `You are MYPA giving a morning briefing to help the user start their day.
@@ -91,12 +89,48 @@ serve(async (req) => {
       )
     }
 
-    // Get user profile
+    // Parse request body for cache check option (safe: no body or invalid JSON is OK)
+    let checkCache = false
+    try {
+      const text = await req.text()
+      if (text && text.length > 0) {
+        const body = JSON.parse(text) as { check_cache?: boolean }
+        checkCache = body?.check_cache === true
+      }
+    } catch {
+      // No body or invalid JSON -- proceed without cache check
+    }
+
+    // Get user profile (always needed for timezone + display_name)
     const { data: profile } = await supabaseClient
       .from('profiles')
       .select('*')
       .eq('id', user.id)
       .single()
+
+    // ---- Server-side cache check (PRD R2.3) ----
+    // If check_cache=true and briefing was already generated today, return cached text
+    if (checkCache && profile) {
+      const userTimezone = profile.timezone || 'America/New_York'
+      const todayInUserTz = new Date().toLocaleDateString('en-CA', { timeZone: userTimezone }) // YYYY-MM-DD
+      
+      if (profile.briefing_date === todayInUserTz && profile.briefing_cache) {
+        console.log('[daily-brief] Returning cached brief for', todayInUserTz)
+        return new Response(
+          JSON.stringify({
+            greeting: `Good ${new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 17 ? 'afternoon' : 'evening'}!`,
+            summary: { totalTasks: 0, highPriorityCount: 0, completedYesterday: 0 },
+            peakHourSuggestion: null,
+            challengeUpdate: null,
+            streakStatus: { current: profile.streak_current || 0, message: null },
+            motivationalInsight: null,
+            briefText: profile.briefing_cache,
+            cached: true,
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+        )
+      }
+    }
 
     // Get user model for peak hours
     const { data: userModel } = await supabaseClient
@@ -231,7 +265,7 @@ Challenge: ${challengeUpdate || 'none active'}
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: 'gpt-4-turbo-preview',
+            model: MODEL_CONFIG.cached,
             messages: [
               { role: 'system', content: MYPA_BRIEF_PERSONALITY },
               { 
@@ -265,6 +299,21 @@ Challenge: ${challengeUpdate || 'none active'}
       }
     }
 
+    // ---- Cache write (PRD R2.3) ----
+    // Cache the generated brief so subsequent calls today return instantly
+    if (briefText && profile) {
+      const userTimezone = profile.timezone || 'America/New_York'
+      const todayInUserTz = new Date().toLocaleDateString('en-CA', { timeZone: userTimezone })
+      
+      await supabaseClient
+        .from('profiles')
+        .update({
+          briefing_cache: briefText,
+          briefing_date: todayInUserTz,
+        })
+        .eq('id', user.id)
+    }
+
     const response: DailyBriefResponse = {
       greeting: `Good ${now.getHours() < 12 ? 'morning' : now.getHours() < 17 ? 'afternoon' : 'evening'}!`,
       summary: {
@@ -291,12 +340,13 @@ Challenge: ${challengeUpdate || 'none active'}
     )
 
   } catch (error) {
-    console.error('Daily brief error:', error)
+    const message = error instanceof Error ? error.message : String(error)
+    console.error('Daily brief error:', message, error)
     return new Response(
-      JSON.stringify({ error: error.message }),
-      { 
-        status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      JSON.stringify({ error: message }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
     )
   }

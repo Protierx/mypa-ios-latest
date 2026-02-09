@@ -107,10 +107,10 @@ Routing is **capability-based**, not model-name-based. Concrete model IDs live i
 ```typescript
 // supabase/functions/_shared/config.ts
 export const MODEL_CONFIG = {
-  fast: "gpt-3.5-turbo",
-  smart: "gpt-4-turbo",
-  personalized: "gpt-4-turbo",
-  cached: "gpt-4-turbo",
+  fast: "gpt-4o-mini",
+  smart: "gpt-4o",
+  personalized: "gpt-4o",
+  cached: "gpt-4o",
 } as const;
 ```
 
@@ -134,8 +134,8 @@ The moment the user opens MYPA, they can speak. No buttons, no menus, no frictio
 
 | ID | Requirement | Priority | Status |
 |----|-------------|----------|--------|
-| V-1 | Natural language task creation ("Add buy groceries tomorrow") | P0 | Partial |
-| V-2 | Voice queries ("What do I have today?") | P0 | Partial |
+| V-1 | Natural language task creation ("Add buy groceries tomorrow") | P0 | **Done** |
+| V-2 | Voice queries ("What do I have today?") | P0 | **Done** |
 | V-3 | OpenAI Realtime API for <500ms response latency | P0 | Not Started |
 | V-4 | Auto-play daily briefing on app open | P0 | Not Started |
 | V-5 | Natural interruption handling (user can cut in mid-response) | P1 | Not Started |
@@ -329,7 +329,7 @@ This is the "moat" — users invest in MYPA and can't switch.
 | G-4 | Streak screen with calendar visualization | P1 | Done |
 | G-5 | Level screen with progress bar | P1 | Done |
 | G-6 | Unlock celebration modal | P1 | Not Started |
-| G-7 | Event logging for AI learning | P1 | Not Started |
+| G-7 | Event logging for AI learning | P1 | Partial (voice wired) |
 | G-8 | Nightly pattern calculation (pg_cron) | P1 | Not Started |
 | G-9 | Connect unlock milestones to UI | P1 | Not Started |
 | G-10 | Overwhelm detection alerts | P2 | Not Started |
@@ -742,12 +742,12 @@ All tables have Row Level Security (RLS) enabled. Database triggers handle: auto
 - [ ] Natural interruption handling
 - [ ] Voice during focus sessions
 - [ ] Context-aware commands
-- [ ] Error handling and graceful fallbacks
+- [x] Error handling and graceful fallbacks (Action System wired)
 - [ ] Voice settings (speed, personality)
 
 ### Phase 6: AI Learning (THE MAGIC) — Estimated 1 week (25 hours)
 
-- [ ] Wire event logging throughout app
+- [x] Wire event logging throughout app (voice pipeline complete; UI actions pending)
 - [ ] Implement nightly pattern calculation (pg_cron, requires Supabase Pro $25/mo)
 - [ ] Connect unlock milestones to UI
 - [ ] Personalized AI responses using user_model data
@@ -1039,11 +1039,11 @@ These are the 5 core requirements with exact acceptance tests. A feature passes 
 
 **Acceptance Criteria:**
 
-- [ ] Given "Add buy groceries tomorrow," system outputs action JSON `{ action: "create_task", params: { title: "Buy groceries", date: "tomorrow" }, confidence: 0.9+ }` and creates the task in Supabase
-- [ ] If `confidence < 0.7`, MYPA asks a clarifying question BEFORE mutation ("Did you mean 'Buy groceries' for tomorrow?")
-- [ ] Destructive actions (`delete_task`) require spoken "yes/no" confirmation before execution
-- [ ] On Supabase mutation failure, user sees friendly error ("Sorry, I couldn't save that. Want to try again?") + text input fallback offered; no raw error messages
-- [ ] `event_log` entry written with: `action`, `latency_ms`, `success`, `ai_model_used`, `confidence`, `tokens_used`, `user_override`
+- [x] Given "Add buy groceries tomorrow," system outputs action JSON `{ action: "create_task", params: { title: "Buy groceries", date: "tomorrow" }, confidence: 0.9+ }` and creates the task in Supabase
+- [x] If `confidence < 0.7`, MYPA asks a clarifying question BEFORE mutation ("Did you mean 'Buy groceries' for tomorrow?")
+- [x] Destructive actions (`delete_task`) require spoken "yes/no" confirmation before execution
+- [x] On Supabase mutation failure, user sees friendly error ("Sorry, I couldn't save that. Want to try again?") + text input fallback offered; no raw error messages
+- [x] `event_log` entry written with: `action`, `latency_ms`, `success`, `ai_model_used`, `confidence`, `tokens_used`, `user_override`
 - [ ] Latency P95 < 1.2s for beta, < 800ms for v1.0
 - [ ] Works offline: OFFLINE state shown, text input offered, action queued if possible
 
@@ -1163,7 +1163,7 @@ These are the minimum viable analytics events. Most map directly to `event_log` 
 - [ ] Edge Function security review: no service role key exposed to client; rotated before launch
 - [ ] Data retention job verified: 90-day event_log cleanup runs without error
 - [ ] `profiles.timezone` populated for all test accounts (IANA format)
-- [ ] Model config lives in `supabase/functions/_shared/config.ts` — not hardcoded in client
+- [x] Model config lives in `supabase/functions/_shared/config.ts` — not hardcoded in client
 
 ### App Store + Legal
 

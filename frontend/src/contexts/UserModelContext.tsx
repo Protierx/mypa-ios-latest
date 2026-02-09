@@ -216,7 +216,7 @@ export function UserModelProvider({ children }: UserModelProviderProps) {
    * Fetch unlocks and stats from Edge Function
    * Includes retry logic for auth timing issues
    */
-  const fetchUnlocks = useCallback(async (retryCount = 0): Promise<{ unlocks: UnlockItem[]; stats: UserStats }> => {
+  const fetchUnlocks = useCallback(async (retryCount = 0): Promise<{ unlocks: UnlockStatus[]; stats: UserStats }> => {
     const MAX_RETRIES = 2;
     const RETRY_DELAY = 500; // ms
 

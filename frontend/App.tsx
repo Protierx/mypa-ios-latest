@@ -10,8 +10,8 @@
  */
 
 import './src/global.css';
-import React, { useEffect } from 'react';
-import { StyleSheet, View, StatusBar, Image, ActivityIndicator } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { StyleSheet, View, StatusBar, Image, ActivityIndicator, AppState, AppStateStatus } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 // Contexts
@@ -51,12 +51,47 @@ export default function App() {
 function AppContent() {
   const { user, isLoading } = useSupabaseAuth();
 
+  // Track last-open date for "first open today" detection
+  const lastOpenDateRef = useRef<string>('');
+
   // Initialize event logging when user is authenticated
   useEffect(() => {
     if (user) {
       eventLogger.initialize();
+      const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
+      const isFirstOpenToday = lastOpenDateRef.current !== today;
+      lastOpenDateRef.current = today;
       eventLogger.logAppOpened();
+      if (isFirstOpenToday) {
+        eventLogger.log('app_opened', { first_open_today: true });
+      }
     }
+  }, [user]);
+
+  // AppState listener: detect foreground returns (PRD V-4 / Step 5)
+  useEffect(() => {
+    if (!user) return;
+
+    const handleAppStateChange = (nextState: AppStateStatus) => {
+      if (nextState === 'active') {
+        const today = new Date().toLocaleDateString('en-CA');
+        const isFirstOpenToday = lastOpenDateRef.current !== today;
+        lastOpenDateRef.current = today;
+
+        eventLogger.logAppOpened();
+        if (isFirstOpenToday) {
+          eventLogger.log('app_opened', { first_open_today: true });
+        }
+      } else if (nextState === 'background') {
+        eventLogger.logAppBackgrounded();
+        eventLogger.forceFlush();
+      }
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => {
+      subscription.remove();
+    };
   }, [user]);
 
   // Show loading screen while checking auth
