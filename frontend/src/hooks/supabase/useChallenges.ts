@@ -2,7 +2,7 @@
  * Supabase Challenges Hook
  * Challenge management with real-time leaderboard updates
  */
-import { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { supabase, Challenge, ChallengeParticipant } from '@/lib/supabase';
 import { useSupabaseAuth } from '@/contexts/SupabaseAuthContext';
 
@@ -32,6 +32,7 @@ export function useChallenges(): UseChallengesReturn {
   const [challenges, setChallenges] = useState<ChallengeWithParticipation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const hasLoadedOnce = React.useRef(false);
 
   const fetchChallenges = useCallback(async () => {
     if (!user) {
@@ -41,8 +42,11 @@ export function useChallenges(): UseChallengesReturn {
     }
 
     try {
-      setLoading(true);
+      // Only show loading spinner on first fetch, not on refetches
+      if (!hasLoadedOnce.current) setLoading(true);
       setError(null);
+
+      console.log('[useChallenges] Fetching challenges for user:', user.id.substring(0, 8));
 
       // Get challenges user is participating in
       const { data: participations, error: partError } = await supabase
@@ -50,9 +54,13 @@ export function useChallenges(): UseChallengesReturn {
         .select('challenge_id, progress')
         .eq('user_id', user.id);
 
-      if (partError) throw partError;
+      if (partError) {
+        console.error('[useChallenges] participations query error:', JSON.stringify(partError));
+        throw partError;
+      }
 
       const challengeIds = participations?.map(p => p.challenge_id) || [];
+      console.log('[useChallenges] Found', challengeIds.length, 'challenge participations');
       
       if (challengeIds.length === 0) {
         setChallenges([]);
@@ -95,6 +103,7 @@ export function useChallenges(): UseChallengesReturn {
       );
 
       setChallenges(enrichedChallenges);
+      hasLoadedOnce.current = true;
     } catch (err) {
       console.error('Error fetching challenges:', err);
       setError(err instanceof Error ? err : new Error('Failed to fetch challenges'));

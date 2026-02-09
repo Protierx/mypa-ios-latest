@@ -3,7 +3,7 @@
  * Real-time task management with Supabase
  * Includes AI-powered task sorting when unlocked
  */
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { supabase, Task } from '@/lib/supabase';
 import { useSupabaseAuth } from '@/contexts/SupabaseAuthContext';
 import { useUserModel, AI_FEATURES } from '@/contexts/UserModelContext';
@@ -31,6 +31,7 @@ export function useTasks(filter: TaskFilter = 'all'): UseTasksReturn {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const hasLoadedOnce = React.useRef(false);
 
   // Check if AI sorting is unlocked
   const isAISortingActive = isUnlocked(AI_FEATURES.AI_TASK_SORTING);
@@ -52,7 +53,8 @@ export function useTasks(filter: TaskFilter = 'all'): UseTasksReturn {
     }
 
     try {
-      setLoading(true);
+      // Only show loading spinner on first fetch, not on refetches
+      if (!hasLoadedOnce.current) setLoading(true);
       setError(null);
 
       let query = supabase
@@ -95,6 +97,7 @@ export function useTasks(filter: TaskFilter = 'all'): UseTasksReturn {
 
       if (fetchError) throw fetchError;
       setTasks(data || []);
+      hasLoadedOnce.current = true;
     } catch (err) {
       console.error('Error fetching tasks:', err);
       setError(err instanceof Error ? err : new Error('Failed to fetch tasks'));
@@ -135,27 +138,39 @@ export function useTasks(filter: TaskFilter = 'all'): UseTasksReturn {
   }, [user, fetchTasks]);
 
   const createTask = async (task: Partial<Task>): Promise<Task | null> => {
-    if (!user) return null;
+    if (!user) {
+      console.warn('[useTasks] createTask: No user, aborting');
+      return null;
+    }
+
+    console.log('[useTasks] createTask called:', { title: task.title, priority: task.priority });
 
     try {
+      const insertPayload = {
+        user_id: user.id,
+        title: task.title || 'New Task',
+        description: task.description || null,
+        due_date: task.due_date || new Date().toISOString(),
+        priority: task.priority || 'medium',
+        status: 'pending',
+        estimated_duration: task.estimated_duration || null,
+      };
+      console.log('[useTasks] Inserting task...');
+
       const { data, error } = await supabase
         .from('tasks')
-        .insert({
-          user_id: user.id,
-          title: task.title || 'New Task',
-          description: task.description || null,
-          due_date: task.due_date || new Date().toISOString(),
-          priority: task.priority || 'medium',
-          status: 'pending',
-          estimated_duration: task.estimated_duration || null,
-        })
+        .insert(insertPayload)
         .select()
         .single();
 
+      console.log('[useTasks] Insert result:', { data: data?.id, error: error?.message });
+
       if (error) throw error;
+
+      eventLogger.logTaskCreated(data.id, data.title, data.priority);
       return data;
-    } catch (err) {
-      console.error('Error creating task:', err);
+    } catch (err: any) {
+      console.error('[useTasks] Error creating task:', err?.message || err);
       return null;
     }
   };
@@ -171,6 +186,9 @@ export function useTasks(filter: TaskFilter = 'all'): UseTasksReturn {
         .eq('id', id);
 
       if (error) throw error;
+
+      const task = tasks.find(t => t.id === id);
+      eventLogger.logTaskEdited(id, task?.title);
       return true;
     } catch (err) {
       console.error('Error updating task:', err);
@@ -180,12 +198,15 @@ export function useTasks(filter: TaskFilter = 'all'): UseTasksReturn {
 
   const deleteTask = async (id: string): Promise<boolean> => {
     try {
+      const task = tasks.find(t => t.id === id);
       const { error } = await supabase
         .from('tasks')
         .delete()
         .eq('id', id);
 
       if (error) throw error;
+
+      eventLogger.logTaskDeleted(id, task?.title);
       return true;
     } catch (err) {
       console.error('Error deleting task:', err);
@@ -195,16 +216,7 @@ export function useTasks(filter: TaskFilter = 'all'): UseTasksReturn {
 
   const completeTask = async (id: string): Promise<boolean> => {
     try {
-      // Log task completion for AI learning
       const task = tasks.find(t => t.id === id);
-      if (task) {
-        // Note: priority is a string in Task type, eventLogger expects it
-        eventLogger.log('task_completed', {
-          taskId: id,
-          taskTitle: task.title,
-          taskPriority: task.priority,
-        });
-      }
       
       const { error } = await supabase
         .from('tasks')
@@ -216,6 +228,10 @@ export function useTasks(filter: TaskFilter = 'all'): UseTasksReturn {
         .eq('id', id);
 
       if (error) throw error;
+
+      if (task) {
+        eventLogger.logTaskCompleted(id, task.title);
+      }
       return true;
     } catch (err) {
       console.error('Error completing task:', err);

@@ -1,14 +1,10 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+import { MODEL_CONFIG, CORS_HEADERS } from '../_shared/config.ts'
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: CORS_HEADERS })
   }
 
   try {
@@ -21,7 +17,7 @@ serve(async (req) => {
     const { data: { user } } = await supabaseClient.auth.getUser()
     if (!user) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), 
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+        { status: 401, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } })
     }
 
     const { data: profile } = await supabaseClient
@@ -49,14 +45,14 @@ serve(async (req) => {
       return new Response(JSON.stringify({ 
         greeting: `Good ${timeOfDay}, ${name}! You have ${taskCount || 0} tasks today.`,
         taskCount: taskCount || 0, completedToday: completedToday || 0, streak
-      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }), { headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } })
     }
 
     const res = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'gpt-4-turbo-preview',
+        model: MODEL_CONFIG.fast,
         messages: [
           { role: 'system', content: 'You are MYPA, a warm friendly productivity AI. Be brief and human.' },
           { role: 'user', content: `Greet ${name}. Time: ${timeOfDay}. Tasks: ${taskCount || 0}. Done: ${completedToday || 0}. Streak: ${streak} days. 1-2 sentences max.` }
@@ -69,10 +65,10 @@ serve(async (req) => {
     const greeting = data.choices?.[0]?.message?.content || `Good ${timeOfDay}, ${name}!`
 
     return new Response(JSON.stringify({ greeting, taskCount: taskCount || 0, completedToday: completedToday || 0, streak }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      { headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } })
 
   } catch (error) {
     return new Response(JSON.stringify({ error: error.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      { status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } })
   }
 })

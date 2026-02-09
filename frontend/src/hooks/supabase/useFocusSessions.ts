@@ -116,8 +116,8 @@ export function useFocusSessions(): UseFocusSessionsReturn {
 
       if (error) throw error;
       
-      // Log event for AI learning
-      eventLogger.logFocusCompleted(sessionId, session.duration_planned!, actualMinutes);
+      // Log event for AI learning (actual, then planned)
+      eventLogger.logFocusCompleted(sessionId, actualMinutes, session.duration_planned!);
       
       // Refresh sessions
       fetchSessions();

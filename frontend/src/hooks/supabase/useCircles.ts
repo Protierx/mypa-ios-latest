@@ -2,7 +2,7 @@
  * Supabase Circles Hook
  * Circle management with real-time updates
  */
-import { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { supabase, Circle, CircleMember } from '@/lib/supabase';
 import { useSupabaseAuth } from '@/contexts/SupabaseAuthContext';
 
@@ -34,6 +34,7 @@ export function useCircles(): UseCirclesReturn {
   const [circles, setCircles] = useState<CircleWithMembers[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const hasLoadedOnce = React.useRef(false);
 
   const fetchCircles = useCallback(async () => {
     if (!user) {
@@ -43,8 +44,11 @@ export function useCircles(): UseCirclesReturn {
     }
 
     try {
-      setLoading(true);
+      // Only show loading spinner on first fetch, not on refetches
+      if (!hasLoadedOnce.current) setLoading(true);
       setError(null);
+
+      console.log('[useCircles] Fetching circles for user:', user.id.substring(0, 8));
 
       // Get circles user is a member of
       const { data: memberCircles, error: memberError } = await supabase
@@ -52,9 +56,13 @@ export function useCircles(): UseCirclesReturn {
         .select('circle_id')
         .eq('user_id', user.id);
 
-      if (memberError) throw memberError;
+      if (memberError) {
+        console.error('[useCircles] circle_members query error:', JSON.stringify(memberError));
+        throw memberError;
+      }
 
       const circleIds = memberCircles?.map(m => m.circle_id) || [];
+      console.log('[useCircles] Found', circleIds.length, 'circle memberships');
 
       if (circleIds.length === 0) {
         setCircles([]);
@@ -85,6 +93,7 @@ export function useCircles(): UseCirclesReturn {
       );
 
       setCircles(circlesWithCounts);
+      hasLoadedOnce.current = true;
     } catch (err) {
       console.error('Error fetching circles:', err);
       setError(err instanceof Error ? err : new Error('Failed to fetch circles'));
@@ -124,9 +133,14 @@ export function useCircles(): UseCirclesReturn {
   }, [user, fetchCircles]);
 
   const createCircle = async (circle: Partial<Circle>): Promise<Circle | null> => {
-    if (!user) return null;
+    if (!user) {
+      console.error('[useCircles] createCircle: No authenticated user');
+      return null;
+    }
 
     try {
+      console.log('[useCircles] Creating circle:', { name: circle.name, privacy: circle.privacy });
+      
       const { data, error } = await supabase
         .from('circles')
         .insert({
@@ -139,19 +153,32 @@ export function useCircles(): UseCirclesReturn {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('[useCircles] Insert circle error:', JSON.stringify(error));
+        throw error;
+      }
+
+      console.log('[useCircles] Circle created:', data.id, 'invite_code:', data.invite_code);
 
       // Add creator as member
-      await supabase.from('circle_members').insert({
+      const { error: memberError } = await supabase.from('circle_members').insert({
         circle_id: data.id,
         user_id: user.id,
         role: 'owner',
       });
 
+      if (memberError) {
+        console.error('[useCircles] Add member error:', JSON.stringify(memberError));
+        // Circle was created but member add failed — don't throw, circle still exists
+      }
+
+      // Refresh circle list
+      fetchCircles();
+
       return data;
-    } catch (err) {
-      console.error('Error creating circle:', err);
-      return null;
+    } catch (err: any) {
+      console.error('[useCircles] Error creating circle:', err?.message || err);
+      throw err; // Re-throw so the UI can show the error
     }
   };
 

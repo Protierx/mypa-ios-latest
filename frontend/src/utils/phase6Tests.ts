@@ -103,7 +103,7 @@ export async function testUserModelFetch(userId: string): Promise<{
 }> {
   try {
     const { data: model, error } = await supabase
-      .from('user_models')
+      .from('user_model')
       .select('*')
       .eq('user_id', userId)
       .single();

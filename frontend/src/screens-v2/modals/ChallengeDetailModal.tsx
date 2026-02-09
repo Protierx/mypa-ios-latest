@@ -73,14 +73,16 @@ export function ChallengeDetailModal({ visible, challengeId, onClose }: Challeng
     } finally {
       setIsLoading(false);
     }
-  }, [challengeId, user?.id, getChallenge, getChallengeLeaderboard]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [challengeId, user?.id]);
 
   useEffect(() => {
     if (visible && challengeId) {
       setIsLoading(true);
       loadChallengeData();
     }
-  }, [visible, challengeId, loadChallengeData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, challengeId]);
 
   const handleLeaveChallenge = useCallback(() => {
     Alert.alert(

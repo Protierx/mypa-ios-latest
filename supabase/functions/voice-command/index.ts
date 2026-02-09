@@ -283,22 +283,27 @@ serve(async (req) => {
     // ── GPT Function Calling ─────────────────────────────────────────
     const openaiKey = Deno.env.get('OPENAI_API_KEY')!
 
+    console.log('[voice-command] Sending to GPT with', ACTION_TOOLS.length, 'tools, model:', MODEL_CONFIG.fast)
+    console.log('[voice-command] Transcript:', transcript)
+
+    const gptRequestBody = {
+      model: MODEL_CONFIG.fast,
+      messages: [
+        { role: 'system', content: MYPA_SYSTEM_PROMPT },
+        { role: 'user', content: transcript },
+      ],
+      tools: ACTION_TOOLS,
+      tool_choice: 'auto',
+      max_tokens: 300,
+    }
+
     const gptResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${openaiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        model: MODEL_CONFIG.fast,
-        messages: [
-          { role: 'system', content: MYPA_SYSTEM_PROMPT },
-          { role: 'user', content: transcript },
-        ],
-        tools: ACTION_TOOLS,
-        tool_choice: 'auto',
-        max_tokens: 300,
-      }),
+      body: JSON.stringify(gptRequestBody),
     })
 
     if (!gptResponse.ok) {
@@ -312,6 +317,10 @@ serve(async (req) => {
     const usage = gptData.usage || {}
     const modelUsed = gptData.model || MODEL_CONFIG.fast
     let tokensUsed = (usage.prompt_tokens || 0) + (usage.completion_tokens || 0)
+
+    console.log('[voice-command] GPT response finish_reason:', choice?.finish_reason)
+    console.log('[voice-command] Tool calls:', JSON.stringify(choice?.message?.tool_calls || 'none'))
+    console.log('[voice-command] Message content:', choice?.message?.content?.substring(0, 100) || 'none')
 
     // ── Parse GPT Response ───────────────────────────────────────────
     let actionName = 'unknown'

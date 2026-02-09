@@ -70,6 +70,7 @@ export type Tables = {
     description: string | null;
     owner_id: string;
     privacy: 'public' | 'invite-only' | 'private';
+    invite_code: string | null;
     created_at: string;
   };
   focus_sessions: {
@@ -119,20 +120,41 @@ export type Tables = {
     read: boolean;
     created_at: string;
   };
-  user_events: {
+  event_log: {
     id: string;
     user_id: string;
     event_type: string;
+    action: string | null;
+    intent_raw: string | null;
+    ai_model_used: string | null;
+    confidence: number | null;
+    tokens_used: number | null;
+    user_override: boolean;
+    latency_ms: number | null;
+    error_code: string | null;
+    success: boolean;
     screen: string | null;
+    screen_context: string | null;
     metadata: Record<string, any>;
+    params: Record<string, any>;
     created_at: string;
   };
-  user_models: {
+  user_model: {
     user_id: string;
     peak_hours: number[];
     completion_patterns: Record<string, any>;
     task_preferences: Record<string, any>;
     overwhelm_threshold: number | null;
+    voice_usage_rate: number;
+    common_reschedule_patterns: Record<string, any>;
+    tone_preference: string;
+    avg_task_durations: Record<string, any>;
+    completion_rate_7d: number;
+    overwhelm_score: number;
+    unlock_level: number;
+    focus_efficiency: number;
+    preferred_focus_duration: number;
+    active_days_count: number;
     calculated_at: string;
   };
 };
@@ -146,8 +168,8 @@ export type Challenge = Tables['challenges'];
 export type ChallengeParticipant = Tables['challenge_participants'];
 export type Unlock = Tables['unlocks'];
 export type Notification = Tables['notifications'];
-export type UserEvent = Tables['user_events'];
-export type UserModel = Tables['user_models'];
+export type UserEvent = Tables['event_log'];
+export type UserModel = Tables['user_model'];
 export type CircleMember = {
   circle_id: string;
   user_id: string;

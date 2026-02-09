@@ -145,21 +145,25 @@ interface EventRecord {
 const CONFIG = {
   /** Storage key for persisted event queue */
   STORAGE_KEY: 'mypa_event_queue',
+
+  /** Version key — bump to clear stale queued events on schema changes */
+  QUEUE_VERSION_KEY: 'mypa_event_queue_version',
+  QUEUE_VERSION: 2, // bumped: event_log schema with PRD columns
   
   /** Max events before forcing a flush */
   BATCH_SIZE: 10,
   
   /** Interval for automatic batch send (ms) */
-  FLUSH_INTERVAL: 30000, // 30 seconds
+  FLUSH_INTERVAL: 60000, // 60 seconds (was 30s — gentler on network)
   
   /** Max queue size before dropping oldest events */
-  MAX_QUEUE_SIZE: 100,
+  MAX_QUEUE_SIZE: 50,
   
-  /** Retry delay for failed sends (ms) */
-  RETRY_DELAY: 5000,
+  /** Base retry delay (ms) — doubles each attempt (exponential backoff) */
+  RETRY_DELAY: 10000,
   
-  /** Max retry attempts before dropping events */
-  MAX_RETRIES: 3,
+  /** Max retry attempts before dropping events for this cycle */
+  MAX_RETRIES: 2,
 };
 
 // ============================================================================
@@ -186,8 +190,17 @@ class EventLoggerService {
     if (this.isInitialized) return;
     
     try {
-      // Load persisted queue from storage
-      await this.loadQueue();
+      // Check queue version — clear stale events on schema changes
+      const storedVersion = await AsyncStorage.getItem(CONFIG.QUEUE_VERSION_KEY);
+      if (storedVersion !== String(CONFIG.QUEUE_VERSION)) {
+        console.log('[EventLogger] Queue version changed, clearing stale events');
+        await AsyncStorage.removeItem(CONFIG.STORAGE_KEY);
+        await AsyncStorage.setItem(CONFIG.QUEUE_VERSION_KEY, String(CONFIG.QUEUE_VERSION));
+        this.queue = [];
+      } else {
+        // Load persisted queue from storage
+        await this.loadQueue();
+      }
       
       // Start periodic flush timer
       this.startFlushTimer();
@@ -341,6 +354,8 @@ class EventLoggerService {
    */
   logTaskCreated(taskId: string, title: string, priority?: string): void {
     this.log('task_created', {
+      action: 'create_task',
+      success: true,
       taskId,
       taskTitle: title,
       taskPriority: priority as any,
@@ -352,9 +367,35 @@ class EventLoggerService {
    */
   logTaskCompleted(taskId: string, title: string, completionTimeMinutes?: number): void {
     this.log('task_completed', {
+      action: 'complete_task',
+      success: true,
       taskId,
       taskTitle: title,
       completionTimeMinutes,
+    });
+  }
+
+  /**
+   * Log task edited / updated
+   */
+  logTaskEdited(taskId: string, title?: string): void {
+    this.log('task_edited', {
+      action: 'update_task',
+      success: true,
+      taskId,
+      taskTitle: title,
+    });
+  }
+
+  /**
+   * Log task deleted
+   */
+  logTaskDeleted(taskId: string, title?: string): void {
+    this.log('task_deleted', {
+      action: 'delete_task',
+      success: true,
+      taskId,
+      taskTitle: title,
     });
   }
 
@@ -363,6 +404,8 @@ class EventLoggerService {
    */
   logTaskDeferred(taskId: string, title: string, deferredTo: string): void {
     this.log('task_deferred', {
+      action: 'reschedule_task',
+      success: true,
       taskId,
       taskTitle: title,
       deferredTo,
@@ -374,6 +417,8 @@ class EventLoggerService {
    */
   logFocusStarted(sessionId: string, durationPlanned: number, taskId?: string): void {
     this.log('focus_started', {
+      action: 'start_focus_session',
+      success: true,
       sessionId,
       durationPlanned,
       taskId,
@@ -382,14 +427,39 @@ class EventLoggerService {
   }
 
   /**
+   * Log focus session paused
+   */
+  logFocusPaused(sessionId: string, durationActual: number): void {
+    this.log('focus_paused', {
+      action: 'pause_focus',
+      success: true,
+      sessionId,
+      durationActual,
+    });
+  }
+
+  /**
+   * Log focus session resumed
+   */
+  logFocusResumed(sessionId: string): void {
+    this.log('focus_resumed', {
+      action: 'resume_focus',
+      success: true,
+      sessionId,
+    });
+  }
+
+  /**
    * Log focus session completed
    */
   logFocusCompleted(sessionId: string, durationActual: number, durationPlanned: number): void {
     this.log('focus_completed', {
+      action: 'end_focus_session',
+      success: true,
       sessionId,
       durationActual,
       durationPlanned,
-      completionRatio: durationActual / durationPlanned,
+      completionRatio: durationPlanned > 0 ? durationActual / durationPlanned : 0,
     });
   }
 
@@ -398,10 +468,12 @@ class EventLoggerService {
    */
   logFocusAbandoned(sessionId: string, durationActual: number, durationPlanned: number): void {
     this.log('focus_abandoned', {
+      action: 'end_focus_session',
+      success: false,
       sessionId,
       durationActual,
       durationPlanned,
-      completionRatio: durationActual / durationPlanned,
+      completionRatio: durationPlanned > 0 ? durationActual / durationPlanned : 0,
     });
   }
 
@@ -479,19 +551,51 @@ class EventLoggerService {
         return;
       }
 
-      // Prepare events for insert
-      const records = eventsToSend.map(event => ({
-        user_id: user.id,
-        event_type: event.event_type,
-        screen: event.screen,
-        metadata: event.metadata,
-        created_at: event.timestamp,
-      }));
+      // Prepare events for insert — extract PRD columns from metadata
+      const records = eventsToSend.map(event => {
+        const m = event.metadata || {};
+        return {
+          user_id: user.id,
+          event_type: event.event_type,
+          // PRD 4.8 first-class columns (extracted from metadata)
+          action: m.action || null,
+          intent_raw: m.transcript || null,
+          ai_model_used: m.ai_model_used || null,
+          confidence: m.confidence ?? null,
+          tokens_used: m.tokens_used ?? null,
+          user_override: m.user_override ?? false,
+          latency_ms: m.latency_ms ?? null,
+          error_code: m.errorType || null,
+          success: m.success ?? true,
+          screen: event.screen,
+          screen_context: m.screen || null,
+          // Keep full metadata + structured params
+          metadata: m,
+          params: m.params || {},
+          created_at: event.timestamp,
+        };
+      });
 
-      // Batch insert to Supabase
-      const { error } = await supabase
-        .from('user_events')
+      // Try insert with full PRD columns
+      let { error } = await supabase
+        .from('event_log')
         .insert(records);
+
+      // If column error, fall back to basic columns (schema cache may be stale)
+      if (error && (error.message?.includes('column') || error.code === 'PGRST204')) {
+        if (__DEV__) {
+          console.warn('[EventLogger] New columns not recognized, using basic insert');
+        }
+        const basicRecords = eventsToSend.map(event => ({
+          user_id: user.id,
+          event_type: event.event_type,
+          screen: event.screen,
+          metadata: event.metadata || {},
+          created_at: event.timestamp,
+        }));
+        const result = await supabase.from('event_log').insert(basicRecords);
+        error = result.error;
+      }
 
       if (error) {
         throw error;
@@ -507,16 +611,34 @@ class EventLoggerService {
       if (__DEV__) {
         console.log('[EventLogger] Flushed', eventsToSend.length, 'events');
       }
-    } catch (error) {
-      console.error('[EventLogger] Flush failed:', error);
+    } catch (error: any) {
+      // Only log once per retry cycle, not every attempt
+      if (this.retryCount === 0 && __DEV__) {
+        console.warn('[EventLogger] Flush failed:', error?.message || error);
+      }
       
-      // Retry logic
+      // Schema/table errors — drop events, don't retry (will never succeed)
+      if (error?.code === 'PGRST205' || error?.message?.includes('schema cache')) {
+        console.warn('[EventLogger] Table not found in schema cache, dropping', eventsToSend.length, 'events');
+        this.queue = [];
+        this.retryCount = 0;
+        await this.persistQueue();
+        return;
+      }
+
+      // Retry with exponential backoff
       this.retryCount++;
       if (this.retryCount < CONFIG.MAX_RETRIES) {
-        setTimeout(() => this.flush(), CONFIG.RETRY_DELAY);
+        const delay = CONFIG.RETRY_DELAY * Math.pow(2, this.retryCount - 1);
+        setTimeout(() => this.flush(), delay);
       } else {
-        console.warn('[EventLogger] Max retries reached, will try again later');
+        // Drop stale events after max retries to prevent endless accumulation
+        this.queue = [];
         this.retryCount = 0;
+        await this.persistQueue();
+        if (__DEV__) {
+          console.warn('[EventLogger] Max retries reached, cleared queue');
+        }
       }
     } finally {
       this.isFlushing = false;

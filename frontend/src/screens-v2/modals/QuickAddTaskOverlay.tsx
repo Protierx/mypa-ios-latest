@@ -93,21 +93,30 @@ export function QuickAddTaskOverlay({ visible, onClose, onTaskCreated }: QuickAd
   const handleCreate = useCallback(async () => {
     if (!title.trim()) return;
 
+    console.log('[QuickAdd] handleCreate called:', { title: title.trim(), dueDate, priority });
     setIsCreating(true);
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    const task = await createTask({
-      title: title.trim(),
-      due_date: getDueDateValue(),
-      priority,
-    });
+    try {
+      const task = await createTask({
+        title: title.trim(),
+        due_date: getDueDateValue() ?? undefined,
+        priority,
+      });
 
-    setIsCreating(false);
+      console.log('[QuickAdd] createTask returned:', task ? task.id : 'null');
+      setIsCreating(false);
 
-    if (task) {
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      onTaskCreated?.(task);
-      onClose();
+      if (task) {
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        onTaskCreated?.(task);
+        onClose();
+      } else {
+        console.warn('[QuickAdd] Task creation returned null');
+      }
+    } catch (err: any) {
+      console.error('[QuickAdd] Unexpected error:', err?.message || err);
+      setIsCreating(false);
     }
   }, [title, dueDate, priority, createTask, onTaskCreated, onClose]);
 

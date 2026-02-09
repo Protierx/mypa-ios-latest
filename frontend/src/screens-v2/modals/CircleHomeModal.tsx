@@ -61,6 +61,7 @@ export function CircleHomeModal({ visible, circleId, onClose, onOpenChallenge }:
   const loadCircleData = useCallback(async () => {
     if (!circleId) return;
     
+    console.log('[CircleHome] Loading data for circle:', circleId);
     try {
       const [circleData, membersData, tasksData, activityData] = await Promise.all([
         getCircle(circleId),
@@ -69,24 +70,32 @@ export function CircleHomeModal({ visible, circleId, onClose, onOpenChallenge }:
         getCircleActivity(circleId),
       ]);
       
+      console.log('[CircleHome] Loaded:', {
+        circle: circleData?.name,
+        members: membersData?.length ?? 0,
+        tasks: tasksData?.length ?? 0,
+        activity: activityData?.length ?? 0,
+      });
       setCircle(circleData);
       setMembers(membersData || []);
       setTasks(tasksData || []);
       setActivity(activityData || []);
     } catch (error) {
-      console.error('Error loading circle data:', error);
+      console.error('[CircleHome] Error loading circle data:', error);
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [circleId, getCircle, getCircleMembers, getCircleTasks, getCircleActivity]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [circleId]);
 
   useEffect(() => {
     if (visible && circleId) {
       setIsLoading(true);
       loadCircleData();
     }
-  }, [visible, circleId, loadCircleData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, circleId]);
 
   const handleRefresh = useCallback(() => {
     setIsRefreshing(true);

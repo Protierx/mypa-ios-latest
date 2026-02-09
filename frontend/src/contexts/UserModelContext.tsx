@@ -185,7 +185,7 @@ export function UserModelProvider({ children }: UserModelProviderProps) {
       if (!user) return null;
 
       const { data, error: fetchError } = await supabase
-        .from('user_models')
+        .from('user_model')
         .select('*')
         .eq('user_id', user.id)
         .single();

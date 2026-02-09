@@ -30,6 +30,7 @@ export function SocialViewScreen() {
   const { circles, loading: circlesLoading, refresh: refreshCircles } = useCircles();
   const { challenges, loading: challengesLoading, refresh: refreshChallenges } = useChallenges();
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingTimeout, setLoadingTimeout] = useState(false);
 
   // Modal state
   const [selectedCircleId, setSelectedCircleId] = useState<string | null>(null);
@@ -40,13 +41,19 @@ export function SocialViewScreen() {
   const [showCreateChallenge, setShowCreateChallenge] = useState(false);
   const [showCreateMenu, setShowCreateMenu] = useState(false);
 
+  // Failsafe: don't show spinner for more than 3 seconds
+  React.useEffect(() => {
+    const timer = setTimeout(() => setLoadingTimeout(true), 3000);
+    return () => clearTimeout(timer);
+  }, []);
+
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     await Promise.all([refreshCircles(), refreshChallenges()]);
     setRefreshing(false);
   }, [refreshCircles, refreshChallenges]);
 
-  const loading = circlesLoading || challengesLoading;
+  const loading = (circlesLoading || challengesLoading) && !loadingTimeout;
   const activeChallenges = challenges.filter(c => c.status === 'active');
 
   return (

@@ -134,7 +134,7 @@ serve(async (req) => {
 
     // Get user model for peak hours
     const { data: userModel } = await supabaseClient
-      .from('user_models')
+      .from('user_model')
       .select('*')
       .eq('user_id', user.id)
       .single()

@@ -89,7 +89,7 @@ export function useCircleActivity(circleId: string) {
     // Fetch initial activities
     const fetchActivities = async () => {
       const { data } = await supabase
-        .from('user_events')
+        .from('event_log')
         .select('*')
         .contains('metadata', { circle_id: circleId })
         .order('created_at', { ascending: false })
@@ -108,7 +108,7 @@ export function useCircleActivity(circleId: string) {
         {
           event: 'INSERT',
           schema: 'public',
-          table: 'user_events',
+          table: 'event_log',
         },
         (payload) => {
           const event = payload.new as any;

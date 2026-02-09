@@ -301,16 +301,28 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
       }
 
       // ── Normal flow: send to voice-command Edge Function ──────────
-      const { data, error: transcribeError } = await supabase.functions.invoke('voice-command', {
+      // Add a 25-second timeout to prevent infinite "thinking" state
+      const edgeFnPromise = supabase.functions.invoke('voice-command', {
         body: { 
           audio: base64Audio,
           context: { screen: 'ai_home' }
         }
       });
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Voice processing timed out. Please try again.')), 25000)
+      );
+
+      const { data, error: transcribeError } = await Promise.race([edgeFnPromise, timeoutPromise]);
 
       if (transcribeError) throw transcribeError;
 
       const vcResponse = data as VoiceCommandResponse;
+      console.log('[Voice] Edge function response:', JSON.stringify({
+        action: vcResponse?.action,
+        transcript: vcResponse?.transcript,
+        response_text: vcResponse?.response_text?.substring(0, 100),
+        model: vcResponse?.model_used,
+      }));
       const transcriptText = vcResponse?.transcript || '';
       const responseText = vcResponse?.response_text || '';
       const action = vcResponse?.action;
