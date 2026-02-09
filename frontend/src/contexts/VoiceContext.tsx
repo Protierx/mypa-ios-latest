@@ -477,6 +477,7 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
       });
 
       // Call TTS Edge Function
+      console.log('[TTS] Calling text-to-speech, text length:', text.length, 'voice:', selectedVoice);
       const { data, error: ttsError } = await supabase.functions.invoke('text-to-speech', {
         body: { 
           text,
@@ -485,25 +486,38 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
         }
       });
 
+      if (ttsError) {
+        console.warn('[TTS] Edge Function error:', ttsError.message || ttsError);
+      }
+
       if (ttsError || !data?.audio) {
+        console.log('[TTS] Falling back to device speech');
         // Fallback to expo-speech if TTS fails
         const Speech = await import('expo-speech');
         await new Promise<void>((resolve) => {
           Speech.speak(text, {
             rate: voiceSpeed,
-            onDone: resolve,
-            onError: () => resolve(),
+            onDone: () => {
+              console.log('[TTS] Device speech done');
+              resolve();
+            },
+            onError: (err) => {
+              console.warn('[TTS] Device speech error:', err);
+              resolve();
+            },
           });
         });
         setVoiceState('idle');
         return;
       }
 
-      // Play audio
-      const audioUri = `data:audio/mp3;base64,${data.audio}`;
+      // Play base64 audio via data URI
+      const audioUri = 'data:audio/mpeg;base64,' + data.audio;
+      console.log('[TTS] Audio received, length:', data.audio.length, 'chars. Playing...');
+
       const { sound } = await Audio.Sound.createAsync(
         { uri: audioUri },
-        { shouldPlay: true, rate: voiceSpeed }
+        { shouldPlay: true }
       );
       
       soundRef.current = sound;
@@ -512,17 +526,29 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
       await new Promise<void>((resolve) => {
         sound.setOnPlaybackStatusUpdate((status) => {
           if (status.isLoaded && (status as any).didJustFinish) {
+            console.log('[TTS] Audio playback finished');
             resolve();
           }
         });
         // Timeout fallback
-        setTimeout(resolve, 30000);
+        setTimeout(() => {
+          console.log('[TTS] Playback timeout reached');
+          resolve();
+        }, 30000);
       });
 
       await stopPlayback();
+
       
     } catch (err) {
-      console.error('TTS error:', err);
+      console.error('[TTS] Error:', err);
+      // Last resort fallback to device speech
+      try {
+        const Speech = await import('expo-speech');
+        Speech.speak(text, { rate: voiceSpeed });
+      } catch {
+        // Give up
+      }
     }
     
     setVoiceState('idle');
