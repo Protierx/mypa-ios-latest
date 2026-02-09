@@ -1,0 +1,48 @@
+---
+description: React Native and Expo conventions for MYPA frontend
+globs: frontend/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# React Native Patterns
+
+## Component Structure
+
+- Use **functional components** with TypeScript interfaces for props
+- Export named components (not default) — exception: screens may use default exports
+- Colocate styles with components using `StyleSheet.create()` at the bottom of the file
+- Use `React.memo()` for list items and frequently re-rendered components
+
+## Navigation
+
+- The app uses a **tab-based navigator** with a custom tab bar (Home, Plan, Voice, Circles, Profile)
+- The voice tab opens a full-screen overlay (`VoiceAssistantScreen`) — it is NOT a tab screen
+- Use `createNativeStackNavigator` for screen stacks, `createBottomTabNavigator` for root tabs
+- Pass params via `navigation.navigate('Screen', { param })` — type the params
+
+## Animations
+
+- Use **React Native Reanimated** for all animations (not Animated API)
+- Use **React Native Gesture Handler** for gestures
+- Target 60fps — keep animations on the UI thread with worklets
+- The MYPA orb and living background use Skia for GPU rendering
+
+## State Management
+
+- **Auth state:** `SupabaseAuthContext` via React Context
+- **Server state:** Supabase client queries (will migrate to React Query)
+- **Local state:** `useState` / `useReducer` for component state
+- Do NOT introduce Redux, Zustand, or MobX
+
+## Performance Rules
+
+- Wrap list items in `React.memo`
+- Use `useCallback` for functions passed to children
+- Use `useMemo` for expensive computations
+- Never inline object/array creation in JSX props
+- Use `FlatList` (never `ScrollView` with `.map()`) for lists > 10 items
+
+## Imports
+
+- Use path aliases when configured (e.g., `@/components/`, `@/styles/`)
+- Group imports: React → RN → third-party → local components → styles → types

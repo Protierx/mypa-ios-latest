@@ -41,6 +41,11 @@ export type Tables = {
     streak_longest: number;
     streak_last_activity: string | null;
     onboarding_completed: boolean;
+    push_token: string | null;
+    timezone: string;
+    briefing_cache: string | null;
+    briefing_date: string | null;
+    is_premium: boolean;
     created_at: string;
     updated_at: string;
   };

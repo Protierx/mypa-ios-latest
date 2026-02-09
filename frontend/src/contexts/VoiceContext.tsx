@@ -3,6 +3,7 @@
  * 
  * Provides voice state and controls throughout the app.
  * Integrates with OpenAI Whisper (STT) and TTS APIs.
+ * Wired to ActionExecutor for PRD 4.7 Action System Contract.
  */
 
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
@@ -10,6 +11,12 @@ import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
 import { supabase } from '../lib/supabase';
 import { eventLogger } from '../services/eventLogger';
+import {
+  executeAction,
+  processVoiceResponse,
+  type ActionJSON,
+  type VoiceCommandResponse,
+} from '../services/actionExecutor';
 
 export type VoiceState = 'idle' | 'listening' | 'processing' | 'speaking';
 
@@ -21,6 +28,8 @@ interface VoiceContextType {
   transcript: string;
   aiResponse: string;
   error: string | null;
+  awaitingConfirmation: boolean;
+  pendingAction: ActionJSON | null;
   
   // Controls
   startListening: () => Promise<void>;
@@ -28,6 +37,8 @@ interface VoiceContextType {
   cancelListening: () => void;
   speak: (text: string) => Promise<void>;
   stopSpeaking: () => void;
+  confirmAction: () => Promise<void>;
+  cancelAction: () => void;
   
   // Settings
   setVoiceEnabled: (enabled: boolean) => void;
@@ -43,6 +54,10 @@ interface VoiceProviderProps {
   children: React.ReactNode;
 }
 
+/** Yes/confirm patterns for spoken confirmation */
+const YES_PATTERNS = /^(yes|yeah|yep|yup|sure|ok|okay|confirm|do it|go ahead|affirmative)/i;
+const NO_PATTERNS = /^(no|nah|nope|cancel|never\s?mind|stop|don't|forget it)/i;
+
 export function VoiceProvider({ children }: VoiceProviderProps) {
   // State
   const [voiceState, setVoiceState] = useState<VoiceState>('idle');
@@ -52,6 +67,11 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
   const [aiResponse, setAiResponse] = useState('');
   const [error, setError] = useState<string | null>(null);
   
+  // Action System state (PRD 4.7)
+  const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
+  const [pendingAction, setPendingAction] = useState<ActionJSON | null>(null);
+  const pendingResponseRef = useRef<VoiceCommandResponse | null>(null);
+  
   // Settings
   const [voiceSpeed, setVoiceSpeed] = useState(1.0);
   const [selectedVoice, setSelectedVoice] = useState('ash');
@@ -60,6 +80,7 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
   const recordingRef = useRef<Audio.Recording | null>(null);
   const soundRef = useRef<Audio.Sound | null>(null);
   const meteringIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const listenStartTimeRef = useRef<number>(0);
 
   // Request permissions on mount
   useEffect(() => {
@@ -118,6 +139,9 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
     
     setError(null);
     setTranscript('');
+    
+    // Track latency from listen start (PRD 4.8)
+    listenStartTimeRef.current = Date.now();
     
     try {
       // Check/request permissions
@@ -198,31 +222,155 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
         reader.readAsDataURL(blob);
       });
 
-      // Send to Supabase Edge Function for transcription
+      // ── Confirmation flow: if awaiting confirmation, treat as yes/no ──
+      if (awaitingConfirmation && pendingAction) {
+        // We need to transcribe the yes/no first
+        const { data: confirmData, error: confirmError } = await supabase.functions.invoke('voice-command', {
+          body: { audio: base64Audio, context: { screen: 'ai_home' } }
+        });
+
+        if (confirmError) throw confirmError;
+        const confirmTranscript = (confirmData?.transcript || '').trim();
+        setTranscript(confirmTranscript);
+
+        if (YES_PATTERNS.test(confirmTranscript)) {
+          // User confirmed -- execute the pending action without confirmation_required
+          const confirmedAction: ActionJSON = {
+            ...pendingAction,
+            confirmation_required: false,
+          };
+          
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) throw new Error('Not authenticated');
+
+          const result = await executeAction(confirmedAction, user.id, pendingResponseRef.current?.response_text);
+
+          // Log with user_override = false (they confirmed)
+          eventLogger.logVoiceCommand(
+            pendingResponseRef.current?.transcript || confirmTranscript,
+            pendingAction.action,
+            result.success,
+            {
+              confidence: pendingAction.confidence,
+              latency_ms: Date.now() - listenStartTimeRef.current,
+              ai_model_used: pendingResponseRef.current?.model_used,
+              tokens_used: pendingResponseRef.current?.tokens_used,
+              user_override: false,
+            },
+          );
+
+          setAiResponse(result.message);
+          setAwaitingConfirmation(false);
+          setPendingAction(null);
+          pendingResponseRef.current = null;
+
+          if (result.message) {
+            await speak(result.message);
+          } else {
+            setVoiceState('idle');
+          }
+          return confirmTranscript;
+
+        } else if (NO_PATTERNS.test(confirmTranscript)) {
+          // User cancelled
+          eventLogger.logVoiceCommand(
+            pendingResponseRef.current?.transcript || confirmTranscript,
+            pendingAction.action,
+            false,
+            {
+              confidence: pendingAction.confidence,
+              latency_ms: Date.now() - listenStartTimeRef.current,
+              ai_model_used: pendingResponseRef.current?.model_used,
+              tokens_used: pendingResponseRef.current?.tokens_used,
+              user_override: true,
+            },
+          );
+
+          setAwaitingConfirmation(false);
+          setPendingAction(null);
+          pendingResponseRef.current = null;
+          setAiResponse('Okay, cancelled.');
+          await speak('Okay, cancelled.');
+          return confirmTranscript;
+
+        } else {
+          // Didn't understand -- ask again
+          setAiResponse("Sorry, I didn't catch that. Yes or no?");
+          await speak("Sorry, I didn't catch that. Yes or no?");
+          return confirmTranscript;
+        }
+      }
+
+      // ── Normal flow: send to voice-command Edge Function ──────────
       const { data, error: transcribeError } = await supabase.functions.invoke('voice-command', {
         body: { 
           audio: base64Audio,
-          context: {
-            screen: 'ai_home',
-          }
+          context: { screen: 'ai_home' }
         }
       });
 
       if (transcribeError) throw transcribeError;
 
-      const transcriptText = data?.transcript || '';
-      const responseText = data?.message || '';
-      const intent = data?.intent || 'unknown';
-      
-      // Log voice command event for AI learning
-      eventLogger.logVoiceCommand(transcriptText, intent, true);
-      
+      const vcResponse = data as VoiceCommandResponse;
+      const transcriptText = vcResponse?.transcript || '';
+      const responseText = vcResponse?.response_text || '';
+      const action = vcResponse?.action;
+
       setTranscript(transcriptText);
-      setAiResponse(responseText);
+
+      // ── If it's a query or unknown, just speak the response ──────
+      if (!action || action.action === 'unknown' || 
+          ['query_tasks', 'query_schedule', 'query_stats', 'query_circles'].includes(action.action)) {
+        // Log the voice command
+        eventLogger.logVoiceCommand(transcriptText, action?.action || 'unknown', true, {
+          confidence: action?.confidence,
+          latency_ms: Date.now() - listenStartTimeRef.current,
+          ai_model_used: vcResponse?.model_used,
+          tokens_used: vcResponse?.tokens_used,
+          user_override: false,
+        });
+
+        setAiResponse(responseText);
+        if (responseText) {
+          await speak(responseText);
+        } else {
+          setVoiceState('idle');
+        }
+        return transcriptText;
+      }
+
+      // ── Mutation action: pass to ActionExecutor ──────────────────
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const result = await executeAction(action, user.id, responseText);
+
+      if (result.needsConfirmation) {
+        // Store pending action and prompt for confirmation
+        setAwaitingConfirmation(true);
+        setPendingAction(action);
+        pendingResponseRef.current = vcResponse;
+        
+        const prompt = result.confirmationPrompt || 'Are you sure?';
+        setAiResponse(prompt);
+        await speak(prompt);
+        return transcriptText;
+      }
+
+      // Action executed successfully (or failed)
+      eventLogger.logVoiceCommand(transcriptText, action.action, result.success, {
+        confidence: action.confidence,
+        latency_ms: Date.now() - listenStartTimeRef.current,
+        ai_model_used: vcResponse?.model_used,
+        tokens_used: vcResponse?.tokens_used,
+        user_override: false,
+      });
+
+      const spokenText = result.success ? (responseText || result.message) : result.message;
+      setAiResponse(spokenText);
       
-      // Speak the response
-      if (responseText && data?.shouldSpeak !== false) {
-        await speak(responseText);
+      if (spokenText) {
+        await speak(spokenText);
       } else {
         setVoiceState('idle');
       }
@@ -231,7 +379,6 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
       
     } catch (err) {
       console.error('Failed to process recording:', err);
-      // Log voice error
       eventLogger.log('voice_error', {
         errorType: err instanceof Error ? err.message : 'unknown',
       });
@@ -239,7 +386,7 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
       setVoiceState('idle');
       return '';
     }
-  }, []);
+  }, [awaitingConfirmation, pendingAction]);
 
   const cancelListening = useCallback(() => {
     stopRecording();
@@ -247,6 +394,71 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
     setAudioLevel(0);
     setTranscript('');
   }, []);
+
+  /**
+   * Programmatically confirm a pending action (e.g. from a UI button)
+   */
+  const confirmAction = useCallback(async () => {
+    if (!pendingAction) return;
+
+    const confirmedAction: ActionJSON = {
+      ...pendingAction,
+      confirmation_required: false,
+    };
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const result = await executeAction(confirmedAction, user.id, pendingResponseRef.current?.response_text);
+
+    eventLogger.logVoiceCommand(
+      pendingResponseRef.current?.transcript || '',
+      pendingAction.action,
+      result.success,
+      {
+        confidence: pendingAction.confidence,
+        latency_ms: Date.now() - listenStartTimeRef.current,
+        ai_model_used: pendingResponseRef.current?.model_used,
+        tokens_used: pendingResponseRef.current?.tokens_used,
+        user_override: false,
+      },
+    );
+
+    setAwaitingConfirmation(false);
+    setPendingAction(null);
+    pendingResponseRef.current = null;
+    setAiResponse(result.message);
+
+    if (result.message) {
+      await speak(result.message);
+    }
+  }, [pendingAction]);
+
+  /**
+   * Programmatically cancel a pending action (e.g. from a UI button)
+   */
+  const cancelAction = useCallback(() => {
+    if (!pendingAction) return;
+
+    eventLogger.logVoiceCommand(
+      pendingResponseRef.current?.transcript || '',
+      pendingAction.action,
+      false,
+      {
+        confidence: pendingAction.confidence,
+        latency_ms: Date.now() - listenStartTimeRef.current,
+        ai_model_used: pendingResponseRef.current?.model_used,
+        tokens_used: pendingResponseRef.current?.tokens_used,
+        user_override: true,
+      },
+    );
+
+    setAwaitingConfirmation(false);
+    setPendingAction(null);
+    pendingResponseRef.current = null;
+    setAiResponse('Okay, cancelled.');
+    speak('Okay, cancelled.');
+  }, [pendingAction]);
 
   const speak = useCallback(async (text: string) => {
     if (!isVoiceEnabled || !text) {
@@ -329,11 +541,15 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
     transcript,
     aiResponse,
     error,
+    awaitingConfirmation,
+    pendingAction,
     startListening,
     stopListening,
     cancelListening,
     speak,
     stopSpeaking,
+    confirmAction,
+    cancelAction,
     setVoiceEnabled,
     voiceSpeed,
     setVoiceSpeed,

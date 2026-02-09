@@ -1,0 +1,51 @@
+---
+description: MYPA design system, colors, and styling conventions
+globs: frontend/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# Styling Conventions
+
+## Design System
+
+MYPA uses a custom design system defined in `frontend/src/styles/`. Always import from there — never hardcode colors or spacing.
+
+## Colors
+
+- **Primary:** `#B58CFF` (purple) — used for the orb, CTAs, active states
+- **Secondary:** `#64C7FF` (blue) — accent, gradients
+- **Background:** `#F6F7FA` (light mode), `#0B0F14` (dark mode)
+- **Foreground:** `#1A1D25` (light mode), `#F6F7FA` (dark mode)
+- Import from `@/styles/colors` — use `colors.primary`, `colors.background`, etc.
+- Both `colors` (light) and `darkColors` (dark) are exported
+
+## Category Colors
+
+Work: `#3B82F6` | Health: `#10B981` | Fitness: `#F43F5E` | Wellness: `#8B5CF6` | Creative: `#F59E0B` | Personal: `#EC4899`
+
+## Typography (use `textStyles` from theme)
+
+- h1: 28px semibold | h2: 20px semibold | h3: 17px medium
+- body: 15px normal | bodySmall: 13px normal | caption: 11px normal
+- Use SF Pro (system font) — do NOT import custom fonts unless approved
+
+## Spacing Scale
+
+xs: 4 | sm: 8 | md: 12 | base: 16 | lg: 20 | xl: 24 | 2xl: 32 | 3xl: 40 | 4xl: 48
+
+## Border Radius
+
+sm: 8 | md: 12 | lg: 18 | xl: 24 | full: 9999
+
+## Card Styles
+
+Use `cardStyles` from theme: `base`, `interactive`, `glass`, `glassDark`, `gradient`
+
+## Rules
+
+1. **Always use `StyleSheet.create()`** — never inline styles except for dynamic values
+2. **Use theme tokens** — never hardcode `#B58CFF`, use `colors.primary`
+3. **iOS-native feel** — rounded corners (radius.xl = 24), subtle shadows, no harsh borders
+4. **Glass morphism** for overlays — `rgba(255,255,255,0.85)` with blur
+5. **Shadows use the purple glow** for interactive/elevated elements (`shadows.glow`)
+6. **Tab bar** floats above content with rounded corners and glass background

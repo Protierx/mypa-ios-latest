@@ -1,0 +1,97 @@
+---
+description: Voice-first AI integration patterns for MYPA
+globs: "**/*{voice,ai,Voice,AI,tts,speech,assistant}*"
+alwaysApply: false
+---
+
+# Voice & AI Patterns
+
+## Core Philosophy
+
+**MYPA IS the AI.** The voice interface is not a feature — it is THE product. Every interaction should feel like talking to a knowledgeable, supportive friend.
+
+## Action System (PRD 4.7)
+
+AI NEVER writes data directly. The flow is:
+1. AI parses user intent → outputs a JSON action from the **Action Registry**
+2. Client validates params → executes via Supabase
+3. Success/failure → natural language response → TTS
+
+Actions: `create_task`, `update_task`, `complete_task`, `delete_task` (confirm!), `reschedule_task`, `start_focus_session`, `create_circle`, `query_tasks`, `brain_dump`, etc.
+
+If `confidence < 0.7` → ask user to confirm before executing.
+
+## Voice State Machine (PRD 4.1)
+
+**v1: Tap-to-talk only. No wake word.**
+
+States: `IDLE` → `LISTENING` → `PROCESSING` → `SPEAKING` → `IDLE`
+
+- **Barge-in:** User speaks during SPEAKING → stop TTS, go to LISTENING
+- **Timeout:** 3s silence in LISTENING → "I didn't catch that" → IDLE
+- **Error:** >10s in PROCESSING → "Having trouble" → IDLE with retry
+- **Offline:** No network → OFFLINE state with text input fallback
+- **Discreet mode:** Text input + text response, same action execution
+
+## Latency Targets (staged)
+
+- Beta: P95 < 1.2s | v1.0: P95 < 800ms | v1.1+: P95 < 500ms
+- Measured: user stops speaking → first byte of TTS audio plays
+
+## Voice Pipeline
+
+1. **User speaks** → captured via device microphone
+2. **Speech-to-Text** → OpenAI Whisper (target: <500ms latency)
+3. **AI Processing** → GPT-4 Turbo parses intent → JSON action
+4. **Action execution** → Supabase mutation
+5. **Text-to-Speech** → OpenAI TTS responds naturally
+
+## Target: OpenAI Realtime API
+
+- The goal is WebSocket-based streaming for sub-500ms response times
+- This is the #1 critical path item — without it, the app feels robotic
+- Implement graceful fallbacks: if Realtime fails, fall back to REST Whisper + GPT + TTS
+
+## AI Response Guidelines
+
+- Responses should be **conversational, warm, and concise** (1-2 sentences max for voice)
+- Use the user's name when available
+- Acknowledge actions explicitly: "Done! Added 'Buy groceries' to tomorrow."
+- Never say "I'm an AI" or break character — MYPA is a personal assistant
+
+## Daily Briefing
+
+- Auto-plays when app opens (the #2 critical path item)
+- Summarizes: tasks due today, streak status, upcoming deadlines, any circle activity
+- Tone: like a friend catching you up over coffee
+- Must be skippable / interruptible
+
+## Context Awareness
+
+- AI must know what screen the user is on
+- Commands should be contextual: "complete this" on task screen = complete focused task
+- Pass screen context and recent actions to the AI prompt
+
+## Error Handling
+
+- Network failure → "I'm having trouble connecting. Try again in a moment."
+- API error → graceful fallback to text input
+- Timeout (>3s) → show typing indicator, apologize for delay
+- Never show raw error messages to the user
+
+## Cost Controls (PRD 3)
+
+- **Free tier:** 10 voice commands/day. On limit hit → soft upsell sheet, text input remains available. Never hard-block.
+- **Model routing is capability-based:** `fast` for simple, `smart` for complex. Model IDs in `supabase/functions/_shared/config.ts`. See PRD section 3.
+- **Caching:** Daily briefing generated once at 6 AM (or on-demand fallback), cached in `profiles.briefing_cache`. 10 pre-generated greetings rotated locally.
+- **Track token usage** per user in `event_log.tokens_used` for cost analytics
+- **Usage limit is COMPUTED from `event_log`** — never a mutable counter. Query: count `voice_command` events where `created_at >= today` in user's timezone.
+
+## Event Logging (PRD 4.8)
+
+Every voice interaction MUST log to `event_log`:
+- `event_type`: 'voice_command'
+- `action`: the action from Action Registry
+- `intent_raw`: original user utterance
+- `confidence`, `latency_ms`, `ai_model_used`, `tokens_used`, `success`
+- `user_override`: true if user corrected the AI

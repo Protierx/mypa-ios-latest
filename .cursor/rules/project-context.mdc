@@ -1,0 +1,60 @@
+---
+description: MYPA project architecture, conventions, and critical context. Must be followed for every task.
+alwaysApply: true
+---
+
+# MYPA Project Context
+
+MYPA (My Personal AI) is a **voice-first** iOS productivity app. The AI IS the app — not a feature bolted on.
+
+## Architecture
+
+- **Frontend:** React Native 0.81.5 + Expo 54 + TypeScript
+- **Backend:** Supabase (Auth, PostgreSQL, Realtime, Edge Functions, Storage)
+- **AI/Voice:** OpenAI GPT-4 Turbo, Whisper (STT), TTS
+- **The `backend/` folder is LEGACY (Express.js) — do NOT use or extend it. All backend is Supabase.**
+
+## Key Paths
+
+| Purpose | Path |
+|---------|------|
+| App entry | `frontend/App.tsx` |
+| Screens (v2 gesture flow) | `frontend/src/screens-v2/` |
+| Legacy screens | `frontend/src/screens/` (if present) |
+| Components | `frontend/src/components/` |
+| UI primitives | `frontend/src/components/ui/` |
+| Services/API | `frontend/src/services/` |
+| Auth context | `frontend/src/contexts/SupabaseAuthContext.tsx` |
+| Styles/theme | `frontend/src/styles/` |
+| Supabase migrations | `supabase/migrations/` |
+| Edge functions | `supabase/functions/` |
+| Legacy backend | `backend/` — **READ ONLY, never modify** |
+
+## Critical Rules
+
+1. **Voice-first mindset:** Every feature should be operable via voice. UI is secondary to conversation.
+2. **Supabase only:** Never create Express routes. Use Supabase client, Edge Functions, RLS, and Realtime.
+3. **TypeScript strict:** All code must be TypeScript. No `any` unless absolutely necessary — prefer proper types.
+4. **No new dependencies** without explicit approval. The bundle size matters for mobile.
+5. **iOS-first design:** Target iOS look-and-feel. Use `SafeAreaView`, respect notch/home indicator.
+6. **Progressive unlock model:** AI features unlock over time (5 levels). Locked features are **visible but disabled** (never hidden). See PRD 4.3.
+7. **Gamification is core:** XP, streaks, levels are not cosmetic — they drive retention. Preserve XP reward values.
+8. **Action System:** AI never writes data directly. AI outputs JSON actions from the Action Registry (PRD 4.7); client validates and executes. If confidence < 0.7, ask user to confirm first.
+9. **Event Logging:** Every user action must emit an `event_log` entry (PRD 4.8). Target: 95%+ coverage. This powers AI learning + analytics.
+10. **Definition of Done:** Feature isn't done unless it works via voice AND UI, is RLS-safe, logs events, handles errors, has loading/empty/error states, and passes acceptance criteria (PRD 15).
+11. **v1 is tap-to-talk only.** No wake word. Wake word is deferred to v2+.
+12. **Model routing is capability-based** (fast/smart/personalized/cached). Concrete model IDs live in `supabase/functions/_shared/config.ts`, NOT hardcoded in client code.
+13. **Usage counters are computed from `event_log`**, not mutable columns. Never store a counter that needs resetting.
+14. **Circles MVP:** Daily cards show counts only. Task titles are NEVER shared to circles. Privacy toggles default to "counts only."
+
+## XP Reward Constants (do not change)
+
+```
+TASK_COMPLETE: 10, TASK_HIGH_PRIORITY: 20, FOCUS_SESSION: 15
+FOCUS_PERFECT: 25, STREAK_DAY: 5, STREAK_WEEK: 50
+STREAK_MONTH: 200, CIRCLE_JOIN: 25, ASSIGNMENT: 30, CHALLENGE_WIN: 100
+```
+
+## Streak Multipliers (do not change)
+
+3+ days: 1.1x | 7+ days: 1.25x | 14+ days: 1.5x | 30+ days: 2.0x

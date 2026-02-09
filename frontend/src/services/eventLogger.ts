@@ -79,8 +79,16 @@ export interface EventMetadata {
   // Voice
   transcript?: string;
   intent?: string;
+  action?: string;
   success?: boolean;
   errorType?: string;
+
+  // PRD 4.8 voice command fields
+  confidence?: number;
+  latency_ms?: number;
+  ai_model_used?: string;
+  tokens_used?: number;
+  user_override?: boolean;
   
   // Task
   taskId?: string;
@@ -290,13 +298,31 @@ class EventLoggerService {
   }
 
   /**
-   * Log voice command
+   * Log voice command (PRD 4.8)
+   *
+   * @param transcript - Raw transcript from Whisper STT
+   * @param action - Action name from GPT function calling
+   * @param success - Whether the action executed successfully
+   * @param details - PRD 4.8 fields: confidence, latency_ms, ai_model_used, tokens_used, user_override
    */
-  logVoiceCommand(transcript: string, intent?: string, success: boolean = true): void {
+  logVoiceCommand(
+    transcript: string,
+    action?: string,
+    success: boolean = true,
+    details?: {
+      confidence?: number;
+      latency_ms?: number;
+      ai_model_used?: string;
+      tokens_used?: number;
+      user_override?: boolean;
+    },
+  ): void {
     this.log('voice_command', {
       transcript,
-      intent,
+      intent: action,   // keep 'intent' key for backward compat
+      action,            // PRD 4.8 field
       success,
+      ...details,
     });
   }
 

@@ -1,0 +1,61 @@
+---
+description: Supabase backend patterns and conventions for MYPA
+globs: "**/*.{ts,tsx}"
+alwaysApply: false
+---
+
+# Supabase Patterns
+
+## Client Usage
+
+- Import the Supabase client from `frontend/src/lib/supabase.ts`
+- Always handle errors: `const { data, error } = await supabase.from(...)`. Check `error` before using `data`.
+- Use `.single()` when expecting one row; use `.maybeSingle()` when the row might not exist.
+
+## Authentication
+
+- Use `supabase.auth` for all auth operations (sign up, sign in, sign out, session)
+- Auth state is managed in `SupabaseAuthContext` — never call auth methods outside the context
+- Support: Email/password, Apple Sign-In, Google Sign-In
+- The user's Supabase `auth.uid()` is the primary key in the `profiles` table
+
+## Database Conventions
+
+- **11 core + 7 supporting + 1 planned = 19 tables total** (see PRD section 6 for full breakdown)
+- Core: profiles, tasks, focus_sessions, brain_dump_items, circles, circle_members, challenges, challenge_participants, posts, reactions, notifications
+- Supporting: circle_invitations, push_tokens, achievements, user_achievements, user_settings, saved_places, **event_log** (NEW)
+- Planned: **user_model** (AI learning — see PRD 4.8)
+- Row Level Security (RLS) is enabled on ALL tables — queries automatically filter by the authenticated user
+- Never bypass RLS. Never use the service role key on the client.
+- Use database triggers for auto-operations (auto-create profile on signup, streak updates, XP awards)
+- **Every user action must write to `event_log`** — this powers AI learning (PRD 4.8)
+
+## Edge Functions
+
+- Written in Deno (TypeScript) — deployed to `supabase/functions/`
+- Used for: AI processing, TTS, push notifications, brain dump analysis
+- Call via `supabase.functions.invoke('function-name', { body: {...} })`
+- Keep Edge Functions stateless and idempotent
+
+## Realtime
+
+- Use `supabase.channel()` for real-time subscriptions (task updates, circle activity)
+- Always unsubscribe in cleanup: `return () => { channel.unsubscribe() }`
+- Prefer Postgres Changes over Broadcast for data-driven updates
+
+## Data Fetching Pattern
+
+```typescript
+// Standard query pattern
+const { data, error } = await supabase
+  .from('tasks')
+  .select('*')
+  .eq('user_id', userId)
+  .order('created_at', { ascending: false });
+
+if (error) throw error;
+```
+
+## Important: Legacy Backend
+
+The `backend/` folder contains an Express.js + Prisma backend that is **fully replaced by Supabase**. The only unmigrated piece is the scheduler service (morning briefings, streak reminders) — this needs `pg_cron` or an external cron.
