@@ -75,16 +75,26 @@ export function useDailyBriefing(userId: string | undefined): UseDailyBriefingRe
 
   const fetchBriefing = useCallback(async () => {
     const uid = userIdRef.current;
-    console.log('[useDailyBriefing] fetchBriefing called, uid:', uid ? uid.substring(0, 8) + '...' : 'none',
-      'played:', briefingPlayedRef.current, 'fetching:', isFetchingRef.current);
     if (!uid || briefingPlayedRef.current || isFetchingRef.current) return;
 
     isFetchingRef.current = true;
-    hasCheckedRef.current = true;
     setState(prev => ({ ...prev, isLoading: true, error: null }));
 
+    // If the Edge Function hangs (e.g. 401/refresh), stop showing "Preparing..." after 20s
+    const timeoutMs = 20000;
+    let timedOut = false;
+    const timeoutId = setTimeout(() => {
+      timedOut = true;
+      isFetchingRef.current = false;
+      setState({
+        shouldBrief: false,
+        briefText: '',
+        isLoading: false,
+        error: 'Briefing is taking too long. Tap to retry.',
+      });
+    }, timeoutMs);
+
     try {
-      console.log('[useDailyBriefing] Step 1: querying profiles...');
       // 1. Check profiles.briefing_date to see if we already briefed today
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
@@ -92,23 +102,36 @@ export function useDailyBriefing(userId: string | undefined): UseDailyBriefingRe
         .eq('id', uid)
         .single();
 
-      console.log('[useDailyBriefing] Step 1 result:', profileError ? 'ERROR: ' + JSON.stringify(profileError) : 'OK date=' + profile?.briefing_date);
       if (profileError) throw profileError;
 
       const timezone = profile?.timezone || 'America/New_York';
       const today = getTodayInTimezone(timezone);
+      const lastBriefingDate = profile?.briefing_date != null
+        ? (typeof profile.briefing_date === 'string'
+            ? profile.briefing_date
+            : (profile.briefing_date as Date).toISOString().slice(0, 10))
+        : null;
 
-      if (profile?.briefing_date === today) {
-        console.log('[useDailyBriefing] Already briefed today, skipping');
-        // Already briefed today
-        setState({ shouldBrief: false, briefText: '', isLoading: false, error: null });
+      if (lastBriefingDate === today) {
+        clearTimeout(timeoutId);
+        hasCheckedRef.current = true;
+        isFetchingRef.current = false;
+        try {
+          const cached = await getDailyBrief({ check_cache: true });
+          if (cached?.briefText) {
+            setState({ shouldBrief: true, briefText: cached.briefText, isLoading: false, error: null });
+          } else {
+            setState({ shouldBrief: false, briefText: '', isLoading: false, error: null });
+          }
+        } catch {
+          setState({ shouldBrief: false, briefText: '', isLoading: false, error: null });
+        }
         return;
       }
 
-      console.log('[useDailyBriefing] Step 2: calling daily-brief Edge Function...');
       // 2. Fetch the daily brief (Edge Function handles cache internally)
       const brief = await getDailyBrief();
-      console.log('[useDailyBriefing] Step 2 result: briefText length=' + (brief?.briefText?.length || 0));
+      if (timedOut) return;
 
       if (!brief?.briefText) {
         throw new Error('Empty briefing received');
@@ -121,6 +144,7 @@ export function useDailyBriefing(userId: string | undefined): UseDailyBriefingRe
         error: null,
       });
     } catch (err: unknown) {
+      if (timedOut) return;
       console.error('[useDailyBriefing] Failed to fetch briefing:', err);
       let message = "Couldn't load your briefing";
       const httpErr = err as { context?: { status: number; json?: () => Promise<{ error?: string }> } } | null;
@@ -143,6 +167,8 @@ export function useDailyBriefing(userId: string | undefined): UseDailyBriefingRe
         error: message,
       });
     } finally {
+      hasCheckedRef.current = true;
+      clearTimeout(timeoutId);
       isFetchingRef.current = false;
     }
   }, []); // No deps -- uses refs for userId
