@@ -5,7 +5,7 @@
  * Shows user profile, stats, unlocks, and settings.
  */
 
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -20,10 +20,17 @@ import * as Haptics from 'expo-haptics';
 import { useSupabaseAuth } from '../../contexts/SupabaseAuthContext';
 import { useUnlocks } from '../../hooks/supabase/useUnlocks';
 import { MiniVoiceButton } from '../../components/MiniVoiceButton';
+import { SettingsModal } from '../modals/SettingsModal';
+import { UnlockDetailsModal, FEATURE_UNLOCKS } from '../modals/UnlockDetailsModal';
 
 export function ProfileViewScreen() {
   const { user, signOut } = useSupabaseAuth();
   const { unlocks } = useUnlocks();
+
+  // Modal state
+  const [showSettings, setShowSettings] = useState(false);
+  const [selectedUnlockFeature, setSelectedUnlockFeature] = useState<any>(null);
+  const [showUnlockDetails, setShowUnlockDetails] = useState(false);
 
   // Calculate XP progress to next level
   const xpForNextLevel = (user?.level || 1) * 100;
@@ -143,9 +150,29 @@ export function ProfileViewScreen() {
             </Text>
             {unlocks.length > 0 ? (
               unlocks.slice(0, 4).map((unlock, index) => (
-                <View
+                <TouchableOpacity
                   key={unlock.feature || `unlock-${index}`}
                   className="flex-row items-center bg-zinc-900 rounded-xl p-3 mb-2 border border-zinc-800"
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    const featureMeta = FEATURE_UNLOCKS[unlock.feature];
+                    if (featureMeta) {
+                      setSelectedUnlockFeature({
+                        ...featureMeta,
+                        isUnlocked: !!unlock.unlocked_at,
+                        unlockedAt: unlock.unlocked_at,
+                        requirements: Object.entries(unlock.progress || {}).map(([key, val]) => ({
+                          id: key,
+                          description: key.replace(/_/g, ' '),
+                          current: val?.current || 0,
+                          required: val?.required || 0,
+                          completed: (val?.current || 0) >= (val?.required || 0),
+                        })),
+                      });
+                      setShowUnlockDetails(true);
+                    }
+                  }}
+                  activeOpacity={0.7}
                 >
                   <Ionicons
                     name={unlock.unlocked_at ? 'checkmark-circle' : 'lock-closed'}
@@ -155,7 +182,8 @@ export function ProfileViewScreen() {
                   <Text className="text-white ml-3 flex-1 capitalize">
                     {(unlock.name || unlock.feature || '').replace(/_/g, ' ')}
                   </Text>
-                </View>
+                  <Ionicons name="chevron-forward" size={16} color="#52525b" />
+                </TouchableOpacity>
               ))
             ) : (
               <Text className="text-zinc-600 text-sm">
@@ -170,7 +198,7 @@ export function ProfileViewScreen() {
               className="flex-row items-center bg-zinc-900 rounded-xl p-4 mb-3 border border-zinc-800"
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                // TODO: Open settings
+                setShowSettings(true);
               }}
             >
               <Ionicons name="settings-outline" size={22} color="#a1a1aa" />
@@ -203,6 +231,22 @@ export function ProfileViewScreen() {
         {/* Mini Voice Button */}
         <MiniVoiceButton position="top-right" screenContext="profile" />
       </SafeAreaView>
+
+      {/* Settings Modal */}
+      <SettingsModal
+        visible={showSettings}
+        onClose={() => setShowSettings(false)}
+      />
+
+      {/* Unlock Details Modal */}
+      <UnlockDetailsModal
+        visible={showUnlockDetails}
+        feature={selectedUnlockFeature}
+        onClose={() => {
+          setShowUnlockDetails(false);
+          setSelectedUnlockFeature(null);
+        }}
+      />
     </View>
   );
 }

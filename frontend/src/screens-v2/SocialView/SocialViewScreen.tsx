@@ -21,11 +21,24 @@ import * as Haptics from 'expo-haptics';
 import { useCircles } from '../../hooks/supabase/useCircles';
 import { useChallenges } from '../../hooks/supabase/useChallenges';
 import { MiniVoiceButton } from '../../components/MiniVoiceButton';
+import { CircleHomeModal } from '../modals/CircleHomeModal';
+import { ChallengeDetailModal } from '../modals/ChallengeDetailModal';
+import { CreateCircleSheet } from '../modals/CreateCircleSheet';
+import { CreateChallengeSheet } from '../modals/CreateChallengeSheet';
 
 export function SocialViewScreen() {
   const { circles, loading: circlesLoading, refresh: refreshCircles } = useCircles();
   const { challenges, loading: challengesLoading, refresh: refreshChallenges } = useChallenges();
   const [refreshing, setRefreshing] = useState(false);
+
+  // Modal state
+  const [selectedCircleId, setSelectedCircleId] = useState<string | null>(null);
+  const [showCircleHome, setShowCircleHome] = useState(false);
+  const [selectedChallengeId, setSelectedChallengeId] = useState<string | null>(null);
+  const [showChallengeDetail, setShowChallengeDetail] = useState(false);
+  const [showCreateCircle, setShowCreateCircle] = useState(false);
+  const [showCreateChallenge, setShowCreateChallenge] = useState(false);
+  const [showCreateMenu, setShowCreateMenu] = useState(false);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -46,12 +59,38 @@ export function SocialViewScreen() {
             className="w-10 h-10 bg-zinc-800 rounded-full items-center justify-center"
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              // TODO: Open create menu
+              setShowCreateMenu(!showCreateMenu);
             }}
           >
-            <Ionicons name="add" size={24} color="#fff" />
+            <Ionicons name={showCreateMenu ? 'close' : 'add'} size={24} color="#fff" />
           </TouchableOpacity>
         </View>
+
+        {/* Create Menu Dropdown */}
+        {showCreateMenu && (
+          <View className="absolute top-20 right-5 z-50 bg-zinc-800 rounded-2xl border border-zinc-700 shadow-lg overflow-hidden">
+            <TouchableOpacity
+              className="flex-row items-center px-5 py-4 border-b border-zinc-700"
+              onPress={() => {
+                setShowCreateMenu(false);
+                setShowCreateCircle(true);
+              }}
+            >
+              <Ionicons name="people" size={20} color="#a855f7" />
+              <Text className="text-white font-medium ml-3">Create Circle</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              className="flex-row items-center px-5 py-4"
+              onPress={() => {
+                setShowCreateMenu(false);
+                setShowCreateChallenge(true);
+              }}
+            >
+              <Ionicons name="trophy" size={20} color="#eab308" />
+              <Text className="text-white font-medium ml-3">Create Challenge</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {loading && !refreshing ? (
           <View className="flex-1 items-center justify-center">
@@ -82,7 +121,8 @@ export function SocialViewScreen() {
                       className="bg-zinc-900 rounded-2xl p-4 mr-3 w-48 border border-zinc-800"
                       onPress={() => {
                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                        // TODO: Open challenge detail
+                        setSelectedChallengeId(challenge.id);
+                        setShowChallengeDetail(true);
                       }}
                     >
                       <Text className="text-2xl mb-2">{challenge.emoji || '🏆'}</Text>
@@ -120,7 +160,8 @@ export function SocialViewScreen() {
                     className="flex-row items-center bg-zinc-900 rounded-2xl p-4 mb-3 border border-zinc-800"
                     onPress={() => {
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      // TODO: Open circle home
+                      setSelectedCircleId(circle.id);
+                      setShowCircleHome(true);
                     }}
                   >
                     <View className="w-12 h-12 bg-zinc-800 rounded-full items-center justify-center mr-4">
@@ -143,7 +184,7 @@ export function SocialViewScreen() {
                     className="mt-4 bg-purple-600 px-6 py-3 rounded-full"
                     onPress={() => {
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                      // TODO: Create circle
+                      setShowCreateCircle(true);
                     }}
                   >
                     <Text className="text-white font-semibold">Create a Circle</Text>
@@ -157,6 +198,51 @@ export function SocialViewScreen() {
         {/* Mini Voice Button */}
         <MiniVoiceButton position="top-right" screenContext="social" />
       </SafeAreaView>
+
+      {/* Circle Home Modal */}
+      <CircleHomeModal
+        visible={showCircleHome}
+        circleId={selectedCircleId}
+        onClose={() => {
+          setShowCircleHome(false);
+          setSelectedCircleId(null);
+        }}
+        onOpenChallenge={(challengeId) => {
+          setShowCircleHome(false);
+          setSelectedChallengeId(challengeId);
+          setShowChallengeDetail(true);
+        }}
+      />
+
+      {/* Challenge Detail Modal */}
+      <ChallengeDetailModal
+        visible={showChallengeDetail}
+        challengeId={selectedChallengeId}
+        onClose={() => {
+          setShowChallengeDetail(false);
+          setSelectedChallengeId(null);
+        }}
+      />
+
+      {/* Create Circle Sheet */}
+      <CreateCircleSheet
+        visible={showCreateCircle}
+        onClose={() => setShowCreateCircle(false)}
+        onCircleCreated={() => {
+          setShowCreateCircle(false);
+          refreshCircles();
+        }}
+      />
+
+      {/* Create Challenge Sheet */}
+      <CreateChallengeSheet
+        visible={showCreateChallenge}
+        onClose={() => setShowCreateChallenge(false)}
+        onChallengeCreated={() => {
+          setShowCreateChallenge(false);
+          refreshChallenges();
+        }}
+      />
     </View>
   );
 }

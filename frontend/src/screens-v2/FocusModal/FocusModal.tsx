@@ -36,7 +36,11 @@ type FocusState = 'selecting' | 'active' | 'paused' | 'completed';
 
 const DURATION_OPTIONS = [15, 25, 45, 60];
 
-export function FocusModal() {
+interface FocusModalProps {
+  onDismiss?: () => void;
+}
+
+export function FocusModal({ onDismiss }: FocusModalProps = {}) {
   const { startSession, endSession } = useFocusSessions();
   const { goToAIHub } = useGestureNavigation();
   
@@ -143,8 +147,12 @@ export function FocusModal() {
     setState('selecting');
     setTimeRemaining(selectedDuration * 60);
     setSessionId(null);
-    goToAIHub();
-  }, [sessionId, selectedDuration, endSession, goToAIHub]);
+    if (onDismiss) {
+      onDismiss();
+    } else {
+      goToAIHub();
+    }
+  }, [sessionId, selectedDuration, endSession, goToAIHub, onDismiss]);
 
   const handleReset = useCallback(() => {
     setState('selecting');

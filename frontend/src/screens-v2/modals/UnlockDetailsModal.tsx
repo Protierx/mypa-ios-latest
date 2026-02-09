@@ -30,7 +30,7 @@ interface UnlockRequirement {
   completed: boolean;
 }
 
-interface FeatureUnlock {
+export interface FeatureUnlock {
   id: string;
   name: string;
   description: string;

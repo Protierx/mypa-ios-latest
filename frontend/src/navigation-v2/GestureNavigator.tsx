@@ -9,8 +9,8 @@
  * - UP: Focus Modal (opens as overlay)
  */
 
-import React, { useCallback, useMemo } from 'react';
-import { View, Dimensions, StyleSheet } from 'react-native';
+import React, { useCallback, useMemo, useState } from 'react';
+import { View, Dimensions, StyleSheet, Modal } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, {
   useSharedValue,
@@ -29,6 +29,7 @@ import { AIHubScreen } from '../screens-v2/AIHub';
 import { TasksViewScreen } from '../screens-v2/TasksView';
 import { SocialViewScreen } from '../screens-v2/SocialView';
 import { ProfileViewScreen } from '../screens-v2/ProfileView';
+import { FocusModal } from '../screens-v2/FocusModal/FocusModal';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -46,6 +47,9 @@ const SPRING_CONFIG = {
 function GestureNavigatorContent() {
   const { currentScreen, navigateTo, canSwipe } = useGestureNavigation();
   
+  // Focus modal overlay state
+  const [showFocusModal, setShowFocusModal] = useState(false);
+
   // Animated values for screen positions
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
@@ -56,6 +60,12 @@ function GestureNavigatorContent() {
   // Haptic feedback helper
   const triggerHaptic = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+  }, []);
+
+  // Open focus modal as overlay
+  const openFocusModal = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    setShowFocusModal(true);
   }, []);
 
   // Navigate with animation
@@ -130,8 +140,9 @@ function GestureNavigatorContent() {
           // Swipe right → Social
           animateToScreen('social');
         } else if (translationY < -VERTICAL_THRESHOLD || velocityY < -500) {
-          // Swipe up → Focus (handled separately)
-          animateToScreen('ai_hub'); // Snap back for now
+          // Swipe up → Focus Modal (overlay)
+          animateToScreen('ai_hub'); // Snap back to center
+          runOnJS(openFocusModal)();
         } else if (translationY > VERTICAL_THRESHOLD || velocityY > 500) {
           // Swipe down → Profile
           animateToScreen('profile');
@@ -175,50 +186,62 @@ function GestureNavigatorContent() {
   }));
 
   return (
-    <GestureDetector gesture={panGesture}>
-      <View style={styles.container}>
-        <Animated.View style={[styles.screenContainer, animatedContainerStyle]}>
-          {/* Tasks View - LEFT */}
-          <View style={[styles.screen, styles.leftScreen]}>
-            <TasksViewScreen />
-          </View>
+    <>
+      <GestureDetector gesture={panGesture}>
+        <View style={styles.container}>
+          <Animated.View style={[styles.screenContainer, animatedContainerStyle]}>
+            {/* Tasks View - LEFT */}
+            <View style={[styles.screen, styles.leftScreen]}>
+              <TasksViewScreen />
+            </View>
+            
+            {/* AI Hub - CENTER */}
+            <View style={[styles.screen, styles.centerScreen]}>
+              <AIHubScreen />
+            </View>
+            
+            {/* Social View - RIGHT */}
+            <View style={[styles.screen, styles.rightScreen]}>
+              <SocialViewScreen />
+            </View>
+            
+            {/* Profile View - DOWN (above center) */}
+            <View style={[styles.screen, styles.bottomScreen]}>
+              <ProfileViewScreen />
+            </View>
+          </Animated.View>
           
-          {/* AI Hub - CENTER */}
-          <View style={[styles.screen, styles.centerScreen]}>
-            <AIHubScreen />
-          </View>
-          
-          {/* Social View - RIGHT */}
-          <View style={[styles.screen, styles.rightScreen]}>
-            <SocialViewScreen />
-          </View>
-          
-          {/* Profile View - DOWN (above center) */}
-          <View style={[styles.screen, styles.bottomScreen]}>
-            <ProfileViewScreen />
-          </View>
-        </Animated.View>
-        
-        {/* Swipe Indicators */}
-        {currentScreen === 'ai_hub' && (
-          <>
-            <SwipeIndicator direction="left" label="Tasks" visible />
-            <SwipeIndicator direction="right" label="Social" visible />
-            <SwipeIndicator direction="down" label="Profile" visible />
-            <SwipeIndicator direction="up" label="Focus" visible />
-          </>
-        )}
-        {currentScreen === 'tasks' && (
-          <SwipeIndicator direction="right" label="Back" visible />
-        )}
-        {currentScreen === 'social' && (
-          <SwipeIndicator direction="left" label="Back" visible />
-        )}
-        {currentScreen === 'profile' && (
-          <SwipeIndicator direction="up" label="Back" visible />
-        )}
-      </View>
-    </GestureDetector>
+          {/* Swipe Indicators */}
+          {currentScreen === 'ai_hub' && (
+            <>
+              <SwipeIndicator direction="left" label="Tasks" visible />
+              <SwipeIndicator direction="right" label="Social" visible />
+              <SwipeIndicator direction="down" label="Profile" visible />
+              <SwipeIndicator direction="up" label="Focus" visible />
+            </>
+          )}
+          {currentScreen === 'tasks' && (
+            <SwipeIndicator direction="right" label="Back" visible />
+          )}
+          {currentScreen === 'social' && (
+            <SwipeIndicator direction="left" label="Back" visible />
+          )}
+          {currentScreen === 'profile' && (
+            <SwipeIndicator direction="up" label="Back" visible />
+          )}
+        </View>
+      </GestureDetector>
+
+      {/* Focus Modal Overlay — outside GestureDetector to avoid single-child constraint */}
+      <Modal
+        visible={showFocusModal}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={() => setShowFocusModal(false)}
+      >
+        <FocusModal onDismiss={() => setShowFocusModal(false)} />
+      </Modal>
+    </>
   );
 }
 

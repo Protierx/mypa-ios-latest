@@ -25,6 +25,8 @@ import { estimateTaskDuration, DurationEstimate } from '../../services/durationE
 import { Task } from '../../lib/supabase';
 import { SortedTask } from '../../services/aiTaskSorting';
 import { MiniVoiceButton } from '../../components/MiniVoiceButton';
+import { TaskDetailModal } from '../modals/TaskDetailModal';
+import { QuickAddTaskOverlay } from '../modals/QuickAddTaskOverlay';
 
 type FilterType = 'today' | 'tomorrow' | 'all';
 
@@ -40,6 +42,11 @@ export function TasksViewScreen() {
   const { tasks, sortedTasks, loading, error, refresh, updateTask, isAISortingActive } = useTasks(filter);
   const { isUnlocked, model } = useUserModel();
   const [refreshing, setRefreshing] = useState(false);
+
+  // Modal state
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [showTaskDetail, setShowTaskDetail] = useState(false);
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
 
   // Check if duration estimation is unlocked
   const isDurationUnlocked = isUnlocked(AI_FEATURES.DURATION_ESTIMATION);
@@ -78,6 +85,26 @@ export function TasksViewScreen() {
     });
   }, [updateTask]);
 
+  const handleOpenTaskDetail = useCallback((task: Task) => {
+    setSelectedTask(task);
+    setShowTaskDetail(true);
+  }, []);
+
+  const handleCloseTaskDetail = useCallback(() => {
+    setShowTaskDetail(false);
+    setSelectedTask(null);
+  }, []);
+
+  const handleOpenQuickAdd = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setShowQuickAdd(true);
+  }, []);
+
+  const handleTaskCreated = useCallback((_task: Task) => {
+    setShowQuickAdd(false);
+    refresh();
+  }, [refresh]);
+
   const renderTask = useCallback(({ item: task }: { item: Task | SortedTask }) => {
     const duration = getTaskDuration(task);
     const sortedTask = task as SortedTask;
@@ -85,21 +112,29 @@ export function TasksViewScreen() {
     return (
       <TouchableOpacity
         className="flex-row items-center bg-zinc-900 rounded-2xl p-4 mb-3 border border-zinc-800"
-        onPress={() => handleToggleComplete(task)}
+        onPress={() => handleOpenTaskDetail(task)}
         activeOpacity={0.7}
       >
-        {/* Checkbox */}
-        <View
-          className={`w-6 h-6 rounded-full border-2 items-center justify-center mr-3 ${
-            task.status === 'completed'
-              ? 'bg-purple-600 border-purple-600'
-              : 'border-zinc-600'
-          }`}
+        {/* Checkbox — tap to toggle completion */}
+        <TouchableOpacity
+          onPress={(e) => {
+            e.stopPropagation();
+            handleToggleComplete(task);
+          }}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          {task.status === 'completed' && (
-            <Ionicons name="checkmark" size={14} color="#fff" />
-          )}
-        </View>
+          <View
+            className={`w-6 h-6 rounded-full border-2 items-center justify-center mr-3 ${
+              task.status === 'completed'
+                ? 'bg-purple-600 border-purple-600'
+                : 'border-zinc-600'
+            }`}
+          >
+            {task.status === 'completed' && (
+              <Ionicons name="checkmark" size={14} color="#fff" />
+            )}
+          </View>
+        </TouchableOpacity>
 
         {/* Task Content */}
         <View className="flex-1">
@@ -156,7 +191,7 @@ export function TasksViewScreen() {
         />
       </TouchableOpacity>
     );
-  }, [handleToggleComplete, getTaskDuration, isAISortingActive]);
+  }, [handleToggleComplete, handleOpenTaskDetail, getTaskDuration, isAISortingActive]);
 
   // Group tasks - use sortedTasks for AI sorting
   const pendingTasks = sortedTasks.filter(t => t.status !== 'completed');
@@ -255,10 +290,7 @@ export function TasksViewScreen() {
         {/* Add Task Button */}
         <TouchableOpacity
           className="absolute bottom-8 right-5 w-14 h-14 bg-purple-600 rounded-full items-center justify-center shadow-lg"
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            // TODO: Open quick add modal
-          }}
+          onPress={handleOpenQuickAdd}
         >
           <Ionicons name="add" size={28} color="#fff" />
         </TouchableOpacity>
@@ -266,6 +298,20 @@ export function TasksViewScreen() {
         {/* Mini Voice Button */}
         <MiniVoiceButton position="top-right" screenContext="tasks" />
       </SafeAreaView>
+
+      {/* Task Detail Modal */}
+      <TaskDetailModal
+        visible={showTaskDetail}
+        task={selectedTask}
+        onClose={handleCloseTaskDetail}
+      />
+
+      {/* Quick Add Task Overlay */}
+      <QuickAddTaskOverlay
+        visible={showQuickAdd}
+        onClose={() => setShowQuickAdd(false)}
+        onTaskCreated={handleTaskCreated}
+      />
     </View>
   );
 }
