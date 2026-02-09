@@ -536,17 +536,16 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
       
       // Wait for playback to complete
       await new Promise<void>((resolve) => {
+        let resolved = false;
+        const done = () => { if (!resolved) { resolved = true; resolve(); } };
         sound.setOnPlaybackStatusUpdate((status) => {
           if (status.isLoaded && (status as any).didJustFinish) {
             console.log('[TTS] Audio playback finished');
-            resolve();
+            done();
           }
         });
-        // Timeout fallback
-        setTimeout(() => {
-          console.log('[TTS] Playback timeout reached');
-          resolve();
-        }, 30000);
+        // Timeout fallback (30s max)
+        setTimeout(done, 30000);
       });
 
       await stopPlayback();

@@ -75,6 +75,8 @@ export function useDailyBriefing(userId: string | undefined): UseDailyBriefingRe
 
   const fetchBriefing = useCallback(async () => {
     const uid = userIdRef.current;
+    console.log('[useDailyBriefing] fetchBriefing called, uid:', uid ? uid.substring(0, 8) + '...' : 'none',
+      'played:', briefingPlayedRef.current, 'fetching:', isFetchingRef.current);
     if (!uid || briefingPlayedRef.current || isFetchingRef.current) return;
 
     isFetchingRef.current = true;
@@ -82,6 +84,7 @@ export function useDailyBriefing(userId: string | undefined): UseDailyBriefingRe
     setState(prev => ({ ...prev, isLoading: true, error: null }));
 
     try {
+      console.log('[useDailyBriefing] Step 1: querying profiles...');
       // 1. Check profiles.briefing_date to see if we already briefed today
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
@@ -89,19 +92,23 @@ export function useDailyBriefing(userId: string | undefined): UseDailyBriefingRe
         .eq('id', uid)
         .single();
 
+      console.log('[useDailyBriefing] Step 1 result:', profileError ? 'ERROR: ' + JSON.stringify(profileError) : 'OK date=' + profile?.briefing_date);
       if (profileError) throw profileError;
 
       const timezone = profile?.timezone || 'America/New_York';
       const today = getTodayInTimezone(timezone);
 
       if (profile?.briefing_date === today) {
+        console.log('[useDailyBriefing] Already briefed today, skipping');
         // Already briefed today
         setState({ shouldBrief: false, briefText: '', isLoading: false, error: null });
         return;
       }
 
+      console.log('[useDailyBriefing] Step 2: calling daily-brief Edge Function...');
       // 2. Fetch the daily brief (Edge Function handles cache internally)
       const brief = await getDailyBrief();
+      console.log('[useDailyBriefing] Step 2 result: briefText length=' + (brief?.briefText?.length || 0));
 
       if (!brief?.briefText) {
         throw new Error('Empty briefing received');
@@ -142,6 +149,8 @@ export function useDailyBriefing(userId: string | undefined): UseDailyBriefingRe
 
   // Run once when user is authenticated
   useEffect(() => {
+    console.log('[useDailyBriefing] useEffect:', 'userId:', userId ? userId.substring(0, 8) + '...' : 'none',
+      'hasChecked:', hasCheckedRef.current, 'played:', briefingPlayedRef.current);
     if (userId && !hasCheckedRef.current && !briefingPlayedRef.current) {
       fetchBriefing();
     }

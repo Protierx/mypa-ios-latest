@@ -170,6 +170,8 @@ export type Unlock = Tables['unlocks'];
 export type Notification = Tables['notifications'];
 export type UserEvent = Tables['event_log'];
 export type UserModel = Tables['user_model'];
+export type UserEvent = Tables['user_events'];
+export type UserModel = Tables['user_model'];
 export type CircleMember = {
   circle_id: string;
   user_id: string;

@@ -738,8 +738,8 @@ All tables have Row Level Security (RLS) enabled. Database triggers handle: auto
 ### Phase 5: Voice System (CRITICAL PATH) — Estimated 1-2 weeks (30 hours)
 
 - [ ] OpenAI Realtime API integration (WebSocket streaming)
-- [ ] Auto-play daily briefing on app open
-- [ ] Natural interruption handling
+- [x] Auto-play daily briefing on app open
+- [x] Natural interruption handling (barge-in skips TTS, transitions to listening)
 - [ ] Voice during focus sessions
 - [ ] Context-aware commands
 - [x] Error handling and graceful fallbacks (Action System wired)
@@ -1053,12 +1053,12 @@ These are the 5 core requirements with exact acceptance tests. A feature passes 
 
 **Acceptance Criteria:**
 
-- [ ] Briefing triggers exactly once per day per user (guarded by `profiles.briefing_date`)
-- [ ] User can barge-in to cancel TTS → transitions to LISTENING for new command
-- [ ] If `briefing_cache` is missing or stale, generate on-demand and cache result
-- [ ] Briefing uses correct timezone from `profiles.timezone` (IANA string)
-- [ ] Briefing listen-through is tracked: `briefing_started`, `briefing_progress` (25%, 50%, 100%), `briefing_skipped` logged to `event_log`
-- [ ] Content includes: task count today, top 3 tasks, streak status, circle activity (if any)
+- [x] Briefing triggers exactly once per day per user (guarded by `profiles.briefing_date`)
+- [x] User can barge-in to cancel TTS → transitions to LISTENING for new command
+- [x] If `briefing_cache` is missing or stale, generate on-demand and cache result
+- [x] Briefing uses correct timezone from `profiles.timezone` (IANA string)
+- [x] Briefing listen-through is tracked: `briefing_started`, `briefing_progress` (25%, 50%, 100%), `briefing_skipped` logged to `event_log`
+- [x] Content includes: task count today, top 3 tasks, streak status, circle activity (if any)
 
 ### R3 — Usage Limits + Upsell
 

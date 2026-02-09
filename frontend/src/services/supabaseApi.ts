@@ -70,22 +70,36 @@ interface DailyBriefResponse {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Try to refresh the session once. Returns true if refresh succeeded. */
+/**
+ * Shared refresh promise — when multiple calls hit 401 concurrently,
+ * only ONE refresh is issued. All waiters share the same promise.
+ */
+let _refreshPromise: Promise<boolean> | null = null;
+
 async function tryRefreshSession(): Promise<boolean> {
-  try {
-    const { error } = await supabase.auth.refreshSession();
-    if (error) {
-      console.warn('[SupabaseApi] Session refresh failed:', error.message);
-      return false;
-    }
-    console.log('[SupabaseApi] Session refreshed successfully');
-    return true;
-  } catch {
-    return false;
+  if (_refreshPromise) {
+    console.log('[SupabaseApi] Waiting on existing refresh...');
+    return _refreshPromise;
   }
+  _refreshPromise = (async () => {
+    try {
+      const { error } = await supabase.auth.refreshSession();
+      if (error) {
+        console.warn('[SupabaseApi] Session refresh failed:', error.message);
+        return false;
+      }
+      console.log('[SupabaseApi] Session refreshed successfully');
+      return true;
+    } catch {
+      return false;
+    } finally {
+      _refreshPromise = null;
+    }
+  })();
+  return _refreshPromise;
 }
 
-/** Invoke an Edge Function with automatic 401-retry (one refresh attempt). */
+/** Invoke an Edge Function with automatic 401-retry (one shared refresh). */
 async function invokeWithRetry<T>(
   fnName: string,
   options?: { body?: Record<string, unknown> },
@@ -95,9 +109,9 @@ async function invokeWithRetry<T>(
 
   if (!error) return data as T;
 
-  // If 401, try refreshing the session and retry once
+  // If 401, try refreshing the session (shared) and retry once
   if (error instanceof FunctionsHttpError && error.context?.status === 401) {
-    console.warn('[SupabaseApi] ' + fnName + ': 401 - attempting session refresh...');
+    console.warn('[SupabaseApi] ' + fnName + ': 401 — refreshing session...');
     const refreshed = await tryRefreshSession();
     if (refreshed) {
       const retry = await supabase.functions.invoke(fnName, options);
