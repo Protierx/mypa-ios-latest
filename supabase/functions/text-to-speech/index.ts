@@ -1,15 +1,10 @@
 // Text-to-Speech Edge Function using OpenAI TTS
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { TTS_TIMEOUT_MS, withTimeout } from '../_shared/config.ts'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+import { CORS_HEADERS, TTS_TIMEOUT_MS, withTimeout } from '../_shared/config.ts'
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: CORS_HEADERS })
   }
 
   try {
@@ -18,7 +13,7 @@ serve(async (req) => {
     if (!text) {
       return new Response(
         JSON.stringify({ error: 'No text provided' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
       )
     }
 
@@ -26,7 +21,7 @@ serve(async (req) => {
     if (!openaiKey) {
       return new Response(
         JSON.stringify({ error: 'OpenAI API key not configured' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
       )
     }
 
@@ -59,7 +54,7 @@ serve(async (req) => {
       console.error('OpenAI TTS error:', error)
       return new Response(
         JSON.stringify({ error: 'TTS generation failed' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
       )
     }
 
@@ -77,14 +72,14 @@ serve(async (req) => {
         format: 'mp3',
         voice: selectedVoice,
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
     )
 
   } catch (error) {
     console.error('TTS error:', error)
     return new Response(
       JSON.stringify({ error: 'Internal server error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
     )
   }
 })

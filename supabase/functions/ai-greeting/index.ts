@@ -1,9 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { MODEL_CONFIG, CORS_HEADERS, withTimeout } from '../_shared/config.ts'
-
-// Timeout for greeting API calls (shorter since it's a simple generation)
-const OPENAI_TIMEOUT_MS = 10000
+import { MODEL_CONFIG, CORS_HEADERS, OPENAI_TIMEOUT_MS, withTimeout } from '../_shared/config.ts'
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -17,8 +14,8 @@ serve(async (req) => {
       { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
     )
 
-    const { data: { user } } = await supabaseClient.auth.getUser()
-    if (!user) {
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser()
+    if (userError || !user) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), 
         { status: 401, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } })
     }

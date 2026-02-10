@@ -11,12 +11,35 @@ import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
 import * as FileSystem from 'expo-file-system/legacy';
 import { supabase } from '../lib/supabase';
+import { FunctionsHttpError } from '@supabase/supabase-js';
 import { eventLogger } from '../services/eventLogger';
 import {
   executeAction,
   type ActionJSON,
   type VoiceCommandResponse,
 } from '../services/actionExecutor';
+
+/**
+ * Invoke an edge function with automatic 401 retry (refresh session once).
+ * VoiceContext calls edge functions directly — this ensures stale JWTs
+ * are refreshed instead of failing with "invalid JWT".
+ */
+async function invokeWithAuth<T = unknown>(
+  fnName: string,
+  options?: { body?: Record<string, unknown> },
+): Promise<{ data: T | null; error: FunctionsHttpError | Error | null }> {
+  const first = await supabase.functions.invoke(fnName, options);
+  if (!first.error) return first as { data: T; error: null };
+
+  // On 401, refresh session and retry once
+  if (first.error instanceof FunctionsHttpError && first.error.context?.status === 401) {
+    const { error: refreshErr } = await supabase.auth.refreshSession();
+    if (!refreshErr) {
+      return await supabase.functions.invoke(fnName, options) as { data: T; error: FunctionsHttpError | null };
+    }
+  }
+  return first as { data: null; error: FunctionsHttpError | Error };
+}
 
 export type VoiceState = 'idle' | 'listening' | 'processing' | 'speaking';
 
@@ -227,7 +250,7 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
       // ── Confirmation flow: if awaiting confirmation, treat as yes/no ──
       if (awaitingConfirmation && pendingAction) {
         // We need to transcribe the yes/no first
-        const { data: confirmData, error: confirmError } = await supabase.functions.invoke('voice-command', {
+        const { data: confirmData, error: confirmError } = await invokeWithAuth('voice-command', {
           body: { audio: base64Audio, context: { screen: 'ai_home' } }
         });
 
@@ -305,8 +328,8 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
 
       // ── Normal flow: send to voice-command Edge Function ──────────
       // Add a 30-second timeout to prevent infinite "thinking" state
-      const edgeFnPromise = supabase.functions.invoke('voice-command', {
-        body: { 
+      const edgeFnPromise = invokeWithAuth('voice-command', {
+        body: {
           audio: base64Audio,
           context: { screen: 'ai_home' }
         }
@@ -392,11 +415,20 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
       return transcriptText;
       
     } catch (err) {
-      console.error('Failed to process recording:', err);
+      console.error('[Voice] Failed to process recording:', err);
       eventLogger.log('voice_error', {
         errorType: err instanceof Error ? err.message : 'unknown',
       });
-      setError('Failed to process voice');
+
+      // Surface a user-friendly error based on the failure type
+      const errMsg = err instanceof Error ? err.message : '';
+      if (errMsg.includes('timed out')) {
+        setError('Voice processing timed out. Please try again.');
+      } else if (errMsg.includes('non-2xx') || errMsg.includes('FunctionsHttpError')) {
+        setError('Voice service is unavailable. Please check your connection.');
+      } else {
+        setError('Failed to process voice. Please try again.');
+      }
       setVoiceState('idle');
       return '';
     }
@@ -493,8 +525,8 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
 
       // Call TTS Edge Function
       console.log('[TTS] Calling text-to-speech, text length:', text.length, 'voice:', selectedVoice);
-      const { data, error: ttsError } = await supabase.functions.invoke('text-to-speech', {
-        body: { 
+      const { data, error: ttsError } = await invokeWithAuth('text-to-speech', {
+        body: {
           text,
           voice: selectedVoice,
           speed: voiceSpeed,

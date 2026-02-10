@@ -1,15 +1,13 @@
 // Push Notification Edge Function
+// SECURITY NOTE: Uses service-role client. No JWT auth — intended for
+// server-side invocation (cron jobs, triggers), not direct client calls.
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+import { CORS_HEADERS } from '../_shared/config.ts'
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: CORS_HEADERS })
   }
 
   try {
@@ -18,7 +16,7 @@ serve(async (req) => {
     if (!userId || !title) {
       return new Response(
         JSON.stringify({ error: 'userId and title are required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
       )
     }
 
@@ -39,7 +37,7 @@ serve(async (req) => {
       console.log('No push token for user:', userId)
       return new Response(
         JSON.stringify({ success: false, error: 'No push token found' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
       )
     }
 
@@ -72,14 +70,14 @@ serve(async (req) => {
 
     return new Response(
       JSON.stringify({ success: true, result: pushResult }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
     )
 
   } catch (error) {
     console.error('Error in send-push:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
     )
   }
 })

@@ -38,14 +38,12 @@ async function transcribeAudio(audioBase64: string): Promise<string> {
     bytes[i] = binaryString.charCodeAt(i)
   }
   
-  // Whisper API supports: flac, mp3, mp4, mpeg, mpga, m4a, ogg, wav, webm
-  // iOS expo-av records as CAF with AAC, but we send it as m4a which Whisper accepts
-  // The actual format is detected from the file content, not the extension
+  // Whisper API supports: flac, m4a, mp3, mp4, mpeg, mpga, oga, ogg, wav, webm
+  // iOS expo-av records as m4a/AAC; use .m4a extension so Whisper accepts it
   const audioBlob = new Blob([bytes], { type: 'audio/mp4' })
 
   const formData = new FormData()
-  // Use .caf extension as that's what iOS actually records
-  formData.append('file', audioBlob, 'audio.caf')
+  formData.append('file', audioBlob, 'audio.m4a')
   formData.append('model', 'whisper-1')
   // Don't force language - let Whisper auto-detect for better accuracy
   // formData.append('language', 'en')

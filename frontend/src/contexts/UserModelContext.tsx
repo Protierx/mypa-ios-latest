@@ -217,8 +217,8 @@ export function UserModelProvider({ children }: UserModelProviderProps) {
    * Includes retry logic for auth timing issues
    */
   const fetchUnlocks = useCallback(async (retryCount = 0): Promise<{ unlocks: UnlockStatus[]; stats: UserStats }> => {
-    const MAX_RETRIES = 2;
-    const RETRY_DELAY = 500; // ms
+    const MAX_RETRIES = 1;
+    const RETRY_DELAY = 1000; // ms
 
     try {
       const response = await supabaseApi.checkUnlocks();
@@ -232,13 +232,12 @@ export function UserModelProvider({ children }: UserModelProviderProps) {
         stats: response.stats,
       };
     } catch (err) {
-      // Retry on auth errors (Edge Function may not have received token yet)
       if (retryCount < MAX_RETRIES) {
-        console.log(`[UserModel] Retrying fetchUnlocks (attempt ${retryCount + 2}/${MAX_RETRIES + 1})...`);
         await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
         return fetchUnlocks(retryCount + 1);
       }
-      console.error('[UserModel] Failed to fetch unlocks after retries:', err);
+      // Log once at warn level — edge function may not be deployed yet
+      console.warn('[UserModel] calculate-unlocks unavailable, using defaults');
       return { unlocks: [], stats: DEFAULT_STATS };
     }
   }, []);
@@ -279,16 +278,24 @@ export function UserModelProvider({ children }: UserModelProviderProps) {
     }
   }, [fetchModel, fetchUnlocks]);
 
+  // Track whether initial load has run to prevent double-refresh
+  const hasInitialLoadRef = React.useRef(false);
+
   // Initial load
   useEffect(() => {
+    hasInitialLoadRef.current = true;
     refresh();
   }, [refresh]);
 
-  // Subscribe to auth changes
+  // Subscribe to auth changes — skip SIGNED_IN if initial load already ran
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_IN') {
-        // Small delay to ensure token is propagated to Edge Functions
+        if (hasInitialLoadRef.current) {
+          // Initial load already triggered refresh — skip this duplicate
+          hasInitialLoadRef.current = false;
+          return;
+        }
         setTimeout(() => refresh(), 300);
       } else if (event === 'SIGNED_OUT') {
         setModel(null);
