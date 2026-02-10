@@ -50,11 +50,15 @@ export function useCircles(): UseCirclesReturn {
 
       console.log('[useCircles] Fetching circles for user:', user.id.substring(0, 8));
 
-      // Get circles user is a member of
-      const { data: memberCircles, error: memberError } = await supabase
+      // Get circles user is a member of (with timeout)
+      const memberQuery = supabase
         .from('circle_members')
         .select('circle_id')
         .eq('user_id', user.id);
+      const memberTimeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Circles fetch timed out')), 8000)
+      );
+      const { data: memberCircles, error: memberError } = await Promise.race([memberQuery, memberTimeout]);
 
       if (memberError) {
         console.error('[useCircles] circle_members query error:', JSON.stringify(memberError));
@@ -141,26 +145,42 @@ export function useCircles(): UseCirclesReturn {
     try {
       console.log('[useCircles] Creating circle:', { name: circle.name, privacy: circle.privacy });
       
-      const { data, error } = await supabase
+      // Step 1: Insert without .select() to avoid PostgREST + RLS hang
+      const insertPayload = {
+        name: circle.name || 'New Circle',
+        emoji: circle.emoji || '👥',
+        description: circle.description || null,
+        owner_id: user.id,
+        privacy: circle.privacy || 'private',
+      };
+
+      const { error } = await supabase
         .from('circles')
-        .insert({
-          name: circle.name || 'New Circle',
-          emoji: circle.emoji || '👥',
-          description: circle.description || null,
-          owner_id: user.id,
-          privacy: circle.privacy || 'private',
-        })
-        .select()
-        .single();
+        .insert(insertPayload);
 
       if (error) {
         console.error('[useCircles] Insert circle error:', JSON.stringify(error));
         throw error;
       }
 
+      // Step 2: Fetch the just-created circle separately
+      const { data, error: fetchError } = await supabase
+        .from('circles')
+        .select()
+        .eq('owner_id', user.id)
+        .eq('name', insertPayload.name)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (fetchError || !data) {
+        console.error('[useCircles] Could not fetch created circle:', fetchError?.message);
+        throw new Error('Circle created but could not retrieve it');
+      }
+
       console.log('[useCircles] Circle created:', data.id, 'invite_code:', data.invite_code);
 
-      // Add creator as member
+      // Add creator as member (also without .select())
       const { error: memberError } = await supabase.from('circle_members').insert({
         circle_id: data.id,
         user_id: user.id,

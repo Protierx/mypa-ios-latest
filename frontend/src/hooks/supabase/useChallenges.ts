@@ -48,11 +48,15 @@ export function useChallenges(): UseChallengesReturn {
 
       console.log('[useChallenges] Fetching challenges for user:', user.id.substring(0, 8));
 
-      // Get challenges user is participating in
-      const { data: participations, error: partError } = await supabase
+      // Get challenges user is participating in (with timeout)
+      const partQuery = supabase
         .from('challenge_participants')
         .select('challenge_id, progress')
         .eq('user_id', user.id);
+      const partTimeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Challenges fetch timed out')), 8000)
+      );
+      const { data: participations, error: partError } = await Promise.race([partQuery, partTimeout]);
 
       if (partError) {
         console.error('[useChallenges] participations query error:', JSON.stringify(partError));

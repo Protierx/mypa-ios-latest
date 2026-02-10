@@ -15,6 +15,7 @@ import {
   Keyboard,
   TouchableWithoutFeedback,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
@@ -113,10 +114,12 @@ export function QuickAddTaskOverlay({ visible, onClose, onTaskCreated }: QuickAd
         onClose();
       } else {
         console.warn('[QuickAdd] Task creation returned null');
+        Alert.alert('Oops', 'Task could not be created. Please try again.');
       }
     } catch (err: any) {
       console.error('[QuickAdd] Unexpected error:', err?.message || err);
       setIsCreating(false);
+      Alert.alert('Error', err?.message || 'Something went wrong creating the task.');
     }
   }, [title, dueDate, priority, createTask, onTaskCreated, onClose]);
 

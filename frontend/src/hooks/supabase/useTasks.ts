@@ -93,13 +93,16 @@ export function useTasks(filter: TaskFilter = 'all'): UseTasksReturn {
           break;
       }
 
-      const { data, error: fetchError } = await query;
+      const timeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Tasks fetch timed out')), 8000)
+      );
+      const { data, error: fetchError } = await Promise.race([query, timeout]);
 
       if (fetchError) throw fetchError;
       setTasks(data || []);
       hasLoadedOnce.current = true;
-    } catch (err) {
-      console.error('Error fetching tasks:', err);
+    } catch (err: any) {
+      console.warn('[useTasks] Fetch issue:', err?.message || err);
       setError(err instanceof Error ? err : new Error('Failed to fetch tasks'));
     } finally {
       setLoading(false);
@@ -155,22 +158,49 @@ export function useTasks(filter: TaskFilter = 'all'): UseTasksReturn {
         status: 'pending',
         estimated_duration: task.estimated_duration || null,
       };
+
+      // Check auth state first
+      const { data: { session } } = await supabase.auth.getSession();
+      console.log('[useTasks] Auth session valid:', !!session?.access_token);
+
       console.log('[useTasks] Inserting task...');
 
-      const { data, error } = await supabase
+      // Step 1: Insert without .select() to avoid PostgREST + RLS hang
+      const { error: insertError } = await supabase
         .from('tasks')
-        .insert(insertPayload)
+        .insert(insertPayload);
+
+      console.log('[useTasks] Insert done, error:', insertError?.message || 'none');
+
+      if (insertError) throw insertError;
+
+      // Step 2: Fetch the just-created task separately
+      const { data, error: fetchError } = await supabase
+        .from('tasks')
         .select()
+        .eq('user_id', user.id)
+        .eq('title', insertPayload.title)
+        .order('created_at', { ascending: false })
+        .limit(1)
         .single();
 
-      console.log('[useTasks] Insert result:', { data: data?.id, error: error?.message });
+      console.log('[useTasks] Fetched created task:', data?.id || 'null', fetchError?.message || '');
 
-      if (error) throw error;
+      if (fetchError || !data) {
+        // Insert succeeded but fetch failed — still refresh the list
+        console.warn('[useTasks] Could not fetch created task, refreshing list');
+        fetchTasks();
+        return null;
+      }
 
       eventLogger.logTaskCreated(data.id, data.title, data.priority);
       return data;
     } catch (err: any) {
       console.error('[useTasks] Error creating task:', err?.message || err);
+      
+      // If it timed out, the insert may have actually succeeded on the server
+      // Refresh the task list to pick up any server-side changes
+      fetchTasks();
       return null;
     }
   };

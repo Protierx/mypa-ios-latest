@@ -96,14 +96,14 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
 
-    // Timeout: if auth check takes too long (e.g. no network, bad Supabase URL), show login
+    // Timeout: if auth check takes too long, stop loading but don't wipe session
+    // (onAuthStateChange may still deliver the session after this)
     const timeoutId = setTimeout(() => {
       if (cancelled) return;
-      console.warn('[Auth] Initial session check timed out – showing login');
+      console.warn('[Auth] Initial session check timed out – stopping spinner');
       setIsLoading(false);
-      setUser(null);
-      setSession(null);
-    }, 8000);
+      // Don't clear user/session here — onAuthStateChange may still fire
+    }, 12000);
 
     // Get initial session
     supabase.auth.getSession()
@@ -146,23 +146,28 @@ export function SupabaseAuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // Fetch profile from profiles table
+  // Fetch profile from profiles table (with timeout to prevent hang)
   async function fetchProfile(supabaseUser: SupabaseUser) {
     try {
-      const { data: profile, error } = await supabase
+      const profilePromise = supabase
         .from('profiles')
         .select('*')
         .eq('id', supabaseUser.id)
-        .single();
+        .maybeSingle();  // maybeSingle won't error on 0 rows
 
-      if (error && error.code !== 'PGRST116') {
-        // PGRST116 = no rows returned (profile doesn't exist yet)
-        console.error('Error fetching profile:', error);
+      const timeoutPromise = new Promise<{ data: null; error: { message: string } }>((resolve) =>
+        setTimeout(() => resolve({ data: null, error: { message: 'Profile fetch timed out' } }), 5000)
+      );
+
+      const { data: profile, error } = await Promise.race([profilePromise, timeoutPromise]);
+
+      if (error) {
+        console.warn('[Auth] Profile fetch issue:', error.message);
       }
 
       setUser(toAppUser(supabaseUser, profile));
     } catch (error) {
-      console.error('Error fetching profile:', error);
+      console.error('[Auth] Error fetching profile:', error);
       setUser(toAppUser(supabaseUser, null));
     } finally {
       setIsLoading(false);
