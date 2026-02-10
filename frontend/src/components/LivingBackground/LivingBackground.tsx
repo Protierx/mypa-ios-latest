@@ -39,7 +39,6 @@ interface LivingBackgroundProps {
   audioLevel: number; // 0-1
 }
 
-// Particle system
 interface Particle {
   x: number;
   y: number;
@@ -47,18 +46,29 @@ interface Particle {
   opacity: number;
   velocityX: number;
   velocityY: number;
+  color?: string;
 }
 
-const PARTICLE_COUNT = 60;
+// Spec: 60–80 particles, size 2–6px, opacity 20–60%; colors: white/pale, pale purple, pale cyan
+const PARTICLE_COUNT = 70;
+const PARTICLE_COLORS = [
+  'rgba(255, 255, 255, 0.4)',
+  'rgba(224, 224, 224, 0.35)',
+  'rgba(196, 181, 253, 0.4)',
+  'rgba(167, 139, 250, 0.35)',
+  'rgba(165, 243, 252, 0.3)',
+  'rgba(103, 232, 249, 0.35)',
+];
 
-function generateParticles(): Particle[] {
+function generateParticles(): (Particle & { color: string })[] {
   return Array.from({ length: PARTICLE_COUNT }, () => ({
     x: Math.random() * SCREEN_WIDTH,
     y: Math.random() * SCREEN_HEIGHT,
     size: 2 + Math.random() * 4,
-    opacity: 0.1 + Math.random() * 0.2,
+    opacity: 0.2 + Math.random() * 0.4,
     velocityX: (Math.random() - 0.5) * 0.3,
     velocityY: (Math.random() - 0.5) * 0.3,
+    color: PARTICLE_COLORS[Math.floor(Math.random() * PARTICLE_COLORS.length)],
   }));
 }
 
@@ -106,17 +116,18 @@ export function LivingBackground({ voiceState, audioLevel }: LivingBackgroundPro
     }
   }, [voiceState, audioLevel]);
 
-  // Dynamic colors based on state
+  // Spec Section 6.1: gradient mesh colors
   const getGradientColors = () => {
+    const base = ['#0A0A1A', '#1A1030', '#0D1B2A', '#12082A'];
     switch (voiceState) {
       case 'listening':
-        return ['#0a0a1a', '#1a1a3a', '#2a1a4a'];
+        return ['#0A0A1A', '#1A1A3A', '#1A1030', '#2A1A4A'];
       case 'processing':
-        return ['#0a0a1a', '#1a2a3a', '#2a3a4a'];
+        return ['#0A0A1A', '#1A2A3A', '#0D1B2A', '#2A3A4A'];
       case 'speaking':
-        return ['#0a0a1a', '#2a1a3a', '#3a2a4a'];
+        return ['#0A0A1A', '#2A1A3A', '#1A1030', '#3A2A4A'];
       default:
-        return ['#000000', '#0a0a1a', '#141428'];
+        return base;
     }
   };
 
@@ -135,59 +146,41 @@ export function LivingBackground({ voiceState, audioLevel }: LivingBackgroundPro
           />
         </Rect>
 
-        {/* Particles */}
+        {/* Particles — spec: 60–80, 2–6px, white/pale purple/pale cyan */}
         {particles.map((particle, index) => (
           <Circle
             key={index}
             cx={particle.x}
             cy={particle.y}
             r={particle.size}
-            color={`rgba(180, 160, 220, ${particle.opacity})`}
+            color={particle.color ?? `rgba(255,255,255,${particle.opacity})`}
           />
         ))}
 
-        {/* Outer glow - soft and diffuse */}
-        <Group>
-          <Circle cx={centerX} cy={centerY} r={180}>
-            <RadialGradient
-              c={vec(centerX, centerY)}
-              r={180}
-              colors={[
-                'rgba(124, 58, 237, 0.15)',
-                'rgba(124, 58, 237, 0.08)',
-                'rgba(124, 58, 237, 0.02)',
-                'transparent',
-              ]}
-            />
-          </Circle>
-        </Group>
-
-        {/* Middle glow */}
+        {/* Center focal glow — spec: idle 120px (scale), listening 200px; opacity idle 25–35%, listening 35–55% */}
         <Group>
           <Circle cx={centerX} cy={centerY} r={100}>
             <RadialGradient
               c={vec(centerX, centerY)}
               r={100}
               colors={[
-                'rgba(167, 139, 250, 0.25)',
-                'rgba(139, 92, 246, 0.15)',
+                'rgba(167, 139, 250, 0.35)',
+                'rgba(124, 58, 237, 0.2)',
                 'rgba(124, 58, 237, 0.05)',
                 'transparent',
               ]}
             />
           </Circle>
         </Group>
-
-        {/* Inner core glow */}
         <Group>
-          <Circle cx={centerX} cy={centerY} r={50}>
+          <Circle cx={centerX} cy={centerY} r={60}>
             <RadialGradient
               c={vec(centerX, centerY)}
-              r={50}
+              r={60}
               colors={[
-                'rgba(255, 255, 255, 0.4)',
-                'rgba(200, 180, 255, 0.25)',
-                'rgba(167, 139, 250, 0.1)',
+                'rgba(255, 255, 255, 0.3)',
+                'rgba(200, 180, 255, 0.2)',
+                'rgba(167, 139, 250, 0.08)',
                 'transparent',
               ]}
             />

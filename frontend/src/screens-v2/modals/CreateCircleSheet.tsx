@@ -180,16 +180,17 @@ export function CreateCircleSheet({ visible, onClose, onCircleCreated }: CreateC
           className="bg-zinc-900 rounded-t-3xl max-h-[90%]"
           style={containerStyle}
         >
-          <KeyboardAvoidingView 
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          >
-            {/* Handle */}
-            <View className="items-center py-3">
-              <View className="w-10 h-1 bg-zinc-700 rounded-full" />
-            </View>
+          <SafeAreaView edges={['bottom']}>
+            <KeyboardAvoidingView 
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            >
+              {/* Handle */}
+              <View className="items-center py-3">
+                <View className="w-10 h-1 bg-zinc-700 rounded-full" />
+              </View>
 
-            {/* Header */}
-            <View className="flex-row items-center justify-between px-5 pb-4 border-b border-zinc-800">
+              {/* Header */}
+              <View className="flex-row items-center justify-between px-5 pb-4 border-b border-zinc-800">
               {createdCircle ? (
                 <>
                   <View style={{ width: 50 }} />
@@ -369,7 +370,7 @@ export function CreateCircleSheet({ visible, onClose, onCircleCreated }: CreateC
               </View>
 
               {/* Info */}
-              <View className="py-4 mb-8">
+              <View className="py-4 mb-4">
                 <View className="flex-row items-start bg-zinc-800/50 p-3 rounded-lg">
                   <Ionicons name="information-circle-outline" size={20} color="#71717a" />
                   <Text className="text-zinc-500 text-sm ml-2 flex-1">
@@ -380,7 +381,8 @@ export function CreateCircleSheet({ visible, onClose, onCircleCreated }: CreateC
               </>
               )}
             </ScrollView>
-          </KeyboardAvoidingView>
+            </KeyboardAvoidingView>
+          </SafeAreaView>
         </Animated.View>
       </View>
     </Modal>

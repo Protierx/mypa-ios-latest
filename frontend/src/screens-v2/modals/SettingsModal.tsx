@@ -37,24 +37,24 @@ interface SettingRowProps {
   isDestructive?: boolean;
 }
 
-function SettingRow({ icon, iconColor = '#a1a1aa', title, subtitle, value, onPress, isDestructive }: SettingRowProps) {
+function SettingRow({ icon, iconColor = '#A1A1AA', title, subtitle, value, onPress, isDestructive }: SettingRowProps) {
   return (
     <TouchableOpacity
-      className="flex-row items-center py-4 px-5"
+      className="flex-row items-center h-14 py-4 px-5"
       onPress={onPress}
       disabled={!onPress}
       activeOpacity={onPress ? 0.7 : 1}
     >
-      <View className="w-8 h-8 rounded-lg bg-zinc-800 items-center justify-center mr-3">
-        <Ionicons name={icon as any} size={18} color={isDestructive ? '#ef4444' : iconColor} />
+      <View className="w-8 h-8 rounded-lg bg-surface-3 items-center justify-center mr-3">
+        <Ionicons name={icon as any} size={18} color={isDestructive ? '#EF4444' : iconColor} />
       </View>
       <View className="flex-1">
-        <Text className={`text-base ${isDestructive ? 'text-red-500' : 'text-white'}`}>{title}</Text>
-        {subtitle && <Text className="text-zinc-500 text-sm mt-0.5">{subtitle}</Text>}
+        <Text className={`text-body ${isDestructive ? 'text-error' : 'text-ink-primary'}`}>{title}</Text>
+        {subtitle && <Text className="text-subhead text-ink-tertiary mt-0.5">{subtitle}</Text>}
       </View>
       {value && <View>{value}</View>}
       {onPress && !value && (
-        <Ionicons name="chevron-forward" size={20} color="#52525b" />
+        <Ionicons name="chevron-forward" size={20} color="#52525B" />
       )}
     </TouchableOpacity>
   );
@@ -62,7 +62,7 @@ function SettingRow({ icon, iconColor = '#a1a1aa', title, subtitle, value, onPre
 
 function SectionHeader({ title }: { title: string }) {
   return (
-    <Text className="text-zinc-500 text-xs font-semibold uppercase px-5 pt-6 pb-2">
+    <Text className="text-caption-1 font-semibold text-ink-tertiary uppercase px-5 pt-6 pb-2">
       {title}
     </Text>
   );
@@ -145,7 +145,7 @@ export function SettingsModal({ visible, onClose }: SettingsModalProps) {
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <SafeAreaView className="flex-1 bg-black">
+      <SafeAreaView className="flex-1 bg-black" edges={['top', 'bottom']}>
         {/* Header */}
         <View className="flex-row items-center justify-between px-5 py-4 border-b border-zinc-800">
           <TouchableOpacity onPress={onClose} className="p-2 -ml-2">

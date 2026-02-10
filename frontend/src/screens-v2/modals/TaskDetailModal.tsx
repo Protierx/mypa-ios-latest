@@ -157,7 +157,7 @@ export function TaskDetailModal({ visible, task, onClose, onStartFocus }: TaskDe
       presentationStyle="pageSheet"
       onRequestClose={handleClose}
     >
-      <SafeAreaView className="flex-1 bg-black">
+      <SafeAreaView className="flex-1 bg-black" edges={['top', 'bottom']}>
         <KeyboardAvoidingView 
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           className="flex-1"

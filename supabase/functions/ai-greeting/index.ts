@@ -1,6 +1,9 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { MODEL_CONFIG, CORS_HEADERS } from '../_shared/config.ts'
+import { MODEL_CONFIG, CORS_HEADERS, withTimeout } from '../_shared/config.ts'
+
+// Timeout for greeting API calls (shorter since it's a simple generation)
+const OPENAI_TIMEOUT_MS = 10000
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -48,21 +51,31 @@ serve(async (req) => {
       }), { headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } })
     }
 
-    const res = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: MODEL_CONFIG.fast,
-        messages: [
-          { role: 'system', content: 'You are MYPA, a warm friendly productivity AI. Be brief and human.' },
-          { role: 'user', content: `Greet ${name}. Time: ${timeOfDay}. Tasks: ${taskCount || 0}. Done: ${completedToday || 0}. Streak: ${streak} days. 1-2 sentences max.` }
-        ],
-        max_tokens: 60, temperature: 0.9,
-      }),
-    })
+    let greeting = `Good ${timeOfDay}, ${name}!`
+    
+    try {
+      const res = await withTimeout(
+        fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${openaiKey}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: MODEL_CONFIG.fast,
+            messages: [
+              { role: 'system', content: 'You are MYPA, a warm friendly productivity AI. Be brief and human.' },
+              { role: 'user', content: `Greet ${name}. Time: ${timeOfDay}. Tasks: ${taskCount || 0}. Done: ${completedToday || 0}. Streak: ${streak} days. 1-2 sentences max.` }
+            ],
+            max_tokens: 60, temperature: 0.9,
+          }),
+        }),
+        OPENAI_TIMEOUT_MS,
+        'Greeting generation timed out'
+      )
 
-    const data = await res.json()
-    const greeting = data.choices?.[0]?.message?.content || `Good ${timeOfDay}, ${name}!`
+      const data = await res.json()
+      greeting = data.choices?.[0]?.message?.content || greeting
+    } catch (e) {
+      console.warn('[ai-greeting] OpenAI call failed/timed out, using fallback:', e)
+    }
 
     return new Response(JSON.stringify({ greeting, taskCount: taskCount || 0, completedToday: completedToday || 0, streak }),
       { headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } })

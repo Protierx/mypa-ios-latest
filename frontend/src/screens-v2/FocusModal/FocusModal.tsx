@@ -173,7 +173,7 @@ export function FocusModal({ onDismiss }: FocusModalProps = {}) {
 
   return (
     <View style={styles.container}>
-      <SafeAreaView style={styles.content}>
+      <SafeAreaView style={styles.content} edges={['top', 'bottom']}>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity

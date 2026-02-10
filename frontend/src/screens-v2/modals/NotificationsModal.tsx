@@ -160,7 +160,7 @@ export function NotificationsModal({ visible, onClose, onNotificationPress }: No
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <SafeAreaView className="flex-1 bg-black">
+      <SafeAreaView className="flex-1 bg-black" edges={['top', 'bottom']}>
         {/* Header */}
         <View className="flex-row items-center justify-between px-5 py-4 border-b border-zinc-800">
           <TouchableOpacity onPress={onClose} className="p-2 -ml-2">

@@ -230,7 +230,7 @@ export function CircleHomeModal({ visible, circleId, onClose, onOpenChallenge }:
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <SafeAreaView className="flex-1 bg-black">
+      <SafeAreaView className="flex-1 bg-black" edges={['top', 'bottom']}>
         {/* Header */}
         <View className="flex-row items-center justify-between px-5 py-4 border-b border-zinc-800">
           <TouchableOpacity onPress={onClose} className="p-2 -ml-2">

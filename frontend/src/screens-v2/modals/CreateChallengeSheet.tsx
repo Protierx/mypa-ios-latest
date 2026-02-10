@@ -18,6 +18,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import Animated, {
@@ -173,16 +174,17 @@ export function CreateChallengeSheet({ visible, onClose, circleId, onChallengeCr
           className="bg-zinc-900 rounded-t-3xl max-h-[90%]"
           style={containerStyle}
         >
-          <KeyboardAvoidingView 
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          >
-            {/* Handle */}
-            <View className="items-center py-3">
-              <View className="w-10 h-1 bg-zinc-700 rounded-full" />
-            </View>
+          <SafeAreaView edges={['bottom']}>
+            <KeyboardAvoidingView 
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            >
+              {/* Handle */}
+              <View className="items-center py-3">
+                <View className="w-10 h-1 bg-zinc-700 rounded-full" />
+              </View>
 
-            {/* Header */}
-            <View className="flex-row items-center justify-between px-5 pb-4 border-b border-zinc-800">
+              {/* Header */}
+              <View className="flex-row items-center justify-between px-5 pb-4 border-b border-zinc-800">
               <TouchableOpacity onPress={handleClose}>
                 <Text className="text-zinc-400">Cancel</Text>
               </TouchableOpacity>
@@ -329,7 +331,7 @@ export function CreateChallengeSheet({ visible, onClose, circleId, onChallengeCr
               </View>
 
               {/* Preview */}
-              <View className="py-4 mb-8">
+              <View className="py-4 mb-4">
                 <View className="bg-zinc-800/50 p-4 rounded-xl">
                   <Text className="text-zinc-400 text-xs mb-2">PREVIEW</Text>
                   <View className="flex-row items-center">
@@ -344,7 +346,8 @@ export function CreateChallengeSheet({ visible, onClose, circleId, onChallengeCr
                 </View>
               </View>
             </ScrollView>
-          </KeyboardAvoidingView>
+            </KeyboardAvoidingView>
+          </SafeAreaView>
         </Animated.View>
       </View>
     </Modal>

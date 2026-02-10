@@ -6,9 +6,34 @@
  * - CORS headers
  * - MYPA voice personality prompt
  * - Action Registry as OpenAI function-calling tool definitions (PRD 4.7)
+ * - Timeout utilities for API calls
  *
  * Rule 12: Model IDs live here, NOT hardcoded in client code.
  */
+
+// ============================================================================
+// Timeout Configuration & Utilities
+// ============================================================================
+
+/** Default timeout for OpenAI API calls (15 seconds) */
+export const OPENAI_TIMEOUT_MS = 15000;
+
+/** Timeout for TTS API calls (can be longer for audio generation) */
+export const TTS_TIMEOUT_MS = 15000;
+
+/**
+ * Wraps a promise with a timeout. Rejects if the promise doesn't resolve in time.
+ */
+export async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  errorMessage = 'Request timed out'
+): Promise<T> {
+  const timeout = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error(errorMessage)), timeoutMs)
+  );
+  return Promise.race([promise, timeout]);
+}
 
 // ============================================================================
 // Model Routing (capability-based)

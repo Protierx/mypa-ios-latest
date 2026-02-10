@@ -1,0 +1,47 @@
+---
+description: Step-by-step guide to implement PRD barge-in (tap during SPEAKING → LISTENING)
+globs: "**/VoiceContext.tsx" "**/AIHub/AIHubScreen.tsx"
+alwaysApply: false
+---
+
+# Barge-In Implementation Guide (Agent)
+
+Use this when implementing **PRD 4.1 barge-in**: tap during SPEAKING must stop TTS and transition to **LISTENING**, not IDLE.
+
+## 1. VoiceContext.tsx
+
+1. **Add `bargeIn` to the context type** (same block as `stopSpeaking`, `startListening`, etc.):
+   - `bargeIn: () => Promise<void>;`
+
+2. **Implement `bargeIn`:**
+   - `const bargeIn = useCallback(async () => { await stopPlayback(); await startListening(); }, [startListening]);`
+   - Do **not** call `setVoiceState('idle')` in between; `startListening()` will set `'listening'` after the recording starts.
+   - If `startListening` can throw (e.g. permission denied), in `bargeIn` catch and then `setVoiceState('idle')` and/or `setError(...)` so the UI does not stay stuck.
+
+3. **Expose in provider value:** Add `bargeIn` to the `value` object passed to `VoiceContext.Provider`.
+
+## 2. AIHubScreen.tsx — handleTap
+
+1. **When `voiceState === 'speaking'`:**
+   - If `isBriefingPlaying`: run existing briefing cleanup (clear progress timers, `markBriefingPlayed()`, `setIsBriefingPlaying(false)`). Then call `await voice.bargeIn()` (do **not** call `voice.stopSpeaking()` or `voice.startListening()` separately).
+   - If not briefing: call `await voice.bargeIn()` only.
+
+2. **When `voiceState === 'processing'`:** Keep current behavior: `voice.cancelListening(); voice.stopSpeaking();` → IDLE. Do **not** call `bargeIn()`.
+
+3. **Remove** the generic `else` that does `cancelListening(); stopSpeaking();` for both processing and speaking. Replace with explicit branches: `else if (voiceState === 'processing') { ... }` and `else if (voiceState === 'speaking') { ... bargeIn(); }`.
+
+## 3. Check VoiceFeedback / MiniVoiceButton
+
+If any other component (e.g. VoiceFeedback cancel button, or MiniVoiceButton) stops TTS when state is SPEAKING, decide whether that should also barge-in (go to LISTENING) or cancel (go to IDLE). For the main AI Hub tap target, use barge-in as above.
+
+## 4. Verify
+
+- Speaking → tap → LISTENING (orb/listening UI), then speak → new command runs.
+- Briefing playing → tap → LISTENING, briefing stopped.
+- Processing → tap → IDLE (unchanged).
+- Idle → tap → LISTENING; Listening → tap → PROCESSING. No regressions.
+
+## Reference
+
+- Full plan: `docs/planning/BARGE_IN_IMPLEMENTATION_PLAN.md`
+- PRD 4.1: “Barge-in: If user speaks [or taps] while MYPA is in SPEAKING state, immediately stop TTS playback and transition to LISTENING.”

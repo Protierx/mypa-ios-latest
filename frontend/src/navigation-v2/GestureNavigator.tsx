@@ -22,6 +22,7 @@ import * as Haptics from 'expo-haptics';
 
 import { useGestureNavigation, Screen } from './useGestureNavigation';
 import { GestureProvider } from './GestureContext';
+import { FocusModalProvider } from './FocusModalContext';
 import { SwipeIndicator } from './SwipeIndicator';
 
 // Import screens
@@ -63,7 +64,7 @@ function GestureNavigatorContent() {
   }, []);
 
   // Open focus modal as overlay
-  const openFocusModal = useCallback(() => {
+  const openFocusModal = useCallback((_taskId?: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     setShowFocusModal(true);
   }, []);
@@ -187,29 +188,23 @@ function GestureNavigatorContent() {
 
   return (
     <>
-      <GestureDetector gesture={panGesture}>
-        <View style={styles.container}>
-          <Animated.View style={[styles.screenContainer, animatedContainerStyle]}>
-            {/* Tasks View - LEFT */}
-            <View style={[styles.screen, styles.leftScreen]}>
-              <TasksViewScreen />
-            </View>
-            
-            {/* AI Hub - CENTER */}
-            <View style={[styles.screen, styles.centerScreen]}>
-              <AIHubScreen />
-            </View>
-            
-            {/* Social View - RIGHT */}
-            <View style={[styles.screen, styles.rightScreen]}>
-              <SocialViewScreen />
-            </View>
-            
-            {/* Profile View - DOWN (above center) */}
-            <View style={[styles.screen, styles.bottomScreen]}>
-              <ProfileViewScreen />
-            </View>
-          </Animated.View>
+      <FocusModalProvider openFocusModal={openFocusModal}>
+        <GestureDetector gesture={panGesture}>
+          <View style={styles.container}>
+            <Animated.View style={[styles.screenContainer, animatedContainerStyle]}>
+              <View style={[styles.screen, styles.leftScreen]}>
+                <TasksViewScreen />
+              </View>
+              <View style={[styles.screen, styles.centerScreen]}>
+                <AIHubScreen />
+              </View>
+              <View style={[styles.screen, styles.rightScreen]}>
+                <SocialViewScreen />
+              </View>
+              <View style={[styles.screen, styles.bottomScreen]}>
+                <ProfileViewScreen />
+              </View>
+            </Animated.View>
           
           {/* Swipe Indicators */}
           {currentScreen === 'ai_hub' && (
@@ -231,6 +226,7 @@ function GestureNavigatorContent() {
           )}
         </View>
       </GestureDetector>
+      </FocusModalProvider>
 
       {/* Focus Modal Overlay — outside GestureDetector to avoid single-child constraint */}
       <Modal

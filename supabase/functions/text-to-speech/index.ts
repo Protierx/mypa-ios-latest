@@ -1,5 +1,6 @@
 // Text-to-Speech Edge Function using OpenAI TTS
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import { TTS_TIMEOUT_MS, withTimeout } from '../_shared/config.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -33,21 +34,25 @@ serve(async (req) => {
     const validVoices = ['alloy', 'ash', 'coral', 'echo', 'fable', 'onyx', 'nova', 'sage', 'shimmer']
     const selectedVoice = validVoices.includes(voice) ? voice : 'ash'
 
-    // Call OpenAI TTS API
-    const response = await fetch('https://api.openai.com/v1/audio/speech', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openaiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'tts-1', // or 'tts-1-hd' for higher quality
-        input: text,
-        voice: selectedVoice,
-        speed: Math.max(0.25, Math.min(4.0, speed)),
-        response_format: 'mp3',
+    // Call OpenAI TTS API with timeout
+    const response = await withTimeout(
+      fetch('https://api.openai.com/v1/audio/speech', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openaiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'tts-1', // or 'tts-1-hd' for higher quality
+          input: text,
+          voice: selectedVoice,
+          speed: Math.max(0.25, Math.min(4.0, speed)),
+          response_format: 'mp3',
+        }),
       }),
-    })
+      TTS_TIMEOUT_MS,
+      'Text-to-speech generation timed out'
+    )
 
     if (!response.ok) {
       const error = await response.text()

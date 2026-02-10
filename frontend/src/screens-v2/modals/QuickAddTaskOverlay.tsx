@@ -17,6 +17,7 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -149,22 +150,23 @@ export function QuickAddTaskOverlay({ visible, onClose, onTaskCreated }: QuickAd
               className="bg-zinc-900 rounded-t-3xl border-t border-zinc-800"
               style={containerStyle}
             >
-              {/* Handle */}
-              <View className="items-center py-3">
-                <View className="w-10 h-1 bg-zinc-700 rounded-full" />
-              </View>
+              <SafeAreaView edges={['bottom']}>
+                {/* Handle */}
+                <View className="items-center py-3">
+                  <View className="w-10 h-1 bg-zinc-700 rounded-full" />
+                </View>
 
-              {/* Input */}
-              <View className="px-5 pb-4">
-                <TextInput
-                  ref={inputRef}
-                  value={title}
-                  onChangeText={setTitle}
-                  placeholder="What needs to be done?"
-                  placeholderTextColor="#71717a"
-                  className="text-white text-lg py-3"
-                  returnKeyType="done"
-                  onSubmitEditing={handleCreate}
+                {/* Input */}
+                <View className="px-5 pb-4">
+                  <TextInput
+                    ref={inputRef}
+                    value={title}
+                    onChangeText={setTitle}
+                    placeholder="What needs to be done?"
+                    placeholderTextColor="#71717a"
+                    className="text-white text-lg py-3"
+                    returnKeyType="done"
+                    onSubmitEditing={handleCreate}
                   autoCapitalize="sentences"
                 />
               </View>
@@ -224,7 +226,7 @@ export function QuickAddTaskOverlay({ visible, onClose, onTaskCreated }: QuickAd
               </View>
 
               {/* Add Button */}
-              <View className="px-5 pb-8">
+              <View className="px-5 pb-4">
                 <TouchableOpacity
                   className={`py-4 rounded-xl items-center ${
                     title.trim() ? 'bg-purple-600' : 'bg-zinc-800'
@@ -243,6 +245,7 @@ export function QuickAddTaskOverlay({ visible, onClose, onTaskCreated }: QuickAd
                   )}
                 </TouchableOpacity>
               </View>
+              </SafeAreaView>
             </Animated.View>
           </TouchableWithoutFeedback>
         </Animated.View>

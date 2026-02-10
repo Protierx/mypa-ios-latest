@@ -1,3 +1,29 @@
+/** MYPA Design Spec tokens for Skia/Reanimated/non-Tailwind code (mirrors tailwind.config.js) */
+export const specColors = {
+  background: '#000000',
+  surface1: '#0D0D0D',
+  surface2: '#161616',
+  surface3: '#1C1C1E',
+  surface4: '#2C2C2E',
+  brandPrimary: '#7C3AED',
+  brandSecondary: '#A78BFA',
+  brandTertiary: '#C4B5FD',
+  brandMuted: '#4C1D95',
+  textPrimary: '#FFFFFF',
+  textSecondary: '#A1A1AA',
+  textTertiary: '#71717A',
+  textDisabled: '#52525B',
+  success: '#22C55E',
+  warning: '#EAB308',
+  error: '#EF4444',
+  info: '#3B82F6',
+  /** Living Background gradient mesh (Section 6.1) */
+  spaceDeep: '#0A0A1A',
+  spaceViolet: '#1A1030',
+  spaceMidnight: '#0D1B2A',
+  spaceRich: '#12082A',
+};
+
 export const colors = {
   primary: '#B58CFF',
   primaryForeground: '#FFFFFF',

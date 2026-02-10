@@ -14,7 +14,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { MODEL_CONFIG, CORS_HEADERS } from '../_shared/config.ts'
+import { MODEL_CONFIG, CORS_HEADERS, OPENAI_TIMEOUT_MS, withTimeout } from '../_shared/config.ts'
 
 const corsHeaders = CORS_HEADERS
 
@@ -258,25 +258,29 @@ Challenge: ${challengeUpdate || 'none active'}
 `
 
       try {
-        const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${openaiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: MODEL_CONFIG.cached,
-            messages: [
-              { role: 'system', content: MYPA_BRIEF_PERSONALITY },
-              { 
-                role: 'user', 
-                content: `Generate a daily briefing for this context:\n${context}\n\nKeep it to 2-3 sentences, warm and natural.` 
-              }
-            ],
-            max_tokens: 150,
-            temperature: 0.8,
+        const openaiResponse = await withTimeout(
+          fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${openaiKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              model: MODEL_CONFIG.cached,
+              messages: [
+                { role: 'system', content: MYPA_BRIEF_PERSONALITY },
+                { 
+                  role: 'user', 
+                  content: `Generate a daily briefing for this context:\n${context}\n\nKeep it to 2-3 sentences, warm and natural.` 
+                }
+              ],
+              max_tokens: 150,
+              temperature: 0.8,
+            }),
           }),
-        })
+          OPENAI_TIMEOUT_MS,
+          'Briefing generation timed out'
+        )
 
         const aiData = await openaiResponse.json()
         briefText = aiData.choices?.[0]?.message?.content || ''

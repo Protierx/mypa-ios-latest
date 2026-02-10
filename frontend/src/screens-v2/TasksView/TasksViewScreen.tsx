@@ -27,6 +27,7 @@ import { SortedTask } from '../../services/aiTaskSorting';
 import { MiniVoiceButton } from '../../components/MiniVoiceButton';
 import { TaskDetailModal } from '../modals/TaskDetailModal';
 import { QuickAddTaskOverlay } from '../modals/QuickAddTaskOverlay';
+import { useFocusModal } from '../../navigation-v2/FocusModalContext';
 
 type FilterType = 'today' | 'tomorrow' | 'all';
 
@@ -42,8 +43,8 @@ export function TasksViewScreen() {
   const { tasks, sortedTasks, loading, error, refresh, updateTask, isAISortingActive } = useTasks(filter);
   const { isUnlocked, model } = useUserModel();
   const [refreshing, setRefreshing] = useState(false);
+  const { openFocusModal } = useFocusModal();
 
-  // Modal state
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [showTaskDetail, setShowTaskDetail] = useState(false);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
@@ -108,14 +109,16 @@ export function TasksViewScreen() {
   const renderTask = useCallback(({ item: task }: { item: Task | SortedTask }) => {
     const duration = getTaskDuration(task);
     const sortedTask = task as SortedTask;
+    const isOverdue = task.due_date ? new Date(task.due_date) < new Date() && task.status !== 'completed' : false;
     
     return (
       <TouchableOpacity
-        className="flex-row items-center bg-zinc-900 rounded-2xl p-4 mb-3 border border-zinc-800"
+        className={`flex-row items-center min-h-[72px] rounded-lg p-4 mb-3 bg-surface-2 ${
+          isOverdue ? 'border-l-[3px] border-error' : sortedTask.isOptimalTime ? 'border-l-[3px] border-brand-purple' : ''
+        }`}
         onPress={() => handleOpenTaskDetail(task)}
         activeOpacity={0.7}
       >
-        {/* Checkbox — tap to toggle completion */}
         <TouchableOpacity
           onPress={(e) => {
             e.stopPropagation();
@@ -125,66 +128,53 @@ export function TasksViewScreen() {
         >
           <View
             className={`w-6 h-6 rounded-full border-2 items-center justify-center mr-3 ${
-              task.status === 'completed'
-                ? 'bg-purple-600 border-purple-600'
-                : 'border-zinc-600'
+              task.status === 'completed' ? 'bg-success border-success' : 'border-ink-disabled'
             }`}
           >
             {task.status === 'completed' && (
-              <Ionicons name="checkmark" size={14} color="#fff" />
+              <Ionicons name="checkmark" size={14} color="#000" />
             )}
           </View>
         </TouchableOpacity>
 
-        {/* Task Content */}
         <View className="flex-1">
           <View className="flex-row items-center">
             <Text
-              className={`text-base font-medium flex-1 ${
-                task.status === 'completed' ? 'text-zinc-500 line-through' : 'text-white'
+              className={`text-body font-medium flex-1 ${
+                task.status === 'completed' ? 'text-ink-tertiary line-through' : 'text-ink-primary'
               }`}
             >
               {task.title}
             </Text>
-            
-            {/* AI Optimal Time Indicator */}
             {sortedTask.isOptimalTime && (
-              <View className="bg-purple-900/50 px-2 py-0.5 rounded-full ml-2">
-                <Text className="text-purple-400 text-xs">⚡ Now</Text>
+              <View className="bg-surface-4 px-2 py-0.5 rounded-sm ml-2">
+                <Text className="text-caption-1 text-brand-secondary">⚡ Now</Text>
               </View>
             )}
           </View>
-          
-          {/* Meta info */}
           <View className="flex-row items-center mt-1 gap-3">
             {duration && (
               <View className="flex-row items-center">
-                <Ionicons name="time-outline" size={12} color="#71717a" />
-                <Text className="text-zinc-500 text-xs ml-1">
-                  {duration}
-                </Text>
+                <Ionicons name="time-outline" size={12} color="#71717A" />
+                <Text className="text-subhead text-ink-tertiary ml-1">{duration}</Text>
               </View>
             )}
-            
             {task.due_date && (
               <View className="flex-row items-center">
-                <Ionicons name="calendar-outline" size={12} color="#71717a" />
-                <Text className="text-zinc-500 text-xs ml-1">
+                <Ionicons name="calendar-outline" size={12} color="#71717A" />
+                <Text className={`text-subhead ml-1 ${isOverdue ? 'text-error' : 'text-ink-tertiary'}`}>
                   {formatDueDate(task.due_date)}
                 </Text>
               </View>
             )}
-            
-            {/* AI Sort Reason (subtle indicator) */}
             {sortedTask.sortReason && isAISortingActive && (
               <View className="flex-row items-center">
-                <Ionicons name="sparkles-outline" size={12} color="#a855f7" />
+                <Ionicons name="sparkles-outline" size={12} color="#A78BFA" />
               </View>
             )}
           </View>
         </View>
 
-        {/* Priority Indicator */}
         <View
           className="w-2 h-2 rounded-full"
           style={{ backgroundColor: PRIORITY_COLORS[task.priority] }}
@@ -199,35 +189,27 @@ export function TasksViewScreen() {
 
   return (
     <View className="flex-1 bg-black">
-      <SafeAreaView className="flex-1" edges={['top']}>
-        {/* Header */}
+      <SafeAreaView className="flex-1" edges={['top', 'bottom']}>
         <View className="px-5 pt-4 pb-3">
           <View className="flex-row items-center justify-between">
-            <Text className="text-white text-3xl font-bold">Tasks</Text>
+            <Text className="text-title-1 font-bold text-ink-primary">Tasks</Text>
             {isAISortingActive && (
-              <View className="bg-purple-900/30 px-3 py-1 rounded-full flex-row items-center">
-                <Ionicons name="sparkles" size={14} color="#a855f7" />
-                <Text className="text-purple-400 text-xs ml-1">AI Sorted</Text>
+              <View className="bg-brand-purple/30 px-3 py-1 rounded-full flex-row items-center">
+                <Ionicons name="sparkles" size={14} color="#A78BFA" />
+                <Text className="text-caption-1 text-brand-secondary ml-1">AI Sorted</Text>
               </View>
             )}
           </View>
         </View>
 
-        {/* Filter Tabs */}
         <View className="flex-row px-5 mb-4">
           {(['today', 'tomorrow', 'all'] as FilterType[]).map((f) => (
             <TouchableOpacity
               key={f}
-              className={`py-2 px-4 rounded-full mr-2 ${
-                filter === f ? 'bg-purple-600' : 'bg-zinc-800'
-              }`}
+              className={`py-2 px-4 rounded-full mr-2 ${filter === f ? 'bg-brand-purple' : 'bg-surface-3'}`}
               onPress={() => setFilter(f)}
             >
-              <Text
-                className={`text-sm font-medium capitalize ${
-                  filter === f ? 'text-white' : 'text-zinc-400'
-                }`}
-              >
+              <Text className={`text-headline font-semibold capitalize ${filter === f ? 'text-ink-primary' : 'text-ink-tertiary'}`}>
                 {f}
               </Text>
             </TouchableOpacity>
@@ -237,7 +219,7 @@ export function TasksViewScreen() {
         {/* Task List */}
         {loading && !refreshing ? (
           <View className="flex-1 items-center justify-center">
-            <ActivityIndicator color="#a855f7" size="large" />
+            <ActivityIndicator color="#7C3AED" size="large" />
           </View>
         ) : (
           <FlatList
@@ -246,17 +228,13 @@ export function TasksViewScreen() {
             renderItem={renderTask}
             contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 100 }}
             refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={handleRefresh}
-                tintColor="#a855f7"
-              />
+              <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#7C3AED" />
             }
             ListEmptyComponent={
               <View className="items-center justify-center py-20">
-                <Ionicons name="checkbox-outline" size={48} color="#3f3f46" />
-                <Text className="text-zinc-500 text-lg mt-4">No tasks</Text>
-                <Text className="text-zinc-600 text-sm mt-1">
+                <Ionicons name="checkbox-outline" size={48} color="#52525B" />
+                <Text className="text-body text-ink-tertiary mt-4">No tasks</Text>
+                <Text className="text-footnote text-ink-disabled mt-1">
                   {filter === 'today' ? "You're all caught up!" : 'No tasks scheduled'}
                 </Text>
               </View>
@@ -264,21 +242,17 @@ export function TasksViewScreen() {
             ListFooterComponent={
               completedTasks.length > 0 ? (
                 <View className="mt-6">
-                  <Text className="text-zinc-500 text-sm font-medium mb-3">
-                    Completed ({completedTasks.length})
-                  </Text>
+                  <Text className="text-subhead font-medium text-ink-tertiary mb-3">Completed ({completedTasks.length})</Text>
                   {completedTasks.map((task) => (
                     <TouchableOpacity
                       key={task.id}
-                      className="flex-row items-center bg-zinc-900/50 rounded-2xl p-4 mb-2 border border-zinc-800/50"
+                      className="flex-row items-center bg-surface-2/80 rounded-lg p-4 mb-2 border border-surface-4"
                       onPress={() => handleToggleComplete(task)}
                     >
-                      <View className="w-6 h-6 rounded-full bg-purple-600/50 border-2 border-purple-600/50 items-center justify-center mr-3">
-                        <Ionicons name="checkmark" size={14} color="#a855f7" />
+                      <View className="w-6 h-6 rounded-full bg-success/80 border-2 border-success/80 items-center justify-center mr-3">
+                        <Ionicons name="checkmark" size={14} color="#7C3AED" />
                       </View>
-                      <Text className="text-zinc-500 line-through flex-1">
-                        {task.title}
-                      </Text>
+                      <Text className="text-body line-through text-ink-tertiary flex-1">{task.title}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -287,12 +261,11 @@ export function TasksViewScreen() {
           />
         )}
 
-        {/* Add Task Button */}
         <TouchableOpacity
-          className="absolute bottom-8 right-5 w-14 h-14 bg-purple-600 rounded-full items-center justify-center shadow-lg"
+          className="absolute bottom-8 right-5 w-14 h-14 bg-brand-purple rounded-full items-center justify-center shadow-lg"
           onPress={handleOpenQuickAdd}
         >
-          <Ionicons name="add" size={28} color="#fff" />
+          <Ionicons name="add" size={28} color="#FFFFFF" />
         </TouchableOpacity>
 
         {/* Mini Voice Button */}
@@ -304,6 +277,11 @@ export function TasksViewScreen() {
         visible={showTaskDetail}
         task={selectedTask}
         onClose={handleCloseTaskDetail}
+        onStartFocus={(taskId) => {
+          setShowTaskDetail(false);
+          setSelectedTask(null);
+          openFocusModal(taskId);
+        }}
       />
 
       {/* Quick Add Task Overlay */}

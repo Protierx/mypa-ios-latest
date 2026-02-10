@@ -9,6 +9,7 @@
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
 import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
+import * as FileSystem from 'expo-file-system/legacy';
 import { supabase } from '../lib/supabase';
 import { eventLogger } from '../services/eventLogger';
 import {
@@ -36,6 +37,8 @@ interface VoiceContextType {
   cancelListening: () => void;
   speak: (text: string) => Promise<void>;
   stopSpeaking: () => void;
+  /** PRD 4.1 barge-in: stop TTS and transition to LISTENING (not IDLE) */
+  bargeIn: () => Promise<void>;
   confirmAction: () => Promise<void>;
   cancelAction: () => void;
   
@@ -206,20 +209,20 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
         throw new Error('No recording URI');
       }
 
-      // Read the audio file
-      const response = await fetch(uri);
-      const blob = await response.blob();
-      
-      // Convert to base64
-      const reader = new FileReader();
-      const base64Audio = await new Promise<string>((resolve, reject) => {
-        reader.onloadend = () => {
-          const base64 = (reader.result as string).split(',')[1];
-          resolve(base64);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
+      console.log('[Voice] Recording URI:', uri);
+
+      // Read the audio file as base64 directly (more reliable on iOS)
+      const base64Audio = await FileSystem.readAsStringAsync(uri, {
+        encoding: 'base64',
       });
+      console.log('[Voice] Audio base64 length:', base64Audio.length);
+      
+      // Clean up the temp recording file
+      try {
+        await FileSystem.deleteAsync(uri, { idempotent: true });
+      } catch {
+        // Ignore cleanup errors
+      }
 
       // ── Confirmation flow: if awaiting confirmation, treat as yes/no ──
       if (awaitingConfirmation && pendingAction) {
@@ -301,7 +304,7 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
       }
 
       // ── Normal flow: send to voice-command Edge Function ──────────
-      // Add a 25-second timeout to prevent infinite "thinking" state
+      // Add a 30-second timeout to prevent infinite "thinking" state
       const edgeFnPromise = supabase.functions.invoke('voice-command', {
         body: { 
           audio: base64Audio,
@@ -309,7 +312,7 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
         }
       });
       const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Voice processing timed out. Please try again.')), 25000)
+        setTimeout(() => reject(new Error('Voice processing timed out. Please try again.')), 30000)
       );
 
       const { data, error: transcribeError } = await Promise.race([edgeFnPromise, timeoutPromise]);
@@ -504,11 +507,17 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
 
       if (ttsError || !data?.audio) {
         console.log('[TTS] Falling back to device speech');
-        // Fallback to expo-speech if TTS fails
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: false,
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: false,
+          shouldDuckAndroid: true,
+        });
         const Speech = await import('expo-speech');
         await new Promise<void>((resolve) => {
           Speech.speak(text, {
             rate: voiceSpeed,
+            language: 'en-US',
             onDone: () => {
               console.log('[TTS] Device speech done');
               resolve();
@@ -523,12 +532,15 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
         return;
       }
 
-      // Play base64 audio via data URI
-      const audioUri = 'data:audio/mpeg;base64,' + data.audio;
-      console.log('[TTS] Audio received, length:', data.audio.length, 'chars. Playing...');
+      const tempAudioPath = (FileSystem.cacheDirectory || '') + 'tts_audio_' + Date.now() + '.mp3';
+      await FileSystem.writeAsStringAsync(tempAudioPath, data.audio, {
+        encoding: FileSystem.EncodingType?.Base64 ?? 'base64',
+      });
+      const uri = tempAudioPath.startsWith('file://') ? tempAudioPath : 'file://' + tempAudioPath;
+      console.log('[TTS] Playing from file, uri length:', uri.length);
 
       const { sound } = await Audio.Sound.createAsync(
-        { uri: audioUri },
+        { uri },
         { shouldPlay: true }
       );
       
@@ -549,19 +561,37 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
       });
 
       await stopPlayback();
-
+      
+      // Clean up temp audio file
+      try {
+        await FileSystem.deleteAsync(tempAudioPath, { idempotent: true });
+      } catch {
+        // Ignore cleanup errors
+      }
       
     } catch (err) {
       console.error('[TTS] Error:', err);
-      // Last resort fallback to device speech
       try {
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: false,
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: false,
+          shouldDuckAndroid: true,
+        });
         const Speech = await import('expo-speech');
-        Speech.speak(text, { rate: voiceSpeed });
-      } catch {
-        // Give up
+        await new Promise<void>((resolve) => {
+          Speech.speak(text, {
+            rate: voiceSpeed,
+            language: 'en-US',
+            onDone: resolve,
+            onError: () => resolve(),
+          });
+        });
+      } catch (fallbackErr) {
+        console.error('[TTS] Fallback speech failed:', fallbackErr);
       }
     }
-    
+
     setVoiceState('idle');
   }, [isVoiceEnabled, selectedVoice, voiceSpeed]);
 
@@ -569,6 +599,17 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
     stopPlayback();
     setVoiceState('idle');
   }, []);
+
+  const bargeIn = useCallback(async () => {
+    await stopPlayback();
+    try {
+      await startListening();
+    } catch (err) {
+      console.error('[Voice] Barge-in startListening failed:', err);
+      setVoiceState('idle');
+      setError('Failed to start listening');
+    }
+  }, [startListening]);
 
   const value: VoiceContextType = {
     voiceState,
@@ -584,6 +625,7 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
     cancelListening,
     speak,
     stopSpeaking,
+    bargeIn,
     confirmAction,
     cancelAction,
     setVoiceEnabled,

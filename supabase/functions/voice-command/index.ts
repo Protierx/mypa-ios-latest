@@ -18,40 +18,56 @@ import {
   CORS_HEADERS,
   CONFIRMATION_REQUIRED_ACTIONS,
   QUERY_ACTIONS,
+  OPENAI_TIMEOUT_MS,
+  withTimeout,
 } from '../_shared/config.ts'
 
 // ============================================================================
-// Whisper STT (unchanged from original)
+// Whisper STT
 // ============================================================================
 
 async function transcribeAudio(audioBase64: string): Promise<string> {
   const openaiKey = Deno.env.get('OPENAI_API_KEY')
   if (!openaiKey) throw new Error('OpenAI API key not configured')
 
+  console.log('[voice-command] Transcribing audio, base64 length:', audioBase64.length)
+
   const binaryString = atob(audioBase64)
   const bytes = new Uint8Array(binaryString.length)
   for (let i = 0; i < binaryString.length; i++) {
     bytes[i] = binaryString.charCodeAt(i)
   }
-  const audioBlob = new Blob([bytes], { type: 'audio/m4a' })
+  
+  // Whisper API supports: flac, mp3, mp4, mpeg, mpga, m4a, ogg, wav, webm
+  // iOS expo-av records as CAF with AAC, but we send it as m4a which Whisper accepts
+  // The actual format is detected from the file content, not the extension
+  const audioBlob = new Blob([bytes], { type: 'audio/mp4' })
 
   const formData = new FormData()
-  formData.append('file', audioBlob, 'audio.m4a')
+  // Use .caf extension as that's what iOS actually records
+  formData.append('file', audioBlob, 'audio.caf')
   formData.append('model', 'whisper-1')
-  formData.append('language', 'en')
+  // Don't force language - let Whisper auto-detect for better accuracy
+  // formData.append('language', 'en')
 
-  const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${openaiKey}` },
-    body: formData,
-  })
+  const response = await withTimeout(
+    fetch('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${openaiKey}` },
+      body: formData,
+    }),
+    OPENAI_TIMEOUT_MS,
+    'Speech transcription timed out'
+  )
 
   if (!response.ok) {
     const error = await response.text()
+    console.error('[voice-command] Whisper error:', error)
     throw new Error(`Whisper API error: ${error}`)
   }
 
   const result = await response.json()
+  console.log('[voice-command] Transcription result:', result.text?.substring(0, 100) || '(empty)')
   return result.text || ''
 }
 
@@ -297,14 +313,18 @@ serve(async (req) => {
       max_tokens: 300,
     }
 
-    const gptResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openaiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(gptRequestBody),
-    })
+    const gptResponse = await withTimeout(
+      fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openaiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(gptRequestBody),
+      }),
+      OPENAI_TIMEOUT_MS,
+      'AI processing timed out'
+    )
 
     if (!gptResponse.ok) {
       const errText = await gptResponse.text()
@@ -369,40 +389,49 @@ serve(async (req) => {
 
       // For mutations, generate a natural response but do NOT execute
       // The client ActionExecutor will handle execution (rule 8)
-      const responseGeneration = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${openaiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: MODEL_CONFIG.fast,
-          messages: [
-            { role: 'system', content: MYPA_SYSTEM_PROMPT },
-            { role: 'user', content: transcript },
-            {
-              role: 'assistant',
-              content: null,
-              tool_calls: [{ id: toolCall.id, type: 'function', function: toolCall.function }],
+      // Use a shorter timeout for response generation since it's optional
+      try {
+        const responseGeneration = await withTimeout(
+          fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${openaiKey}`,
+              'Content-Type': 'application/json',
             },
-            {
-              role: 'tool',
-              tool_call_id: toolCall.id,
-              content: confirmationRequired
-                ? JSON.stringify({ status: 'awaiting_confirmation', action: actionName, params: actionParams })
-                : JSON.stringify({ status: 'success', action: actionName, params: actionParams }),
-            },
-          ],
-          max_tokens: 150,
-        }),
-      })
+            body: JSON.stringify({
+              model: MODEL_CONFIG.fast,
+              messages: [
+                { role: 'system', content: MYPA_SYSTEM_PROMPT },
+                { role: 'user', content: transcript },
+                {
+                  role: 'assistant',
+                  content: null,
+                  tool_calls: [{ id: toolCall.id, type: 'function', function: toolCall.function }],
+                },
+                {
+                  role: 'tool',
+                  tool_call_id: toolCall.id,
+                  content: confirmationRequired
+                    ? JSON.stringify({ status: 'awaiting_confirmation', action: actionName, params: actionParams })
+                    : JSON.stringify({ status: 'success', action: actionName, params: actionParams }),
+                },
+              ],
+              max_tokens: 150,
+            }),
+          }),
+          10000, // 10 second timeout for response generation
+          'Response generation timed out'
+        )
 
-      if (responseGeneration.ok) {
-        const respData = await responseGeneration.json()
-        responseText = respData.choices?.[0]?.message?.content || ''
-        const respUsage = respData.usage || {}
-        // Add response generation tokens to total
-        tokensUsed += (respUsage.prompt_tokens || 0) + (respUsage.completion_tokens || 0)
+        if (responseGeneration.ok) {
+          const respData = await responseGeneration.json()
+          responseText = respData.choices?.[0]?.message?.content || ''
+          const respUsage = respData.usage || {}
+          // Add response generation tokens to total
+          tokensUsed += (respUsage.prompt_tokens || 0) + (respUsage.completion_tokens || 0)
+        }
+      } catch (genErr) {
+        console.warn('[voice-command] Response generation failed/timed out, using fallback:', genErr)
       }
 
       // Fallback response if generation failed

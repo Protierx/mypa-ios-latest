@@ -75,8 +75,10 @@ export function useDailyBriefing(userId: string | undefined): UseDailyBriefingRe
 
   const fetchBriefing = useCallback(async () => {
     const uid = userIdRef.current;
-    if (!uid || briefingPlayedRef.current || isFetchingRef.current) return;
+    if (!uid || briefingPlayedRef.current || isFetchingRef.current || hasCheckedRef.current) return;
 
+    // Mark as checked immediately to prevent double-invocation (React StrictMode)
+    hasCheckedRef.current = true;
     isFetchingRef.current = true;
     setState(prev => ({ ...prev, isLoading: true, error: null }));
 
@@ -167,7 +169,6 @@ export function useDailyBriefing(userId: string | undefined): UseDailyBriefingRe
         error: message,
       });
     } finally {
-      hasCheckedRef.current = true;
       clearTimeout(timeoutId);
       isFetchingRef.current = false;
     }
