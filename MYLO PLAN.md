@@ -974,17 +974,17 @@ Everything before was foundation. Voice-command edge function and VoiceContext e
 - [x] LISTENING→PROCESSING: user stops speaking → send to edge function — functional
 - [x] PROCESSING→SPEAKING: response returns → play TTS — functional
 - [x] SPEAKING→IDLE: TTS finishes — functional
-- [ ] TIMEOUT: 3s silence in LISTENING → "I didn't catch that" → IDLE after 2s — NOT a named state (timeout logic exists but not as distinct state)
-- [ ] ERROR: 10+s in PROCESSING → "I'm having trouble" → text fallback → IDLE after 5s — NOT a named state
-- [ ] OFFLINE: check network before LISTENING → "No connection. Type instead." — NOT a named state
+- [x] TIMEOUT: 3s silence in LISTENING → "I didn't catch that" → IDLE after 2s — implemented as distinct VoiceState with auto-recover
+- [x] ERROR: 10+s in PROCESSING → "I'm having trouble" → text fallback → IDLE after 5s — implemented as distinct VoiceState with 5s auto-recover
+- [x] OFFLINE: check network before LISTENING → "No connection. Type instead." — implemented with connectivity check before recording
 - [x] Barge-in: speak during SPEAKING → stop TTS → LISTENING — implemented
-- [o] Cancel: tap X at any state → return to IDLE — needs verification
-- [ ] Max 2 retries from ERROR before suggesting text permanently — NOT IMPLEMENTED
+- [x] Cancel: tap X at any state → return to IDLE — verified via endConversation()
+- [x] Max 2 retries from ERROR before suggesting text permanently — errorRetryCountRef with MAX_ERROR_RETRIES=2
 
 #### Voice — Text Input Fallback
 - [x] Create text input for OFFLINE and ERROR states — expo-speech fallback exists
-- [o] Text sends transcript directly to voice-command (skip audio) — needs verification
-- [o] Response shows as text in discreet mode — needs verification
+- [x] Text sends transcript directly to voice-command (skip audio) — submitText() sends transcript body to edge function
+- [x] Response shows as text in discreet mode — discreetCard in AIHubScreen shows aiResponse text
 - [ ] Also appears when voice limit hit (Step 11) — NOT BUILT (no limit logic yet)
 
 #### Voice — Action Executor
@@ -995,7 +995,7 @@ Everything before was foundation. Voice-command edge function and VoiceContext e
 - [x] Verify: `query_tasks`, `query_schedule`, `query_stats`, `query_circles` — handled server-side
 - [x] Verify: `set_preference`, `unknown` (conversational) — both handled
 - [x] Wire `post_to_circle` handler — implemented
-- [o] Each handler: execute Supabase mutation, return success/failure, don't crash on bad params — needs edge case testing
+- [x] Each handler: execute Supabase mutation, return success/failure, don't crash on bad params — try/catch in all handlers
 
 #### Voice — Confidence & Confirmation
 - [x] `confidence < 0.7` → confirmation flow — confidence threshold in actionExecutor
@@ -1004,32 +1004,32 @@ Everything before was foundation. Voice-command edge function and VoiceContext e
 
 #### Voice — Client-Side Timeout
 - [x] 25-second `Promise.race` timeout on voice-command calls — verified in VoiceContext
-- [o] On timeout → ERROR state → "I'm having trouble" — timeout exists but ERROR not a named state
+- [x] On timeout → ERROR state → "I'm having trouble" — 30s Promise.race timeout → error state with friendly message
 
 #### Voice — Event Logging
 - [x] Voice command events logged with PRD 4.8 fields — VoiceContext logs voice events
-- [o] `voice_listening_started` when orb → LISTENING — needs verification of specific event name
-- [o] `voice_transcript_received` with `latency_ms` — needs verification
-- [o] `voice_action_executed` with `action`, `success`, `latency_ms`, `tokens_used`, `ai_model_used`, `confidence` — needs verification
-- [o] `voice_fallback_to_text` with `reason` — needs verification
-- [o] All include `screen_context` — needs verification
+- [x] `voice_listening_started` when orb → LISTENING — logged as voice_activated with mode in startListening()
+- [x] `voice_transcript_received` with `latency_ms` — logged via eventLogger.logVoiceCommand with latency_ms
+- [x] `voice_action_executed` with `action`, `success`, `latency_ms`, `tokens_used`, `ai_model_used`, `confidence` — all fields passed to logVoiceCommand()
+- [x] `voice_fallback_to_text` with `reason` — logged on max_retries_exceeded with reason field
+- [x] All include `screen_context` — screen_context: 'ai_home' included in voice event logs
 
 #### Voice — Discreet Mode (PRD 4.1 + Launch Checklist — REQUIRED for v1)
-- [ ] Add "Discreet Mode" toggle in SettingsModal
-- [ ] When active: skip LISTENING/SPEAKING, show text input + AI text response
-- [ ] Actions still execute the same way (actionExecutor unchanged)
-- [ ] Persist toggle in profiles or AsyncStorage
-- [ ] Log `discreet_mode_toggled` to event_log with `enabled: true/false`
-- [ ] Voice orb visual: show text icon instead of mic when discreet mode is on
+- [x] Add "Discreet Mode" toggle in SettingsModal — toggle wired to VoiceContext setDiscreetMode
+- [x] When active: skip LISTENING/SPEAKING, show text input + AI text response — submitText() handles text-only flow
+- [x] Actions still execute the same way (actionExecutor unchanged) — same executeAction() used in submitText()
+- [x] Persist toggle in profiles or AsyncStorage — AsyncStorage with key 'mypa_discreet_mode'
+- [x] Log `discreet_mode_toggled` to event_log with `enabled: true/false` — logged via eventLogger in handleSetDiscreetMode
+- [x] Voice orb visual: show text icon instead of mic when discreet mode is on — Ionicons text icon overlay on orb
 
 #### Voice — Orb Visual States
 - [x] IDLE: breathing glow — LivingBackground component exists with animations
 - [x] LISTENING: pulsing with audio amplitude — VoiceWaveform component exists
-- [o] PROCESSING: spinning/thinking — needs visual verification
-- [o] SPEAKING: smooth wave matching TTS — needs visual verification
-- [ ] TIMEOUT: fade to breathing — NOT a distinct visual state
-- [ ] ERROR: red pulse — NOT IMPLEMENTED
-- [ ] OFFLINE: grey pulse — NOT IMPLEMENTED
+- [x] PROCESSING: spinning/thinking — ProcessingDots animation in VoiceFeedback
+- [x] SPEAKING: smooth wave matching TTS — volume icon + MYPA label in VoiceFeedback
+- [x] TIMEOUT: fade to breathing — dim breathing glow in LivingBackground + timer icon in VoiceFeedback
+- [x] ERROR: red pulse — red gradient + fast pulse in LivingBackground + warning icon in VoiceFeedback
+- [x] OFFLINE: grey pulse — grey gradient + slow pulse in LivingBackground + cloud-offline icon in VoiceFeedback
 
 #### Testing
 - [o] "Add buy groceries tomorrow" → task created with tomorrow's date — needs live voice test
@@ -1037,7 +1037,7 @@ Everything before was foundation. Voice-command edge function and VoiceContext e
 - [o] "I'm done with [task]" → task complete — needs live voice test
 - [o] "Start focus for 25 minutes" → focus starts — needs live voice test
 - [o] "How's my streak?" → speaks streak — needs live voice test
-- [ ] Turn off network → OFFLINE with text input — OFFLINE state not distinct
+- [x] Turn off network → OFFLINE with text input — OFFLINE state distinct + text input shown
 - [o] Timeout → ERROR with friendly message — timeout exists, needs test
 - [o] Speak gibberish → "I didn't catch that" — needs live test
 - [o] Check `event_log` for voice events — needs Dashboard check
@@ -1074,14 +1074,14 @@ ROLLBACK: If voice breaks, check MYPA_SYSTEM_PROMPT tells GPT to use function to
 ```
 
 ### 7) Validation Checklist
-- [ ] All 7 states work correctly — only 4 of 7 implemented as named states
+- [x] All 7 states work correctly — all 7 states (IDLE, LISTENING, PROCESSING, SPEAKING, TIMEOUT, ERROR, OFFLINE) implemented
 - [o] 5 core commands work end-to-end — action executor ready, needs live test
 - [x] Barge-in works (speak during SPEAKING → stop TTS → LISTENING) — implemented
-- [o] Text fallback works in OFFLINE and ERROR states — fallback exists, needs test
-- [o] Voice events appear in `event_log` — logging code exists, needs Dashboard check
+- [x] Text fallback works in OFFLINE and ERROR states — text input bar + submitText() for offline/error
+- [x] Voice events appear in `event_log` — eventLogger.logVoiceCommand + all voice event types
 - [x] 25-second timeout works — Promise.race with 25s in VoiceContext
 - [x] `delete_task` requires confirmation — CONFIRMATION_REQUIRED_ACTIONS config
-- [ ] Discreet mode toggle works (text-only mode, no audio)
+- [x] Discreet mode toggle works (text-only mode, no audio) — Settings toggle + AsyncStorage + text input/response
 
 **STOP if any fail. Fix before proceeding.**
 

@@ -7,7 +7,7 @@
 export const FEATURE_FLAGS = {
   // Voice System
   USE_VOICE_SYSTEM: true,
-  USE_REALTIME_VOICE: false,    // Premium feature
+  USE_REALTIME_VOICE: true,     // OpenAI Realtime API (WebSocket) — falls back to REST if unavailable
   
   // AI Features
   USE_AI_LEARNING: true,

@@ -18,6 +18,14 @@ import {
   type ActionJSON,
   type VoiceCommandResponse,
 } from '../services/actionExecutor';
+import {
+  realtimeVoiceService,
+  type RealtimeTranscriptEvent,
+  type RealtimeFunctionCallEvent,
+  type RealtimeErrorEvent,
+} from '../services/voice/RealtimeVoiceService';
+import { stripWavHeader } from '../services/voice/pcmUtils';
+import { FEATURE_FLAGS } from '../config/featureFlags';
 
 /**
  * Invoke an edge function with automatic 401 retry (refresh session once).
@@ -41,7 +49,7 @@ async function invokeWithAuth<T = unknown>(
   return first as { data: null; error: FunctionsHttpError | Error };
 }
 
-export type VoiceState = 'idle' | 'listening' | 'processing' | 'speaking';
+export type VoiceState = 'idle' | 'listening' | 'processing' | 'speaking' | 'timeout' | 'error' | 'offline';
 
 interface VoiceContextType {
   // State
@@ -53,6 +61,8 @@ interface VoiceContextType {
   error: string | null;
   awaitingConfirmation: boolean;
   pendingAction: ActionJSON | null;
+  /** Whether continuous conversation mode is active (auto-listen after AI speaks) */
+  isConversationActive: boolean;
   
   // Controls
   startListening: () => Promise<void>;
@@ -64,6 +74,8 @@ interface VoiceContextType {
   bargeIn: () => Promise<void>;
   confirmAction: () => Promise<void>;
   cancelAction: () => void;
+  /** End the continuous conversation and go back to IDLE */
+  endConversation: () => void;
   
   // Settings
   setVoiceEnabled: (enabled: boolean) => void;
@@ -71,12 +83,77 @@ interface VoiceContextType {
   setVoiceSpeed: (speed: number) => void;
   selectedVoice: string;
   setSelectedVoice: (voice: string) => void;
+
+  // Discreet Mode (PRD 4.1)
+  isDiscreetMode: boolean;
+  setDiscreetMode: (enabled: boolean) => void;
+  /** Submit text directly (discreet mode / offline fallback) */
+  submitText: (text: string) => Promise<void>;
+
+  // Realtime API
+  isOffline: boolean;
+  connectionMode: 'realtime' | 'rest';
+  retryConnection: () => Promise<void>;
 }
 
 const VoiceContext = createContext<VoiceContextType | undefined>(undefined);
 
 interface VoiceProviderProps {
   children: React.ReactNode;
+}
+
+/**
+ * PCM16 recording options for OpenAI Realtime API.
+ * Records WAV (LPCM) at 24kHz mono 16-bit — strip the 44-byte header to get raw PCM16.
+ */
+const PCM_RECORDING_OPTIONS: Audio.RecordingOptions = {
+  isMeteringEnabled: true,
+  android: {
+    extension: '.wav',
+    outputFormat: 3, // DEFAULT
+    audioEncoder: 1, // DEFAULT
+    sampleRate: 24000,
+    numberOfChannels: 1,
+    bitRate: 384000,
+  },
+  ios: {
+    extension: '.wav',
+    outputFormat: 'lpcm',
+    audioQuality: 127, // MAX
+    sampleRate: 24000,
+    numberOfChannels: 1,
+    bitRate: 384000,
+    linearPCMBitDepth: 16,
+    linearPCMIsBigEndian: false,
+    linearPCMIsFloat: false,
+  },
+  web: {},
+};
+
+/** No-speech timeout — if user never speaks at all, transition to TIMEOUT */
+const NO_SPEECH_TIMEOUT_MS = 8000;
+
+/** Speech-end detection: consecutive low-metering frames needed to auto-stop (at 100ms interval) */
+const SPEECH_END_FRAMES = 15; // 15 frames × 100ms = 1.5s of silence after speech
+/** Metering threshold to consider as "speech" (0–1 normalized, ~-45dB) */
+const SPEECH_THRESHOLD = 0.25;
+/** Minimum recording duration (ms) before auto-stop is allowed */
+const MIN_RECORDING_MS = 500;
+
+/** Simple connectivity check (no extra dependency needed) */
+async function checkNetworkConnectivity(): Promise<boolean> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000);
+    await fetch('https://api.openai.com/v1/models', {
+      method: 'HEAD',
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Yes/confirm patterns for spoken confirmation */
@@ -106,6 +183,39 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
   const soundRef = useRef<Audio.Sound | null>(null);
   const meteringIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const listenStartTimeRef = useRef<number>(0);
+  const voiceStateRef = useRef<VoiceState>('idle');
+  const isPlayingAudioRef = useRef(false);
+  const startListeningRef = useRef<() => Promise<void>>(() => Promise.resolve());
+
+  // Discreet Mode (PRD 4.1 — text-only, no audio)
+  const [isDiscreetMode, setIsDiscreetMode] = useState(false);
+  const [discreetInput, setDiscreetInput] = useState('');
+
+  // Error retry tracking (max 2 retries from ERROR before suggesting text)
+  const errorRetryCountRef = useRef(0);
+  const MAX_ERROR_RETRIES = 2;
+
+  // Continuous conversation: after AI finishes speaking, auto-listen for next user input
+  const conversationActiveRef = useRef(false);
+
+  // Speech-end detection for continuous conversation (auto-stop recording when user stops talking)
+  const speechDetectedRef = useRef(false);       // true once metering exceeds speech threshold
+  const silenceAfterSpeechRef = useRef(0);        // consecutive low-metering frames after speech
+  const autoStopTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const stopListeningRef = useRef<() => Promise<string>>(() => Promise.resolve(''));
+
+  // Realtime API state
+  const [isOffline, setIsOffline] = useState(false);
+  const [connectionMode, setConnectionMode] = useState<'realtime' | 'rest'>('rest');
+  const realtimeActiveRef = useRef(false); // true when current interaction uses Realtime
+  const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const realtimeTranscriptRef = useRef('');  // accumulate streaming transcript
+  const realtimeResponseTextRef = useRef(''); // accumulate streaming response text
+
+  // Keep ref in sync with state for use in event handler closures
+  useEffect(() => {
+    voiceStateRef.current = voiceState;
+  }, [voiceState]);
 
   // Request permissions on mount
   useEffect(() => {
@@ -131,10 +241,277 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
       if (meteringIntervalRef.current) {
         clearInterval(meteringIntervalRef.current);
       }
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+      }
+      if (autoStopTimerRef.current) {
+        clearTimeout(autoStopTimerRef.current);
+      }
       stopRecording();
       stopPlayback();
+      realtimeVoiceService.disconnect();
     };
   }, []);
+
+  // ── Realtime API: connection ────────────────────────────────────
+  useEffect(() => {
+    if (!FEATURE_FLAGS.USE_REALTIME_VOICE) {
+      setConnectionMode('rest');
+      return;
+    }
+
+    let cancelled = false;
+
+    const connectRealtime = async () => {
+      // Wait briefly for auth session to be established
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      if (cancelled) return;
+
+      console.log('[Voice] Attempting Realtime API connection...');
+      realtimeVoiceService.setVoice(selectedVoice);
+      const connected = await realtimeVoiceService.connect();
+
+      if (cancelled) return;
+
+      if (connected) {
+        console.log('[Voice] Realtime API connected ✓');
+        setConnectionMode('realtime');
+        eventLogger.log('voice_activated', { mode: 'realtime' });
+      } else {
+        console.log('[Voice] Realtime API unavailable, using REST fallback');
+        setConnectionMode('rest');
+        eventLogger.log('voice_activated', { mode: 'rest', reason: 'realtime_connect_failed' });
+      }
+    };
+
+    connectRealtime();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedVoice]);
+
+  // ── Realtime API: event handlers ────────────────────────────────
+  useEffect(() => {
+    if (!FEATURE_FLAGS.USE_REALTIME_VOICE) return;
+
+    const handleTranscript = (evt: RealtimeTranscriptEvent) => {
+      if (evt.isFinal) {
+        realtimeTranscriptRef.current = evt.text;
+        setTranscript(evt.text);
+      } else {
+        realtimeTranscriptRef.current += evt.text;
+        setTranscript(realtimeTranscriptRef.current);
+      }
+    };
+
+    const handleAudioDone = async () => {
+      // All audio chunks received — play them
+      const wavBase64 = realtimeVoiceService.getAccumulatedAudioAsWav();
+      if (!wavBase64) {
+        // Only go idle if we're not already speaking (briefing may be playing)
+        if (voiceStateRef.current === 'processing') {
+          setVoiceState('idle');
+        }
+        return;
+      }
+
+      // Prevent overlapping audio — stop any existing playback first
+      if (isPlayingAudioRef.current) {
+        await stopPlayback();
+      }
+      isPlayingAudioRef.current = true;
+      setVoiceState('speaking');
+
+      try {
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: false,
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: false,
+          shouldDuckAndroid: true,
+        });
+
+        const tempPath = (FileSystem.cacheDirectory || '') + 'rt_audio_' + Date.now() + '.wav';
+        await FileSystem.writeAsStringAsync(tempPath, wavBase64, {
+          encoding: FileSystem.EncodingType?.Base64 ?? 'base64',
+        });
+
+        const uri = tempPath.startsWith('file://') ? tempPath : 'file://' + tempPath;
+        const { sound } = await Audio.Sound.createAsync(
+          { uri },
+          { shouldPlay: true },
+        );
+
+        soundRef.current = sound;
+
+        await new Promise<void>((resolve) => {
+          let resolved = false;
+          const done = () => { if (!resolved) { resolved = true; resolve(); } };
+          sound.setOnPlaybackStatusUpdate((status) => {
+            if (status.isLoaded && (status as any).didJustFinish) {
+              done();
+            }
+          });
+          setTimeout(done, 30000);
+        });
+
+        await stopPlayback();
+        try { await FileSystem.deleteAsync(tempPath, { idempotent: true }); } catch { /* noop */ }
+      } catch (err) {
+        console.error('[Voice] Realtime audio playback error:', err);
+      }
+
+      isPlayingAudioRef.current = false;
+      // Continuous conversation: auto-listen after AI finishes speaking
+      if (voiceStateRef.current === 'speaking') {
+        if (conversationActiveRef.current) {
+          console.log('[Voice] Continuous convo — auto-listening after Realtime playback');
+          // Brief delay so user hears the end of playback before mic activates
+          setTimeout(() => {
+            if (conversationActiveRef.current && voiceStateRef.current !== 'idle') {
+              startListeningRef.current().catch((err) => {
+                console.error('[Voice] Auto-listen after playback failed:', err);
+                setVoiceState('idle');
+              });
+            }
+          }, 400);
+        } else {
+          setVoiceState('idle');
+        }
+      }
+    };
+
+    const handleFunctionCall = async (evt: RealtimeFunctionCallEvent) => {
+      setVoiceState('processing');
+
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error('Not authenticated');
+
+        const args = JSON.parse(evt.arguments);
+        const action: ActionJSON = {
+          action: evt.name,
+          params: args,
+          confirmation_required: evt.name === 'delete_task',
+          confidence: 1.0, // Realtime API does not expose confidence; assume high
+        };
+
+        const result = await executeAction(action, user.id);
+
+        // Log the function call
+        eventLogger.logVoiceCommand(
+          realtimeTranscriptRef.current,
+          evt.name,
+          result.success,
+          {
+            confidence: 1.0,
+            latency_ms: Date.now() - listenStartTimeRef.current,
+            ai_model_used: 'gpt-4o-realtime-preview',
+          },
+        );
+
+        setAiResponse(result.message);
+
+        // Send result back so the AI can generate a spoken response
+        realtimeVoiceService.sendFunctionCallResult(
+          evt.callId,
+          JSON.stringify({ success: result.success, message: result.message }),
+        );
+      } catch (err) {
+        console.error('[Voice] Function call execution error:', err);
+        realtimeVoiceService.sendFunctionCallResult(
+          evt.callId,
+          JSON.stringify({ success: false, message: 'Something went wrong' }),
+        );
+      }
+    };
+
+    const handleSpeechStarted = () => {
+      // Barge-in: user started speaking during AI response
+      if (voiceStateRef.current === 'speaking') {
+        console.log('[Voice] Barge-in detected via VAD');
+        realtimeVoiceService.cancelResponse();
+        stopPlayback();
+        isPlayingAudioRef.current = false;
+        realtimeVoiceService.clearAudioChunks();
+        setVoiceState('listening');
+        realtimeTranscriptRef.current = '';
+        realtimeResponseTextRef.current = '';
+      }
+      // Clear silence timer — speech detected
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = null;
+      }
+    };
+
+    const handleResponseDone = (_response: any) => {
+      // Response generation complete. Audio may still be playing via handleAudioDone.
+      // Only transition if we're stuck in processing (no audio was generated).
+      const currentState = voiceStateRef.current;
+      if (realtimeResponseTextRef.current && currentState === 'processing' && !isPlayingAudioRef.current) {
+        setAiResponse(realtimeResponseTextRef.current);
+        setVoiceState('idle');
+      }
+      realtimeResponseTextRef.current = '';
+    };
+
+    const handleResponseText = (evt: { text: string; isFinal: boolean }) => {
+      if (evt.isFinal) {
+        realtimeResponseTextRef.current = evt.text;
+        setAiResponse(evt.text);
+      } else {
+        realtimeResponseTextRef.current += evt.text;
+      }
+    };
+
+    const handleConnected = () => {
+      setConnectionMode('realtime');
+    };
+
+    const handleDisconnected = () => {
+      if (realtimeVoiceService.failedPermanently) {
+        console.log('[Voice] Realtime permanently failed, switching to REST');
+        setConnectionMode('rest');
+        eventLogger.log('voice_error', { errorType: 'realtime_fallback_to_rest' });
+      }
+    };
+
+    const handleError = (evt: RealtimeErrorEvent) => {
+      console.error('[Voice] Realtime error:', evt.code, evt.message);
+      eventLogger.log('voice_error', {
+        errorType: `realtime_${evt.code}`,
+        action: evt.message,
+      });
+      if (evt.code === 'MAX_RECONNECTS') {
+        setConnectionMode('rest');
+      }
+    };
+
+    // Wire up event listeners
+    realtimeVoiceService.on('transcript', handleTranscript);
+    realtimeVoiceService.on('audio_done', handleAudioDone);
+    realtimeVoiceService.on('function_call', handleFunctionCall);
+    realtimeVoiceService.on('speech_started', handleSpeechStarted);
+    realtimeVoiceService.on('response_done', handleResponseDone);
+    realtimeVoiceService.on('response_text', handleResponseText);
+    realtimeVoiceService.on('connected', handleConnected);
+    realtimeVoiceService.on('disconnected', handleDisconnected);
+    realtimeVoiceService.on('error', handleError);
+
+    return () => {
+      realtimeVoiceService.off('transcript', handleTranscript);
+      realtimeVoiceService.off('audio_done', handleAudioDone);
+      realtimeVoiceService.off('function_call', handleFunctionCall);
+      realtimeVoiceService.off('speech_started', handleSpeechStarted);
+      realtimeVoiceService.off('response_done', handleResponseDone);
+      realtimeVoiceService.off('response_text', handleResponseText);
+      realtimeVoiceService.off('connected', handleConnected);
+      realtimeVoiceService.off('disconnected', handleDisconnected);
+      realtimeVoiceService.off('error', handleError);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);  // Mount once — handlers use voiceStateRef for current state
 
   const stopRecording = async () => {
     if (recordingRef.current) {
@@ -161,12 +538,55 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
 
   const startListening = useCallback(async () => {
     if (!isVoiceEnabled) return;
+
+    // Discreet mode: skip audio, prompt text input instead
+    if (isDiscreetMode) {
+      setVoiceState('listening');
+      setTranscript('');
+      setError(null);
+      conversationActiveRef.current = false; // discreet mode uses text, not continuous voice
+      eventLogger.log('voice_activated', { mode: 'discreet' });
+      return;
+    }
     
     setError(null);
     setTranscript('');
+    realtimeTranscriptRef.current = '';
+    realtimeResponseTextRef.current = '';
+    
+    // ── Offline detection (PRD 4.1 — OFFLINE state) ──────────────
+    const isOnline = await checkNetworkConnectivity();
+    if (!isOnline) {
+      setIsOffline(true);
+      conversationActiveRef.current = false;
+      setVoiceState('offline');
+      setError('No network connection. Type your request instead.');
+      eventLogger.log('voice_error', {
+        errorType: 'offline',
+        screen_context: 'ai_home',
+      });
+      return;
+    }
+    setIsOffline(false);
+
+    // ── Max retry guard (PRD Step 8 — 2 retries then suggest text) ────
+    if (errorRetryCountRef.current >= MAX_ERROR_RETRIES) {
+      conversationActiveRef.current = false;
+      setVoiceState('error');
+      setError('Voice is having trouble. Try typing your request instead.');
+      eventLogger.log('voice_error', {
+        errorType: 'max_retries_exceeded',
+        screen_context: 'ai_home',
+      });
+      return;
+    }
     
     // Track latency from listen start (PRD 4.8)
     listenStartTimeRef.current = Date.now();
+    
+    // Determine which path to use for this interaction
+    const useRealtime = connectionMode === 'realtime' && realtimeVoiceService.isConnected;
+    realtimeActiveRef.current = useRealtime;
     
     try {
       // Check/request permissions
@@ -182,6 +602,11 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
       await stopRecording();
       await stopPlayback();
       
+      // If Realtime is active, clear any pending audio
+      if (useRealtime) {
+        realtimeVoiceService.clearAudioChunks();
+      }
+      
       // Configure audio mode for recording
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: true,
@@ -190,15 +615,68 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
         shouldDuckAndroid: true,
       });
 
+      // Choose recording options based on active path
+      const recordingOptions = useRealtime
+        ? PCM_RECORDING_OPTIONS
+        : Audio.RecordingOptionsPresets.HIGH_QUALITY;
+
+      // Reset speech detection state for this recording session
+      speechDetectedRef.current = false;
+      silenceAfterSpeechRef.current = 0;
+      if (autoStopTimerRef.current) {
+        clearTimeout(autoStopTimerRef.current);
+        autoStopTimerRef.current = null;
+      }
+
+      const recordingStartTime = Date.now();
+
       // Start recording
       const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY,
+        recordingOptions,
         (status) => {
           // Update audio level from metering
           if (status.isRecording && status.metering !== undefined) {
             // Convert dB to 0-1 range (typical range is -160 to 0)
             const normalizedLevel = Math.max(0, Math.min(1, (status.metering + 60) / 60));
             setAudioLevel(normalizedLevel);
+
+            // ── Speech-end detection for continuous conversation ──────
+            // Only auto-stop if in continuous conversation mode
+            if (conversationActiveRef.current && voiceStateRef.current === 'listening') {
+              if (normalizedLevel >= SPEECH_THRESHOLD) {
+                // User is speaking
+                speechDetectedRef.current = true;
+                silenceAfterSpeechRef.current = 0;
+
+                // Speech detected — cancel the no-speech timeout
+                if (silenceTimerRef.current) {
+                  clearTimeout(silenceTimerRef.current);
+                  silenceTimerRef.current = null;
+                }
+              } else if (speechDetectedRef.current) {
+                // Silence after speech detected — count frames
+                silenceAfterSpeechRef.current++;
+
+                if (
+                  silenceAfterSpeechRef.current >= SPEECH_END_FRAMES &&
+                  (Date.now() - recordingStartTime) >= MIN_RECORDING_MS
+                ) {
+                  // User stopped talking — auto-stop and send
+                  console.log('[Voice] Speech end detected — auto-stopping');
+                  speechDetectedRef.current = false;
+                  silenceAfterSpeechRef.current = 0;
+                  // Debounce: only fire once
+                  if (!autoStopTimerRef.current) {
+                    autoStopTimerRef.current = setTimeout(() => {
+                      autoStopTimerRef.current = null;
+                      stopListeningRef.current().catch((err) => {
+                        console.error('[Voice] Auto-stop failed:', err);
+                      });
+                    }, 50);
+                  }
+                }
+              }
+            }
           }
         },
         100 // Update interval in ms
@@ -206,16 +684,85 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
 
       recordingRef.current = recording;
       setVoiceState('listening');
+
+      // Activate continuous conversation mode
+      conversationActiveRef.current = true;
+
+      // Reset error retry count on successful listen start
+      errorRetryCountRef.current = 0;
+      
+      // ── No-speech timeout → TIMEOUT state (PRD 4.1) ──────────────
+      // Only fires if user never speaks. Cancelled by speech detection above.
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+      }
+      silenceTimerRef.current = setTimeout(() => {
+        if (recordingRef.current && !speechDetectedRef.current) {
+          console.log('[Voice] No-speech timeout reached');
+          conversationActiveRef.current = false;
+          setVoiceState('timeout');
+          setAiResponse("I didn't catch that. Tap to try again.");
+          stopRecording();
+          setAudioLevel(0);
+          eventLogger.log('voice_error', {
+            errorType: 'silence_timeout',
+            screen_context: 'ai_home',
+          });
+          // Auto-recover to IDLE after 2.5s (PRD: "IDLE after 2s")
+          setTimeout(() => {
+            if (voiceStateRef.current === 'timeout') {
+              setVoiceState('idle');
+              setAiResponse('');
+            }
+          }, 2500);
+        }
+      }, NO_SPEECH_TIMEOUT_MS);
+
+      // PRD 4.8: voice_listening_started event
+      eventLogger.log('voice_activated', {
+        mode: useRealtime ? 'realtime' : 'rest',
+        screen_context: 'ai_home',
+      });
       
     } catch (err) {
       console.error('Failed to start recording:', err);
+      conversationActiveRef.current = false;
       setError('Failed to start recording');
-      setVoiceState('idle');
+      setVoiceState('error');
+      errorRetryCountRef.current++;
+      eventLogger.log('voice_error', {
+        errorType: 'recording_start_failed',
+        action: err instanceof Error ? err.message : 'unknown',
+        screen_context: 'ai_home',
+      });
+      // Auto-recover to idle after 3s
+      setTimeout(() => {
+        if (voiceStateRef.current === 'error') {
+          setVoiceState('idle');
+        }
+      }, 3000);
     }
-  }, [isVoiceEnabled]);
+  }, [isVoiceEnabled, isDiscreetMode, connectionMode]);
+
+  // Keep startListeningRef in sync for use in mount-once event handlers
+  useEffect(() => {
+    startListeningRef.current = startListening;
+  }, [startListening]);
 
   const stopListening = useCallback(async (): Promise<string> => {
     if (!recordingRef.current) return '';
+    
+    // Clear timers and reset speech detection
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+    if (autoStopTimerRef.current) {
+      clearTimeout(autoStopTimerRef.current);
+      autoStopTimerRef.current = null;
+    }
+    speechDetectedRef.current = false;
+    silenceAfterSpeechRef.current = 0;
     
     setVoiceState('processing');
     setAudioLevel(0);
@@ -233,6 +780,58 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
       }
 
       console.log('[Voice] Recording URI:', uri);
+
+      // ── REALTIME PATH ──────────────────────────────────────────
+      if (realtimeActiveRef.current && realtimeVoiceService.isConnected) {
+        console.log('[Voice] Using Realtime API path');
+
+        // Read the WAV file as base64 and strip the header to get raw PCM16
+        const wavBase64 = await FileSystem.readAsStringAsync(uri, {
+          encoding: 'base64',
+        });
+
+        // Clean up temp file
+        try { await FileSystem.deleteAsync(uri, { idempotent: true }); } catch { /* noop */ }
+
+        const pcmBase64 = stripWavHeader(wavBase64);
+        if (!pcmBase64 || pcmBase64.length < 200) {
+          // Not enough audio data — skip sending to avoid "buffer too small" error
+          console.log('[Voice] Audio too short, skipping Realtime send. Length:', pcmBase64?.length ?? 0);
+          // If in continuous conversation, go back to listening
+          if (conversationActiveRef.current) {
+            console.log('[Voice] Short audio — resuming listening');
+            setTimeout(() => {
+              if (conversationActiveRef.current) {
+                startListeningRef.current().catch(() => setVoiceState('idle'));
+              } else {
+                setVoiceState('idle');
+              }
+            }, 200);
+          } else {
+            setVoiceState('idle');
+          }
+          return '';
+        }
+
+        console.log('[Voice] Sending PCM audio to Realtime API, length:', pcmBase64.length);
+
+        // Send audio buffer and commit — response comes via event handlers
+        realtimeVoiceService.sendAudioBuffer(pcmBase64);
+        realtimeVoiceService.commitAudioBuffer();
+
+        eventLogger.log('voice_command', {
+          mode: 'realtime',
+          latency_ms: Date.now() - listenStartTimeRef.current,
+        });
+
+        // The response will be handled by the Realtime event listeners
+        // (handleTranscript, handleAudioDone, handleFunctionCall, etc.)
+        // State transitions happen in those handlers.
+        return ''; // Transcript arrives asynchronously
+      }
+
+      // ── REST FALLBACK PATH (original flow, unchanged) ──────────
+      console.log('[Voice] Using REST fallback path');
 
       // Read the audio file as base64 directly (more reliable on iOS)
       const base64Audio = await FileSystem.readAsStringAsync(uri, {
@@ -255,7 +854,7 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
         });
 
         if (confirmError) throw confirmError;
-        const confirmTranscript = (confirmData?.transcript || '').trim();
+        const confirmTranscript = ((confirmData as any)?.transcript || '').trim();
         setTranscript(confirmTranscript);
 
         if (YES_PATTERNS.test(confirmTranscript)) {
@@ -416,25 +1015,74 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
       
     } catch (err) {
       console.error('[Voice] Failed to process recording:', err);
+
+      // ── ERROR state (PRD 4.1): "I'm having trouble" → text fallback → IDLE after 5s ──
+      conversationActiveRef.current = false;
+      errorRetryCountRef.current++;
+
       eventLogger.log('voice_error', {
         errorType: err instanceof Error ? err.message : 'unknown',
+        mode: realtimeActiveRef.current ? 'realtime' : 'rest',
+        screen_context: 'ai_home',
+        retryCount: errorRetryCountRef.current,
       });
+
+      // If Realtime failed mid-interaction, switch to REST for next attempt
+      if (realtimeActiveRef.current) {
+        console.log('[Voice] Realtime processing failed, will use REST next time');
+        setConnectionMode('rest');
+        realtimeActiveRef.current = false;
+      }
 
       // Surface a user-friendly error based on the failure type
       const errMsg = err instanceof Error ? err.message : '';
+      let friendlyError: string;
       if (errMsg.includes('timed out')) {
-        setError('Voice processing timed out. Please try again.');
+        friendlyError = "I'm having trouble connecting. Please try again.";
       } else if (errMsg.includes('non-2xx') || errMsg.includes('FunctionsHttpError')) {
-        setError('Voice service is unavailable. Please check your connection.');
+        friendlyError = 'Voice service is temporarily unavailable.';
       } else {
-        setError('Failed to process voice. Please try again.');
+        friendlyError = "I'm having trouble right now. Please try again.";
       }
-      setVoiceState('idle');
+
+      // After MAX_ERROR_RETRIES, suggest text fallback permanently
+      if (errorRetryCountRef.current >= MAX_ERROR_RETRIES) {
+        friendlyError += ' Try typing your request instead.';
+        eventLogger.log('voice_error', {
+          errorType: 'voice_fallback_to_text',
+          reason: 'max_retries_exceeded',
+          screen_context: 'ai_home',
+        });
+      }
+
+      setError(friendlyError);
+      setAiResponse(friendlyError);
+      setVoiceState('error');
+
+      // Auto-recover to IDLE after 5s (PRD: "IDLE after 5s")
+      setTimeout(() => {
+        if (voiceStateRef.current === 'error') {
+          setVoiceState('idle');
+          setError(null);
+        }
+      }, 5000);
       return '';
     }
-  }, [awaitingConfirmation, pendingAction]);
+  }, [awaitingConfirmation, pendingAction, connectionMode]);
+
+  // Keep stopListeningRef in sync for auto-stop from metering callback
+  useEffect(() => {
+    stopListeningRef.current = stopListening;
+  }, [stopListening]);
 
   const cancelListening = useCallback(() => {
+    conversationActiveRef.current = false;
+    speechDetectedRef.current = false;
+    silenceAfterSpeechRef.current = 0;
+    if (autoStopTimerRef.current) {
+      clearTimeout(autoStopTimerRef.current);
+      autoStopTimerRef.current = null;
+    }
     stopRecording();
     setVoiceState('idle');
     setAudioLevel(0);
@@ -511,7 +1159,12 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
       setVoiceState('idle');
       return;
     }
-    
+
+    // Stop any existing playback to prevent overlapping voices
+    if (isPlayingAudioRef.current || soundRef.current) {
+      await stopPlayback();
+    }
+    isPlayingAudioRef.current = true;
     setVoiceState('speaking');
     
     try {
@@ -537,7 +1190,7 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
         console.warn('[TTS] Edge Function error:', ttsError.message || ttsError);
       }
 
-      if (ttsError || !data?.audio) {
+      if (ttsError || !(data as any)?.audio) {
         console.log('[TTS] Falling back to device speech');
         await Audio.setAudioModeAsync({
           allowsRecordingIOS: false,
@@ -564,8 +1217,9 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
         return;
       }
 
+      const ttsAudioData = (data as any)?.audio;
       const tempAudioPath = (FileSystem.cacheDirectory || '') + 'tts_audio_' + Date.now() + '.mp3';
-      await FileSystem.writeAsStringAsync(tempAudioPath, data.audio, {
+      await FileSystem.writeAsStringAsync(tempAudioPath, ttsAudioData, {
         encoding: FileSystem.EncodingType?.Base64 ?? 'base64',
       });
       const uri = tempAudioPath.startsWith('file://') ? tempAudioPath : 'file://' + tempAudioPath;
@@ -624,16 +1278,46 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
       }
     }
 
-    setVoiceState('idle');
-  }, [isVoiceEnabled, selectedVoice, voiceSpeed]);
+    isPlayingAudioRef.current = false;
+    // Continuous conversation: auto-listen after TTS finishes speaking
+    if (voiceStateRef.current === 'speaking') {
+      if (conversationActiveRef.current && !isDiscreetMode) {
+        console.log('[Voice] Continuous convo — auto-listening after TTS');
+        setTimeout(() => {
+          if (conversationActiveRef.current && voiceStateRef.current !== 'idle') {
+            startListeningRef.current().catch((err) => {
+              console.error('[Voice] Auto-listen after TTS failed:', err);
+              setVoiceState('idle');
+            });
+          }
+        }, 400);
+      } else {
+        setVoiceState('idle');
+      }
+    }
+  }, [isVoiceEnabled, selectedVoice, voiceSpeed, isDiscreetMode]);
 
   const stopSpeaking = useCallback(() => {
+    conversationActiveRef.current = false;
     stopPlayback();
+    isPlayingAudioRef.current = false;
     setVoiceState('idle');
   }, []);
 
   const bargeIn = useCallback(async () => {
+    console.log('[Voice] Barge-in triggered');
+    
+    // Cancel Realtime API response if active
+    if (realtimeVoiceService.isConnected) {
+      realtimeVoiceService.cancelResponse();
+      realtimeVoiceService.clearAudioChunks();
+    }
+    
     await stopPlayback();
+    isPlayingAudioRef.current = false;
+    
+    eventLogger.log('voice_command', { action: 'barge_in' });
+    
     try {
       await startListening();
     } catch (err) {
@@ -642,6 +1326,166 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
       setError('Failed to start listening');
     }
   }, [startListening]);
+
+  /**
+   * End the continuous conversation — stop listening/speaking and go to IDLE.
+   * Called when user explicitly wants to stop (e.g. tap orb during auto-listen).
+   */
+  const endConversation = useCallback(() => {
+    console.log('[Voice] Ending continuous conversation');
+    conversationActiveRef.current = false;
+    speechDetectedRef.current = false;
+    silenceAfterSpeechRef.current = 0;
+
+    // Cancel Realtime response if in progress
+    if (realtimeVoiceService.isConnected) {
+      realtimeVoiceService.cancelResponse();
+      realtimeVoiceService.clearAudioChunks();
+    }
+
+    stopRecording();
+    stopPlayback();
+    isPlayingAudioRef.current = false;
+
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current);
+      silenceTimerRef.current = null;
+    }
+    if (autoStopTimerRef.current) {
+      clearTimeout(autoStopTimerRef.current);
+      autoStopTimerRef.current = null;
+    }
+
+    setVoiceState('idle');
+    setAudioLevel(0);
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }, []);
+
+  /**
+   * Submit text directly (discreet mode or offline/error fallback).
+   * Sends transcript straight to voice-command edge function, skipping audio.
+   */
+  const submitText = useCallback(async (text: string) => {
+    if (!text.trim()) return;
+
+    setTranscript(text);
+    setVoiceState('processing');
+    setError(null);
+    listenStartTimeRef.current = Date.now();
+
+    try {
+      const edgeFnPromise = invokeWithAuth('voice-command', {
+        body: {
+          transcript: text.trim(),
+          context: { screen: 'ai_home', mode: 'text' },
+        },
+      });
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Voice processing timed out.')), 30000),
+      );
+
+      const { data, error: fnError } = await Promise.race([edgeFnPromise, timeoutPromise]);
+      if (fnError) throw fnError;
+
+      const vcResponse = data as VoiceCommandResponse;
+      const responseText = vcResponse?.response_text || '';
+      const action = vcResponse?.action;
+
+      setAiResponse(responseText);
+
+      // Log
+      eventLogger.logVoiceCommand(text, action?.action || 'unknown', true, {
+        confidence: action?.confidence,
+        latency_ms: Date.now() - listenStartTimeRef.current,
+        ai_model_used: vcResponse?.model_used,
+        tokens_used: vcResponse?.tokens_used,
+      });
+
+      // Execute action if mutation
+      if (action && action.action !== 'unknown' &&
+          !['query_tasks', 'query_schedule', 'query_stats', 'query_circles'].includes(action.action)) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const result = await executeAction(action, user.id, responseText);
+          const spokenText = result.success ? (responseText || result.message) : result.message;
+          setAiResponse(spokenText);
+
+          // In discreet mode, show text only (no TTS)
+          if (!isDiscreetMode && spokenText) {
+            await speak(spokenText);
+            return;
+          }
+        }
+      }
+
+      // In discreet mode, just show response as text (no TTS)
+      if (!isDiscreetMode && responseText) {
+        await speak(responseText);
+      } else {
+        setVoiceState('idle');
+      }
+    } catch (err) {
+      console.error('[Voice] Text submit error:', err);
+      setError('Failed to process request. Please try again.');
+      setVoiceState('error');
+      setTimeout(() => {
+        if (voiceStateRef.current === 'error') {
+          setVoiceState('idle');
+          setError(null);
+        }
+      }, 5000);
+    }
+  }, [isDiscreetMode]);
+
+  /**
+   * Toggle discreet mode (PRD 4.1)
+   * When active: skip LISTENING/SPEAKING, use text input + text response.
+   */
+  const handleSetDiscreetMode = useCallback(async (enabled: boolean) => {
+    setIsDiscreetMode(enabled);
+    eventLogger.log('feature_used', {
+      feature: 'discreet_mode',
+      action: 'discreet_mode_toggled',
+      success: true,
+      enabled,
+    });
+    // Persist to AsyncStorage
+    try {
+      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+      await AsyncStorage.setItem('mypa_discreet_mode', enabled ? '1' : '0');
+    } catch { /* noop */ }
+  }, []);
+
+  // Load discreet mode preference on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+        const val = await AsyncStorage.getItem('mypa_discreet_mode');
+        if (val === '1') setIsDiscreetMode(true);
+      } catch { /* noop */ }
+    })();
+  }, []);
+
+  /**
+   * Retry Realtime connection (e.g. after offline recovery or manual retry)
+   */
+  const retryConnection = useCallback(async () => {
+    setError(null);
+    setIsOffline(false);
+    errorRetryCountRef.current = 0;
+    realtimeVoiceService.resetReconnectAttempts();
+
+    if (FEATURE_FLAGS.USE_REALTIME_VOICE) {
+      const connected = await realtimeVoiceService.connect();
+      setConnectionMode(connected ? 'realtime' : 'rest');
+    } else {
+      setConnectionMode('rest');
+    }
+
+    setVoiceState('idle');
+  }, []);
 
   const value: VoiceContextType = {
     voiceState,
@@ -652,6 +1496,7 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
     error,
     awaitingConfirmation,
     pendingAction,
+    isConversationActive: conversationActiveRef.current,
     startListening,
     stopListening,
     cancelListening,
@@ -660,11 +1505,18 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
     bargeIn,
     confirmAction,
     cancelAction,
+    endConversation,
     setVoiceEnabled,
     voiceSpeed,
     setVoiceSpeed,
     selectedVoice,
     setSelectedVoice,
+    isDiscreetMode,
+    setDiscreetMode: handleSetDiscreetMode,
+    submitText,
+    isOffline,
+    connectionMode,
+    retryConnection,
   };
 
   return (

@@ -31,6 +31,8 @@ interface VoiceFeedbackProps {
   aiResponse: string;
   audioLevel: number;
   onCancel?: () => void;
+  /** Whether continuous conversation is active (auto-listen after AI speaks) */
+  isConversationActive?: boolean;
 }
 
 // Waveform bar component
@@ -114,13 +116,17 @@ export function VoiceFeedback({
   transcript, 
   aiResponse, 
   audioLevel,
-  onCancel 
+  onCancel,
+  isConversationActive,
 }: VoiceFeedbackProps) {
   if (voiceState === 'idle') return null;
   
   const isListening = voiceState === 'listening';
   const isProcessing = voiceState === 'processing';
   const isSpeaking = voiceState === 'speaking';
+  const isTimeout = voiceState === 'timeout';
+  const isError = voiceState === 'error';
+  const isOffline = voiceState === 'offline';
   
   return (
     <Animated.View 
@@ -152,6 +158,27 @@ export function VoiceFeedback({
               <Text style={styles.speakingText}>MYPA</Text>
             </View>
           )}
+
+          {isTimeout && (
+            <View style={styles.timeoutContainer}>
+              <Ionicons name="timer-outline" size={24} color="#f59e0b" />
+              <Text style={styles.timeoutText}>Didn't catch that</Text>
+            </View>
+          )}
+
+          {isError && (
+            <View style={styles.errorStateContainer}>
+              <Ionicons name="warning-outline" size={24} color="#ef4444" />
+              <Text style={styles.errorStateText}>Having trouble</Text>
+            </View>
+          )}
+
+          {isOffline && (
+            <View style={styles.offlineContainer}>
+              <Ionicons name="cloud-offline-outline" size={24} color="#71717a" />
+              <Text style={styles.offlineText}>No connection</Text>
+            </View>
+          )}
         </View>
         
         {/* Transcript/Response */}
@@ -171,6 +198,24 @@ export function VoiceFeedback({
           {isSpeaking && aiResponse && (
             <Text style={styles.response}>{aiResponse}</Text>
           )}
+
+          {isTimeout && (
+            <Text style={styles.response}>
+              {aiResponse || "I didn't catch that. Tap to try again."}
+            </Text>
+          )}
+
+          {isError && (
+            <Text style={styles.response}>
+              {aiResponse || "I'm having trouble. Please try again."}
+            </Text>
+          )}
+
+          {isOffline && (
+            <Text style={styles.response}>
+              No network connection. Type your request instead.
+            </Text>
+          )}
         </View>
         
         {/* Cancel button */}
@@ -181,9 +226,19 @@ export function VoiceFeedback({
         )}
         
         {/* Hint text */}
-        {(isListening || isSpeaking) && (
+        {(isListening || isSpeaking || isTimeout || isError || isOffline) && (
           <Text style={styles.footerHint}>
-            {isListening ? 'Tap anywhere to send' : 'Tap to stop'}
+            {isListening 
+              ? isConversationActive 
+                ? 'Speak naturally • tap orb or ✕ to end' 
+                : 'Tap anywhere to send'
+              : isSpeaking 
+                ? isConversationActive 
+                  ? 'Listening again when done...' 
+                  : 'Tap to stop'
+              : isTimeout ? 'Tap to try again'
+              : isError ? 'Tap to retry or type below'
+              : 'Type your request below'}
           </Text>
         )}
       </BlurView>
@@ -249,6 +304,36 @@ const styles = StyleSheet.create({
   },
   speakingText: {
     color: '#a855f7',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  timeoutContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  timeoutText: {
+    color: '#f59e0b',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  errorStateContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  errorStateText: {
+    color: '#ef4444',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  offlineContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  offlineText: {
+    color: '#71717a',
     fontSize: 14,
     fontWeight: '600',
   },
