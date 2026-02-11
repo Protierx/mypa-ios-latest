@@ -1,8 +1,8 @@
 /**
  * Task Detail Modal
- * 
- * Full task view with editing, completion, and actions.
- * Opens when tapping a task from Tasks View.
+ *
+ * Full task view with editing, completion, defer, delete, focus.
+ * Opens when tapping a task from the list.
  */
 
 import React, { useState, useCallback, useEffect } from 'react';
@@ -33,7 +33,7 @@ interface TaskDetailModalProps {
   onStartFocus?: (taskId: string) => void;
 }
 
-const PRIORITY_OPTIONS: { value: Task['priority']; label: string; color: string }[] = [
+const PRIORITIES: { value: Task['priority']; label: string; color: string }[] = [
   { value: 'low', label: 'Low', color: '#22c55e' },
   { value: 'medium', label: 'Medium', color: '#eab308' },
   { value: 'high', label: 'High', color: '#f97316' },
@@ -41,8 +41,8 @@ const PRIORITY_OPTIONS: { value: Task['priority']; label: string; color: string 
 ];
 
 export function TaskDetailModal({ visible, task, onClose, onStartFocus }: TaskDetailModalProps) {
-  const { updateTask, deleteTask } = useTasks();
-  
+  const { updateTask, deleteTask, deferTask } = useTasks();
+
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [dueDate, setDueDate] = useState<Date | null>(null);
@@ -52,7 +52,6 @@ export function TaskDetailModal({ visible, task, onClose, onStartFocus }: TaskDe
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
 
-  // Initialize form when task changes
   useEffect(() => {
     if (task) {
       setTitle(task.title);
@@ -66,61 +65,61 @@ export function TaskDetailModal({ visible, task, onClose, onStartFocus }: TaskDe
 
   const handleSave = useCallback(async () => {
     if (!task || !hasChanges) return;
-    
     setIsSaving(true);
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    
-    const success = await updateTask(task.id, {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    const ok = await updateTask(task.id, {
       title,
       description: description || null,
       due_date: dueDate?.toISOString() || null,
       priority,
       estimated_duration: estimatedDuration ? parseInt(estimatedDuration) : null,
     });
-    
+
     setIsSaving(false);
-    
-    if (success) {
+    if (ok) {
       setHasChanges(false);
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } else {
+      Alert.alert('Save failed', 'Could not save changes. Please try again.');
     }
   }, [task, title, description, dueDate, priority, estimatedDuration, hasChanges, updateTask]);
 
   const handleToggleComplete = useCallback(async () => {
     if (!task) return;
-    
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const newStatus = task.status === 'completed' ? 'pending' : 'completed';
     await updateTask(task.id, {
       status: newStatus,
       completed_at: newStatus === 'completed' ? new Date().toISOString() : null,
     });
-    
     if (newStatus === 'completed') {
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       onClose();
     }
   }, [task, updateTask, onClose]);
 
+  const handleDefer = useCallback(async () => {
+    if (!task) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    await deferTask(task.id);
+    onClose();
+  }, [task, deferTask, onClose]);
+
   const handleDelete = useCallback(() => {
-    Alert.alert(
-      'Delete Task',
-      'Are you sure you want to delete this task?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            if (!task) return;
-            await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-            await deleteTask(task.id);
-            onClose();
-          },
+    Alert.alert('Delete Task', 'This can\'t be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          if (!task) return;
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+          await deleteTask(task.id);
+          onClose();
         },
-      ]
-    );
+      },
+    ]);
   }, [task, deleteTask, onClose]);
 
   const handleStartFocus = useCallback(() => {
@@ -132,53 +131,35 @@ export function TaskDetailModal({ visible, task, onClose, onStartFocus }: TaskDe
 
   const handleClose = useCallback(() => {
     if (hasChanges) {
-      Alert.alert(
-        'Unsaved Changes',
-        'You have unsaved changes. Save before closing?',
-        [
-          { text: 'Discard', style: 'destructive', onPress: onClose },
-          { text: 'Save', onPress: async () => { await handleSave(); onClose(); } },
-          { text: 'Cancel', style: 'cancel' },
-        ]
-      );
+      Alert.alert('Unsaved Changes', 'Save before closing?', [
+        { text: 'Discard', style: 'destructive', onPress: onClose },
+        { text: 'Save', onPress: async () => { await handleSave(); onClose(); } },
+        { text: 'Cancel', style: 'cancel' },
+      ]);
     } else {
       onClose();
     }
   }, [hasChanges, handleSave, onClose]);
 
-  const markChanged = () => setHasChanges(true);
+  const mark = () => setHasChanges(true);
 
   if (!task) return null;
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      presentationStyle="pageSheet"
-      onRequestClose={handleClose}
-    >
-      <SafeAreaView className="flex-1 bg-black" edges={['top', 'bottom']}>
-        <KeyboardAvoidingView 
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          className="flex-1"
-        >
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleClose}>
+      <SafeAreaView className="flex-1 bg-surface-1" edges={['top', 'bottom']}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} className="flex-1">
           {/* Header */}
-          <View className="flex-row items-center justify-between px-5 py-4 border-b border-zinc-800">
-            <TouchableOpacity onPress={handleClose} className="p-2 -ml-2">
-              <Ionicons name="close" size={24} color="#fff" />
+          <View className="flex-row items-center justify-between px-5 py-3 border-b border-surface-4">
+            <TouchableOpacity onPress={handleClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Ionicons name="close" size={24} color="#A1A1AA" />
             </TouchableOpacity>
-            
-            <Text className="text-white text-lg font-semibold">Task Details</Text>
-            
-            <TouchableOpacity 
-              onPress={handleSave} 
-              disabled={!hasChanges || isSaving}
-              className="p-2 -mr-2"
-            >
+            <Text className="text-headline font-semibold text-ink-primary">Task Details</Text>
+            <TouchableOpacity onPress={handleSave} disabled={!hasChanges || isSaving}>
               {isSaving ? (
-                <ActivityIndicator size="small" color="#a855f7" />
+                <ActivityIndicator size="small" color="#7C3AED" />
               ) : (
-                <Text className={`text-base font-medium ${hasChanges ? 'text-purple-500' : 'text-zinc-600'}`}>
+                <Text className={`text-headline font-semibold ${hasChanges ? 'text-brand-purple' : 'text-ink-disabled'}`}>
                   Save
                 </Text>
               )}
@@ -187,63 +168,57 @@ export function TaskDetailModal({ visible, task, onClose, onStartFocus }: TaskDe
 
           <ScrollView className="flex-1 px-5">
             {/* Completion Toggle */}
-            <TouchableOpacity
-              className="flex-row items-center py-4 border-b border-zinc-800"
-              onPress={handleToggleComplete}
-            >
+            <TouchableOpacity className="flex-row items-center py-4 border-b border-surface-4" onPress={handleToggleComplete}>
               <View
                 className={`w-7 h-7 rounded-full border-2 items-center justify-center mr-3 ${
-                  task.status === 'completed'
-                    ? 'bg-purple-600 border-purple-600'
-                    : 'border-zinc-600'
+                  task.status === 'completed' ? 'bg-brand-purple border-brand-purple' : 'border-ink-disabled'
                 }`}
               >
-                {task.status === 'completed' && (
-                  <Ionicons name="checkmark" size={18} color="#fff" />
-                )}
+                {task.status === 'completed' && <Ionicons name="checkmark" size={18} color="#fff" />}
               </View>
-              <Text className={`text-base ${task.status === 'completed' ? 'text-zinc-500' : 'text-white'}`}>
+              <Text className={`text-body ${task.status === 'completed' ? 'text-ink-disabled' : 'text-ink-primary'}`}>
                 {task.status === 'completed' ? 'Completed' : 'Mark as complete'}
               </Text>
             </TouchableOpacity>
 
             {/* Title */}
-            <View className="py-4 border-b border-zinc-800">
-              <Text className="text-zinc-500 text-sm mb-2">Title</Text>
+            <View className="py-4 border-b border-surface-4">
+              <Text className="text-caption-1 text-ink-disabled mb-2">Title</Text>
               <TextInput
                 value={title}
-                onChangeText={(text) => { setTitle(text); markChanged(); }}
+                onChangeText={(t) => { setTitle(t); mark(); }}
                 placeholder="Task title"
-                placeholderTextColor="#52525b"
-                className="text-white text-lg"
+                placeholderTextColor="#3F3F46"
+                className="text-ink-primary text-lg"
+                style={{ fontSize: 18 }}
               />
             </View>
 
             {/* Description */}
-            <View className="py-4 border-b border-zinc-800">
-              <Text className="text-zinc-500 text-sm mb-2">Description</Text>
+            <View className="py-4 border-b border-surface-4">
+              <Text className="text-caption-1 text-ink-disabled mb-2">Notes</Text>
               <TextInput
                 value={description}
-                onChangeText={(text) => { setDescription(text); markChanged(); }}
-                placeholder="Add description..."
-                placeholderTextColor="#52525b"
+                onChangeText={(t) => { setDescription(t); mark(); }}
+                placeholder="Add notes..."
+                placeholderTextColor="#3F3F46"
                 multiline
                 numberOfLines={3}
-                className="text-white text-base"
-                style={{ minHeight: 80 }}
+                className="text-ink-secondary text-body"
+                style={{ minHeight: 72 }}
               />
             </View>
 
             {/* Due Date */}
-            <TouchableOpacity 
-              className="flex-row items-center justify-between py-4 border-b border-zinc-800"
+            <TouchableOpacity
+              className="flex-row items-center justify-between py-4 border-b border-surface-4"
               onPress={() => setShowDatePicker(true)}
             >
               <View className="flex-row items-center">
-                <Ionicons name="calendar-outline" size={20} color="#71717a" />
-                <Text className="text-zinc-500 text-sm ml-3">Due Date</Text>
+                <Ionicons name="calendar-outline" size={18} color="#71717A" />
+                <Text className="text-body text-ink-tertiary ml-3">Due Date</Text>
               </View>
-              <Text className="text-white">
+              <Text className="text-body text-ink-primary">
                 {dueDate ? dueDate.toLocaleDateString() : 'Not set'}
               </Text>
             </TouchableOpacity>
@@ -253,83 +228,84 @@ export function TaskDetailModal({ visible, task, onClose, onStartFocus }: TaskDe
                 value={dueDate || new Date()}
                 mode="date"
                 display="spinner"
-                onChange={(event, date) => {
+                onChange={(_, date) => {
                   setShowDatePicker(false);
-                  if (date) {
-                    setDueDate(date);
-                    markChanged();
-                  }
+                  if (date) { setDueDate(date); mark(); }
                 }}
                 textColor="#fff"
               />
             )}
 
             {/* Priority */}
-            <View className="py-4 border-b border-zinc-800">
-              <Text className="text-zinc-500 text-sm mb-3">Priority</Text>
-              <View className="flex-row">
-                {PRIORITY_OPTIONS.map((option) => (
-                  <TouchableOpacity
-                    key={option.value}
-                    className={`flex-1 py-2 mx-1 rounded-lg items-center ${
-                      priority === option.value ? 'bg-zinc-800' : ''
-                    }`}
-                    style={priority === option.value ? { borderColor: option.color, borderWidth: 1 } : {}}
-                    onPress={() => { setPriority(option.value); markChanged(); }}
-                  >
-                    <View 
-                      className="w-3 h-3 rounded-full mb-1"
-                      style={{ backgroundColor: option.color }}
-                    />
-                    <Text className={`text-xs ${priority === option.value ? 'text-white' : 'text-zinc-500'}`}>
-                      {option.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+            <View className="py-4 border-b border-surface-4">
+              <Text className="text-caption-1 text-ink-disabled mb-3">Priority</Text>
+              <View className="flex-row gap-2">
+                {PRIORITIES.map((p) => {
+                  const active = priority === p.value;
+                  return (
+                    <TouchableOpacity
+                      key={p.value}
+                      className={`flex-1 py-2 rounded-lg items-center ${active ? 'bg-surface-3' : 'bg-surface-2'}`}
+                      style={active ? { borderColor: p.color, borderWidth: 1.5 } : {}}
+                      onPress={() => { setPriority(p.value); mark(); }}
+                    >
+                      <View className="w-3 h-3 rounded-full mb-1" style={{ backgroundColor: p.color }} />
+                      <Text className={`text-caption-1 font-medium ${active ? 'text-ink-primary' : 'text-ink-disabled'}`}>
+                        {p.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             </View>
 
-            {/* Estimated Duration */}
-            <View className="py-4 border-b border-zinc-800">
-              <Text className="text-zinc-500 text-sm mb-2">Estimated Duration (minutes)</Text>
+            {/* Duration */}
+            <View className="py-4 border-b border-surface-4">
+              <Text className="text-caption-1 text-ink-disabled mb-2">Estimated Duration (min)</Text>
               <TextInput
                 value={estimatedDuration}
-                onChangeText={(text) => { setEstimatedDuration(text.replace(/[^0-9]/g, '')); markChanged(); }}
-                placeholder="e.g., 30"
-                placeholderTextColor="#52525b"
+                onChangeText={(t) => { setEstimatedDuration(t.replace(/[^0-9]/g, '')); mark(); }}
+                placeholder="e.g. 30"
+                placeholderTextColor="#3F3F46"
                 keyboardType="number-pad"
-                className="text-white text-base"
+                className="text-ink-primary text-body"
               />
             </View>
 
-            {/* Action Buttons */}
-            <View className="py-6 space-y-3">
-              <TouchableOpacity
-                className="bg-purple-600 py-4 rounded-xl items-center"
-                onPress={handleStartFocus}
-              >
+            {/* Actions */}
+            <View className="pt-6 pb-2 gap-3">
+              {/* Focus */}
+              <TouchableOpacity className="bg-brand-purple py-3.5 rounded-xl items-center" onPress={handleStartFocus}>
                 <View className="flex-row items-center">
-                  <Ionicons name="timer-outline" size={20} color="#fff" />
-                  <Text className="text-white font-semibold text-base ml-2">Start Focus Session</Text>
+                  <Ionicons name="timer-outline" size={18} color="#fff" />
+                  <Text className="text-headline font-bold text-white ml-2">Start Focus Session</Text>
                 </View>
               </TouchableOpacity>
 
-              <TouchableOpacity
-                className="py-4 rounded-xl items-center border border-red-500"
-                onPress={handleDelete}
-              >
+              {/* Defer */}
+              {task.status !== 'completed' && (
+                <TouchableOpacity className="py-3.5 rounded-xl items-center border border-surface-4" onPress={handleDefer}>
+                  <View className="flex-row items-center">
+                    <Ionicons name="arrow-forward-outline" size={18} color="#71717A" />
+                    <Text className="text-headline font-medium text-ink-tertiary ml-2">Defer to Tomorrow</Text>
+                  </View>
+                </TouchableOpacity>
+              )}
+
+              {/* Delete */}
+              <TouchableOpacity className="py-3.5 rounded-xl items-center border border-error/30" onPress={handleDelete}>
                 <View className="flex-row items-center">
-                  <Ionicons name="trash-outline" size={20} color="#ef4444" />
-                  <Text className="text-red-500 font-medium text-base ml-2">Delete Task</Text>
+                  <Ionicons name="trash-outline" size={18} color="#EF4444" />
+                  <Text className="text-headline font-medium text-error ml-2">Delete Task</Text>
                 </View>
               </TouchableOpacity>
             </View>
 
-            {/* Meta Info */}
-            <View className="py-4 mb-8">
-              <Text className="text-zinc-600 text-xs text-center">
+            {/* Meta */}
+            <View className="py-4 mb-6">
+              <Text className="text-caption-1 text-ink-disabled text-center">
                 Created {new Date(task.created_at).toLocaleDateString()}
-                {task.completed_at && ` • Completed ${new Date(task.completed_at).toLocaleDateString()}`}
+                {task.completed_at && ` · Completed ${new Date(task.completed_at).toLocaleDateString()}`}
               </Text>
             </View>
           </ScrollView>

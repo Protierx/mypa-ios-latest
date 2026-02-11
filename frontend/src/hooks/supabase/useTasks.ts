@@ -10,6 +10,34 @@ import { useUserModel, AI_FEATURES } from '@/contexts/UserModelContext';
 import { sortTasksWithAI, SortedTask } from '@/services/aiTaskSorting';
 import { eventLogger } from '@/services/eventLogger';
 
+// ============================================================================
+// Error Normalization — never expose raw SQL/Supabase errors to the user
+// ============================================================================
+
+function normalizeError(err: any): string {
+  const msg = err?.message || err?.toString() || '';
+  const code = err?.code || '';
+
+  // Supabase / PostgreSQL error codes
+  if (code === '42703') return 'Something went wrong. Please try again.';
+  if (code === '23505') return 'This task already exists.';
+  if (code === '23503') return 'Related data not found.';
+  if (code === 'PGRST301') return 'Session expired. Please reopen the app.';
+  if (code === '42501') return 'Permission denied. Please log in again.';
+
+  // Network errors
+  if (msg.includes('timed out') || msg.includes('timeout')) return 'Request timed out. Check your connection.';
+  if (msg.includes('network') || msg.includes('fetch')) return 'Network error. Please check your connection.';
+  if (msg.includes('Failed to fetch')) return 'Could not reach the server. Try again in a moment.';
+
+  // Fallback — strip any SQL-looking content
+  if (msg.includes('relation') || msg.includes('column') || msg.includes('record')) {
+    return 'Something went wrong. Please try again.';
+  }
+
+  return msg.length > 100 ? 'Something went wrong. Please try again.' : msg;
+}
+
 type TaskFilter = 'today' | 'tomorrow' | 'all' | 'completed';
 
 interface UseTasksReturn {
@@ -22,6 +50,7 @@ interface UseTasksReturn {
   updateTask: (id: string, updates: Partial<Task>) => Promise<boolean>;
   deleteTask: (id: string) => Promise<boolean>;
   completeTask: (id: string) => Promise<boolean>;
+  deferTask: (id: string, toDate?: Date) => Promise<boolean>;
   refresh: () => Promise<void>;
 }
 
@@ -103,7 +132,7 @@ export function useTasks(filter: TaskFilter = 'all'): UseTasksReturn {
       hasLoadedOnce.current = true;
     } catch (err: any) {
       console.warn('[useTasks] Fetch issue:', err?.message || err);
-      setError(err instanceof Error ? err : new Error('Failed to fetch tasks'));
+      setError(new Error(normalizeError(err)));
     } finally {
       setLoading(false);
     }
@@ -197,11 +226,9 @@ export function useTasks(filter: TaskFilter = 'all'): UseTasksReturn {
       return data;
     } catch (err: any) {
       console.error('[useTasks] Error creating task:', err?.message || err);
-      
-      // If it timed out, the insert may have actually succeeded on the server
-      // Refresh the task list to pick up any server-side changes
+      // If it timed out, the insert may have actually succeeded
       fetchTasks();
-      return null;
+      throw new Error(normalizeError(err));
     }
   };
 
@@ -220,8 +247,8 @@ export function useTasks(filter: TaskFilter = 'all'): UseTasksReturn {
       const task = tasks.find(t => t.id === id);
       eventLogger.logTaskEdited(id, task?.title);
       return true;
-    } catch (err) {
-      console.error('Error updating task:', err);
+    } catch (err: any) {
+      console.error('[useTasks] Error updating task:', err?.message || err);
       return false;
     }
   };
@@ -263,8 +290,41 @@ export function useTasks(filter: TaskFilter = 'all'): UseTasksReturn {
         eventLogger.logTaskCompleted(id, task.title);
       }
       return true;
+    } catch (err: any) {
+      console.error('[useTasks] Error completing task:', err?.message || err);
+      // Still refresh — server may have partially succeeded
+      fetchTasks();
+      return false;
+    }
+  };
+
+  const deferTask = async (id: string, toDate?: Date): Promise<boolean> => {
+    try {
+      const task = tasks.find(t => t.id === id);
+      const deferTo = toDate || (() => {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        tomorrow.setHours(9, 0, 0, 0); // Default to 9am tomorrow
+        return tomorrow;
+      })();
+
+      const { error } = await supabase
+        .from('tasks')
+        .update({
+          due_date: deferTo.toISOString(),
+          status: 'pending', // Reset from deferred back to pending
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      if (task) {
+        eventLogger.logTaskDeferred(id, task.title, deferTo.toISOString());
+      }
+      return true;
     } catch (err) {
-      console.error('Error completing task:', err);
+      console.error('Error deferring task:', err);
       return false;
     }
   };
@@ -279,6 +339,7 @@ export function useTasks(filter: TaskFilter = 'all'): UseTasksReturn {
     updateTask,
     deleteTask,
     completeTask,
+    deferTask,
     refresh: fetchTasks,
   };
 }

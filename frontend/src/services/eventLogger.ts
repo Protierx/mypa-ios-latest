@@ -70,7 +70,20 @@ export type EventType =
   | 'feature_used'
   | 'button_pressed'
   | 'modal_opened'
-  | 'modal_dismissed';
+  | 'modal_dismissed'
+
+  // Monetization
+  | 'paywall_shown'
+  | 'paywall_purchase_tapped'
+  | 'paywall_restore_tapped'
+  | 'paywall_dismissed'
+  | 'upsell_shown'
+  | 'upsell_clicked'
+
+  // AI category
+  | 'ai_category_suggested'
+  | 'ai_category_accepted'
+  | 'ai_category_overridden';
 
 /**
  * Event metadata varies by event type
