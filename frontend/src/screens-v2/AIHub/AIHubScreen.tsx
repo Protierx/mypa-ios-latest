@@ -445,7 +445,7 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
     if (voice.isDiscreetMode) return 'Type your request below';
     if (voiceState === 'listening') return 'Listening... tap to send';
     if (voiceState === 'processing') return 'Thinking...';
-    if (voiceState === 'speaking') return 'Tap to interrupt';
+    if (voiceState === 'speaking') return 'Speak or tap to interrupt';
     if (voiceState === 'timeout') return "Didn't catch that. Tap to retry.";
     if (voiceState === 'error') return 'Something went wrong. Tap to retry.';
     if (voiceState === 'offline') return 'No connection. Type below.';

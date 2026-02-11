@@ -140,6 +140,14 @@ const SPEECH_THRESHOLD = 0.25;
 /** Minimum recording duration (ms) before auto-stop is allowed */
 const MIN_RECORDING_MS = 500;
 
+/** Voice-activated barge-in: metering threshold during AI playback.
+ *  Higher than SPEECH_THRESHOLD to avoid false triggers from speaker bleed into mic. */
+const BARGE_IN_THRESHOLD = 0.55;
+/** Consecutive frames above threshold to trigger voice barge-in (at 100ms intervals) */
+const BARGE_IN_FRAMES = 3;
+/** Skip initial metering frames when monitor starts (avoids audio-session switch noise) */
+const BARGE_IN_SKIP_FRAMES = 5;
+
 /** Simple connectivity check (no extra dependency needed) */
 async function checkNetworkConnectivity(): Promise<boolean> {
   try {
@@ -204,6 +212,11 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
   const autoStopTimerRef = useRef<NodeJS.Timeout | null>(null);
   const stopListeningRef = useRef<() => Promise<string>>(() => Promise.resolve(''));
 
+  // Voice-activated barge-in: background mic monitor during AI speaking
+  const bargeInMonitorRef = useRef<Audio.Recording | null>(null);
+  const bargeInActiveRef = useRef(false);
+  const bargeInRef = useRef<() => Promise<void>>(() => Promise.resolve());
+
   // Realtime API state
   const [isOffline, setIsOffline] = useState(false);
   const [connectionMode, setConnectionMode] = useState<'realtime' | 'rest'>('rest');
@@ -246,6 +259,11 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
       }
       if (autoStopTimerRef.current) {
         clearTimeout(autoStopTimerRef.current);
+      }
+      // Stop barge-in monitor if active
+      if (bargeInMonitorRef.current) {
+        try { bargeInMonitorRef.current.stopAndUnloadAsync(); } catch { /* noop */ }
+        bargeInMonitorRef.current = null;
       }
       stopRecording();
       stopPlayback();
@@ -324,12 +342,16 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
       setVoiceState('speaking');
 
       try {
+        // Use PlayAndRecord mode so barge-in monitor can record while audio plays
         await Audio.setAudioModeAsync({
-          allowsRecordingIOS: false,
+          allowsRecordingIOS: true,
           playsInSilentModeIOS: true,
           staysActiveInBackground: false,
           shouldDuckAndroid: true,
         });
+
+        // Start background mic monitor for voice-activated barge-in
+        startBargeInMonitor().catch(e => console.warn('[Voice] Barge-in monitor start failed:', e));
 
         const tempPath = (FileSystem.cacheDirectory || '') + 'rt_audio_' + Date.now() + '.wav';
         await FileSystem.writeAsStringAsync(tempPath, wavBase64, {
@@ -355,10 +377,12 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
           setTimeout(done, 30000);
         });
 
+        await stopBargeInMonitor();
         await stopPlayback();
         try { await FileSystem.deleteAsync(tempPath, { idempotent: true }); } catch { /* noop */ }
       } catch (err) {
         console.error('[Voice] Realtime audio playback error:', err);
+        await stopBargeInMonitor();
       }
 
       isPlayingAudioRef.current = false;
@@ -488,6 +512,23 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
       }
     };
 
+    // When server VAD doesn't detect speech (silence-only audio), no response
+    // is generated. Recover by returning to listening (continuous) or idle.
+    const handleNoResponse = () => {
+      console.log('[Voice] No VAD response — recovering');
+      if (voiceStateRef.current === 'processing') {
+        if (conversationActiveRef.current) {
+          // Continuous conversation — try listening again
+          startListeningRef.current().catch((err) => {
+            console.error('[Voice] Auto-retry after no-response failed:', err);
+            setVoiceState('idle');
+          });
+        } else {
+          setVoiceState('idle');
+        }
+      }
+    };
+
     // Wire up event listeners
     realtimeVoiceService.on('transcript', handleTranscript);
     realtimeVoiceService.on('audio_done', handleAudioDone);
@@ -498,6 +539,7 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
     realtimeVoiceService.on('connected', handleConnected);
     realtimeVoiceService.on('disconnected', handleDisconnected);
     realtimeVoiceService.on('error', handleError);
+    realtimeVoiceService.on('no_response', handleNoResponse);
 
     return () => {
       realtimeVoiceService.off('transcript', handleTranscript);
@@ -509,6 +551,7 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
       realtimeVoiceService.off('connected', handleConnected);
       realtimeVoiceService.off('disconnected', handleDisconnected);
       realtimeVoiceService.off('error', handleError);
+      realtimeVoiceService.off('no_response', handleNoResponse);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);  // Mount once — handlers use voiceStateRef for current state
@@ -534,6 +577,75 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
       }
       soundRef.current = null;
     }
+  };
+
+  /**
+   * Start a background mic monitor to detect user speech for voice-activated barge-in.
+   * Must be called while audio session is in PlayAndRecord mode (allowsRecordingIOS: true).
+   * The monitor recording is discarded — only metering data is used.
+   */
+  const startBargeInMonitor = async () => {
+    // Don't start if already monitoring, discreet mode, or no conversation
+    if (bargeInMonitorRef.current || isDiscreetMode) return;
+    bargeInActiveRef.current = false;
+
+    try {
+      let consecutiveFrames = 0;
+      let framesSkipped = 0;
+
+      const { recording } = await Audio.Recording.createAsync(
+        {
+          isMeteringEnabled: true,
+          android: { extension: '.wav', outputFormat: 3, audioEncoder: 1, sampleRate: 16000, numberOfChannels: 1, bitRate: 64000 },
+          ios: { extension: '.wav', outputFormat: 'lpcm', audioQuality: 0, sampleRate: 16000, numberOfChannels: 1, bitRate: 64000, linearPCMBitDepth: 16, linearPCMIsBigEndian: false, linearPCMIsFloat: false },
+          web: {},
+        },
+        (status) => {
+          if (!status.isRecording || status.metering === undefined) return;
+
+          // Skip initial frames — audio session switch can produce noise spikes
+          if (framesSkipped < BARGE_IN_SKIP_FRAMES) { framesSkipped++; return; }
+
+          const level = Math.max(0, Math.min(1, (status.metering + 60) / 60));
+
+          if (level >= BARGE_IN_THRESHOLD) {
+            consecutiveFrames++;
+            if (
+              consecutiveFrames >= BARGE_IN_FRAMES &&
+              !bargeInActiveRef.current &&
+              voiceStateRef.current === 'speaking'
+            ) {
+              bargeInActiveRef.current = true;
+              console.log('[Voice] Voice-activated barge-in detected — interrupting AI');
+              eventLogger.log('voice_command', { action: 'voice_barge_in' });
+              bargeInRef.current().catch(err => {
+                console.error('[Voice] Voice barge-in failed:', err);
+                bargeInActiveRef.current = false;
+              });
+            }
+          } else {
+            consecutiveFrames = 0;
+          }
+        },
+        100, // 100ms metering interval
+      );
+
+      bargeInMonitorRef.current = recording;
+      console.log('[Voice] Barge-in monitor started');
+    } catch (err) {
+      console.warn('[Voice] Failed to start barge-in monitor:', err);
+    }
+  };
+
+  /** Stop the background barge-in mic monitor */
+  const stopBargeInMonitor = async () => {
+    if (bargeInMonitorRef.current) {
+      try {
+        await bargeInMonitorRef.current.stopAndUnloadAsync();
+      } catch { /* ignore */ }
+      bargeInMonitorRef.current = null;
+    }
+    bargeInActiveRef.current = false;
   };
 
   const startListening = useCallback(async () => {
@@ -598,7 +710,8 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
 
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       
-      // Stop any existing recording
+      // Stop barge-in monitor + any existing recording before starting new one
+      await stopBargeInMonitor();
       await stopRecording();
       await stopPlayback();
       
@@ -607,13 +720,27 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
         realtimeVoiceService.clearAudioChunks();
       }
       
-      // Configure audio mode for recording
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: true,
-      });
+      // Configure audio mode for recording.
+      // On iOS, switching from playback → recording can fail if the audio
+      // session hasn't fully released. Retry with increasing delays.
+      const enableRecordingMode = async (attempt = 1): Promise<void> => {
+        try {
+          await Audio.setAudioModeAsync({
+            allowsRecordingIOS: true,
+            playsInSilentModeIOS: true,
+            staysActiveInBackground: false,
+            shouldDuckAndroid: true,
+          });
+        } catch (modeErr) {
+          if (attempt < 3) {
+            console.log(`[Voice] Audio mode switch attempt ${attempt} failed, retrying...`);
+            await new Promise(r => setTimeout(r, 200 * attempt));
+            return enableRecordingMode(attempt + 1);
+          }
+          throw modeErr;
+        }
+      };
+      await enableRecordingMode();
 
       // Choose recording options based on active path
       const recordingOptions = useRealtime
@@ -630,57 +757,56 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
 
       const recordingStartTime = Date.now();
 
-      // Start recording
-      const { recording } = await Audio.Recording.createAsync(
-        recordingOptions,
-        (status) => {
-          // Update audio level from metering
-          if (status.isRecording && status.metering !== undefined) {
-            // Convert dB to 0-1 range (typical range is -160 to 0)
-            const normalizedLevel = Math.max(0, Math.min(1, (status.metering + 60) / 60));
-            setAudioLevel(normalizedLevel);
+      // Metering callback — handles audio level + speech-end detection
+      const onRecordingStatus = (status: Audio.RecordingStatus) => {
+        if (status.isRecording && status.metering !== undefined) {
+          const normalizedLevel = Math.max(0, Math.min(1, (status.metering + 60) / 60));
+          setAudioLevel(normalizedLevel);
 
-            // ── Speech-end detection for continuous conversation ──────
-            // Only auto-stop if in continuous conversation mode
-            if (conversationActiveRef.current && voiceStateRef.current === 'listening') {
-              if (normalizedLevel >= SPEECH_THRESHOLD) {
-                // User is speaking
-                speechDetectedRef.current = true;
+          // ── Speech-end detection for continuous conversation ──────
+          if (conversationActiveRef.current && voiceStateRef.current === 'listening') {
+            if (normalizedLevel >= SPEECH_THRESHOLD) {
+              speechDetectedRef.current = true;
+              silenceAfterSpeechRef.current = 0;
+              if (silenceTimerRef.current) {
+                clearTimeout(silenceTimerRef.current);
+                silenceTimerRef.current = null;
+              }
+            } else if (speechDetectedRef.current) {
+              silenceAfterSpeechRef.current++;
+              if (
+                silenceAfterSpeechRef.current >= SPEECH_END_FRAMES &&
+                (Date.now() - recordingStartTime) >= MIN_RECORDING_MS
+              ) {
+                console.log('[Voice] Speech end detected — auto-stopping');
+                speechDetectedRef.current = false;
                 silenceAfterSpeechRef.current = 0;
-
-                // Speech detected — cancel the no-speech timeout
-                if (silenceTimerRef.current) {
-                  clearTimeout(silenceTimerRef.current);
-                  silenceTimerRef.current = null;
-                }
-              } else if (speechDetectedRef.current) {
-                // Silence after speech detected — count frames
-                silenceAfterSpeechRef.current++;
-
-                if (
-                  silenceAfterSpeechRef.current >= SPEECH_END_FRAMES &&
-                  (Date.now() - recordingStartTime) >= MIN_RECORDING_MS
-                ) {
-                  // User stopped talking — auto-stop and send
-                  console.log('[Voice] Speech end detected — auto-stopping');
-                  speechDetectedRef.current = false;
-                  silenceAfterSpeechRef.current = 0;
-                  // Debounce: only fire once
-                  if (!autoStopTimerRef.current) {
-                    autoStopTimerRef.current = setTimeout(() => {
-                      autoStopTimerRef.current = null;
-                      stopListeningRef.current().catch((err) => {
-                        console.error('[Voice] Auto-stop failed:', err);
-                      });
-                    }, 50);
-                  }
+                if (!autoStopTimerRef.current) {
+                  autoStopTimerRef.current = setTimeout(() => {
+                    autoStopTimerRef.current = null;
+                    stopListeningRef.current().catch((err) => {
+                      console.error('[Voice] Auto-stop failed:', err);
+                    });
+                  }, 50);
                 }
               }
             }
           }
-        },
-        100 // Update interval in ms
-      );
+        }
+      };
+
+      // Start recording — retry once if iOS audio session isn't ready
+      let recording: Audio.Recording;
+      try {
+        const result = await Audio.Recording.createAsync(recordingOptions, onRecordingStatus, 100);
+        recording = result.recording;
+      } catch (recErr) {
+        console.log('[Voice] Recording start failed, retrying after delay...');
+        await new Promise(r => setTimeout(r, 300));
+        await enableRecordingMode();
+        const retryResult = await Audio.Recording.createAsync(recordingOptions, onRecordingStatus, 100);
+        recording = retryResult.recording;
+      }
 
       recordingRef.current = recording;
       setVoiceState('listening');
@@ -1168,13 +1294,16 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
     setVoiceState('speaking');
     
     try {
-      // Configure for playback
+      // Use PlayAndRecord mode so barge-in monitor can record while TTS plays
       await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
+        allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
         staysActiveInBackground: false,
         shouldDuckAndroid: true,
       });
+
+      // Start background mic monitor for voice-activated barge-in
+      startBargeInMonitor().catch(e => console.warn('[Voice] Barge-in monitor start failed:', e));
 
       // Call TTS Edge Function
       console.log('[TTS] Calling text-to-speech, text length:', text.length, 'voice:', selectedVoice);
@@ -1246,6 +1375,7 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
         setTimeout(done, 30000);
       });
 
+      await stopBargeInMonitor();
       await stopPlayback();
       
       // Clean up temp audio file
@@ -1257,6 +1387,7 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
       
     } catch (err) {
       console.error('[TTS] Error:', err);
+      await stopBargeInMonitor();
       try {
         await Audio.setAudioModeAsync({
           allowsRecordingIOS: false,
@@ -1299,6 +1430,7 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
 
   const stopSpeaking = useCallback(() => {
     conversationActiveRef.current = false;
+    stopBargeInMonitor();
     stopPlayback();
     isPlayingAudioRef.current = false;
     setVoiceState('idle');
@@ -1306,6 +1438,9 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
 
   const bargeIn = useCallback(async () => {
     console.log('[Voice] Barge-in triggered');
+    
+    // Stop barge-in monitor first (frees the mic for actual recording)
+    await stopBargeInMonitor();
     
     // Cancel Realtime API response if active
     if (realtimeVoiceService.isConnected) {
@@ -1327,12 +1462,18 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
     }
   }, [startListening]);
 
+  // Keep bargeInRef in sync for barge-in monitor metering callback
+  useEffect(() => {
+    bargeInRef.current = bargeIn;
+  }, [bargeIn]);
+
   /**
    * End the continuous conversation — stop listening/speaking and go to IDLE.
    * Called when user explicitly wants to stop (e.g. tap orb during auto-listen).
    */
   const endConversation = useCallback(() => {
     console.log('[Voice] Ending continuous conversation');
+    stopBargeInMonitor();
     conversationActiveRef.current = false;
     speechDetectedRef.current = false;
     silenceAfterSpeechRef.current = 0;
