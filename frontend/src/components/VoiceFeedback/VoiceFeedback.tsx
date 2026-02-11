@@ -234,8 +234,8 @@ export function VoiceFeedback({
                 : 'Tap anywhere to send'
               : isSpeaking 
                 ? isConversationActive 
-                  ? 'Listening again when done...' 
-                  : 'Tap to stop'
+                  ? 'Speak to interrupt • tap ✕ to end' 
+                  : 'Speak or tap to stop'
               : isTimeout ? 'Tap to try again'
               : isError ? 'Tap to retry or type below'
               : 'Type your request below'}

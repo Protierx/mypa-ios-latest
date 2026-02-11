@@ -29,6 +29,7 @@ export type RealtimeEvent =
   | 'speech_started'
   | 'speech_stopped'
   | 'response_done'
+  | 'no_response'
   | 'error';
 
 export interface RealtimeTranscriptEvent {
@@ -95,6 +96,8 @@ class RealtimeVoiceServiceClass {
   /** True when server VAD has committed the buffer (avoids duplicate client commit) */
   private vadCommitted: boolean = false;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Fallback timer for manual commit if VAD doesn't auto-commit */
+  private commitFallbackTimer: ReturnType<typeof setTimeout> | null = null;
 
   // ── Public API ─────────────────────────────────────────────────
 
@@ -156,6 +159,10 @@ class RealtimeVoiceServiceClass {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
+    if (this.commitFallbackTimer) {
+      clearTimeout(this.commitFallbackTimer);
+      this.commitFallbackTimer = null;
+    }
     this.sessionConfigured = false;
     this._isConnected = false;
 
@@ -189,25 +196,32 @@ class RealtimeVoiceServiceClass {
   }
 
   /**
-   * Commit the audio buffer and request a response.
-   * Call after sendAudioBuffer to trigger AI processing.
+   * Signal that audio sending is complete.
+   *
+   * With server VAD enabled, the server auto-detects speech boundaries and
+   * commits the buffer + creates a response automatically. Manual commit
+   * races with VAD and causes "buffer too small" / "already has active
+   * response" errors. So we simply rely on server VAD entirely.
+   *
+   * If VAD doesn't detect speech (silence-only audio), no response is
+   * generated. The caller should have a no-response timeout to recover.
    */
   commitAudioBuffer(): void {
     if (!this.isConnected) return;
 
-    // If server VAD already committed + triggered a response, skip to avoid
-    // "buffer too small" and "already has active response" errors.
-    if (this.vadCommitted) {
-      console.log('[RealtimeVoice] Skipping manual commit — VAD already committed');
-      this.vadCommitted = false;
-      return;
+    console.log('[RealtimeVoice] Audio send complete — relying on server VAD for commit');
+    // No manual commit — server VAD handles everything.
+    // Set a fallback timer to emit 'no_response' if VAD doesn't fire
+    if (this.commitFallbackTimer) {
+      clearTimeout(this.commitFallbackTimer);
     }
-
-    this.sendEvent('input_audio_buffer.commit', {});
-    // Only request a response if one isn't already in progress
-    if (!this.currentResponseId) {
-      this.sendEvent('response.create', {});
-    }
+    this.commitFallbackTimer = setTimeout(() => {
+      this.commitFallbackTimer = null;
+      if (!this.currentResponseId && this.isConnected) {
+        console.log('[RealtimeVoice] No VAD response after 5s — emitting no_response');
+        this.emit('no_response');
+      }
+    }, 5000);
   }
 
   /**
@@ -216,6 +230,12 @@ class RealtimeVoiceServiceClass {
    */
   cancelResponse(): void {
     if (!this.isConnected) return;
+
+    // Cancel any pending fallback commit
+    if (this.commitFallbackTimer) {
+      clearTimeout(this.commitFallbackTimer);
+      this.commitFallbackTimer = null;
+    }
 
     if (this.currentResponseId) {
       this.sendEvent('response.cancel', {});
@@ -485,8 +505,13 @@ class RealtimeVoiceServiceClass {
 
         case 'input_audio_buffer.committed':
           console.log('[RealtimeVoice] Audio buffer committed');
-          // Server VAD auto-committed — mark so client skips duplicate commit
+          // Server VAD auto-committed — cancel any pending fallback commit
           this.vadCommitted = true;
+          if (this.commitFallbackTimer) {
+            clearTimeout(this.commitFallbackTimer);
+            this.commitFallbackTimer = null;
+            console.log('[RealtimeVoice] Cancelled fallback commit — VAD handled it');
+          }
           break;
 
         case 'response.created':
