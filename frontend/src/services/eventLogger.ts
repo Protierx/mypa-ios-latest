@@ -31,6 +31,8 @@ export type EventType =
   | 'voice_command'
   | 'voice_activated'
   | 'voice_error'
+  | 'voice_fallback_to_text'
+  | 'discreet_mode_toggled'
   
   // Task events (key for AI learning)
   | 'task_created'
@@ -122,6 +124,12 @@ export interface EventMetadata {
   briefingLengthChars?: number;
   briefingProgressPercent?: number;
   skippedAtPercent?: number;
+
+  // Settings / toggles
+  enabled?: boolean;
+  reason?: string;
+  retryCount?: number;
+  mode?: string;
 
   // Generic
   [key: string]: any;

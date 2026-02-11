@@ -15,7 +15,7 @@
  */
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { View, Text, ScrollView, StyleSheet, Pressable, Dimensions } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Pressable, Dimensions, TextInput, Keyboard, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -87,6 +87,8 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
   const [greeting, setGreeting] = useState('');
   const [isLoadingGreeting, setIsLoadingGreeting] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [textInputValue, setTextInputValue] = useState('');
+  const textInputRef = useRef<TextInput>(null);
 
   // ---- Daily Briefing (PRD R2) ----
   const {
@@ -211,6 +213,39 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
         ),
         -1
       );
+    } else if (voiceState === 'timeout') {
+      // Fade back to gentle breathing (dimmer than idle)
+      orbScale.value = withTiming(1, { duration: 500 });
+      orbGlowOpacity.value = withRepeat(
+        withTiming(0.4, { duration: 2500, easing: Easing.inOut(Easing.ease) }),
+        -1,
+        true
+      );
+      orbPulse.value = withTiming(0, { duration: 500 });
+      orbRotation.value = withTiming(0, { duration: 300 });
+    } else if (voiceState === 'error') {
+      // Red pulse — fast, attention-grabbing
+      orbScale.value = withRepeat(
+        withTiming(1.05, { duration: 400, easing: Easing.inOut(Easing.ease) }),
+        6, // pulse 6 times then stop
+        true
+      );
+      orbGlowOpacity.value = withRepeat(
+        withTiming(0.8, { duration: 400, easing: Easing.inOut(Easing.ease) }),
+        6,
+        true
+      );
+      orbRotation.value = withTiming(0, { duration: 200 });
+    } else if (voiceState === 'offline') {
+      // Grey, subdued, small
+      orbScale.value = withTiming(0.95, { duration: 500 });
+      orbGlowOpacity.value = withRepeat(
+        withTiming(0.35, { duration: 3000, easing: Easing.inOut(Easing.ease) }),
+        -1,
+        true
+      );
+      orbPulse.value = withTiming(0, { duration: 500 });
+      orbRotation.value = withTiming(0, { duration: 300 });
     }
   }, [voiceState, audioLevel, isBriefingPlaying]);
 
@@ -274,6 +309,11 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
   // ---- Detect TTS completion → log 100% and mark played ----
   useEffect(() => {
     if (isBriefingPlaying && voiceState === 'idle') {
+      // Guard: only consider TTS done if at least 2 seconds have elapsed
+      // (prevents false-positive idle transitions during state machine changes)
+      const elapsed = Date.now() - briefingStartTimeRef.current;
+      if (elapsed < 2000) return;
+
       // TTS finished naturally
       setIsBriefingPlaying(false);
 
@@ -301,11 +341,22 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
     return Math.min(Math.round((elapsed / briefingDurationRef.current) * 100), 100);
   }, []);
 
+  // Handle tap in discreet mode: focus text input instead of starting voice
+  const handleTapForDiscreetMode = useCallback(() => {
+    textInputRef.current?.focus();
+  }, []);
+
   // Tap handler for voice activation + briefing barge-in
   const handleTap = useCallback(async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
-    // ---- Barge-in: tap during SPEAKING → stop TTS, go to LISTENING (PRD 4.1) ----
+    // Discreet mode: focus text input
+    if (voice.isDiscreetMode && voiceState === 'idle') {
+      handleTapForDiscreetMode();
+      return;
+    }
+
+    // ── Barge-in: tap during SPEAKING → stop TTS, go to LISTENING (PRD 4.1) ────
     if (voiceState === 'speaking') {
       if (isBriefingPlaying) {
         setIsBriefingPlaying(false);
@@ -316,6 +367,22 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
         markBriefingPlayed();
       }
       await voice.bargeIn();
+      return;
+    }
+
+    // Tap during TIMEOUT or ERROR → retry listening
+    if (voiceState === 'timeout' || voiceState === 'error') {
+      try {
+        await voice.startListening();
+      } catch (error) {
+        console.error('Failed to retry listening:', error);
+      }
+      return;
+    }
+
+    // Tap during OFFLINE → focus text input
+    if (voiceState === 'offline') {
+      textInputRef.current?.focus();
       return;
     }
 
@@ -340,13 +407,12 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
         console.error('Failed to stop listening:', error);
       }
     } else if (voiceState === 'processing') {
-      voice.cancelListening();
-      voice.stopSpeaking();
+      voice.endConversation();
     }
   }, [
     voiceState, voice, isBriefingPlaying, permissionStatus,
     requestPermissionIfNeeded, setShowPermissionModal,
-    estimateBriefingProgress, markBriefingPlayed,
+    estimateBriefingProgress, markBriefingPlayed, handleTapForDiscreetMode,
   ]);
 
   // Handle permission granted callback
@@ -376,23 +442,43 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
   // Get state-specific hint text
   const getHintText = () => {
     if (isBriefingPlaying) return 'Tap to skip briefing';
+    if (voice.isDiscreetMode) return 'Type your request below';
     if (voiceState === 'listening') return 'Listening... tap to send';
     if (voiceState === 'processing') return 'Thinking...';
     if (voiceState === 'speaking') return 'Tap to interrupt';
+    if (voiceState === 'timeout') return "Didn't catch that. Tap to retry.";
+    if (voiceState === 'error') return 'Something went wrong. Tap to retry.';
+    if (voiceState === 'offline') return 'No connection. Type below.';
     if (isBriefingLoading) return 'Preparing briefing... tap to talk';
     return 'Tap anywhere to talk';
   };
 
   // Get orb icon based on state
-  const getOrbIcon = (): 'mic' | 'mic-outline' | 'sparkles' | 'volume-high' => {
+  const getOrbIcon = (): keyof typeof Ionicons.glyphMap => {
+    if (voice.isDiscreetMode) return 'text-outline';
     if (voiceState === 'listening') return 'mic';
     if (voiceState === 'processing') return 'sparkles';
     if (voiceState === 'speaking') return 'volume-high';
+    if (voiceState === 'timeout') return 'timer-outline';
+    if (voiceState === 'error') return 'warning-outline';
+    if (voiceState === 'offline') return 'cloud-offline-outline';
     return 'mic-outline';
   };
 
+  // Whether to show the text input bar (offline, error after max retries, or discreet mode)
+  const showTextInput = voice.isDiscreetMode || voiceState === 'offline' || voiceState === 'error';
+
+  // Handle text submission
+  const handleTextSubmit = useCallback(async () => {
+    const text = textInputValue.trim();
+    if (!text) return;
+    setTextInputValue('');
+    Keyboard.dismiss();
+    await voice.submitText(text);
+  }, [textInputValue, voice]);
+
   // Determine if we should show voice active state
-  const isVoiceActive = voiceState !== 'idle';
+  const isVoiceActive = voiceState !== 'idle' && !voice.isDiscreetMode;
 
   return (
     <View style={styles.container}>
@@ -462,17 +548,31 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
                 </Text>
               </Animated.View>
             ) : isVoiceActive ? (
-              // Voice feedback when active
+              // Voice feedback when active (including timeout/error/offline)
               <VoiceFeedback
                 voiceState={voiceState}
                 audioLevel={audioLevel}
                 transcript={voice.transcript}
                 aiResponse={voice.aiResponse}
+                isConversationActive={voice.isConversationActive}
                 onCancel={() => {
-                  voice.cancelListening();
-                  voice.stopSpeaking();
+                  voice.endConversation();
                 }}
               />
+            ) : voice.isDiscreetMode && (voice.aiResponse || voiceState === 'processing') ? (
+              // Discreet mode: show AI response as text card
+              <Animated.View entering={FadeIn.duration(300)} style={styles.discreetResponseContainer}>
+                {voiceState === 'processing' ? (
+                  <View style={styles.discreetThinking}>
+                    <Ionicons name="sparkles" size={20} color="#a855f7" />
+                    <Text style={styles.discreetThinkingText}>Thinking...</Text>
+                  </View>
+                ) : (
+                  <View style={styles.discreetCard}>
+                    <Text style={styles.discreetResponseText}>{voice.aiResponse}</Text>
+                  </View>
+                )}
+              </Animated.View>
             ) : (
               // The beautiful orb - center of the experience
               <Animated.View 
@@ -608,6 +708,38 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
               </View>
             </Animated.View>
           </View>
+
+          {/* ---- Text Input Bar (discreet mode / offline / error fallback) ---- */}
+          {showTextInput && (
+            <Animated.View
+              entering={FadeInUp.duration(300)}
+              style={styles.textInputContainer}
+            >
+              <BlurView intensity={30} tint="dark" style={styles.textInputBlur}>
+                <TextInput
+                  ref={textInputRef}
+                  style={styles.textInput}
+                  placeholder={voice.isDiscreetMode ? 'Type your request...' : 'Type here instead...'}
+                  placeholderTextColor="rgba(255,255,255,0.35)"
+                  value={textInputValue}
+                  onChangeText={setTextInputValue}
+                  onSubmitEditing={handleTextSubmit}
+                  returnKeyType="send"
+                  autoCapitalize="sentences"
+                  autoCorrect
+                  blurOnSubmit={false}
+                  editable={voiceState !== 'processing'}
+                />
+                <Pressable
+                  style={[styles.textSendButton, !textInputValue.trim() && styles.textSendButtonDisabled]}
+                  onPress={handleTextSubmit}
+                  disabled={!textInputValue.trim() || voiceState === 'processing'}
+                >
+                  <Ionicons name="send" size={18} color={textInputValue.trim() ? '#a855f7' : 'rgba(255,255,255,0.2)'} />
+                </Pressable>
+              </BlurView>
+            </Animated.View>
+          )}
         </Pressable>
       </SafeAreaView>
       
@@ -886,5 +1018,70 @@ const styles = StyleSheet.create({
   statsText: {
     fontSize: 13,
     color: 'rgba(255, 255, 255, 0.4)',
+  },
+
+  // ---- Text Input Bar (discreet mode / offline / error fallback) ----
+  textInputContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+  textInputBlur: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 4,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(30, 30, 40, 0.8)',
+    borderWidth: 1,
+    borderColor: 'rgba(124, 58, 237, 0.25)',
+  },
+  textInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#fff',
+    paddingVertical: 12,
+  },
+  textSendButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(124, 58, 237, 0.15)',
+    marginLeft: 8,
+  },
+  textSendButtonDisabled: {
+    backgroundColor: 'transparent',
+  },
+
+  // ---- Discreet Mode Response Card ----
+  discreetResponseContainer: {
+    width: '100%',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+  },
+  discreetThinking: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 16,
+  },
+  discreetThinkingText: {
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontSize: 15,
+  },
+  discreetCard: {
+    backgroundColor: 'rgba(30, 30, 40, 0.85)',
+    borderRadius: 16,
+    padding: 16,
+    width: '100%',
+    borderWidth: 1,
+    borderColor: 'rgba(124, 58, 237, 0.2)',
+  },
+  discreetResponseText: {
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 16,
+    lineHeight: 24,
   },
 });

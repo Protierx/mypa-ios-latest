@@ -21,6 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
 import { useSupabaseAuth } from '../../contexts/SupabaseAuthContext';
+import { useVoice } from '../../contexts/VoiceContext';
 
 interface SettingsModalProps {
   visible: boolean;
@@ -70,11 +71,19 @@ function SectionHeader({ title }: { title: string }) {
 
 export function SettingsModal({ visible, onClose, onShowPaywall }: SettingsModalProps & { onShowPaywall?: () => void }) {
   const { user, signOut } = useSupabaseAuth();
+  const voice = useVoice();
   
-  // Settings state (would normally be persisted)
-  const [aiVoiceEnabled, setAiVoiceEnabled] = useState(true);
-  const [voiceSpeed, setVoiceSpeed] = useState(1.0);
-  const [selectedVoice, setSelectedVoice] = useState<'alloy' | 'ash' | 'coral' | 'nova' | 'shimmer'>('ash');
+  // Voice settings wired to VoiceContext
+  const aiVoiceEnabled = voice.isVoiceEnabled;
+  const setAiVoiceEnabled = voice.setVoiceEnabled;
+  const voiceSpeed = voice.voiceSpeed;
+  const setVoiceSpeed = voice.setVoiceSpeed;
+  const selectedVoice = voice.selectedVoice as 'alloy' | 'ash' | 'coral' | 'nova' | 'shimmer';
+  const setSelectedVoice = voice.setSelectedVoice;
+  const isDiscreetMode = voice.isDiscreetMode;
+  const setDiscreetMode = voice.setDiscreetMode;
+
+  // Non-voice settings (would normally be persisted)
   const [pushEnabled, setPushEnabled] = useState(true);
   const [dailySummaryEnabled, setDailySummaryEnabled] = useState(true);
   const [taskRemindersEnabled, setTaskRemindersEnabled] = useState(true);
@@ -93,8 +102,7 @@ export function SettingsModal({ visible, onClose, onShowPaywall }: SettingsModal
 
   const handleTestVoice = async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    // Would trigger TTS with sample: "Hey! I'm MYPA, ready to help you get things done."
-    Alert.alert('Test Voice', `Testing ${selectedVoice} voice...`);
+    voice.speak("Hey! I'm MYPA, ready to help you get things done.");
   };
 
   const handleSignOut = useCallback(() => {
@@ -248,6 +256,25 @@ export function SettingsModal({ visible, onClose, onShowPaywall }: SettingsModal
                 <Text className="text-purple-400 font-medium">Test Voice</Text>
               </TouchableOpacity>
             </View>
+            <View className="h-px bg-zinc-800 mx-5" />
+            {/* Discreet Mode (PRD 4.1) */}
+            <SettingRow
+              icon="text-outline"
+              iconColor="#22d3ee"
+              title="Discreet Mode"
+              subtitle="Text-only, no voice audio"
+              value={
+                <Switch
+                  value={isDiscreetMode}
+                  onValueChange={(v) => {
+                    Haptics.selectionAsync();
+                    setDiscreetMode(v);
+                  }}
+                  trackColor={{ false: '#3f3f46', true: '#7c3aed' }}
+                  thumbColor="#fff"
+                />
+              }
+            />
           </View>
 
           {/* NOTIFICATIONS */}

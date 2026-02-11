@@ -32,7 +32,7 @@ import Animated, {
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-export type VoiceState = 'idle' | 'listening' | 'processing' | 'speaking';
+export type VoiceState = 'idle' | 'listening' | 'processing' | 'speaking' | 'timeout' | 'error' | 'offline';
 
 interface LivingBackgroundProps {
   voiceState: VoiceState;
@@ -113,6 +113,34 @@ export function LivingBackground({ voiceState, audioLevel }: LivingBackgroundPro
       // Expanding during speech
       glowOpacity.value = withTiming(0.8, { duration: 200 });
       glowScale.value = withSpring(1.2, { damping: 15, stiffness: 150 });
+    } else if (voiceState === 'timeout') {
+      // Fade back to gentle breathing (same as idle but dimmer)
+      glowOpacity.value = withRepeat(
+        withTiming(0.35, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
+        -1,
+        true
+      );
+      glowScale.value = withTiming(1, { duration: 500 });
+    } else if (voiceState === 'error') {
+      // Red pulse — quick, alarming
+      glowOpacity.value = withRepeat(
+        withTiming(0.9, { duration: 400, easing: Easing.inOut(Easing.ease) }),
+        -1,
+        true
+      );
+      glowScale.value = withRepeat(
+        withTiming(1.1, { duration: 400, easing: Easing.inOut(Easing.ease) }),
+        -1,
+        true
+      );
+    } else if (voiceState === 'offline') {
+      // Grey pulse — subdued, low energy
+      glowOpacity.value = withRepeat(
+        withTiming(0.4, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
+        -1,
+        true
+      );
+      glowScale.value = withTiming(0.95, { duration: 500 });
     }
   }, [voiceState, audioLevel]);
 
@@ -126,6 +154,12 @@ export function LivingBackground({ voiceState, audioLevel }: LivingBackgroundPro
         return ['#0A0A1A', '#1A2A3A', '#0D1B2A', '#2A3A4A'];
       case 'speaking':
         return ['#0A0A1A', '#2A1A3A', '#1A1030', '#3A2A4A'];
+      case 'timeout':
+        return ['#0A0A1A', '#1A1A25', '#0D1520', '#15102A']; // dim, same family as idle
+      case 'error':
+        return ['#1A0A0A', '#2A1010', '#1A0D0D', '#2A1515']; // red-tinted
+      case 'offline':
+        return ['#0A0A0A', '#1A1A1A', '#121212', '#1A1A1A']; // grey
       default:
         return base;
     }
@@ -163,12 +197,13 @@ export function LivingBackground({ voiceState, audioLevel }: LivingBackgroundPro
             <RadialGradient
               c={vec(centerX, centerY)}
               r={100}
-              colors={[
-                'rgba(167, 139, 250, 0.35)',
-                'rgba(124, 58, 237, 0.2)',
-                'rgba(124, 58, 237, 0.05)',
-                'transparent',
-              ]}
+              colors={
+                voiceState === 'error'
+                  ? ['rgba(239, 68, 68, 0.35)', 'rgba(220, 38, 38, 0.2)', 'rgba(220, 38, 38, 0.05)', 'transparent']
+                  : voiceState === 'offline'
+                  ? ['rgba(161, 161, 170, 0.25)', 'rgba(113, 113, 122, 0.15)', 'rgba(113, 113, 122, 0.05)', 'transparent']
+                  : ['rgba(167, 139, 250, 0.35)', 'rgba(124, 58, 237, 0.2)', 'rgba(124, 58, 237, 0.05)', 'transparent']
+              }
             />
           </Circle>
         </Group>
