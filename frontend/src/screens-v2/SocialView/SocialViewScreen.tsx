@@ -20,15 +20,20 @@ import * as Haptics from 'expo-haptics';
 
 import { useCircles } from '../../hooks/supabase/useCircles';
 import { useChallenges } from '../../hooks/supabase/useChallenges';
+import { useSupabaseAuth } from '../../contexts/SupabaseAuthContext';
 import { MiniVoiceButton } from '../../components/MiniVoiceButton';
 import { CircleHomeModal } from '../modals/CircleHomeModal';
 import { ChallengeDetailModal } from '../modals/ChallengeDetailModal';
 import { CreateCircleSheet } from '../modals/CreateCircleSheet';
 import { CreateChallengeSheet } from '../modals/CreateChallengeSheet';
+import { PaywallSheet } from '../modals/PaywallSheet';
+
+const FREE_TIER_CIRCLE_LIMIT = 1;
 
 export function SocialViewScreen() {
   const { circles, loading: circlesLoading, refresh: refreshCircles } = useCircles();
   const { challenges, loading: challengesLoading, refresh: refreshChallenges } = useChallenges();
+  const { user } = useSupabaseAuth();
   const [refreshing, setRefreshing] = useState(false);
   const [loadingTimeout, setLoadingTimeout] = useState(false);
 
@@ -40,6 +45,21 @@ export function SocialViewScreen() {
   const [showCreateCircle, setShowCreateCircle] = useState(false);
   const [showCreateChallenge, setShowCreateChallenge] = useState(false);
   const [showCreateMenu, setShowCreateMenu] = useState(false);
+  const [showPaywall, setShowPaywall] = useState(false);
+
+  // Circle limit: free users get 1 circle
+  const isPremium = user?.isPremium ?? false;
+  const isCircleLimitReached = !isPremium && circles.length >= FREE_TIER_CIRCLE_LIMIT;
+
+  const handleCreateCircle = () => {
+    setShowCreateMenu(false);
+    if (isCircleLimitReached) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      setShowPaywall(true);
+    } else {
+      setShowCreateCircle(true);
+    }
+  };
 
   // Failsafe: don't show spinner for more than 3 seconds
   React.useEffect(() => {
@@ -77,13 +97,15 @@ export function SocialViewScreen() {
           <View className="absolute top-20 right-5 z-50 bg-surface-2 rounded-xl border border-surface-4 shadow-lg overflow-hidden">
             <TouchableOpacity
               className="flex-row items-center px-5 py-4 border-b border-surface-4"
-              onPress={() => {
-                setShowCreateMenu(false);
-                setShowCreateCircle(true);
-              }}
+              onPress={handleCreateCircle}
             >
-              <Ionicons name="people" size={20} color="#7C3AED" />
-              <Text className="text-body font-medium text-ink-primary ml-3">Create Circle</Text>
+              <Ionicons name="people" size={20} color={isCircleLimitReached ? '#52525B' : '#7C3AED'} />
+              <Text className={`text-body font-medium ml-3 ${isCircleLimitReached ? 'text-ink-disabled' : 'text-ink-primary'}`}>
+                Create Circle
+              </Text>
+              {isCircleLimitReached && (
+                <Ionicons name="lock-closed" size={14} color="#52525B" style={{ marginLeft: 'auto' }} />
+              )}
             </TouchableOpacity>
             <TouchableOpacity
               className="flex-row items-center px-5 py-4"
@@ -184,7 +206,7 @@ export function SocialViewScreen() {
                     className="mt-4 bg-brand-purple px-6 py-3 rounded-full"
                     onPress={() => {
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                      setShowCreateCircle(true);
+                      handleCreateCircle();
                     }}
                   >
                     <Text className="text-headline font-semibold text-ink-primary">Create a Circle</Text>
@@ -242,6 +264,13 @@ export function SocialViewScreen() {
           setShowCreateChallenge(false);
           refreshChallenges();
         }}
+      />
+
+      {/* Paywall (shown when free user hits circle limit) */}
+      <PaywallSheet
+        visible={showPaywall}
+        onClose={() => setShowPaywall(false)}
+        trigger="circle_limit"
       />
     </View>
   );

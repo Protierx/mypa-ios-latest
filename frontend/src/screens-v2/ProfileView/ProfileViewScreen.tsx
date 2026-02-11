@@ -26,6 +26,7 @@ import { useFocusSessions } from '../../hooks/supabase/useFocusSessions';
 import { LockedFeature, getLevelFromDays } from '../../components/LockedFeature';
 import { MiniVoiceButton } from '../../components/MiniVoiceButton';
 import { SettingsModal } from '../modals/SettingsModal';
+import { PaywallSheet } from '../modals/PaywallSheet';
 import { UnlockDetailsModal, FEATURE_UNLOCKS } from '../modals/UnlockDetailsModal';
 
 // All AI features with their required unlock levels
@@ -55,6 +56,7 @@ export function ProfileViewScreen() {
 
   const [showSettings, setShowSettings] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [showPaywall, setShowPaywall] = useState(false);
   const [selectedUnlockFeature, setSelectedUnlockFeature] = useState<any>(null);
   const [showUnlockDetails, setShowUnlockDetails] = useState(false);
 
@@ -231,6 +233,27 @@ export function ProfileViewScreen() {
             })}
           </View>
 
+          {/* Upgrade Banner (free users only) */}
+          {!user?.isPremium && (
+            <TouchableOpacity
+              className="mb-6 bg-brand-purple/15 rounded-xl p-4 border border-brand-purple/30 flex-row items-center"
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                setShowPaywall(true);
+              }}
+              activeOpacity={0.7}
+            >
+              <View className="w-10 h-10 bg-brand-purple/20 rounded-full items-center justify-center mr-3">
+                <Ionicons name="diamond" size={20} color="#7C3AED" />
+              </View>
+              <View className="flex-1">
+                <Text className="text-headline font-semibold text-ink-primary">Upgrade to Premium</Text>
+                <Text className="text-subhead text-ink-tertiary mt-0.5">Unlimited voice, circles & more</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#7C3AED" />
+            </TouchableOpacity>
+          )}
+
           <View className="mb-6">
             <TouchableOpacity
               className="flex-row items-center bg-surface-2 rounded-lg p-4 mb-3 border border-surface-4"
@@ -274,6 +297,17 @@ export function ProfileViewScreen() {
       <SettingsModal
         visible={showSettings}
         onClose={() => setShowSettings(false)}
+        onShowPaywall={() => {
+          setShowSettings(false);
+          setShowPaywall(true);
+        }}
+      />
+
+      {/* Paywall */}
+      <PaywallSheet
+        visible={showPaywall}
+        onClose={() => setShowPaywall(false)}
+        trigger="profile"
       />
 
       <UnlockDetailsModal

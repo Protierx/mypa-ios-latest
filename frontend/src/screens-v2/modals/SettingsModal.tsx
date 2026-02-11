@@ -68,8 +68,8 @@ function SectionHeader({ title }: { title: string }) {
   );
 }
 
-export function SettingsModal({ visible, onClose }: SettingsModalProps) {
-  const { signOut } = useSupabaseAuth();
+export function SettingsModal({ visible, onClose, onShowPaywall }: SettingsModalProps & { onShowPaywall?: () => void }) {
+  const { user, signOut } = useSupabaseAuth();
   
   // Settings state (would normally be persisted)
   const [aiVoiceEnabled, setAiVoiceEnabled] = useState(true);
@@ -156,6 +156,18 @@ export function SettingsModal({ visible, onClose }: SettingsModalProps) {
         </View>
 
         <ScrollView className="flex-1">
+          {/* SUBSCRIPTION */}
+          <SectionHeader title="Subscription" />
+          <View className="bg-zinc-900/50 mx-4 rounded-xl">
+            <SettingRow
+              icon={user?.isPremium ? 'diamond' : 'diamond-outline'}
+              iconColor={user?.isPremium ? '#7C3AED' : '#A1A1AA'}
+              title={user?.isPremium ? 'Premium' : 'Free Plan'}
+              subtitle={user?.isPremium ? 'You have unlimited access' : 'Upgrade for unlimited voice & circles'}
+              onPress={user?.isPremium ? undefined : onShowPaywall}
+            />
+          </View>
+
           {/* VOICE & AI */}
           <SectionHeader title="Voice & AI" />
           <View className="bg-zinc-900/50 mx-4 rounded-xl">

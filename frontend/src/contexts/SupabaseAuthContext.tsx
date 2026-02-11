@@ -23,6 +23,7 @@ export interface Profile {
   streak_longest: number;
   streak_last_activity: string | null;
   onboarding_completed: boolean;
+  is_premium: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -41,6 +42,7 @@ export interface AppUser {
   currentStreak: number;
   longestStreak: number;
   isOnboarded: boolean;
+  isPremium: boolean;
 }
 
 interface SupabaseAuthContextType {
@@ -84,6 +86,7 @@ function toAppUser(supabaseUser: SupabaseUser, profile: Profile | null): AppUser
     currentStreak: profile?.streak_current || 0,
     longestStreak: profile?.streak_longest || 0,
     isOnboarded: profile?.onboarding_completed || false,
+    isPremium: profile?.is_premium || false,
   };
 }
 
