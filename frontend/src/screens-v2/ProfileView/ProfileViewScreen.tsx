@@ -21,13 +21,37 @@ import * as Haptics from 'expo-haptics';
 
 import { useSupabaseAuth } from '../../contexts/SupabaseAuthContext';
 import { useUnlocks } from '../../hooks/supabase/useUnlocks';
+import { useUserModel } from '../../contexts/UserModelContext';
+import { useFocusSessions } from '../../hooks/supabase/useFocusSessions';
+import { LockedFeature, getLevelFromDays } from '../../components/LockedFeature';
 import { MiniVoiceButton } from '../../components/MiniVoiceButton';
 import { SettingsModal } from '../modals/SettingsModal';
 import { UnlockDetailsModal, FEATURE_UNLOCKS } from '../modals/UnlockDetailsModal';
 
+// All AI features with their required unlock levels
+const ALL_AI_FEATURES: { id: string; name: string; icon: keyof typeof Ionicons.glyphMap; level: number }[] = [
+  { id: 'personalized_greeting', name: 'Personalized Greetings', icon: 'hand-right-outline', level: 1 },
+  { id: 'task_insights', name: 'Task Insights', icon: 'bulb-outline', level: 2 },
+  { id: 'ai_task_sorting', name: 'AI Task Sorting', icon: 'swap-vertical-outline', level: 2 },
+  { id: 'focus_stats', name: 'Focus Statistics', icon: 'timer-outline', level: 2 },
+  { id: 'duration_estimation', name: 'Duration Estimation', icon: 'hourglass-outline', level: 3 },
+  { id: 'challenges', name: 'Challenges', icon: 'trophy-outline', level: 3 },
+  { id: 'custom_ai_voice', name: 'Custom AI Voice', icon: 'mic-outline', level: 3 },
+  { id: 'circle_insights', name: 'Circle Insights', icon: 'people-outline', level: 3 },
+  { id: 'overwhelm_detection', name: 'Overwhelm Detection', icon: 'alert-circle-outline', level: 4 },
+  { id: 'peak_hours', name: 'Peak Hours', icon: 'sunny-outline', level: 4 },
+  { id: 'predictive_tasks', name: 'Predictive Tasks', icon: 'sparkles-outline', level: 5 },
+];
+
 export function ProfileViewScreen() {
   const { user, signOut } = useSupabaseAuth();
   const { unlocks } = useUnlocks();
+  const { stats } = useUserModel();
+  const { getTodayStats, sessions } = useFocusSessions();
+
+  // Compute real stats from data
+  const tasksCompleted = stats?.tasksCompleted ?? 0;
+  const totalFocusMinutes = sessions.reduce((sum, s) => sum + (s.duration_actual || 0), 0);
 
   const [showSettings, setShowSettings] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
@@ -112,7 +136,7 @@ export function ProfileViewScreen() {
                 <Ionicons name="checkbox" size={20} color="#22C55E" />
                 <Text className="text-caption-1 text-ink-tertiary ml-2">Tasks</Text>
               </View>
-              <Text className="text-title-1 font-bold text-ink-primary mt-2">{0}</Text>
+              <Text className="text-title-1 font-bold text-ink-primary mt-2">{tasksCompleted}</Text>
               <Text className="text-caption-2 text-ink-disabled">Completed</Text>
             </View>
             
@@ -121,7 +145,7 @@ export function ProfileViewScreen() {
                 <Ionicons name="timer" size={20} color="#7C3AED" />
                 <Text className="text-caption-1 text-ink-tertiary ml-2">Focus</Text>
               </View>
-              <Text className="text-title-1 font-bold text-ink-primary mt-2">{0}m</Text>
+              <Text className="text-title-1 font-bold text-ink-primary mt-2">{totalFocusMinutes}m</Text>
               <Text className="text-caption-2 text-ink-disabled">Total time</Text>
             </View>
             
@@ -130,8 +154,8 @@ export function ProfileViewScreen() {
                 <Ionicons name="trophy" size={20} color="#EAB308" />
                 <Text className="text-caption-1 text-ink-tertiary ml-2">Challenges</Text>
               </View>
-              <Text className="text-title-1 font-bold text-ink-primary mt-2">{0}</Text>
-              <Text className="text-caption-2 text-ink-disabled">Won</Text>
+              <Text className="text-title-1 font-bold text-ink-primary mt-2">{stats?.daysActive ?? 0}</Text>
+              <Text className="text-caption-2 text-ink-disabled">Days active</Text>
             </View>
           </View>
 
@@ -139,20 +163,22 @@ export function ProfileViewScreen() {
             <Text className="text-caption-1 font-semibold text-ink-tertiary mb-3 uppercase tracking-wide">
               AI Features
             </Text>
-            {unlocks.length > 0 ? (
-              unlocks.slice(0, 4).map((unlock, index) => (
-                <TouchableOpacity
-                  key={unlock.feature || `unlock-${index}`}
-                  className="flex-row items-center bg-surface-2 rounded-lg p-4 mb-2 border border-surface-4"
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    const featureMeta = FEATURE_UNLOCKS[unlock.feature];
+            {ALL_AI_FEATURES.map((feature) => {
+              const unlock = unlocks.find((u) => u.feature === feature.id);
+              const isFeatureUnlocked = !!unlock?.unlocked_at;
+
+              return (
+                <LockedFeature
+                  key={feature.id}
+                  requiredLevel={feature.level}
+                  featureName={feature.name}
+                  onLockedPress={() => {
+                    const featureMeta = FEATURE_UNLOCKS[feature.id];
                     if (featureMeta) {
                       setSelectedUnlockFeature({
                         ...featureMeta,
-                        isUnlocked: !!unlock.unlocked_at,
-                        unlockedAt: unlock.unlocked_at,
-                        requirements: Object.entries(unlock.progress || {}).map(([key, val]) => ({
+                        isUnlocked: false,
+                        requirements: Object.entries(unlock?.progress || {}).map(([key, val]) => ({
                           id: key,
                           description: key.replace(/_/g, ' '),
                           current: val?.current || 0,
@@ -163,24 +189,46 @@ export function ProfileViewScreen() {
                       setShowUnlockDetails(true);
                     }
                   }}
-                  activeOpacity={0.7}
                 >
-                  <Ionicons
-                    name={unlock.unlocked_at ? 'checkmark-circle' : 'lock-closed'}
-                    size={20}
-                    color={unlock.unlocked_at ? '#22c55e' : '#52525b'}
-                  />
-                  <Text className="text-body text-ink-primary ml-3 flex-1 capitalize">
-                    {(unlock.name || unlock.feature || '').replace(/_/g, ' ')}
-                  </Text>
-                  <Ionicons name="chevron-forward" size={16} color="#52525B" />
-                </TouchableOpacity>
-              ))
-            ) : (
-              <Text className="text-body text-ink-disabled">
-                Complete tasks to unlock AI features!
-              </Text>
-            )}
+                  <TouchableOpacity
+                    className="flex-row items-center bg-surface-2 rounded-lg p-4 mb-2 border border-surface-4"
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      const featureMeta = FEATURE_UNLOCKS[feature.id];
+                      if (featureMeta) {
+                        setSelectedUnlockFeature({
+                          ...featureMeta,
+                          isUnlocked: isFeatureUnlocked,
+                          unlockedAt: unlock?.unlocked_at,
+                          requirements: Object.entries(unlock?.progress || {}).map(([key, val]) => ({
+                            id: key,
+                            description: key.replace(/_/g, ' '),
+                            current: val?.current || 0,
+                            required: val?.required || 0,
+                            completed: (val?.current || 0) >= (val?.required || 0),
+                          })),
+                        });
+                        setShowUnlockDetails(true);
+                      }
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons
+                      name={isFeatureUnlocked ? 'checkmark-circle' : feature.icon}
+                      size={20}
+                      color={isFeatureUnlocked ? '#22c55e' : '#A1A1AA'}
+                    />
+                    <Text className="text-body text-ink-primary ml-3 flex-1">
+                      {feature.name}
+                    </Text>
+                    <Text className="text-caption-2 text-ink-disabled mr-2">
+                      L{feature.level}
+                    </Text>
+                    <Ionicons name="chevron-forward" size={16} color="#52525B" />
+                  </TouchableOpacity>
+                </LockedFeature>
+              );
+            })}
           </View>
 
           <View className="mb-6">

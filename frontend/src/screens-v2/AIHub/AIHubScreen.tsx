@@ -40,9 +40,11 @@ import { VoicePermissions, useVoicePermissions } from '../../components/VoicePer
 import { NotificationsModal } from '../modals/NotificationsModal';
 import { useVoice } from '../../contexts/VoiceContext';
 import { useSupabaseAuth } from '../../contexts/SupabaseAuthContext';
+import { useUserModel } from '../../contexts/UserModelContext';
 import { useTasks } from '../../hooks/supabase/useTasks';
 import { useDailyBriefing } from '../../hooks/useDailyBriefing';
 import { eventLogger } from '../../services/eventLogger';
+import { getLevelFromDays } from '../../components/LockedFeature';
 import { specColors } from '../../styles/colors';
 import supabaseApi from '../../services/supabaseApi';
 
@@ -62,7 +64,11 @@ const ORB_GLOW_SIZE = 260;
 
 export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: externalAudioLevel }: AIHubScreenProps) {
   const { user } = useSupabaseAuth();
+  const { stats } = useUserModel();
   const { tasks } = useTasks('today');
+
+  // Compute current unlock level from days active
+  const currentLevel = getLevelFromDays(stats?.daysActive ?? 0);
   
   // Voice integration
   const voice = useVoice();
@@ -532,6 +538,48 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
                     <Text style={styles.pillText}>Add Task</Text>
                   </BlurView>
                 </Pressable>
+
+                {/* Locked: Smart Sort — Level 2 */}
+                <Pressable
+                  style={[styles.quickActionPill, currentLevel < 2 && { opacity: 0.45 }]}
+                  onPress={() => {
+                    if (currentLevel < 2) {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    }
+                  }}
+                >
+                  <BlurView intensity={25} tint="dark" style={styles.pillBlur}>
+                    <Ionicons
+                      name={currentLevel >= 2 ? 'sparkles-outline' : 'lock-closed'}
+                      size={16}
+                      color={currentLevel >= 2 ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.4)'}
+                    />
+                    <Text style={[styles.pillText, currentLevel < 2 && { color: 'rgba(255,255,255,0.4)' }]}>
+                      Smart Sort
+                    </Text>
+                  </BlurView>
+                </Pressable>
+
+                {/* Locked: Reminders — Level 4 */}
+                <Pressable
+                  style={[styles.quickActionPill, currentLevel < 4 && { opacity: 0.45 }]}
+                  onPress={() => {
+                    if (currentLevel < 4) {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    }
+                  }}
+                >
+                  <BlurView intensity={25} tint="dark" style={styles.pillBlur}>
+                    <Ionicons
+                      name={currentLevel >= 4 ? 'notifications-outline' : 'lock-closed'}
+                      size={16}
+                      color={currentLevel >= 4 ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.4)'}
+                    />
+                    <Text style={[styles.pillText, currentLevel < 4 && { color: 'rgba(255,255,255,0.4)' }]}>
+                      Reminders
+                    </Text>
+                  </BlurView>
+                </Pressable>
               </Animated.View>
             )}
             
@@ -798,8 +846,9 @@ const styles = StyleSheet.create({
   },
   quickActionsRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'center',
-    gap: 12,
+    gap: 10,
     marginBottom: 24,
   },
   quickActionPill: {

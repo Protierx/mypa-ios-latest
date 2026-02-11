@@ -90,6 +90,42 @@ export const FEATURE_UNLOCKS: Record<string, Omit<FeatureUnlock, 'isUnlocked' | 
     description: 'MYPA alerts you when you have too much on your plate.',
     icon: 'alert-circle-outline',
   },
+  task_insights: {
+    id: 'task_insights',
+    name: 'Task Insights',
+    description: 'See AI-powered insights about your task completion patterns and productivity trends.',
+    icon: 'bulb-outline',
+  },
+  focus_stats: {
+    id: 'focus_stats',
+    name: 'Focus Statistics',
+    description: 'Track your focus sessions and see how your concentration improves over time.',
+    icon: 'timer-outline',
+  },
+  challenges: {
+    id: 'challenges',
+    name: 'Challenges',
+    description: 'Compete with friends and circles in productivity challenges!',
+    icon: 'trophy-outline',
+  },
+  custom_ai_voice: {
+    id: 'custom_ai_voice',
+    name: 'Custom AI Voice',
+    description: 'Choose from different AI voices to personalize your MYPA experience.',
+    icon: 'mic-outline',
+  },
+  circle_insights: {
+    id: 'circle_insights',
+    name: 'Circle Insights',
+    description: 'See detailed analytics about how your circles are performing together.',
+    icon: 'people-outline',
+  },
+  predictive_tasks: {
+    id: 'predictive_tasks',
+    name: 'Predictive Tasks',
+    description: 'MYPA suggests tasks before you even think of them based on your patterns.',
+    icon: 'sparkles-outline',
+  },
 };
 
 export function UnlockDetailsModal({ visible, feature, onClose }: UnlockDetailsModalProps) {

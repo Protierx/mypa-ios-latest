@@ -1340,10 +1340,10 @@ Depends on events flowing (Step 4), user_model table (Step 2), pg_cron (Step 9).
 - [o] Re-fetch on app foreground — needs verification
 
 #### Frontend — LockedFeature Component
-- [ ] Create reusable `LockedFeature` component — DOES NOT EXIST (no LockedFeature.tsx found)
-- [ ] Props: `requiredLevel`, `currentLevel`, `children`, `featureName` — NOT BUILT
-- [ ] If locked: grey 40% opacity + lock icon + "Unlocks at Level X (about Y days)" — NOT BUILT
-- [ ] If unlocked: render normally — NOT BUILT
+- [x] Create reusable `LockedFeature` component — created at components/LockedFeature.tsx
+- [x] Props: `requiredLevel`, `currentLevel`, `children`, `featureName` — implemented (currentLevel computed from stats.daysActive)
+- [x] If locked: grey 40% opacity + lock icon + "Unlocks at Level X (about Y days)" — implemented
+- [x] If unlocked: render normally — implemented
 
 #### Frontend — UnlockCelebrationModal
 - [x] On app open: check for pending unlocks — UnlockCelebrationModal exists with useUnlockCelebrations hook
@@ -1361,22 +1361,22 @@ Depends on events flowing (Step 4), user_model table (Step 2), pg_cron (Step 9).
 - [x] Tap level/XP → UnlockDetailsModal — wired
 
 #### Frontend — Wire Lock States Across Screens
-- [ ] AIHub: Smart scheduling → locked until L2. Proactive reminders → locked until L4. — NO LockedFeature COMPONENT (gating not wired on screens)
-- [ ] Voice: locked feature request → friendly "X more days" response — NOT IMPLEMENTED
-- [ ] ProfileView: locked features with LockedFeature gates — NOT IMPLEMENTED
+- [x] AIHub: Smart scheduling → locked until L2. Proactive reminders → locked until L4. — DONE: locked pills with lock icon + dimmed state wired
+- [ ] Voice: locked feature request → friendly "X more days" response — SKIPPED (partner's voice/API work)
+- [x] ProfileView: locked features with LockedFeature gates — DONE: all 11 AI features shown with LockedFeature wrapping, lock overlay + days remaining
 
-#### Voice — Locked Features
-- [ ] In actionExecutor: check `isFeatureUnlocked` before executing — NOT IMPLEMENTED
-- [ ] If locked: voice says "I'll be able to do that after about X more days" — NOT IMPLEMENTED
-- [ ] Do NOT execute mutation — NOT IMPLEMENTED
-- [ ] Log `locked_feature_attempt` to `event_log` — NOT IMPLEMENTED
+#### Voice — Locked Features (Partner's AI/Voice Work)
+- [ ] In actionExecutor: check `isFeatureUnlocked` before executing — DEFERRED (partner's voice/API work)
+- [ ] If locked: voice says "I'll be able to do that after about X more days" — DEFERRED (partner's voice/API work)
+- [ ] Do NOT execute mutation — DEFERRED (partner's voice/API work)
+- [ ] Log `locked_feature_attempt` to `event_log` — DEFERRED (partner's voice/API work)
 
 #### Testing
-- [ ] Seed user with 7+ days `event_log` → run calculate-unlocks → `unlock_level = 3` — calculate-unlocks doesn't compute unlock_level yet
+- [ ] Seed user with 7+ days `event_log` → run calculate-unlocks → `unlock_level = 3` — backend: calculate-unlocks doesn't compute unlock_level yet
 - [o] App open after level change → celebration modal — modal exists, needs trigger test
 - [o] Dismiss → reopen → no re-appear — markSeen exists, needs live test
-- [ ] Level 4 feature → lock icon + days remaining — NO LockedFeature component
-- [ ] Voice: "Set proactive reminder" → "X more days" response — NOT IMPLEMENTED
+- [x] Level 4 feature → lock icon + days remaining — DONE: LockedFeature shows lock + "Unlocks at Level X — about Y days"
+- [ ] Voice: "Set proactive reminder" → "X more days" response — DEFERRED (partner's voice/API work)
 - [o] Complete task → XP increased by 10 — trigger exists, needs live verification
 - [o] 3 consecutive days → streak multiplier 1.1x — trigger exists, needs live verification
 - [o] Miss a day → streak resets — needs live verification
@@ -1414,11 +1414,11 @@ ROLLBACK: If calculate-unlocks fails, check event_log queries and user_model ups
 ```
 
 ### 7) Validation Checklist
-- [ ] `calculate-unlocks` computes level/XP/streak correctly — NEEDS WORK (only does feature unlocks, not user_model)
+- [ ] `calculate-unlocks` computes level/XP/streak correctly — backend: only does feature unlocks, not user_model
 - [o] Level transitions trigger celebration modal — modal exists, trigger logic needs testing
-- [ ] Locked features show grey + lock icon — LockedFeature component NOT BUILT
-- [ ] Voice → "X more days" for locked features — NOT IMPLEMENTED
-- [x] XP/streak displayed on ProfileView — stats shown
+- [x] Locked features show grey + lock icon — DONE: LockedFeature component + wired into AIHub and ProfileView
+- [ ] Voice → "X more days" for locked features — DEFERRED (partner's voice/API work)
+- [x] XP/streak displayed on ProfileView — stats shown (real data from UserModelContext + useFocusSessions)
 - [x] UnlockDetailsModal shows all 5 levels — implemented
 
 **STOP if any fail. Fix before proceeding.**
@@ -1442,9 +1442,9 @@ ROLLBACK: If calculate-unlocks fails, check event_log queries and user_model ups
 - XP wrong → Verify XP values match project-context constants exactly
 
 ### 11) Step Completion Sign-off
-- [ ] I have completed all task checkboxes in this step
-- [ ] I have completed all validation checks in this step
-- [ ] I have met this step's DoD
+- [o] I have completed all task checkboxes in this step — frontend done, backend/voice deferred to partner
+- [o] I have completed all validation checks in this step — frontend validation passed, backend items pending
+- [o] I have met this step's DoD — frontend: LockedFeature, celebration modal, lock icons, XP/streak all done. Backend nightly loop + voice gating deferred.
 - [ ] I have committed unlock engine changes to git
 
 ---
@@ -2160,7 +2160,7 @@ Every step must be signed off before the project is considered complete. Check e
 - [o] **Step 9 signed off:** Daily Briefing — hook + edge function complete. Needs: pg_cron setup, live playback test
 
 ## Business Logic (Steps 10-12)
-- [ ] **Step 10 signed off:** Unlock Engine — celebration modal + details modal exist. Needs: LockedFeature component, calculate-unlocks nightly loop, voice gating
+- [o] **Step 10 signed off:** Unlock Engine — LockedFeature built + wired on AIHub & ProfileView, celebration modal + details modal exist, real stats on ProfileView. Needs: calculate-unlocks nightly loop (backend), voice gating (partner's work), deploy verification
 - [ ] **Step 11 signed off:** Monetization — NOTHING BUILT. Needs: RevenueCat, paywall, upsell, voice counter, webhook
 - [ ] **Step 12 signed off:** Analytics — NOTHING BUILT. Needs: SQL queries, baselines
 
