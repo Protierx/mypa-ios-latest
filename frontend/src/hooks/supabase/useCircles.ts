@@ -5,6 +5,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { supabase, Circle, CircleMember } from '@/lib/supabase';
 import { useSupabaseAuth } from '@/contexts/SupabaseAuthContext';
+import { eventLogger } from '@/services/eventLogger';
 
 interface CircleWithMembers extends Circle {
   members?: CircleMember[];
@@ -192,6 +193,9 @@ export function useCircles(): UseCirclesReturn {
         // Circle was created but member add failed — don't throw, circle still exists
       }
 
+      // Log event for AI learning
+      eventLogger.logCircleCreated(data.id, insertPayload.name);
+
       // Refresh circle list
       fetchCircles();
 
@@ -215,6 +219,10 @@ export function useCircles(): UseCirclesReturn {
         });
 
       if (error) throw error;
+
+      // Log event for AI learning
+      eventLogger.logCircleJoined(circleId);
+
       return true;
     } catch (err) {
       console.error('Error joining circle:', err);
@@ -233,6 +241,10 @@ export function useCircles(): UseCirclesReturn {
         .eq('user_id', user.id);
 
       if (error) throw error;
+
+      // Log event for AI learning
+      eventLogger.logCircleLeft(circleId);
+
       return true;
     } catch (err) {
       console.error('Error leaving circle:', err);

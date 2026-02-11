@@ -479,14 +479,14 @@ The gap report (GAP-06) found that `eventLogger.ts` exists but most hooks don't 
 
 #### Backend — Verify useCircles.ts Logging
 - [x] Open `frontend/src/hooks/supabase/useCircles.ts`
-- [ ] Confirm `createCircle` calls eventLogger with `action: 'create_circle'` — NOT WIRED (function exists but no event logging)
-- [ ] Confirm `joinCircle` calls eventLogger with `action: 'join_circle'` — NOT WIRED
-- [ ] Confirm `leaveCircle` calls eventLogger with `action: 'leave_circle'` — NOT WIRED
+- [x] Confirm `createCircle` calls eventLogger with `action: 'create_circle'` — WIRED
+- [x] Confirm `joinCircle` calls eventLogger with `action: 'join_circle'` — WIRED
+- [x] Confirm `leaveCircle` calls eventLogger with `action: 'leave_circle'` — WIRED
 
 #### Backend — Verify useChallenges.ts Logging
 - [x] Open `frontend/src/hooks/supabase/useChallenges.ts`
-- [ ] Confirm `createChallenge` calls eventLogger with `action: 'create_challenge'` — NOT WIRED
-- [ ] Confirm `joinChallenge` calls eventLogger with `action: 'join_challenge'` — NOT WIRED
+- [x] Confirm `createChallenge` calls eventLogger with `action: 'create_challenge'` — WIRED
+- [x] Confirm `joinChallenge` calls eventLogger with `action: 'join_challenge'` — WIRED
 
 #### Backend — Verify app_opened Event
 - [x] Open `frontend/App.tsx`
@@ -495,13 +495,13 @@ The gap report (GAP-06) found that `eventLogger.ts` exists but most hooks don't 
 
 #### Testing — Verify Events Reach Database
 - [x] Create a task in the app → check `event_log` in Supabase Dashboard for `action: 'create_task'`, `success: true` — event logged, screen_context shows "unknown" (minor fix needed later)
-- [o] Complete a task → check for `action: 'complete_task'`
-- [o] Start a focus session → check for `action: 'start_focus_session'`
+- [x] Complete a task → check for `action: 'complete_task'` — verified in Dashboard
+- [x] Start a focus session → check for `action: 'start_focus_session'` — verified in Dashboard
 - [x] Open the app (foreground) → check for `event_type: 'app_opened'` — 1,290 events confirmed in Dashboard, app_opened events present
 - [o] Check Expo terminal — confirm no `[EventLogger] Flush failed` errors
 
 #### Fix — Wire Any Missing Events
-- [ ] If any hook is missing eventLogger calls, add them now — CIRCLES AND CHALLENGES NEED WIRING
+- [x] If any hook is missing eventLogger calls, add them now — circles, challenges wired
 - [o] If events are failing silently, fix column name mismatches
 - [o] If old queued events are failing, bump the queue version constant
 
@@ -546,11 +546,11 @@ ROLLBACK: If events fail, check column name mismatches with the DB.
 ```
 
 ### 7) Validation Checklist
-- [o] Create a task → `event_log` row with `action: 'create_task'`
-- [o] Complete a task → `event_log` row with `action: 'complete_task'`
-- [o] Start a focus session → `event_log` row with `action: 'start_focus_session'`
-- [o] Open the app → `event_log` row with event type 'app_opened'
-- [o] No `[EventLogger] Flush failed` errors in Expo terminal
+- [x] Create a task → `event_log` row with `action: 'create_task'` — verified in Dashboard
+- [x] Complete a task → `event_log` row with `action: 'complete_task'` — verified in Dashboard
+- [x] Start a focus session → `event_log` row with `action: 'start_focus_session'` — verified in Dashboard
+- [x] Open the app → `event_log` row with event type 'app_opened' — 1,290+ events confirmed
+- [o] No `[EventLogger] Flush failed` errors in Expo terminal — needs terminal check
 
 **STOP if any fail. Fix before proceeding.**
 
@@ -751,10 +751,10 @@ This is a known bug. Until fixed, creating tasks/circles hangs the entire UI.
 - [x] Only set `loading = true` on first fetch — verified
 
 #### Testing
-- [o] Create task completes in <3 seconds — needs timing test
-- [o] Create circle completes in <3 seconds — needs timing test
-- [o] App loads past auth in <5 seconds — needs timing test
-- [o] No infinite spinners — needs behavioral test
+- [x] Create task completes in <3 seconds — confirmed by user
+- [x] Create circle completes in <3 seconds — confirmed by user
+- [x] App loads past auth in <5 seconds — confirmed by user
+- [x] No infinite spinners — confirmed by user
 
 ### 5) Partner Split
 
@@ -787,11 +787,11 @@ ROLLBACK: If insert fails after split, check that the separate .select() query m
 ```
 
 ### 7) Validation Checklist
-- [o] Creating a task completes in <3 seconds — code fixed, needs timing test
-- [o] Creating a circle completes in <3 seconds — code fixed, needs timing test
-- [o] App loads past auth in <5 seconds — code fixed, needs timing test
-- [o] Task screen shows data within 3 seconds — needs timing test
-- [o] No infinite spinners anywhere in the app — needs behavioral test
+- [x] Creating a task completes in <3 seconds — confirmed by user
+- [x] Creating a circle completes in <3 seconds — confirmed by user
+- [x] App loads past auth in <5 seconds — confirmed by user
+- [x] Task screen shows data within 3 seconds — confirmed by user
+- [x] No infinite spinners anywhere in the app — confirmed by user
 
 **STOP if any fail. Fix before proceeding.**
 
@@ -878,13 +878,13 @@ Users can't interact with the app until screen-to-modal connections are wired. T
 - [o] Verify defaults are "counts only" (all count toggles ON, task titles always OFF)
 
 #### Testing
-- [o] Tap task → TaskDetailModal opens — code wired, needs manual test
-- [o] Tap "+" → QuickAddTaskOverlay opens — code wired, needs manual test
-- [o] Tap circle → CircleHomeModal opens — code wired, needs manual test
-- [o] Tap challenge → ChallengeDetailModal opens — code wired, needs manual test
-- [o] Tap gear → SettingsModal opens — code wired, needs manual test
-- [o] Swipe up → FocusModal opens — code wired, needs manual test
-- [o] All modals close cleanly — needs manual test
+- [x] Tap task → TaskDetailModal opens — confirmed by user
+- [x] Tap "+" → QuickAddTaskOverlay opens — confirmed by user
+- [x] Tap circle → CircleHomeModal opens — confirmed by user
+- [x] Tap challenge → ChallengeDetailModal opens — confirmed by user
+- [x] Tap gear → SettingsModal opens — confirmed by user
+- [x] Swipe up → FocusModal opens — confirmed by user
+- [x] All modals close cleanly — confirmed by user
 
 ### 5) Partner Split
 
@@ -916,11 +916,11 @@ ROLLBACK: If modal crashes, check that it's not inside GestureDetector.
 ```
 
 ### 7) Validation Checklist
-- [o] Every tap handler works (no TODO handlers remain) — code wired, needs walkthrough
-- [o] Every modal opens with correct data — code wired, needs walkthrough
-- [o] Every modal closes cleanly — needs walkthrough
-- [o] No stale state after modal close — needs walkthrough
-- [o] FocusModal opens on swipe up — code wired, needs walkthrough
+- [x] Every tap handler works (no TODO handlers remain) — confirmed by user
+- [x] Every modal opens with correct data — confirmed by user
+- [x] Every modal closes cleanly — confirmed by user
+- [x] No stale state after modal close — confirmed by user
+- [x] FocusModal opens on swipe up — confirmed by user
 
 **STOP if any fail. Fix before proceeding.**
 
@@ -2150,12 +2150,12 @@ Every step must be signed off before the project is considered complete. Check e
 - [o] **Step 1 signed off:** Environment & Project Sanity — app loads in Expo, Supabase connected. Needs: both partners verified, CLI tested
 - [o] **Step 2 signed off:** Database Schema — migrations 008-010 define correct schema. Needs: Dashboard column verification, seed test
 - [o] **Step 3 signed off:** RLS Security — migrations 011-013 harden policies. Needs: cross-user isolation live test
-- [o] **Step 4 signed off:** Event Logging — useTasks logs events. Needs: circles/challenges event wiring, pause/resume, live Dashboard check
+- [o] **Step 4 signed off:** Event Logging — useTasks, useCircles, useChallenges all log events. Needs: focus pause/resume, Expo terminal flush check
 - [o] **Step 5 signed off:** Edge Functions — all 6 functions coded with shared config. Needs: deploy verification, voice test
 
 ## Features (Steps 6-9)
-- [o] **Step 6 signed off:** PostgREST Fix — insert chains split, timeouts added, hasLoadedOnce exists. Needs: timing tests
-- [o] **Step 7 signed off:** Screen Wiring — all screens and modals coded and wired. Needs: walkthrough test
+- [x] **Step 6 signed off:** PostgREST Fix — all operations complete under 3 seconds, no infinite spinners. Confirmed by user.
+- [x] **Step 7 signed off:** Screen Wiring — all screens and modals open and close correctly. Confirmed by user.
 - [o] **Step 8 signed off:** Voice & AI — 4 of 7 states, barge-in, timeout, action executor. Needs: 3 missing states (TIMEOUT/ERROR/OFFLINE), orb visuals, live voice test
 - [o] **Step 9 signed off:** Daily Briefing — hook + edge function complete. Needs: pg_cron setup, live playback test
 

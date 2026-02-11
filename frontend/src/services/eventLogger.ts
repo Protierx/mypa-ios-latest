@@ -412,6 +412,76 @@ class EventLoggerService {
     });
   }
 
+  // ========================================================================
+  // Circle Events
+  // ========================================================================
+
+  /**
+   * Log circle created
+   */
+  logCircleCreated(circleId: string, circleName: string): void {
+    this.log('circle_joined', {
+      action: 'create_circle',
+      success: true,
+      circleId,
+      circleName,
+    });
+  }
+
+  /**
+   * Log circle joined
+   */
+  logCircleJoined(circleId: string, circleName?: string): void {
+    this.log('circle_joined', {
+      action: 'join_circle',
+      success: true,
+      circleId,
+      circleName,
+    });
+  }
+
+  /**
+   * Log circle left
+   */
+  logCircleLeft(circleId: string): void {
+    this.log('circle_joined', {
+      action: 'leave_circle',
+      success: true,
+      circleId,
+    });
+  }
+
+  // ========================================================================
+  // Challenge Events
+  // ========================================================================
+
+  /**
+   * Log challenge created
+   */
+  logChallengeCreated(challengeId: string, challengeType: string): void {
+    this.log('challenge_joined', {
+      action: 'create_challenge',
+      success: true,
+      challengeId,
+      challengeType,
+    });
+  }
+
+  /**
+   * Log challenge joined
+   */
+  logChallengeJoined(challengeId: string): void {
+    this.log('challenge_joined', {
+      action: 'join_challenge',
+      success: true,
+      challengeId,
+    });
+  }
+
+  // ========================================================================
+  // Focus Events
+  // ========================================================================
+
   /**
    * Log focus session started
    */

@@ -5,6 +5,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { supabase, Challenge, ChallengeParticipant } from '@/lib/supabase';
 import { useSupabaseAuth } from '@/contexts/SupabaseAuthContext';
+import { eventLogger } from '@/services/eventLogger';
 
 interface ChallengeWithParticipation extends Challenge {
   participants?: ChallengeParticipant[];
@@ -178,6 +179,9 @@ export function useChallenges(): UseChallengesReturn {
         progress: 0,
       });
 
+      // Log event for AI learning
+      eventLogger.logChallengeCreated(data.id, challenge.type || 'tasks_completed');
+
       return data;
     } catch (err) {
       console.error('Error creating challenge:', err);
@@ -198,6 +202,10 @@ export function useChallenges(): UseChallengesReturn {
         });
 
       if (error) throw error;
+
+      // Log event for AI learning
+      eventLogger.logChallengeJoined(challengeId);
+
       return true;
     } catch (err) {
       console.error('Error joining challenge:', err);
