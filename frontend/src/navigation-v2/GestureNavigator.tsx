@@ -9,7 +9,7 @@
  * - UP: Focus Modal (opens as overlay)
  */
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Dimensions, StyleSheet, Modal } from 'react-native';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import Animated, {
@@ -21,9 +21,10 @@ import Animated, {
 import * as Haptics from 'expo-haptics';
 
 import { useGestureNavigation, Screen } from './useGestureNavigation';
-import { GestureProvider } from './GestureContext';
+import { GestureProvider, useGesture } from './GestureContext';
 import { FocusModalProvider } from './FocusModalContext';
 import { SwipeIndicator } from './SwipeIndicator';
+import { useVoice } from '../contexts/VoiceContext';
 
 // Import screens
 import { AIHubScreen } from '../screens-v2/AIHub';
@@ -241,10 +242,31 @@ function GestureNavigatorContent() {
   );
 }
 
+/**
+ * Bridge component — watches screen changes and sends contextual updates
+ * to the active ElevenLabs voice session (Step 14a).
+ * Lives inside GestureProvider so it can access both useGesture() and useVoice().
+ */
+function ScreenContextBridge() {
+  const { currentScreen } = useGesture();
+  const { updateScreenContext } = useVoice();
+  const prevScreenRef = useRef<Screen>(currentScreen);
+
+  useEffect(() => {
+    if (currentScreen !== prevScreenRef.current) {
+      prevScreenRef.current = currentScreen;
+      updateScreenContext(currentScreen);
+    }
+  }, [currentScreen, updateScreenContext]);
+
+  return null; // Renderless bridge
+}
+
 export function GestureNavigator() {
   return (
     <GestureHandlerRootView style={styles.root}>
       <GestureProvider>
+        <ScreenContextBridge />
         <GestureNavigatorContent />
       </GestureProvider>
     </GestureHandlerRootView>

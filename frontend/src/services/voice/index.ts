@@ -1,41 +1,24 @@
 /**
- * Voice Services
- * 
- * Comprehensive voice service for MYPA using OpenAI's premium voice APIs.
- * - STT: OpenAI Whisper via Supabase Edge Function (REST fallback)
- * - TTS: OpenAI TTS via Supabase Edge Function (REST fallback)
- * - Realtime: OpenAI Realtime API via WebSocket (primary, <800ms latency)
- * - Default voice: 'ash'
- * 
- * Reference: MYPA_ARCHITECTURE_PLAN.md Section 6
- * Reference: MYPA_FULL_IMPLEMENTATION_GUIDE.md Phase 5
+ * Voice Services — ElevenLabs Conversational AI
+ *
+ * All voice functionality goes through the ElevenLabs agent.
+ * - Conversational: @elevenlabs/react-native SDK (LiveKit WebRTC)
+ * - TTS fallback: ElevenLabs REST via Supabase edge function
+ *
+ * Reference: docs/planning/ELEVENLABS_VOICE_MIGRATION_PLAN.md
  */
 
-// Core Voice Service - Singleton instance (REST fallback)
-export { 
-  VoiceService,
-  type VoiceServiceInterface,
+// ElevenLabs Voice Service — callback builders, session config, tool handler
+export {
+  buildConversationOptions,
+  buildSessionConfig,
+  handleToolCall,
+  fetchConversationToken,
+  getTimeOfDay,
+  getTimezone,
+  DEFAULT_ELEVENLABS_VOICE_ID,
+  SESSION_INACTIVITY_TIMEOUT_MS,
   type VoiceState,
-  type VoiceError,
-  type SpeakOptions,
-} from './VoiceService';
-
-// Realtime Voice Service - WebSocket client for OpenAI Realtime API
-export {
-  realtimeVoiceService,
-  type RealtimeEvent,
-  type RealtimeTranscriptEvent,
-  type RealtimeAudioEvent,
-  type RealtimeFunctionCallEvent,
-  type RealtimeErrorEvent,
-} from './RealtimeVoiceService';
-
-// PCM Audio Utilities
-export {
-  stripWavHeader,
-  createWavFromPcm,
-  concatenatePcmChunks,
-} from './pcmUtils';
-
-// Re-export singleton as default
-export { VoiceService as default } from './VoiceService';
+  type VoiceStateCallbacks,
+  type SessionDynamicVariables,
+} from './ElevenLabsVoiceService';

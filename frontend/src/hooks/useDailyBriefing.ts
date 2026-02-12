@@ -14,6 +14,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { getDailyBrief } from '@/services/supabaseApi';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+/** AsyncStorage key for the last briefing date played locally */
+const BRIEFING_PLAYED_KEY = 'mypa_last_briefing_date';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -114,20 +118,17 @@ export function useDailyBriefing(userId: string | undefined): UseDailyBriefingRe
             : (profile.briefing_date as Date).toISOString().slice(0, 10))
         : null;
 
-      if (lastBriefingDate === today) {
+      // Also check local AsyncStorage for a fast "already played" guard
+      const localPlayed = await AsyncStorage.getItem(BRIEFING_PLAYED_KEY).catch(() => null);
+
+      if (lastBriefingDate === today || localPlayed === today) {
+        // Already briefed today — don't play again
         clearTimeout(timeoutId);
         hasCheckedRef.current = true;
+        briefingPlayedRef.current = true;
         isFetchingRef.current = false;
-        try {
-          const cached = await getDailyBrief({ check_cache: true });
-          if (cached?.briefText) {
-            setState({ shouldBrief: true, briefText: cached.briefText, isLoading: false, error: null });
-          } else {
-            setState({ shouldBrief: false, briefText: '', isLoading: false, error: null });
-          }
-        } catch {
-          setState({ shouldBrief: false, briefText: '', isLoading: false, error: null });
-        }
+        console.log('[useDailyBriefing] Already briefed today, skipping');
+        setState({ shouldBrief: false, briefText: '', isLoading: false, error: null });
         return;
       }
 
@@ -193,6 +194,25 @@ export function useDailyBriefing(userId: string | undefined): UseDailyBriefingRe
   const markBriefingPlayed = useCallback(() => {
     briefingPlayedRef.current = true;
     setState(prev => ({ ...prev, shouldBrief: false }));
+
+    // Persist so the briefing won't replay today — even after app restart
+    const uid = userIdRef.current;
+    const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
+
+    // 1. Fast local guard (survives hot-reload + app restart)
+    AsyncStorage.setItem(BRIEFING_PLAYED_KEY, today).catch(() => {});
+
+    // 2. Server-side guard (survives reinstall + multi-device)
+    if (uid) {
+      supabase
+        .from('profiles')
+        .update({ briefing_date: today })
+        .eq('id', uid)
+        .then(({ error }) => {
+          if (error) console.warn('[useDailyBriefing] Failed to update briefing_date:', error.message);
+          else console.log('[useDailyBriefing] briefing_date set to', today);
+        });
+    }
   }, []);
 
   return {

@@ -1,0 +1,13 @@
+{
+  "name": "set_preference",
+  "description": "Update a user preference or setting.",
+  "type": "client",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "key": { "type": "string", "description": "Preference key (e.g. voice_speed, theme, focus_duration)" },
+      "value": { "type": "string", "description": "New value for the preference" }
+    },
+    "required": ["key", "value"]
+  }
+}

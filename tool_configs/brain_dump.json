@@ -1,0 +1,12 @@
+{
+  "name": "brain_dump",
+  "description": "Capture unstructured thoughts that will be processed into tasks later. Use when user says let me dump, brain dump, or speaks a long stream of thoughts.",
+  "type": "client",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "content": { "type": "string", "description": "Raw brain dump content from user" }
+    },
+    "required": ["content"]
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "reschedule_task",
+  "description": "Move a task to a different date/time. Use when user says move, reschedule, push, defer.",
+  "type": "client",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "taskName": { "type": "string", "description": "Name of the task to reschedule" },
+      "newDate": { "type": "string", "description": "New date (ISO 8601 or natural language)" },
+      "newTime": { "type": "string", "description": "New time" }
+    },
+    "required": ["taskName", "newDate"]
+  }
+}

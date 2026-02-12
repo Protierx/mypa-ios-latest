@@ -1,0 +1,13 @@
+{
+  "name": "start_focus_session",
+  "description": "Start a focus/pomodoro session. Use when user says start focus, focus mode, let me focus.",
+  "type": "client",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "task_name": { "type": "string", "description": "Optional task to link the focus session to" },
+      "duration_min": { "type": "number", "description": "Session duration in minutes (default 25)" }
+    },
+    "required": []
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "query_tasks",
+  "description": "Query user tasks. Use when they ask what do I have, show my tasks, what is on my plate.",
+  "type": "client",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "date": { "type": "string", "description": "Date to query (today, tomorrow, or ISO date)" },
+      "filter": { "type": "string", "enum": ["all", "pending", "completed", "high_priority"], "description": "Filter type" }
+    },
+    "required": []
+  }
+}

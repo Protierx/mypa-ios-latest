@@ -1,0 +1,10 @@
+{
+  "name": "pause_focus",
+  "description": "Pause the current focus session.",
+  "type": "client",
+  "parameters": {
+    "type": "object",
+    "properties": {},
+    "required": []
+  }
+}

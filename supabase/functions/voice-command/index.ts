@@ -21,6 +21,7 @@ import {
   OPENAI_TIMEOUT_MS,
   withTimeout,
 } from '../_shared/config.ts'
+import { isolateVoice } from '../voice-isolate/index.ts'
 
 // ============================================================================
 // Whisper STT
@@ -257,12 +258,26 @@ serve(async (req) => {
   try {
     const body = await req.json()
     let transcript = body.transcript
-    const { audio, context } = body
+    const { audio, context, noise_isolation } = body
+
+    // ── Voice isolation: clean noisy audio before STT ────────────────
+    let processedAudio = audio
+    if (audio && !transcript && noise_isolation) {
+      try {
+        console.log('[voice-command] Noise isolation enabled — isolating voice')
+        processedAudio = await isolateVoice(audio, 'm4a')
+        console.log('[voice-command] Voice isolation complete')
+      } catch (err) {
+        // Non-fatal: fall back to raw audio if isolation fails
+        console.warn('[voice-command] Voice isolation failed, using raw audio:', err)
+        processedAudio = audio
+      }
+    }
 
     // ── STT: Transcribe audio if provided ────────────────────────────
-    if (audio && !transcript) {
+    if (processedAudio && !transcript) {
       try {
-        transcript = await transcribeAudio(audio)
+        transcript = await transcribeAudio(processedAudio)
       } catch (err) {
         console.error('Transcription error:', err)
         return new Response(

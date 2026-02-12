@@ -1,0 +1,12 @@
+{
+  "name": "query_circles",
+  "description": "Query the user circles and social activity.",
+  "type": "client",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "circle_name": { "type": "string", "description": "Specific circle to query (optional)" }
+    },
+    "required": []
+  }
+}

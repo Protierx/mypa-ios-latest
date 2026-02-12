@@ -1,0 +1,25 @@
+{
+  "name": "batch_create_tasks",
+  "description": "Create multiple tasks at once. Use when user lists several things to do.",
+  "type": "client",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "tasks": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "title": { "type": "string", "description": "Task title" },
+            "date": { "type": "string", "description": "Task due date" },
+            "priority": { "type": "string", "enum": ["low", "medium", "high", "urgent"], "description": "Task priority level" },
+            "category": { "type": "string", "description": "Task category" }
+          },
+          "required": ["title"]
+        },
+        "description": "Array of tasks to create"
+      }
+    },
+    "required": ["tasks"]
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "name": "query_stats",
+  "description": "Query user stats: streak, XP, level, focus minutes, etc.",
+  "type": "client",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "metric": { "type": "string", "enum": ["streak", "xp", "level", "focus", "all"], "description": "Which stat to check" }
+    },
+    "required": []
+  }
+}

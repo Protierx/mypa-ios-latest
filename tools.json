@@ -1,0 +1,104 @@
+{
+    "tools": [
+        {
+            "type": "client",
+            "config": "tool_configs/create_task.json",
+            "id": "tool_2701kh7fnvfkf5hsvhfxad4ynp53"
+        },
+        {
+            "type": "client",
+            "config": "tool_configs/update_task.json",
+            "id": "tool_8301kh7fp1dwfceb9r19xggm4z7r"
+        },
+        {
+            "type": "client",
+            "config": "tool_configs/complete_task.json",
+            "id": "tool_1301kh7fp6mnfq8vvch34khb64fg"
+        },
+        {
+            "type": "client",
+            "config": "tool_configs/delete_task.json",
+            "id": "tool_6601kh7fpd36fzs9nbbzm1j1qhgv"
+        },
+        {
+            "type": "client",
+            "config": "tool_configs/reschedule_task.json",
+            "id": "tool_2401kh7fphtgfysspv2f32n0wcxw"
+        },
+        {
+            "type": "client",
+            "config": "tool_configs/batch_create_tasks.json",
+            "id": "tool_0601kh7fpp0pfvk9gfnc7vsv09e2"
+        },
+        {
+            "type": "client",
+            "config": "tool_configs/start_focus_session.json",
+            "id": "tool_8701kh7fptasfn49dzhhbrspm0zv"
+        },
+        {
+            "type": "client",
+            "config": "tool_configs/pause_focus.json",
+            "id": "tool_7901kh7fq09vfse9hz68hbr8ph2p"
+        },
+        {
+            "type": "client",
+            "config": "tool_configs/resume_focus.json",
+            "id": "tool_9901kh7fq9kbepwvt0qxpcx7rapz"
+        },
+        {
+            "type": "client",
+            "config": "tool_configs/end_focus.json",
+            "id": "tool_0201kh7fqnrve859s11cd0hsyjj5"
+        },
+        {
+            "type": "client",
+            "config": "tool_configs/create_circle.json",
+            "id": "tool_8501kh7frgmteap86xgt5xhebhhf"
+        },
+        {
+            "type": "client",
+            "config": "tool_configs/invite_to_circle.json",
+            "id": "tool_1401kh7frwy9eyhbs9d2c3zwz37a"
+        },
+        {
+            "type": "client",
+            "config": "tool_configs/create_challenge.json",
+            "id": "tool_4101kh7fs3hpfvdrpk3t8rs5w038"
+        },
+        {
+            "type": "client",
+            "config": "tool_configs/post_to_circle.json",
+            "id": "tool_6401kh7fsdxgf9dahsf68h3vkv2t"
+        },
+        {
+            "type": "client",
+            "config": "tool_configs/query_tasks.json",
+            "id": "tool_3201kh7fsmapf72tke1f98vqgq8k"
+        },
+        {
+            "type": "client",
+            "config": "tool_configs/query_schedule.json",
+            "id": "tool_3901kh7fsvhked9bjnd7p24r4e1f"
+        },
+        {
+            "type": "client",
+            "config": "tool_configs/query_stats.json",
+            "id": "tool_6201kh7ftmjve8zt7bd13cnacrwc"
+        },
+        {
+            "type": "client",
+            "config": "tool_configs/query_circles.json",
+            "id": "tool_3501kh7fv4wsef79ybfdyc4c50cs"
+        },
+        {
+            "type": "client",
+            "config": "tool_configs/brain_dump.json",
+            "id": "tool_6301kh7fvastfnvtgremgx4gh3g1"
+        },
+        {
+            "type": "client",
+            "config": "tool_configs/set_preference.json",
+            "id": "tool_8201kh7fvgzzewtr3ceqvp677wzc"
+        }
+    ]
+}

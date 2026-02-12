@@ -1,17 +1,31 @@
 /**
- * Voice Context Provider
- * 
- * Provides voice state and controls throughout the app.
- * Integrates with OpenAI Whisper (STT) and TTS APIs.
- * Wired to ActionExecutor for PRD 4.7 Action System Contract.
+ * Voice Context Provider — ElevenLabs Conversational AI
+ *
+ * Single voice context for the entire app. Uses the ElevenLabs
+ * `useConversation` hook (LiveKit WebRTC) for full-duplex voice.
+ * Barge-in, VAD, STT, LLM, TTS are all handled by the SDK.
+ *
+ * Discreet mode (text-only) still uses the voice-command + text-to-speech
+ * edge functions as a REST fallback.
+ *
+ * Reference: docs/planning/ELEVENLABS_VOICE_MIGRATION_PLAN.md
  */
 
-import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useRef,
+  useEffect,
+} from 'react';
+import { Alert, Linking } from 'react-native';
 import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
 import * as FileSystem from 'expo-file-system/legacy';
 import { supabase } from '../lib/supabase';
 import { FunctionsHttpError } from '@supabase/supabase-js';
+import { useConversation, type Mode } from '@elevenlabs/react-native';
 import { eventLogger } from '../services/eventLogger';
 import {
   executeAction,
@@ -19,37 +33,36 @@ import {
   type VoiceCommandResponse,
 } from '../services/actionExecutor';
 import {
-  realtimeVoiceService,
-  type RealtimeTranscriptEvent,
-  type RealtimeFunctionCallEvent,
-  type RealtimeErrorEvent,
-} from '../services/voice/RealtimeVoiceService';
-import { stripWavHeader } from '../services/voice/pcmUtils';
-import { FEATURE_FLAGS } from '../config/featureFlags';
+  buildConversationOptions,
+  buildSessionConfig,
+  fetchConversationToken,
+  handleToolCall,
+  getTimeOfDay,
+  getTimezone,
+  DEFAULT_ELEVENLABS_VOICE_ID,
+  SESSION_INACTIVITY_TIMEOUT_MS,
+  type VoiceState as ElevenLabsVoiceState,
+  type SessionDynamicVariables,
+} from '../services/voice/ElevenLabsVoiceService';
+import { useUserModel } from './UserModelContext';
+import { wakeWordService } from '../services/voice/WakeWordService';
+import {
+  buildScreenContext,
+  buildTaskContext,
+  buildUserStateContext,
+  type ScreenContextData,
+} from '../services/voice/ScreenContextService';
+import type { Screen } from '../navigation-v2/GestureContext';
+
+// ============================================================================
+// Types
+// ============================================================================
 
 /**
- * Invoke an edge function with automatic 401 retry (refresh session once).
- * VoiceContext calls edge functions directly — this ensures stale JWTs
- * are refreshed instead of failing with "invalid JWT".
+ * Re-export VoiceState from the service layer (canonical definition lives
+ * in ElevenLabsVoiceService to avoid circular deps).
  */
-async function invokeWithAuth<T = unknown>(
-  fnName: string,
-  options?: { body?: Record<string, unknown> },
-): Promise<{ data: T | null; error: FunctionsHttpError | Error | null }> {
-  const first = await supabase.functions.invoke(fnName, options);
-  if (!first.error) return first as { data: T; error: null };
-
-  // On 401, refresh session and retry once
-  if (first.error instanceof FunctionsHttpError && first.error.context?.status === 401) {
-    const { error: refreshErr } = await supabase.auth.refreshSession();
-    if (!refreshErr) {
-      return await supabase.functions.invoke(fnName, options) as { data: T; error: FunctionsHttpError | null };
-    }
-  }
-  return first as { data: null; error: FunctionsHttpError | Error };
-}
-
-export type VoiceState = 'idle' | 'listening' | 'processing' | 'speaking' | 'timeout' | 'error' | 'offline';
+export type VoiceState = ElevenLabsVoiceState;
 
 interface VoiceContextType {
   // State
@@ -59,24 +72,20 @@ interface VoiceContextType {
   transcript: string;
   aiResponse: string;
   error: string | null;
-  awaitingConfirmation: boolean;
-  pendingAction: ActionJSON | null;
-  /** Whether continuous conversation mode is active (auto-listen after AI speaks) */
+  /** Whether a voice session is currently connected */
   isConversationActive: boolean;
-  
+
   // Controls
   startListening: () => Promise<void>;
   stopListening: () => Promise<string>;
   cancelListening: () => void;
   speak: (text: string) => Promise<void>;
   stopSpeaking: () => void;
-  /** PRD 4.1 barge-in: stop TTS and transition to LISTENING (not IDLE) */
+  /** Barge-in — ElevenLabs handles this natively; this is a no-op for compat */
   bargeIn: () => Promise<void>;
-  confirmAction: () => Promise<void>;
-  cancelAction: () => void;
-  /** End the continuous conversation and go back to IDLE */
+  /** End the ElevenLabs session and go back to IDLE */
   endConversation: () => void;
-  
+
   // Settings
   setVoiceEnabled: (enabled: boolean) => void;
   voiceSpeed: number;
@@ -84,76 +93,61 @@ interface VoiceContextType {
   selectedVoice: string;
   setSelectedVoice: (voice: string) => void;
 
-  // Discreet Mode (PRD 4.1)
+  // Discreet Mode (text-only fallback)
   isDiscreetMode: boolean;
   setDiscreetMode: (enabled: boolean) => void;
   /** Submit text directly (discreet mode / offline fallback) */
   submitText: (text: string) => Promise<void>;
 
-  // Realtime API
-  isOffline: boolean;
-  connectionMode: 'realtime' | 'rest';
-  retryConnection: () => Promise<void>;
+  // Wake Word ("Hey MYPA" hands-free activation)
+  isWakeWordEnabled: boolean;
+  setWakeWordEnabled: (enabled: boolean) => void;
+  wakeWordSensitivity: number;
+  setWakeWordSensitivity: (sensitivity: number) => void;
+
+  // Noise Isolation (for noisy environments)
+  isNoiseIsolationEnabled: boolean;
+  setNoiseIsolationEnabled: (enabled: boolean) => void;
+
+  // Dynamic Contextual Awareness (Step 14)
+  /** Send screen context update to active ElevenLabs session */
+  updateScreenContext: (screen: Screen, data?: ScreenContextData) => void;
 }
 
 const VoiceContext = createContext<VoiceContextType | undefined>(undefined);
 
-interface VoiceProviderProps {
-  children: React.ReactNode;
-}
+// ============================================================================
+// Helpers
+// ============================================================================
 
 /**
- * PCM16 recording options for OpenAI Realtime API.
- * Records WAV (LPCM) at 24kHz mono 16-bit — strip the 44-byte header to get raw PCM16.
+ * Invoke an edge function with automatic 401 retry (refresh session once).
  */
-const PCM_RECORDING_OPTIONS: Audio.RecordingOptions = {
-  isMeteringEnabled: true,
-  android: {
-    extension: '.wav',
-    outputFormat: 3, // DEFAULT
-    audioEncoder: 1, // DEFAULT
-    sampleRate: 24000,
-    numberOfChannels: 1,
-    bitRate: 384000,
-  },
-  ios: {
-    extension: '.wav',
-    outputFormat: 'lpcm',
-    audioQuality: 127, // MAX
-    sampleRate: 24000,
-    numberOfChannels: 1,
-    bitRate: 384000,
-    linearPCMBitDepth: 16,
-    linearPCMIsBigEndian: false,
-    linearPCMIsFloat: false,
-  },
-  web: {},
-};
+async function invokeWithAuth<T = unknown>(
+  fnName: string,
+  options?: { body?: Record<string, unknown> },
+): Promise<{ data: T | null; error: FunctionsHttpError | Error | null }> {
+  const first = await supabase.functions.invoke(fnName, options);
+  if (!first.error) return first as { data: T; error: null };
 
-/** No-speech timeout — if user never speaks at all, transition to TIMEOUT */
-const NO_SPEECH_TIMEOUT_MS = 8000;
+  if (first.error instanceof FunctionsHttpError && first.error.context?.status === 401) {
+    const { error: refreshErr } = await supabase.auth.refreshSession();
+    if (!refreshErr) {
+      return (await supabase.functions.invoke(fnName, options)) as {
+        data: T;
+        error: FunctionsHttpError | null;
+      };
+    }
+  }
+  return first as { data: null; error: FunctionsHttpError | Error };
+}
 
-/** Speech-end detection: consecutive low-metering frames needed to auto-stop (at 100ms interval) */
-const SPEECH_END_FRAMES = 15; // 15 frames × 100ms = 1.5s of silence after speech
-/** Metering threshold to consider as "speech" (0–1 normalized, ~-45dB) */
-const SPEECH_THRESHOLD = 0.25;
-/** Minimum recording duration (ms) before auto-stop is allowed */
-const MIN_RECORDING_MS = 500;
-
-/** Voice-activated barge-in: metering threshold during AI playback.
- *  Higher than SPEECH_THRESHOLD to avoid false triggers from speaker bleed into mic. */
-const BARGE_IN_THRESHOLD = 0.55;
-/** Consecutive frames above threshold to trigger voice barge-in (at 100ms intervals) */
-const BARGE_IN_FRAMES = 3;
-/** Skip initial metering frames when monitor starts (avoids audio-session switch noise) */
-const BARGE_IN_SKIP_FRAMES = 5;
-
-/** Simple connectivity check (no extra dependency needed) */
+/** Simple connectivity check */
 async function checkNetworkConnectivity(): Promise<boolean> {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 3000);
-    await fetch('https://api.openai.com/v1/models', {
+    await fetch('https://api.elevenlabs.io/v1/models', {
       method: 'HEAD',
       signal: controller.signal,
     });
@@ -164,1237 +158,490 @@ async function checkNetworkConnectivity(): Promise<boolean> {
   }
 }
 
-/** Yes/confirm patterns for spoken confirmation */
-const YES_PATTERNS = /^(yes|yeah|yep|yup|sure|ok|okay|confirm|do it|go ahead|affirmative)/i;
-const NO_PATTERNS = /^(no|nah|nope|cancel|never\s?mind|stop|don't|forget it)/i;
+// ============================================================================
+// Provider
+// ============================================================================
+
+interface VoiceProviderProps {
+  children: React.ReactNode;
+}
 
 export function VoiceProvider({ children }: VoiceProviderProps) {
-  // State
+  // -- Core State ----------------------------------------------------------
   const [voiceState, setVoiceState] = useState<VoiceState>('idle');
   const [isVoiceEnabled, setVoiceEnabled] = useState(true);
   const [audioLevel, setAudioLevel] = useState(0);
   const [transcript, setTranscript] = useState('');
   const [aiResponse, setAiResponse] = useState('');
   const [error, setError] = useState<string | null>(null);
-  
-  // Action System state (PRD 4.7)
-  const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
-  const [pendingAction, setPendingAction] = useState<ActionJSON | null>(null);
-  const pendingResponseRef = useRef<VoiceCommandResponse | null>(null);
-  
-  // Settings
+  const [isConversationActive, setIsConversationActive] = useState(false);
+
+  // -- Settings ------------------------------------------------------------
   const [voiceSpeed, setVoiceSpeed] = useState(1.0);
-  const [selectedVoice, setSelectedVoice] = useState('ash');
-  
-  // Refs
-  const recordingRef = useRef<Audio.Recording | null>(null);
-  const soundRef = useRef<Audio.Sound | null>(null);
-  const meteringIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const listenStartTimeRef = useRef<number>(0);
+  const [selectedVoice, setSelectedVoice] = useState(DEFAULT_ELEVENLABS_VOICE_ID);
+  const [isDiscreetMode, setIsDiscreetMode] = useState(false);
+
+  // -- Wake Word state ----------------------------------------------------
+  const [isWakeWordEnabled, setIsWakeWordEnabled] = useState(false);
+  const [wakeWordSensitivity, setWakeWordSensitivityState] = useState(0.5);
+  const wakeWordDisabledByBatteryRef = useRef(false);
+
+  // -- Noise Isolation state -----------------------------------------------
+  const [isNoiseIsolationEnabled, setIsNoiseIsolationEnabled] = useState(false);
+
+  // -- Refs for use inside closures ----------------------------------------
   const voiceStateRef = useRef<VoiceState>('idle');
   const isPlayingAudioRef = useRef(false);
-  const startListeningRef = useRef<() => Promise<void>>(() => Promise.resolve());
+  const soundRef = useRef<Audio.Sound | null>(null);
+  const listenStartTimeRef = useRef<number>(0);
+  const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const startListeningRef = useRef<(() => Promise<void>) | null>(null);
 
-  // Discreet Mode (PRD 4.1 — text-only, no audio)
-  const [isDiscreetMode, setIsDiscreetMode] = useState(false);
-  const [discreetInput, setDiscreetInput] = useState('');
-
-  // Error retry tracking (max 2 retries from ERROR before suggesting text)
-  const errorRetryCountRef = useRef(0);
-  const MAX_ERROR_RETRIES = 2;
-
-  // Continuous conversation: after AI finishes speaking, auto-listen for next user input
-  const conversationActiveRef = useRef(false);
-
-  // Speech-end detection for continuous conversation (auto-stop recording when user stops talking)
-  const speechDetectedRef = useRef(false);       // true once metering exceeds speech threshold
-  const silenceAfterSpeechRef = useRef(0);        // consecutive low-metering frames after speech
-  const autoStopTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const stopListeningRef = useRef<() => Promise<string>>(() => Promise.resolve(''));
-
-  // Voice-activated barge-in: background mic monitor during AI speaking
-  const bargeInMonitorRef = useRef<Audio.Recording | null>(null);
-  const bargeInActiveRef = useRef(false);
-  const bargeInRef = useRef<() => Promise<void>>(() => Promise.resolve());
-
-  // Realtime API state
-  const [isOffline, setIsOffline] = useState(false);
-  const [connectionMode, setConnectionMode] = useState<'realtime' | 'rest'>('rest');
-  const realtimeActiveRef = useRef(false); // true when current interaction uses Realtime
-  const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const realtimeTranscriptRef = useRef('');  // accumulate streaming transcript
-  const realtimeResponseTextRef = useRef(''); // accumulate streaming response text
-
-  // Keep ref in sync with state for use in event handler closures
+  // Keep ref in sync with state
   useEffect(() => {
     voiceStateRef.current = voiceState;
   }, [voiceState]);
 
-  // Request permissions on mount
+  // -- User model for dynamic variables ------------------------------------
+  let userModelData: any = null;
+  try {
+    userModelData = useUserModel();
+  } catch {
+    // UserModelContext not available — use defaults
+  }
+
+  // -- ElevenLabs useConversation hook -------------------------------------
+  // Build options with callbacks that wire into our state machine.
+  // We use useRef pattern to avoid re-creating the conversation
+  // options on every render (which would break the hook).
+  const stateCallbacksRef = useRef({
+    setVoiceState: (state: VoiceState) => {
+      setVoiceState(state);
+      voiceStateRef.current = state;
+    },
+    setTranscript,
+    setAiResponse,
+    setError,
+    setIsConversationActive,
+    onToolCall: async (toolName: string, params: Record<string, unknown>): Promise<string> => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return 'Not authenticated';
+      eventLogger.log('voice_command', { action: toolName, mode: 'elevenlabs' });
+      return handleToolCall(toolName, params, user.id);
+    },
+    onModeChange: (_mode: Mode) => {
+      // Reset inactivity timer on every mode change
+      if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
+      inactivityTimerRef.current = setTimeout(() => {
+        if (voiceStateRef.current === 'listening') {
+          console.log('[Voice] Inactivity timeout — ending session');
+          conversationRef.current?.endSession('user');
+        }
+      }, SESSION_INACTIVITY_TIMEOUT_MS);
+    },
+  });
+
+  // Stable options object — only created once
+  const [conversationOptions] = useState(() =>
+    buildConversationOptions(stateCallbacksRef.current),
+  );
+
+  const conversation = useConversation(conversationOptions);
+  const conversationRef = useRef(conversation);
+  useEffect(() => { conversationRef.current = conversation; }, [conversation]);
+
+  // -- Audio permissions on mount ------------------------------------------
   useEffect(() => {
-    const requestPermissions = async () => {
+    (async () => {
       try {
         await Audio.requestPermissionsAsync();
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: true,
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: false,
-          shouldDuckAndroid: true,
-        });
       } catch (err) {
-        console.error('Failed to request audio permissions:', err);
+        console.error('[Voice] Failed to request audio permissions:', err);
       }
-    };
-    requestPermissions();
+    })();
   }, []);
 
-  // Cleanup on unmount
+  // -- Load discreet mode + wake word settings from AsyncStorage -----------
   useEffect(() => {
-    return () => {
-      if (meteringIntervalRef.current) {
-        clearInterval(meteringIntervalRef.current);
-      }
-      if (silenceTimerRef.current) {
-        clearTimeout(silenceTimerRef.current);
-      }
-      if (autoStopTimerRef.current) {
-        clearTimeout(autoStopTimerRef.current);
-      }
-      // Stop barge-in monitor if active
-      if (bargeInMonitorRef.current) {
-        try { bargeInMonitorRef.current.stopAndUnloadAsync(); } catch { /* noop */ }
-        bargeInMonitorRef.current = null;
-      }
-      stopRecording();
-      stopPlayback();
-      realtimeVoiceService.disconnect();
-    };
+    (async () => {
+      try {
+        const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+        const val = await AsyncStorage.getItem('mypa_discreet_mode');
+        if (val === '1') setIsDiscreetMode(true);
+
+        // Load wake word preference
+        const wakeWordVal = await AsyncStorage.getItem('mypa_wake_word_enabled');
+        if (wakeWordVal === '1') setIsWakeWordEnabled(true);
+        const sensitivityVal = await AsyncStorage.getItem('mypa_wake_word_sensitivity');
+        if (sensitivityVal) setWakeWordSensitivityState(parseFloat(sensitivityVal));
+
+        // Load noise isolation preference
+        const noiseIsoVal = await AsyncStorage.getItem('mypa_noise_isolation');
+        if (noiseIsoVal === '1') setIsNoiseIsolationEnabled(true);
+      } catch { /* noop */ }
+    })();
   }, []);
 
-  // ── Realtime API: connection ────────────────────────────────────
+  // -- Wake word: init/start/stop based on isWakeWordEnabled ----------------
   useEffect(() => {
-    if (!FEATURE_FLAGS.USE_REALTIME_VOICE) {
-      setConnectionMode('rest');
+    if (!isWakeWordEnabled) {
+      // User disabled wake word — tear down
+      wakeWordService.stop().then(() => wakeWordService.destroy()).catch(() => {});
       return;
     }
 
+    // Initialize and start Porcupine
     let cancelled = false;
-
-    const connectRealtime = async () => {
-      // Wait briefly for auth session to be established
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      if (cancelled) return;
-
-      console.log('[Voice] Attempting Realtime API connection...');
-      realtimeVoiceService.setVoice(selectedVoice);
-      const connected = await realtimeVoiceService.connect();
-
-      if (cancelled) return;
-
-      if (connected) {
-        console.log('[Voice] Realtime API connected ✓');
-        setConnectionMode('realtime');
-        eventLogger.log('voice_activated', { mode: 'realtime' });
-      } else {
-        console.log('[Voice] Realtime API unavailable, using REST fallback');
-        setConnectionMode('rest');
-        eventLogger.log('voice_activated', { mode: 'rest', reason: 'realtime_connect_failed' });
+    (async () => {
+      if (!wakeWordService.isInitialized) {
+        await wakeWordService.initialize({
+          sensitivity: wakeWordSensitivity,
+          onDetected: () => {
+            // Wake word heard → auto-start ElevenLabs voice session
+            console.log('[WakeWord] Triggering startListening()');
+            startListeningRef.current?.();
+          },
+          onError: (err) => {
+            console.warn('[WakeWord] Error:', err.message);
+          },
+        });
       }
-    };
-
-    connectRealtime();
+      if (!cancelled && wakeWordService.isInitialized) {
+        await wakeWordService.start();
+      }
+    })();
 
     return () => {
       cancelled = true;
+      wakeWordService.stop().catch(() => {});
     };
-  }, [selectedVoice]);
+  }, [isWakeWordEnabled, wakeWordSensitivity]);
 
-  // ── Realtime API: event handlers ────────────────────────────────
+  // -- Wake word: pause/resume when ElevenLabs session toggles --------------
+  // Mic can't be shared between Porcupine and WebRTC simultaneously.
   useEffect(() => {
-    if (!FEATURE_FLAGS.USE_REALTIME_VOICE) return;
+    if (!isWakeWordEnabled) return;
 
-    const handleTranscript = (evt: RealtimeTranscriptEvent) => {
-      if (evt.isFinal) {
-        realtimeTranscriptRef.current = evt.text;
-        setTranscript(evt.text);
-      } else {
-        realtimeTranscriptRef.current += evt.text;
-        setTranscript(realtimeTranscriptRef.current);
-      }
-    };
+    if (isConversationActive) {
+      // ElevenLabs session started → pause wake word
+      wakeWordService.pause().catch(() => {});
+    } else {
+      // Session ended → resume wake word
+      wakeWordService.resume().catch(() => {});
+    }
+  }, [isConversationActive, isWakeWordEnabled]);
 
-    const handleAudioDone = async () => {
-      // All audio chunks received — play them
-      const wavBase64 = realtimeVoiceService.getAccumulatedAudioAsWav();
-      if (!wavBase64) {
-        // Only go idle if we're not already speaking (briefing may be playing)
-        if (voiceStateRef.current === 'processing') {
-          setVoiceState('idle');
-        }
+  // -- Wake word: auto-disable on low battery (<15%) -----------------------
+  // expo-battery needs a native rebuild; use dynamic import() so the entire
+  // module load is async and any native-module-missing error is safely caught.
+  useEffect(() => {
+    if (!isWakeWordEnabled) return;
+
+    const LOW_BATTERY_THRESHOLD = 0.15;
+    const RESUME_BATTERY_THRESHOLD = 0.20;
+    let subscription: { remove: () => void } | null = null;
+    let cancelled = false;
+
+    (async () => {
+      let Battery: any;
+      try {
+        Battery = await import('expo-battery');
+        // Verify native module is actually linked
+        await Battery.getBatteryLevelAsync();
+      } catch {
+        console.log('[WakeWord] Battery monitoring unavailable — skipping');
         return;
       }
+      if (cancelled) return;
 
-      // Prevent overlapping audio — stop any existing playback first
-      if (isPlayingAudioRef.current) {
-        await stopPlayback();
-      }
-      isPlayingAudioRef.current = true;
-      setVoiceState('speaking');
+      const checkBattery = async () => {
+        try {
+          const level = await Battery.getBatteryLevelAsync();
+          if (level >= 0 && level < LOW_BATTERY_THRESHOLD && !wakeWordDisabledByBatteryRef.current) {
+            wakeWordDisabledByBatteryRef.current = true;
+            await wakeWordService.stop();
+            console.log(`[WakeWord] Auto-paused — battery at ${Math.round(level * 100)}%`);
+          } else if (level >= RESUME_BATTERY_THRESHOLD && wakeWordDisabledByBatteryRef.current) {
+            wakeWordDisabledByBatteryRef.current = false;
+            if (wakeWordService.isInitialized) {
+              await wakeWordService.start();
+              console.log(`[WakeWord] Auto-resumed — battery at ${Math.round(level * 100)}%`);
+            }
+          }
+        } catch { /* ignore */ }
+      };
+
+      checkBattery();
 
       try {
-        // Use PlayAndRecord mode so barge-in monitor can record while audio plays
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: true,
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: false,
-          shouldDuckAndroid: true,
-        });
-
-        // Start background mic monitor for voice-activated barge-in
-        startBargeInMonitor().catch(e => console.warn('[Voice] Barge-in monitor start failed:', e));
-
-        const tempPath = (FileSystem.cacheDirectory || '') + 'rt_audio_' + Date.now() + '.wav';
-        await FileSystem.writeAsStringAsync(tempPath, wavBase64, {
-          encoding: FileSystem.EncodingType?.Base64 ?? 'base64',
-        });
-
-        const uri = tempPath.startsWith('file://') ? tempPath : 'file://' + tempPath;
-        const { sound } = await Audio.Sound.createAsync(
-          { uri },
-          { shouldPlay: true },
-        );
-
-        soundRef.current = sound;
-
-        await new Promise<void>((resolve) => {
-          let resolved = false;
-          const done = () => { if (!resolved) { resolved = true; resolve(); } };
-          sound.setOnPlaybackStatusUpdate((status) => {
-            if (status.isLoaded && (status as any).didJustFinish) {
-              done();
+        subscription = Battery.addBatteryLevelListener(({ batteryLevel }: { batteryLevel: number }) => {
+          if (batteryLevel >= 0 && batteryLevel < LOW_BATTERY_THRESHOLD && !wakeWordDisabledByBatteryRef.current) {
+            wakeWordDisabledByBatteryRef.current = true;
+            wakeWordService.stop().catch(() => {});
+            console.log(`[WakeWord] Auto-paused — battery at ${Math.round(batteryLevel * 100)}%`);
+          } else if (batteryLevel >= RESUME_BATTERY_THRESHOLD && wakeWordDisabledByBatteryRef.current) {
+            wakeWordDisabledByBatteryRef.current = false;
+            if (wakeWordService.isInitialized) {
+              wakeWordService.start().catch(() => {});
+              console.log(`[WakeWord] Auto-resumed — battery at ${Math.round(batteryLevel * 100)}%`);
             }
-          });
-          setTimeout(done, 30000);
+          }
         });
-
-        await stopBargeInMonitor();
-        await stopPlayback();
-        try { await FileSystem.deleteAsync(tempPath, { idempotent: true }); } catch { /* noop */ }
-      } catch (err) {
-        console.error('[Voice] Realtime audio playback error:', err);
-        await stopBargeInMonitor();
-      }
-
-      isPlayingAudioRef.current = false;
-      // Continuous conversation: auto-listen after AI finishes speaking
-      if (voiceStateRef.current === 'speaking') {
-        if (conversationActiveRef.current) {
-          console.log('[Voice] Continuous convo — auto-listening after Realtime playback');
-          // Brief delay so user hears the end of playback before mic activates
-          setTimeout(() => {
-            if (conversationActiveRef.current && voiceStateRef.current !== 'idle') {
-              startListeningRef.current().catch((err) => {
-                console.error('[Voice] Auto-listen after playback failed:', err);
-                setVoiceState('idle');
-              });
-            }
-          }, 400);
-        } else {
-          setVoiceState('idle');
-        }
-      }
-    };
-
-    const handleFunctionCall = async (evt: RealtimeFunctionCallEvent) => {
-      setVoiceState('processing');
-
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error('Not authenticated');
-
-        const args = JSON.parse(evt.arguments);
-        const action: ActionJSON = {
-          action: evt.name,
-          params: args,
-          confirmation_required: evt.name === 'delete_task',
-          confidence: 1.0, // Realtime API does not expose confidence; assume high
-        };
-
-        const result = await executeAction(action, user.id);
-
-        // Log the function call
-        eventLogger.logVoiceCommand(
-          realtimeTranscriptRef.current,
-          evt.name,
-          result.success,
-          {
-            confidence: 1.0,
-            latency_ms: Date.now() - listenStartTimeRef.current,
-            ai_model_used: 'gpt-4o-realtime-preview',
-          },
-        );
-
-        setAiResponse(result.message);
-
-        // Send result back so the AI can generate a spoken response
-        realtimeVoiceService.sendFunctionCallResult(
-          evt.callId,
-          JSON.stringify({ success: result.success, message: result.message }),
-        );
-      } catch (err) {
-        console.error('[Voice] Function call execution error:', err);
-        realtimeVoiceService.sendFunctionCallResult(
-          evt.callId,
-          JSON.stringify({ success: false, message: 'Something went wrong' }),
-        );
-      }
-    };
-
-    const handleSpeechStarted = () => {
-      // Barge-in: user started speaking during AI response
-      if (voiceStateRef.current === 'speaking') {
-        console.log('[Voice] Barge-in detected via VAD');
-        realtimeVoiceService.cancelResponse();
-        stopPlayback();
-        isPlayingAudioRef.current = false;
-        realtimeVoiceService.clearAudioChunks();
-        setVoiceState('listening');
-        realtimeTranscriptRef.current = '';
-        realtimeResponseTextRef.current = '';
-      }
-      // Clear silence timer — speech detected
-      if (silenceTimerRef.current) {
-        clearTimeout(silenceTimerRef.current);
-        silenceTimerRef.current = null;
-      }
-    };
-
-    const handleResponseDone = (_response: any) => {
-      // Response generation complete. Audio may still be playing via handleAudioDone.
-      // Only transition if we're stuck in processing (no audio was generated).
-      const currentState = voiceStateRef.current;
-      if (realtimeResponseTextRef.current && currentState === 'processing' && !isPlayingAudioRef.current) {
-        setAiResponse(realtimeResponseTextRef.current);
-        setVoiceState('idle');
-      }
-      realtimeResponseTextRef.current = '';
-    };
-
-    const handleResponseText = (evt: { text: string; isFinal: boolean }) => {
-      if (evt.isFinal) {
-        realtimeResponseTextRef.current = evt.text;
-        setAiResponse(evt.text);
-      } else {
-        realtimeResponseTextRef.current += evt.text;
-      }
-    };
-
-    const handleConnected = () => {
-      setConnectionMode('realtime');
-    };
-
-    const handleDisconnected = () => {
-      if (realtimeVoiceService.failedPermanently) {
-        console.log('[Voice] Realtime permanently failed, switching to REST');
-        setConnectionMode('rest');
-        eventLogger.log('voice_error', { errorType: 'realtime_fallback_to_rest' });
-      }
-    };
-
-    const handleError = (evt: RealtimeErrorEvent) => {
-      console.error('[Voice] Realtime error:', evt.code, evt.message);
-      eventLogger.log('voice_error', {
-        errorType: `realtime_${evt.code}`,
-        action: evt.message,
-      });
-      if (evt.code === 'MAX_RECONNECTS') {
-        setConnectionMode('rest');
-      }
-    };
-
-    // When server VAD doesn't detect speech (silence-only audio), no response
-    // is generated. Recover by returning to listening (continuous) or idle.
-    const handleNoResponse = () => {
-      console.log('[Voice] No VAD response — recovering');
-      if (voiceStateRef.current === 'processing') {
-        if (conversationActiveRef.current) {
-          // Continuous conversation — try listening again
-          startListeningRef.current().catch((err) => {
-            console.error('[Voice] Auto-retry after no-response failed:', err);
-            setVoiceState('idle');
-          });
-        } else {
-          setVoiceState('idle');
-        }
-      }
-    };
-
-    // Wire up event listeners
-    realtimeVoiceService.on('transcript', handleTranscript);
-    realtimeVoiceService.on('audio_done', handleAudioDone);
-    realtimeVoiceService.on('function_call', handleFunctionCall);
-    realtimeVoiceService.on('speech_started', handleSpeechStarted);
-    realtimeVoiceService.on('response_done', handleResponseDone);
-    realtimeVoiceService.on('response_text', handleResponseText);
-    realtimeVoiceService.on('connected', handleConnected);
-    realtimeVoiceService.on('disconnected', handleDisconnected);
-    realtimeVoiceService.on('error', handleError);
-    realtimeVoiceService.on('no_response', handleNoResponse);
+      } catch { /* listener not supported */ }
+    })();
 
     return () => {
-      realtimeVoiceService.off('transcript', handleTranscript);
-      realtimeVoiceService.off('audio_done', handleAudioDone);
-      realtimeVoiceService.off('function_call', handleFunctionCall);
-      realtimeVoiceService.off('speech_started', handleSpeechStarted);
-      realtimeVoiceService.off('response_done', handleResponseDone);
-      realtimeVoiceService.off('response_text', handleResponseText);
-      realtimeVoiceService.off('connected', handleConnected);
-      realtimeVoiceService.off('disconnected', handleDisconnected);
-      realtimeVoiceService.off('error', handleError);
-      realtimeVoiceService.off('no_response', handleNoResponse);
+      cancelled = true;
+      subscription?.remove();
+      wakeWordDisabledByBatteryRef.current = false;
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);  // Mount once — handlers use voiceStateRef for current state
+  }, [isWakeWordEnabled]);
 
-  const stopRecording = async () => {
-    if (recordingRef.current) {
-      try {
-        await recordingRef.current.stopAndUnloadAsync();
-      } catch (e) {
-        // Ignore
-      }
-      recordingRef.current = null;
-    }
-  };
+  // -- Cleanup on unmount --------------------------------------------------
+  useEffect(() => {
+    return () => {
+      if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
+      conversationRef.current?.endSession('user').catch(() => {});
+      stopPlayback();
+      // Clean up wake word on unmount
+      wakeWordService.stop().then(() => wakeWordService.destroy()).catch(() => {});
+    };
+  }, []);
 
+  // -----------------------------------------------------------------------
+  // Helper: stop audio playback (for discreet-mode TTS)
+  // -----------------------------------------------------------------------
   const stopPlayback = async () => {
     if (soundRef.current) {
       try {
         await soundRef.current.stopAsync();
         await soundRef.current.unloadAsync();
-      } catch (e) {
-        // Ignore
-      }
+      } catch { /* ignore */ }
       soundRef.current = null;
     }
   };
 
-  /**
-   * Start a background mic monitor to detect user speech for voice-activated barge-in.
-   * Must be called while audio session is in PlayAndRecord mode (allowsRecordingIOS: true).
-   * The monitor recording is discarded — only metering data is used.
-   */
-  const startBargeInMonitor = async () => {
-    // Don't start if already monitoring, discreet mode, or no conversation
-    if (bargeInMonitorRef.current || isDiscreetMode) return;
-    bargeInActiveRef.current = false;
-
-    try {
-      let consecutiveFrames = 0;
-      let framesSkipped = 0;
-
-      const { recording } = await Audio.Recording.createAsync(
-        {
-          isMeteringEnabled: true,
-          android: { extension: '.wav', outputFormat: 3, audioEncoder: 1, sampleRate: 16000, numberOfChannels: 1, bitRate: 64000 },
-          ios: { extension: '.wav', outputFormat: 'lpcm', audioQuality: 0, sampleRate: 16000, numberOfChannels: 1, bitRate: 64000, linearPCMBitDepth: 16, linearPCMIsBigEndian: false, linearPCMIsFloat: false },
-          web: {},
-        },
-        (status) => {
-          if (!status.isRecording || status.metering === undefined) return;
-
-          // Skip initial frames — audio session switch can produce noise spikes
-          if (framesSkipped < BARGE_IN_SKIP_FRAMES) { framesSkipped++; return; }
-
-          const level = Math.max(0, Math.min(1, (status.metering + 60) / 60));
-
-          if (level >= BARGE_IN_THRESHOLD) {
-            consecutiveFrames++;
-            if (
-              consecutiveFrames >= BARGE_IN_FRAMES &&
-              !bargeInActiveRef.current &&
-              voiceStateRef.current === 'speaking'
-            ) {
-              bargeInActiveRef.current = true;
-              console.log('[Voice] Voice-activated barge-in detected — interrupting AI');
-              eventLogger.log('voice_command', { action: 'voice_barge_in' });
-              bargeInRef.current().catch(err => {
-                console.error('[Voice] Voice barge-in failed:', err);
-                bargeInActiveRef.current = false;
-              });
-            }
-          } else {
-            consecutiveFrames = 0;
-          }
-        },
-        100, // 100ms metering interval
-      );
-
-      bargeInMonitorRef.current = recording;
-      console.log('[Voice] Barge-in monitor started');
-    } catch (err) {
-      console.warn('[Voice] Failed to start barge-in monitor:', err);
-    }
-  };
-
-  /** Stop the background barge-in mic monitor */
-  const stopBargeInMonitor = async () => {
-    if (bargeInMonitorRef.current) {
-      try {
-        await bargeInMonitorRef.current.stopAndUnloadAsync();
-      } catch { /* ignore */ }
-      bargeInMonitorRef.current = null;
-    }
-    bargeInActiveRef.current = false;
-  };
-
+  // -----------------------------------------------------------------------
+  // startListening — fetch token -> start ElevenLabs session
+  // -----------------------------------------------------------------------
   const startListening = useCallback(async () => {
     if (!isVoiceEnabled) return;
 
-    // Discreet mode: skip audio, prompt text input instead
+    // Discreet mode: just set state, UI shows text input
     if (isDiscreetMode) {
       setVoiceState('listening');
       setTranscript('');
       setError(null);
-      conversationActiveRef.current = false; // discreet mode uses text, not continuous voice
       eventLogger.log('voice_activated', { mode: 'discreet' });
       return;
     }
-    
-    setError(null);
-    setTranscript('');
-    realtimeTranscriptRef.current = '';
-    realtimeResponseTextRef.current = '';
-    
-    // ── Offline detection (PRD 4.1 — OFFLINE state) ──────────────
+
+    // Offline check
     const isOnline = await checkNetworkConnectivity();
     if (!isOnline) {
-      setIsOffline(true);
-      conversationActiveRef.current = false;
       setVoiceState('offline');
       setError('No network connection. Type your request instead.');
-      eventLogger.log('voice_error', {
-        errorType: 'offline',
-        screen_context: 'ai_home',
-      });
+      eventLogger.log('voice_error', { errorType: 'offline' });
       return;
     }
-    setIsOffline(false);
 
-    // ── Max retry guard (PRD Step 8 — 2 retries then suggest text) ────
-    if (errorRetryCountRef.current >= MAX_ERROR_RETRIES) {
-      conversationActiveRef.current = false;
-      setVoiceState('error');
-      setError('Voice is having trouble. Try typing your request instead.');
-      eventLogger.log('voice_error', {
-        errorType: 'max_retries_exceeded',
-        screen_context: 'ai_home',
-      });
-      return;
-    }
-    
-    // Track latency from listen start (PRD 4.8)
+    setError(null);
+    setTranscript('');
+    setAiResponse('');
     listenStartTimeRef.current = Date.now();
-    
-    // Determine which path to use for this interaction
-    const useRealtime = connectionMode === 'realtime' && realtimeVoiceService.isConnected;
-    realtimeActiveRef.current = useRealtime;
-    
+
     try {
-      // Check/request permissions
-      const { granted } = await Audio.requestPermissionsAsync();
-      if (!granted) {
-        setError('Microphone permission required');
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+      // If already connected, the session is live — just log
+      if (conversation.status === 'connected') {
+        console.log('[Voice] Session already active');
         return;
       }
 
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      
-      // Stop barge-in monitor + any existing recording before starting new one
-      await stopBargeInMonitor();
-      await stopRecording();
-      await stopPlayback();
-      
-      // If Realtime is active, clear any pending audio
-      if (useRealtime) {
-        realtimeVoiceService.clearAudioChunks();
-      }
-      
-      // Configure audio mode for recording.
-      // On iOS, switching from playback → recording can fail if the audio
-      // session hasn't fully released. Retry with increasing delays.
-      const enableRecordingMode = async (attempt = 1): Promise<void> => {
+      // End any stale/zombie session before starting a new one
+      if (conversation.status !== 'disconnected') {
         try {
-          await Audio.setAudioModeAsync({
-            allowsRecordingIOS: true,
-            playsInSilentModeIOS: true,
-            staysActiveInBackground: false,
-            shouldDuckAndroid: true,
-          });
-        } catch (modeErr) {
-          if (attempt < 3) {
-            console.log(`[Voice] Audio mode switch attempt ${attempt} failed, retrying...`);
-            await new Promise(r => setTimeout(r, 200 * attempt));
-            return enableRecordingMode(attempt + 1);
-          }
-          throw modeErr;
-        }
-      };
-      await enableRecordingMode();
-
-      // Choose recording options based on active path
-      const recordingOptions = useRealtime
-        ? PCM_RECORDING_OPTIONS
-        : Audio.RecordingOptionsPresets.HIGH_QUALITY;
-
-      // Reset speech detection state for this recording session
-      speechDetectedRef.current = false;
-      silenceAfterSpeechRef.current = 0;
-      if (autoStopTimerRef.current) {
-        clearTimeout(autoStopTimerRef.current);
-        autoStopTimerRef.current = null;
+          await conversation.endSession('user');
+        } catch { /* ignore — might already be disconnected */ }
       }
 
-      const recordingStartTime = Date.now();
+      setVoiceState('processing'); // Show loading while connecting
 
-      // Metering callback — handles audio level + speech-end detection
-      const onRecordingStatus = (status: Audio.RecordingStatus) => {
-        if (status.isRecording && status.metering !== undefined) {
-          const normalizedLevel = Math.max(0, Math.min(1, (status.metering + 60) / 60));
-          setAudioLevel(normalizedLevel);
-
-          // ── Speech-end detection for continuous conversation ──────
-          if (conversationActiveRef.current && voiceStateRef.current === 'listening') {
-            if (normalizedLevel >= SPEECH_THRESHOLD) {
-              speechDetectedRef.current = true;
-              silenceAfterSpeechRef.current = 0;
-              if (silenceTimerRef.current) {
-                clearTimeout(silenceTimerRef.current);
-                silenceTimerRef.current = null;
-              }
-            } else if (speechDetectedRef.current) {
-              silenceAfterSpeechRef.current++;
-              if (
-                silenceAfterSpeechRef.current >= SPEECH_END_FRAMES &&
-                (Date.now() - recordingStartTime) >= MIN_RECORDING_MS
-              ) {
-                console.log('[Voice] Speech end detected — auto-stopping');
-                speechDetectedRef.current = false;
-                silenceAfterSpeechRef.current = 0;
-                if (!autoStopTimerRef.current) {
-                  autoStopTimerRef.current = setTimeout(() => {
-                    autoStopTimerRef.current = null;
-                    stopListeningRef.current().catch((err) => {
-                      console.error('[Voice] Auto-stop failed:', err);
-                    });
-                  }, 50);
-                }
-              }
-            }
-          }
-        }
-      };
-
-      // Start recording — retry once if iOS audio session isn't ready
-      let recording: Audio.Recording;
+      // Reset iOS audio session to allow recording — the briefing TTS
+      // sets allowsRecordingIOS:false which blocks the WebRTC mic.
       try {
-        const result = await Audio.Recording.createAsync(recordingOptions, onRecordingStatus, 100);
-        recording = result.recording;
-      } catch (recErr) {
-        console.log('[Voice] Recording start failed, retrying after delay...');
-        await new Promise(r => setTimeout(r, 300));
-        await enableRecordingMode();
-        const retryResult = await Audio.Recording.createAsync(recordingOptions, onRecordingStatus, 100);
-        recording = retryResult.recording;
-      }
-
-      recordingRef.current = recording;
-      setVoiceState('listening');
-
-      // Activate continuous conversation mode
-      conversationActiveRef.current = true;
-
-      // Reset error retry count on successful listen start
-      errorRetryCountRef.current = 0;
-      
-      // ── No-speech timeout → TIMEOUT state (PRD 4.1) ──────────────
-      // Only fires if user never speaks. Cancelled by speech detection above.
-      if (silenceTimerRef.current) {
-        clearTimeout(silenceTimerRef.current);
-      }
-      silenceTimerRef.current = setTimeout(() => {
-        if (recordingRef.current && !speechDetectedRef.current) {
-          console.log('[Voice] No-speech timeout reached');
-          conversationActiveRef.current = false;
-          setVoiceState('timeout');
-          setAiResponse("I didn't catch that. Tap to try again.");
-          stopRecording();
-          setAudioLevel(0);
-          eventLogger.log('voice_error', {
-            errorType: 'silence_timeout',
-            screen_context: 'ai_home',
-          });
-          // Auto-recover to IDLE after 2.5s (PRD: "IDLE after 2s")
-          setTimeout(() => {
-            if (voiceStateRef.current === 'timeout') {
-              setVoiceState('idle');
-              setAiResponse('');
-            }
-          }, 2500);
-        }
-      }, NO_SPEECH_TIMEOUT_MS);
-
-      // PRD 4.8: voice_listening_started event
-      eventLogger.log('voice_activated', {
-        mode: useRealtime ? 'realtime' : 'rest',
-        screen_context: 'ai_home',
-      });
-      
-    } catch (err) {
-      console.error('Failed to start recording:', err);
-      conversationActiveRef.current = false;
-      setError('Failed to start recording');
-      setVoiceState('error');
-      errorRetryCountRef.current++;
-      eventLogger.log('voice_error', {
-        errorType: 'recording_start_failed',
-        action: err instanceof Error ? err.message : 'unknown',
-        screen_context: 'ai_home',
-      });
-      // Auto-recover to idle after 3s
-      setTimeout(() => {
-        if (voiceStateRef.current === 'error') {
-          setVoiceState('idle');
-        }
-      }, 3000);
-    }
-  }, [isVoiceEnabled, isDiscreetMode, connectionMode]);
-
-  // Keep startListeningRef in sync for use in mount-once event handlers
-  useEffect(() => {
-    startListeningRef.current = startListening;
-  }, [startListening]);
-
-  const stopListening = useCallback(async (): Promise<string> => {
-    if (!recordingRef.current) return '';
-    
-    // Clear timers and reset speech detection
-    if (silenceTimerRef.current) {
-      clearTimeout(silenceTimerRef.current);
-      silenceTimerRef.current = null;
-    }
-    if (autoStopTimerRef.current) {
-      clearTimeout(autoStopTimerRef.current);
-      autoStopTimerRef.current = null;
-    }
-    speechDetectedRef.current = false;
-    silenceAfterSpeechRef.current = 0;
-    
-    setVoiceState('processing');
-    setAudioLevel(0);
-    
-    try {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      
-      // Stop recording
-      await recordingRef.current.stopAndUnloadAsync();
-      const uri = recordingRef.current.getURI();
-      recordingRef.current = null;
-      
-      if (!uri) {
-        throw new Error('No recording URI');
-      }
-
-      console.log('[Voice] Recording URI:', uri);
-
-      // ── REALTIME PATH ──────────────────────────────────────────
-      if (realtimeActiveRef.current && realtimeVoiceService.isConnected) {
-        console.log('[Voice] Using Realtime API path');
-
-        // Read the WAV file as base64 and strip the header to get raw PCM16
-        const wavBase64 = await FileSystem.readAsStringAsync(uri, {
-          encoding: 'base64',
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: true,
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: false,
+          shouldDuckAndroid: true,
         });
-
-        // Clean up temp file
-        try { await FileSystem.deleteAsync(uri, { idempotent: true }); } catch { /* noop */ }
-
-        const pcmBase64 = stripWavHeader(wavBase64);
-        if (!pcmBase64 || pcmBase64.length < 200) {
-          // Not enough audio data — skip sending to avoid "buffer too small" error
-          console.log('[Voice] Audio too short, skipping Realtime send. Length:', pcmBase64?.length ?? 0);
-          // If in continuous conversation, go back to listening
-          if (conversationActiveRef.current) {
-            console.log('[Voice] Short audio — resuming listening');
-            setTimeout(() => {
-              if (conversationActiveRef.current) {
-                startListeningRef.current().catch(() => setVoiceState('idle'));
-              } else {
-                setVoiceState('idle');
-              }
-            }, 200);
-          } else {
-            setVoiceState('idle');
-          }
-          return '';
-        }
-
-        console.log('[Voice] Sending PCM audio to Realtime API, length:', pcmBase64.length);
-
-        // Send audio buffer and commit — response comes via event handlers
-        realtimeVoiceService.sendAudioBuffer(pcmBase64);
-        realtimeVoiceService.commitAudioBuffer();
-
-        eventLogger.log('voice_command', {
-          mode: 'realtime',
-          latency_ms: Date.now() - listenStartTimeRef.current,
-        });
-
-        // The response will be handled by the Realtime event listeners
-        // (handleTranscript, handleAudioDone, handleFunctionCall, etc.)
-        // State transitions happen in those handlers.
-        return ''; // Transcript arrives asynchronously
+      } catch (audioErr) {
+        console.warn('[Voice] Failed to reset audio mode:', audioErr);
       }
 
-      // ── REST FALLBACK PATH (original flow, unchanged) ──────────
-      console.log('[Voice] Using REST fallback path');
+      // 1. Fetch a conversation token (JWT) from our edge function
+      const token = await fetchConversationToken();
 
-      // Read the audio file as base64 directly (more reliable on iOS)
-      const base64Audio = await FileSystem.readAsStringAsync(uri, {
-        encoding: 'base64',
-      });
-      console.log('[Voice] Audio base64 length:', base64Audio.length);
-      
-      // Clean up the temp recording file
-      try {
-        await FileSystem.deleteAsync(uri, { idempotent: true });
-      } catch {
-        // Ignore cleanup errors
-      }
-
-      // ── Confirmation flow: if awaiting confirmation, treat as yes/no ──
-      if (awaitingConfirmation && pendingAction) {
-        // We need to transcribe the yes/no first
-        const { data: confirmData, error: confirmError } = await invokeWithAuth('voice-command', {
-          body: { audio: base64Audio, context: { screen: 'ai_home' } }
-        });
-
-        if (confirmError) throw confirmError;
-        const confirmTranscript = ((confirmData as any)?.transcript || '').trim();
-        setTranscript(confirmTranscript);
-
-        if (YES_PATTERNS.test(confirmTranscript)) {
-          // User confirmed -- execute the pending action without confirmation_required
-          const confirmedAction: ActionJSON = {
-            ...pendingAction,
-            confirmation_required: false,
-          };
-          
-          const { data: { user } } = await supabase.auth.getUser();
-          if (!user) throw new Error('Not authenticated');
-
-          const result = await executeAction(confirmedAction, user.id, pendingResponseRef.current?.response_text);
-
-          // Log with user_override = false (they confirmed)
-          eventLogger.logVoiceCommand(
-            pendingResponseRef.current?.transcript || confirmTranscript,
-            pendingAction.action,
-            result.success,
-            {
-              confidence: pendingAction.confidence,
-              latency_ms: Date.now() - listenStartTimeRef.current,
-              ai_model_used: pendingResponseRef.current?.model_used,
-              tokens_used: pendingResponseRef.current?.tokens_used,
-              user_override: false,
-            },
-          );
-
-          setAiResponse(result.message);
-          setAwaitingConfirmation(false);
-          setPendingAction(null);
-          pendingResponseRef.current = null;
-
-          if (result.message) {
-            await speak(result.message);
-          } else {
-            setVoiceState('idle');
-          }
-          return confirmTranscript;
-
-        } else if (NO_PATTERNS.test(confirmTranscript)) {
-          // User cancelled
-          eventLogger.logVoiceCommand(
-            pendingResponseRef.current?.transcript || confirmTranscript,
-            pendingAction.action,
-            false,
-            {
-              confidence: pendingAction.confidence,
-              latency_ms: Date.now() - listenStartTimeRef.current,
-              ai_model_used: pendingResponseRef.current?.model_used,
-              tokens_used: pendingResponseRef.current?.tokens_used,
-              user_override: true,
-            },
-          );
-
-          setAwaitingConfirmation(false);
-          setPendingAction(null);
-          pendingResponseRef.current = null;
-          setAiResponse('Okay, cancelled.');
-          await speak('Okay, cancelled.');
-          return confirmTranscript;
-
-        } else {
-          // Didn't understand -- ask again
-          setAiResponse("Sorry, I didn't catch that. Yes or no?");
-          await speak("Sorry, I didn't catch that. Yes or no?");
-          return confirmTranscript;
-        }
-      }
-
-      // ── Normal flow: send to voice-command Edge Function ──────────
-      // Add a 30-second timeout to prevent infinite "thinking" state
-      const edgeFnPromise = invokeWithAuth('voice-command', {
-        body: {
-          audio: base64Audio,
-          context: { screen: 'ai_home' }
-        }
-      });
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Voice processing timed out. Please try again.')), 30000)
-      );
-
-      const { data, error: transcribeError } = await Promise.race([edgeFnPromise, timeoutPromise]);
-
-      if (transcribeError) throw transcribeError;
-
-      const vcResponse = data as VoiceCommandResponse;
-      console.log('[Voice] Edge function response:', JSON.stringify({
-        action: vcResponse?.action,
-        transcript: vcResponse?.transcript,
-        response_text: vcResponse?.response_text?.substring(0, 100),
-        model: vcResponse?.model_used,
-      }));
-      const transcriptText = vcResponse?.transcript || '';
-      const responseText = vcResponse?.response_text || '';
-      const action = vcResponse?.action;
-
-      setTranscript(transcriptText);
-
-      // ── If it's a query or unknown, just speak the response ──────
-      if (!action || action.action === 'unknown' || 
-          ['query_tasks', 'query_schedule', 'query_stats', 'query_circles'].includes(action.action)) {
-        // Log the voice command
-        eventLogger.logVoiceCommand(transcriptText, action?.action || 'unknown', true, {
-          confidence: action?.confidence,
-          latency_ms: Date.now() - listenStartTimeRef.current,
-          ai_model_used: vcResponse?.model_used,
-          tokens_used: vcResponse?.tokens_used,
-          user_override: false,
-        });
-
-        setAiResponse(responseText);
-        if (responseText) {
-          await speak(responseText);
-        } else {
-          setVoiceState('idle');
-        }
-        return transcriptText;
-      }
-
-      // ── Mutation action: pass to ActionExecutor ──────────────────
+      // 2. Build dynamic variables from user model
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      const result = await executeAction(action, user.id, responseText);
+      const dynamicVars: SessionDynamicVariables = {
+        user_id: user.id,
+        user_name: userModelData?.userModel?.display_name || user.user_metadata?.full_name || 'there',
+        time_of_day: getTimeOfDay(),
+        platform: 'ios',
+        greeting_context: 'voice_initiated',
+        timezone: getTimezone(),
+        overwhelm_score: String(userModelData?.userModel?.overwhelm_score ?? '0'),
+        completion_rate: String(userModelData?.userModel?.completion_rate_7d ?? '0'),
+        tone_preference: userModelData?.userModel?.tone_preference || 'friendly',
+        streak_days: String(userModelData?.userModel?.streak_days ?? '0'),
+        tasks_today_count: '0',
+        overdue_count: '0',
+        current_screen: currentScreenRef.current,
+        task_summary: '',
+      };
 
-      if (result.needsConfirmation) {
-        // Store pending action and prompt for confirmation
-        setAwaitingConfirmation(true);
-        setPendingAction(action);
-        pendingResponseRef.current = vcResponse;
-        
-        const prompt = result.confirmationPrompt || 'Are you sure?';
-        setAiResponse(prompt);
-        await speak(prompt);
-        return transcriptText;
-      }
+      // 3. Build session config and start
+      const sessionConfig = buildSessionConfig(token, dynamicVars, selectedVoice);
+      await conversation.startSession(sessionConfig);
 
-      // Action executed successfully (or failed)
-      eventLogger.logVoiceCommand(transcriptText, action.action, result.success, {
-        confidence: action.confidence,
-        latency_ms: Date.now() - listenStartTimeRef.current,
-        ai_model_used: vcResponse?.model_used,
-        tokens_used: vcResponse?.tokens_used,
-        user_override: false,
-      });
+      // 4. Inject contextual awareness (Step 14b + 14c)
+      //    After the session is live, send task summary + user state
+      try {
+        // Task context — fetch recent tasks for contextual grounding
+        const { data: taskRows } = await supabase
+          .from('tasks')
+          .select('title, due_date, status, priority, category')
+          .eq('user_id', user.id)
+          .order('due_date', { ascending: true })
+          .limit(20);
 
-      const spokenText = result.success ? (responseText || result.message) : result.message;
-      setAiResponse(spokenText);
-      
-      if (spokenText) {
-        await speak(spokenText);
-      } else {
-        setVoiceState('idle');
-      }
-      
-      return transcriptText;
-      
-    } catch (err) {
-      console.error('[Voice] Failed to process recording:', err);
-
-      // ── ERROR state (PRD 4.1): "I'm having trouble" → text fallback → IDLE after 5s ──
-      conversationActiveRef.current = false;
-      errorRetryCountRef.current++;
-
-      eventLogger.log('voice_error', {
-        errorType: err instanceof Error ? err.message : 'unknown',
-        mode: realtimeActiveRef.current ? 'realtime' : 'rest',
-        screen_context: 'ai_home',
-        retryCount: errorRetryCountRef.current,
-      });
-
-      // If Realtime failed mid-interaction, switch to REST for next attempt
-      if (realtimeActiveRef.current) {
-        console.log('[Voice] Realtime processing failed, will use REST next time');
-        setConnectionMode('rest');
-        realtimeActiveRef.current = false;
-      }
-
-      // Surface a user-friendly error based on the failure type
-      const errMsg = err instanceof Error ? err.message : '';
-      let friendlyError: string;
-      if (errMsg.includes('timed out')) {
-        friendlyError = "I'm having trouble connecting. Please try again.";
-      } else if (errMsg.includes('non-2xx') || errMsg.includes('FunctionsHttpError')) {
-        friendlyError = 'Voice service is temporarily unavailable.';
-      } else {
-        friendlyError = "I'm having trouble right now. Please try again.";
-      }
-
-      // After MAX_ERROR_RETRIES, suggest text fallback permanently
-      if (errorRetryCountRef.current >= MAX_ERROR_RETRIES) {
-        friendlyError += ' Try typing your request instead.';
-        eventLogger.log('voice_error', {
-          errorType: 'voice_fallback_to_text',
-          reason: 'max_retries_exceeded',
-          screen_context: 'ai_home',
+        const now = new Date();
+        const todayStr = now.toISOString().split('T')[0];
+        const recentTasks = taskRows || [];
+        const todayTasks = recentTasks.filter(t => t.due_date?.startsWith(todayStr));
+        const overdueTasks = recentTasks.filter(t =>
+          t.status !== 'completed' && t.due_date && t.due_date < todayStr
+        );
+        // Find most common category
+        const catCounts: Record<string, number> = {};
+        recentTasks.forEach(t => {
+          if (t.category) catCounts[t.category] = (catCounts[t.category] || 0) + 1;
         });
+        const topCategory = Object.entries(catCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || '';
+
+        const taskCtx = buildTaskContext({
+          recentTaskTitles: recentTasks.map(t => t.title),
+          overdueCount: overdueTasks.length,
+          todayCount: todayTasks.length,
+          topCategory,
+          peakHours: (userModelData?.model?.peakHours || []).map((h: number) => `${h}:00`),
+        });
+        conversation.sendContextualUpdate(taskCtx);
+
+        // User state context — emotional/energy awareness (14c)
+        const userStateCtx = buildUserStateContext({
+          overwhelmScore: Number(userModelData?.userModel?.overwhelm_score ?? 0),
+          completionRate7d: Number(userModelData?.userModel?.completion_rate_7d ?? 0.5),
+          streakDays: Number(userModelData?.userModel?.streak_days ?? 0),
+          tonePreference: userModelData?.userModel?.tone_preference || 'friendly',
+        });
+        conversation.sendContextualUpdate(userStateCtx);
+
+        console.log('[Voice] Injected task + user-state context');
+      } catch (ctxErr) {
+        // Non-fatal — agent works fine without context injection
+        console.warn('[Voice] Context injection failed:', ctxErr);
       }
 
-      setError(friendlyError);
-      setAiResponse(friendlyError);
+      eventLogger.log('voice_activated', {
+        mode: 'elevenlabs',
+        latency_ms: Date.now() - listenStartTimeRef.current,
+      });
+    } catch (err) {
+      console.error('[Voice] Failed to start ElevenLabs session:', err);
+      setError(err instanceof Error ? err.message : 'Failed to start voice session');
       setVoiceState('error');
+      eventLogger.log('voice_error', {
+        errorType: err instanceof Error ? err.message : 'session_start_failed',
+        mode: 'elevenlabs',
+      });
 
-      // Auto-recover to IDLE after 5s (PRD: "IDLE after 5s")
+      // Auto-recover to idle after 5s
       setTimeout(() => {
         if (voiceStateRef.current === 'error') {
           setVoiceState('idle');
           setError(null);
         }
       }, 5000);
-      return '';
     }
-  }, [awaitingConfirmation, pendingAction, connectionMode]);
+  }, [isVoiceEnabled, isDiscreetMode, selectedVoice, conversation, userModelData]);
 
-  // Keep stopListeningRef in sync for auto-stop from metering callback
-  useEffect(() => {
-    stopListeningRef.current = stopListening;
-  }, [stopListening]);
+  // Keep ref in sync so wake word callback always has the latest
+  useEffect(() => { startListeningRef.current = startListening; }, [startListening]);
 
+  // -----------------------------------------------------------------------
+  // stopListening — end the ElevenLabs session
+  // -----------------------------------------------------------------------
+  const stopListening = useCallback(async (): Promise<string> => {
+    if (conversation.status === 'connected') {
+      await conversation.endSession('user');
+    }
+    setAudioLevel(0);
+    return transcript;
+  }, [conversation, transcript]);
+
+  // -----------------------------------------------------------------------
+  // cancelListening — immediately kill session, go to idle
+  // -----------------------------------------------------------------------
   const cancelListening = useCallback(() => {
-    conversationActiveRef.current = false;
-    speechDetectedRef.current = false;
-    silenceAfterSpeechRef.current = 0;
-    if (autoStopTimerRef.current) {
-      clearTimeout(autoStopTimerRef.current);
-      autoStopTimerRef.current = null;
-    }
-    stopRecording();
+    conversation.endSession('user').catch(() => {});
     setVoiceState('idle');
     setAudioLevel(0);
     setTranscript('');
-  }, []);
+  }, [conversation]);
 
-  /**
-   * Programmatically confirm a pending action (e.g. from a UI button)
-   */
-  const confirmAction = useCallback(async () => {
-    if (!pendingAction) return;
-
-    const confirmedAction: ActionJSON = {
-      ...pendingAction,
-      confirmation_required: false,
-    };
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    const result = await executeAction(confirmedAction, user.id, pendingResponseRef.current?.response_text);
-
-    eventLogger.logVoiceCommand(
-      pendingResponseRef.current?.transcript || '',
-      pendingAction.action,
-      result.success,
-      {
-        confidence: pendingAction.confidence,
-        latency_ms: Date.now() - listenStartTimeRef.current,
-        ai_model_used: pendingResponseRef.current?.model_used,
-        tokens_used: pendingResponseRef.current?.tokens_used,
-        user_override: false,
-      },
-    );
-
-    setAwaitingConfirmation(false);
-    setPendingAction(null);
-    pendingResponseRef.current = null;
-    setAiResponse(result.message);
-
-    if (result.message) {
-      await speak(result.message);
-    }
-  }, [pendingAction]);
-
-  /**
-   * Programmatically cancel a pending action (e.g. from a UI button)
-   */
-  const cancelAction = useCallback(() => {
-    if (!pendingAction) return;
-
-    eventLogger.logVoiceCommand(
-      pendingResponseRef.current?.transcript || '',
-      pendingAction.action,
-      false,
-      {
-        confidence: pendingAction.confidence,
-        latency_ms: Date.now() - listenStartTimeRef.current,
-        ai_model_used: pendingResponseRef.current?.model_used,
-        tokens_used: pendingResponseRef.current?.tokens_used,
-        user_override: true,
-      },
-    );
-
-    setAwaitingConfirmation(false);
-    setPendingAction(null);
-    pendingResponseRef.current = null;
-    setAiResponse('Okay, cancelled.');
-    speak('Okay, cancelled.');
-  }, [pendingAction]);
-
+  // -----------------------------------------------------------------------
+  // speak — TTS via REST edge function (discreet mode / programmatic)
+  // In normal mode, ElevenLabs SDK handles TTS. This is for text-only.
+  // -----------------------------------------------------------------------
   const speak = useCallback(async (text: string) => {
     if (!isVoiceEnabled || !text) {
       setVoiceState('idle');
       return;
     }
 
-    // Stop any existing playback to prevent overlapping voices
+    // If ElevenLabs session is active, send as contextual update instead
+    if (conversation.status === 'connected') {
+      conversation.sendContextualUpdate(text);
+      return;
+    }
+
+    // REST TTS fallback (discreet mode or no active session)
     if (isPlayingAudioRef.current || soundRef.current) {
       await stopPlayback();
     }
     isPlayingAudioRef.current = true;
     setVoiceState('speaking');
-    
+
     try {
-      // Use PlayAndRecord mode so barge-in monitor can record while TTS plays
       await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
+        allowsRecordingIOS: false,
         playsInSilentModeIOS: true,
         staysActiveInBackground: false,
         shouldDuckAndroid: true,
       });
 
-      // Start background mic monitor for voice-activated barge-in
-      startBargeInMonitor().catch(e => console.warn('[Voice] Barge-in monitor start failed:', e));
-
-      // Call TTS Edge Function
-      console.log('[TTS] Calling text-to-speech, text length:', text.length, 'voice:', selectedVoice);
       const { data, error: ttsError } = await invokeWithAuth('text-to-speech', {
-        body: {
-          text,
-          voice: selectedVoice,
-          speed: voiceSpeed,
-        }
+        body: { text, voice: selectedVoice, speed: voiceSpeed },
       });
-
-      if (ttsError) {
-        console.warn('[TTS] Edge Function error:', ttsError.message || ttsError);
-      }
 
       if (ttsError || !(data as any)?.audio) {
-        console.log('[TTS] Falling back to device speech');
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: false,
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: false,
-          shouldDuckAndroid: true,
-        });
-        const Speech = await import('expo-speech');
-        await new Promise<void>((resolve) => {
-          Speech.speak(text, {
-            rate: voiceSpeed,
-            language: 'en-US',
-            onDone: () => {
-              console.log('[TTS] Device speech done');
-              resolve();
-            },
-            onError: (err) => {
-              console.warn('[TTS] Device speech error:', err);
-              resolve();
-            },
-          });
-        });
-        setVoiceState('idle');
-        return;
-      }
-
-      const ttsAudioData = (data as any)?.audio;
-      const tempAudioPath = (FileSystem.cacheDirectory || '') + 'tts_audio_' + Date.now() + '.mp3';
-      await FileSystem.writeAsStringAsync(tempAudioPath, ttsAudioData, {
-        encoding: FileSystem.EncodingType?.Base64 ?? 'base64',
-      });
-      const uri = tempAudioPath.startsWith('file://') ? tempAudioPath : 'file://' + tempAudioPath;
-      console.log('[TTS] Playing from file, uri length:', uri.length);
-
-      const { sound } = await Audio.Sound.createAsync(
-        { uri },
-        { shouldPlay: true }
-      );
-      
-      soundRef.current = sound;
-      
-      // Wait for playback to complete
-      await new Promise<void>((resolve) => {
-        let resolved = false;
-        const done = () => { if (!resolved) { resolved = true; resolve(); } };
-        sound.setOnPlaybackStatusUpdate((status) => {
-          if (status.isLoaded && (status as any).didJustFinish) {
-            console.log('[TTS] Audio playback finished');
-            done();
-          }
-        });
-        // Timeout fallback (30s max)
-        setTimeout(done, 30000);
-      });
-
-      await stopBargeInMonitor();
-      await stopPlayback();
-      
-      // Clean up temp audio file
-      try {
-        await FileSystem.deleteAsync(tempAudioPath, { idempotent: true });
-      } catch {
-        // Ignore cleanup errors
-      }
-      
-    } catch (err) {
-      console.error('[TTS] Error:', err);
-      await stopBargeInMonitor();
-      try {
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: false,
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: false,
-          shouldDuckAndroid: true,
-        });
+        console.warn('[TTS] Edge function error, using device speech');
         const Speech = await import('expo-speech');
         await new Promise<void>((resolve) => {
           Speech.speak(text, {
@@ -1404,109 +651,102 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
             onError: () => resolve(),
           });
         });
-      } catch (fallbackErr) {
-        console.error('[TTS] Fallback speech failed:', fallbackErr);
+        setVoiceState('idle');
+        isPlayingAudioRef.current = false;
+        return;
       }
+
+      const audioBase64 = (data as any).audio;
+      const tempPath = (FileSystem.cacheDirectory || '') + 'tts_audio_' + Date.now() + '.mp3';
+      await FileSystem.writeAsStringAsync(tempPath, audioBase64, {
+        encoding: FileSystem.EncodingType?.Base64 ?? 'base64',
+      });
+      const uri = tempPath.startsWith('file://') ? tempPath : 'file://' + tempPath;
+
+      const { sound } = await Audio.Sound.createAsync({ uri }, { shouldPlay: true });
+      soundRef.current = sound;
+
+      await new Promise<void>((resolve) => {
+        let resolved = false;
+        const done = () => { if (!resolved) { resolved = true; resolve(); } };
+        sound.setOnPlaybackStatusUpdate((status) => {
+          if (status.isLoaded && (status as any).didJustFinish) done();
+        });
+        setTimeout(done, 30000);
+      });
+
+      await stopPlayback();
+      try { await FileSystem.deleteAsync(tempPath, { idempotent: true }); } catch { /* noop */ }
+    } catch (err) {
+      console.error('[TTS] Error:', err);
+      try {
+        const Speech = await import('expo-speech');
+        await new Promise<void>((resolve) => {
+          Speech.speak(text, {
+            rate: voiceSpeed,
+            language: 'en-US',
+            onDone: resolve,
+            onError: () => resolve(),
+          });
+        });
+      } catch { /* give up */ }
     }
 
     isPlayingAudioRef.current = false;
-    // Continuous conversation: auto-listen after TTS finishes speaking
     if (voiceStateRef.current === 'speaking') {
-      if (conversationActiveRef.current && !isDiscreetMode) {
-        console.log('[Voice] Continuous convo — auto-listening after TTS');
-        setTimeout(() => {
-          if (conversationActiveRef.current && voiceStateRef.current !== 'idle') {
-            startListeningRef.current().catch((err) => {
-              console.error('[Voice] Auto-listen after TTS failed:', err);
-              setVoiceState('idle');
-            });
-          }
-        }, 400);
-      } else {
-        setVoiceState('idle');
-      }
+      setVoiceState('idle');
     }
-  }, [isVoiceEnabled, selectedVoice, voiceSpeed, isDiscreetMode]);
+  }, [isVoiceEnabled, selectedVoice, voiceSpeed, conversation]);
 
+  // -----------------------------------------------------------------------
+  // stopSpeaking — end session or stop REST TTS
+  // -----------------------------------------------------------------------
   const stopSpeaking = useCallback(() => {
-    conversationActiveRef.current = false;
-    stopBargeInMonitor();
+    if (conversation.status === 'connected') {
+      conversation.endSession('user').catch(() => {});
+    }
     stopPlayback();
     isPlayingAudioRef.current = false;
     setVoiceState('idle');
-  }, []);
+  }, [conversation]);
 
+  // -----------------------------------------------------------------------
+  // bargeIn — ElevenLabs handles barge-in natively via VAD.
+  // This exists for API compat; it starts a session if none active.
+  // -----------------------------------------------------------------------
   const bargeIn = useCallback(async () => {
-    console.log('[Voice] Barge-in triggered');
-    
-    // Stop barge-in monitor first (frees the mic for actual recording)
-    await stopBargeInMonitor();
-    
-    // Cancel Realtime API response if active
-    if (realtimeVoiceService.isConnected) {
-      realtimeVoiceService.cancelResponse();
-      realtimeVoiceService.clearAudioChunks();
-    }
-    
+    console.log('[Voice] Barge-in — ElevenLabs handles natively');
+    eventLogger.log('voice_command', { action: 'barge_in' });
+
+    // Stop any active TTS playback first (e.g. briefing) and release audio session
     await stopPlayback();
     isPlayingAudioRef.current = false;
-    
-    eventLogger.log('voice_command', { action: 'barge_in' });
-    
-    try {
+
+    if (conversation.status !== 'connected') {
       await startListening();
-    } catch (err) {
-      console.error('[Voice] Barge-in startListening failed:', err);
-      setVoiceState('idle');
-      setError('Failed to start listening');
     }
-  }, [startListening]);
+  }, [conversation, startListening]);
 
-  // Keep bargeInRef in sync for barge-in monitor metering callback
-  useEffect(() => {
-    bargeInRef.current = bargeIn;
-  }, [bargeIn]);
-
-  /**
-   * End the continuous conversation — stop listening/speaking and go to IDLE.
-   * Called when user explicitly wants to stop (e.g. tap orb during auto-listen).
-   */
+  // -----------------------------------------------------------------------
+  // endConversation — explicitly end the ElevenLabs session
+  // -----------------------------------------------------------------------
   const endConversation = useCallback(() => {
-    console.log('[Voice] Ending continuous conversation');
-    stopBargeInMonitor();
-    conversationActiveRef.current = false;
-    speechDetectedRef.current = false;
-    silenceAfterSpeechRef.current = 0;
-
-    // Cancel Realtime response if in progress
-    if (realtimeVoiceService.isConnected) {
-      realtimeVoiceService.cancelResponse();
-      realtimeVoiceService.clearAudioChunks();
+    console.log('[Voice] Ending conversation');
+    if (inactivityTimerRef.current) {
+      clearTimeout(inactivityTimerRef.current);
+      inactivityTimerRef.current = null;
     }
-
-    stopRecording();
+    conversation.endSession('user').catch(() => {});
     stopPlayback();
     isPlayingAudioRef.current = false;
-
-    if (silenceTimerRef.current) {
-      clearTimeout(silenceTimerRef.current);
-      silenceTimerRef.current = null;
-    }
-    if (autoStopTimerRef.current) {
-      clearTimeout(autoStopTimerRef.current);
-      autoStopTimerRef.current = null;
-    }
-
     setVoiceState('idle');
     setAudioLevel(0);
-
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, []);
+  }, [conversation]);
 
-  /**
-   * Submit text directly (discreet mode or offline/error fallback).
-   * Sends transcript straight to voice-command edge function, skipping audio.
-   */
+  // -----------------------------------------------------------------------
+  // submitText — text-only path for discreet mode / offline fallback
+  // -----------------------------------------------------------------------
   const submitText = useCallback(async (text: string) => {
     if (!text.trim()) return;
 
@@ -1520,6 +760,7 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
         body: {
           transcript: text.trim(),
           context: { screen: 'ai_home', mode: 'text' },
+          noise_isolation: isNoiseIsolationEnabled,
         },
       });
       const timeoutPromise = new Promise<never>((_, reject) =>
@@ -1535,7 +776,6 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
 
       setAiResponse(responseText);
 
-      // Log
       eventLogger.logVoiceCommand(text, action?.action || 'unknown', true, {
         confidence: action?.confidence,
         latency_ms: Date.now() - listenStartTimeRef.current,
@@ -1544,15 +784,17 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
       });
 
       // Execute action if mutation
-      if (action && action.action !== 'unknown' &&
-          !['query_tasks', 'query_schedule', 'query_stats', 'query_circles'].includes(action.action)) {
+      if (
+        action &&
+        action.action !== 'unknown' &&
+        !['query_tasks', 'query_schedule', 'query_stats', 'query_circles'].includes(action.action)
+      ) {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
           const result = await executeAction(action, user.id, responseText);
           const spokenText = result.success ? (responseText || result.message) : result.message;
           setAiResponse(spokenText);
 
-          // In discreet mode, show text only (no TTS)
           if (!isDiscreetMode && spokenText) {
             await speak(spokenText);
             return;
@@ -1560,7 +802,6 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
         }
       }
 
-      // In discreet mode, just show response as text (no TTS)
       if (!isDiscreetMode && responseText) {
         await speak(responseText);
       } else {
@@ -1577,12 +818,67 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
         }
       }, 5000);
     }
-  }, [isDiscreetMode]);
+  }, [isDiscreetMode, isNoiseIsolationEnabled, speak]);
 
-  /**
-   * Toggle discreet mode (PRD 4.1)
-   * When active: skip LISTENING/SPEAKING, use text input + text response.
-   */
+  // -----------------------------------------------------------------------
+  // Wake word toggle + sensitivity (persist to AsyncStorage)
+  // -----------------------------------------------------------------------
+  const handleSetWakeWordEnabled = useCallback(async (enabled: boolean) => {
+    if (enabled) {
+      // Request microphone permission before enabling wake word
+      const { status } = await Audio.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(
+          'Microphone Required',
+          'MYPA needs microphone access to listen for the wake word. Please grant permission in Settings.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Open Settings', onPress: () => Linking.openSettings() },
+          ],
+        );
+        return; // Don't enable without permission
+      }
+
+      // Check battery level — warn if low
+      try {
+        const BatteryMod = await import('expo-battery');
+        const level = await BatteryMod.getBatteryLevelAsync();
+        if (level >= 0 && level < 0.15) {
+          Alert.alert(
+            'Low Battery',
+            `Battery is at ${Math.round(level * 100)}%. Wake word detection will be paused to save power and will resume when battery is above 20%.`,
+            [{ text: 'OK' }],
+          );
+        }
+      } catch { /* expo-battery not available in simulator */ }
+    }
+
+    setIsWakeWordEnabled(enabled);
+    eventLogger.log('feature_used', {
+      feature: 'wake_word',
+      action: 'wake_word_toggled',
+      success: true,
+      enabled,
+    });
+    try {
+      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+      await AsyncStorage.setItem('mypa_wake_word_enabled', enabled ? '1' : '0');
+    } catch { /* noop */ }
+  }, []);
+
+  const handleSetWakeWordSensitivity = useCallback(async (sensitivity: number) => {
+    const clamped = Math.max(0, Math.min(1, sensitivity));
+    setWakeWordSensitivityState(clamped);
+    await wakeWordService.setSensitivity(clamped);
+    try {
+      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+      await AsyncStorage.setItem('mypa_wake_word_sensitivity', String(clamped));
+    } catch { /* noop */ }
+  }, []);
+
+  // -----------------------------------------------------------------------
+  // Discreet mode toggle + persist
+  // -----------------------------------------------------------------------
   const handleSetDiscreetMode = useCallback(async (enabled: boolean) => {
     setIsDiscreetMode(enabled);
     eventLogger.log('feature_used', {
@@ -1591,43 +887,53 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
       success: true,
       enabled,
     });
-    // Persist to AsyncStorage
     try {
       const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
       await AsyncStorage.setItem('mypa_discreet_mode', enabled ? '1' : '0');
     } catch { /* noop */ }
   }, []);
 
-  // Load discreet mode preference on mount
-  useEffect(() => {
-    (async () => {
-      try {
-        const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
-        const val = await AsyncStorage.getItem('mypa_discreet_mode');
-        if (val === '1') setIsDiscreetMode(true);
-      } catch { /* noop */ }
-    })();
+  // -----------------------------------------------------------------------
+  // Noise isolation toggle + persist
+  // -----------------------------------------------------------------------
+  const handleSetNoiseIsolationEnabled = useCallback(async (enabled: boolean) => {
+    setIsNoiseIsolationEnabled(enabled);
+    eventLogger.log('feature_used', {
+      feature: 'noise_isolation',
+      action: 'noise_isolation_toggled',
+      success: true,
+      enabled,
+    });
+    try {
+      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+      await AsyncStorage.setItem('mypa_noise_isolation', enabled ? '1' : '0');
+    } catch { /* noop */ }
   }, []);
 
-  /**
-   * Retry Realtime connection (e.g. after offline recovery or manual retry)
-   */
-  const retryConnection = useCallback(async () => {
-    setError(null);
-    setIsOffline(false);
-    errorRetryCountRef.current = 0;
-    realtimeVoiceService.resetReconnectAttempts();
+  // -----------------------------------------------------------------------
+  // Dynamic contextual awareness — screen changes (Step 14a)
+  // -----------------------------------------------------------------------
+  const currentScreenRef = useRef<Screen>('ai_hub');
 
-    if (FEATURE_FLAGS.USE_REALTIME_VOICE) {
-      const connected = await realtimeVoiceService.connect();
-      setConnectionMode(connected ? 'realtime' : 'rest');
-    } else {
-      setConnectionMode('rest');
+  const updateScreenContext = useCallback((screen: Screen, data?: ScreenContextData) => {
+    currentScreenRef.current = screen;
+
+    // Only send context update if a voice session is active
+    if (conversation.status !== 'connected') return;
+
+    try {
+      const contextString = buildScreenContext(screen, data);
+      conversation.sendContextualUpdate(contextString);
+      console.log(`[Voice] Screen context → ${screen}`);
+    } catch (err) {
+      // Non-fatal — agent works fine without screen context
+      console.warn('[Voice] Failed to send screen context:', err);
     }
+  }, [conversation]);
 
-    setVoiceState('idle');
-  }, []);
-
+  // -----------------------------------------------------------------------
+  // Context value
+  // -----------------------------------------------------------------------
   const value: VoiceContextType = {
     voiceState,
     isVoiceEnabled,
@@ -1635,35 +941,39 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
     transcript,
     aiResponse,
     error,
-    awaitingConfirmation,
-    pendingAction,
-    isConversationActive: conversationActiveRef.current,
+    isConversationActive,
+
     startListening,
     stopListening,
     cancelListening,
     speak,
     stopSpeaking,
     bargeIn,
-    confirmAction,
-    cancelAction,
     endConversation,
+
     setVoiceEnabled,
     voiceSpeed,
     setVoiceSpeed,
     selectedVoice,
     setSelectedVoice,
+
     isDiscreetMode,
     setDiscreetMode: handleSetDiscreetMode,
     submitText,
-    isOffline,
-    connectionMode,
-    retryConnection,
+
+    isWakeWordEnabled,
+    setWakeWordEnabled: handleSetWakeWordEnabled,
+    wakeWordSensitivity,
+    setWakeWordSensitivity: handleSetWakeWordSensitivity,
+
+    isNoiseIsolationEnabled,
+    setNoiseIsolationEnabled: handleSetNoiseIsolationEnabled,
+
+    updateScreenContext,
   };
 
   return (
-    <VoiceContext.Provider value={value}>
-      {children}
-    </VoiceContext.Provider>
+    <VoiceContext.Provider value={value}>{children}</VoiceContext.Provider>
   );
 }
 

@@ -18,22 +18,53 @@
       "color": "#7C3AED",
       "iosDisplayInForeground": true
     },
+    "plugins": [
+      "@livekit/react-native-expo-plugin",
+      "@config-plugins/react-native-webrtc",
+      ["./plugins/withPorcupineKeyword", {
+        "keywords": ["hey-my-low_en_ios_v4_0_0.ppn"]
+      }]
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.mypatesting.mypa",
+      "deploymentTarget": "16.0",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
+        "NSMicrophoneUsageDescription": "MYPA needs microphone access for voice conversations with your AI assistant.",
         "UIBackgroundModes": [
           "fetch",
-          "processing"
+          "processing",
+          "audio",
+          "voip"
         ]
-      }
+      },
+      "bitcode": false
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "permissions": [
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.CAMERA",
+        "android.permission.INTERNET",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.WAKE_LOCK",
+        "android.permission.BLUETOOTH",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.CAMERA",
+        "android.permission.INTERNET",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.WAKE_LOCK",
+        "android.permission.BLUETOOTH"
+      ],
+      "package": "com.mypatesting.mypa"
     },
     "web": {
       "favicon": "./assets/favicon.png",

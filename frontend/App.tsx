@@ -14,10 +14,15 @@ import React, { useEffect, useRef } from 'react';
 import { StyleSheet, View, StatusBar, Image, ActivityIndicator, AppState, AppStateStatus } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+// LiveKit WebRTC globals — must be called before any ElevenLabs/LiveKit usage
+import { registerGlobals } from '@livekit/react-native';
+registerGlobals();
+
 // Contexts
 import { SupabaseAuthProvider, useSupabaseAuth } from './src/contexts/SupabaseAuthContext';
 import { VoiceProvider } from './src/contexts/VoiceContext';
 import { UserModelProvider } from './src/contexts/UserModelContext';
+import { ElevenLabsProvider } from '@elevenlabs/react-native';
 
 // Services
 import { eventLogger } from './src/services/eventLogger';
@@ -38,9 +43,11 @@ export default function App() {
       <ErrorBoundary>
         <SupabaseAuthProvider>
           <UserModelProvider>
-            <VoiceProvider>
-              <AppContent />
-            </VoiceProvider>
+            <ElevenLabsProvider>
+              <VoiceProvider>
+                <AppContent />
+              </VoiceProvider>
+            </ElevenLabsProvider>
           </UserModelProvider>
         </SupabaseAuthProvider>
       </ErrorBoundary>

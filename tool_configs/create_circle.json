@@ -1,0 +1,14 @@
+{
+  "name": "create_circle",
+  "description": "Create a new accountability circle/group.",
+  "type": "client",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "name": { "type": "string", "description": "Circle name" },
+      "emoji": { "type": "string", "description": "Circle emoji" },
+      "description": { "type": "string", "description": "Circle description" }
+    },
+    "required": ["name"]
+  }
+}

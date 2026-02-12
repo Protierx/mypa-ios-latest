@@ -1,0 +1,12 @@
+{
+  "name": "complete_task",
+  "description": "Mark a task as complete. Use when user says done, finished, completed, check off.",
+  "type": "client",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "taskName": { "type": "string", "description": "Name of the task to complete (will fuzzy-match against pending tasks)" }
+    },
+    "required": ["taskName"]
+  }
+}

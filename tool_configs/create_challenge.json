@@ -1,0 +1,16 @@
+{
+  "name": "create_challenge",
+  "description": "Create a challenge within a circle.",
+  "type": "client",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "circleName": { "type": "string", "description": "Circle name" },
+      "title": { "type": "string", "description": "Challenge title" },
+      "type": { "type": "string", "enum": ["focus_time", "tasks_completed", "daily_checkin", "custom"], "description": "Challenge type" },
+      "targetValue": { "type": "number", "description": "Goal value to reach" },
+      "durationDays": { "type": "number", "description": "Challenge duration in days" }
+    },
+    "required": ["circleName", "title", "type", "targetValue"]
+  }
+}

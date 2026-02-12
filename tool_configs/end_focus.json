@@ -1,0 +1,10 @@
+{
+  "name": "end_focus",
+  "description": "End the current focus session. Use when user says stop, end focus, done focusing.",
+  "type": "client",
+  "parameters": {
+    "type": "object",
+    "properties": {},
+    "required": []
+  }
+}

@@ -1,0 +1,255 @@
+[
+  {
+    "name": "create_task",
+    "description": "Create a new task for the user. Use when they say things like add, remind me to, I need to, create a task.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "The task title, extracted from user speech" },
+        "date": { "type": "string", "description": "Due date in ISO 8601 format or natural language (today, tomorrow, next monday, etc.)" },
+        "time": { "type": "string", "description": "Due time (e.g. 3pm, 15:00)" },
+        "duration_min": { "type": "number", "description": "Estimated duration in minutes" },
+        "category": { "type": "string", "enum": ["Personal", "Work", "Health", "Fitness", "Wellness", "Creative"], "description": "Task category" },
+        "priority": { "type": "string", "enum": ["low", "medium", "high", "urgent"], "description": "Task priority level" }
+      },
+      "required": ["title"]
+    }
+  },
+  {
+    "name": "update_task",
+    "description": "Update an existing task. Use when user wants to change title, date, priority, or other fields of a task.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "task_name": { "type": "string", "description": "Name/title of the task to update (will fuzzy-match)" },
+        "title": { "type": "string", "description": "New title" },
+        "date": { "type": "string", "description": "New due date" },
+        "time": { "type": "string", "description": "New due time" },
+        "duration_min": { "type": "number", "description": "New estimated duration" },
+        "category": { "type": "string", "enum": ["Personal", "Work", "Health", "Fitness", "Wellness", "Creative"] },
+        "priority": { "type": "string", "enum": ["low", "medium", "high", "urgent"] }
+      },
+      "required": ["task_name"]
+    }
+  },
+  {
+    "name": "complete_task",
+    "description": "Mark a task as complete. Use when user says done, finished, completed, check off.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "task_name": { "type": "string", "description": "Name of the task to complete (will fuzzy-match against pending tasks)" }
+      },
+      "required": ["task_name"]
+    }
+  },
+  {
+    "name": "delete_task",
+    "description": "Delete a task permanently. Use when user says delete, remove, cancel task. Ask for confirmation before executing.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "task_name": { "type": "string", "description": "Name of the task to delete (will fuzzy-match)" }
+      },
+      "required": ["task_name"]
+    }
+  },
+  {
+    "name": "reschedule_task",
+    "description": "Move a task to a different date/time. Use when user says move, reschedule, push, defer.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "task_name": { "type": "string", "description": "Name of the task to reschedule" },
+        "new_date": { "type": "string", "description": "New date (ISO 8601 or natural language)" },
+        "new_time": { "type": "string", "description": "New time" }
+      },
+      "required": ["task_name", "new_date"]
+    }
+  },
+  {
+    "name": "batch_create_tasks",
+    "description": "Create multiple tasks at once. Use when user lists several things to do.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "tasks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": { "type": "string" },
+              "date": { "type": "string" },
+              "priority": { "type": "string", "enum": ["low", "medium", "high", "urgent"] },
+              "category": { "type": "string" }
+            },
+            "required": ["title"]
+          },
+          "description": "Array of tasks to create"
+        }
+      },
+      "required": ["tasks"]
+    }
+  },
+  {
+    "name": "start_focus_session",
+    "description": "Start a focus/pomodoro session. Use when user says start focus, focus mode, let me focus.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "task_name": { "type": "string", "description": "Optional task to link the focus session to" },
+        "duration_min": { "type": "number", "description": "Session duration in minutes (default 25)" }
+      },
+      "required": []
+    }
+  },
+  {
+    "name": "pause_focus",
+    "description": "Pause the current focus session.",
+    "parameters": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "name": "resume_focus",
+    "description": "Resume a paused focus session.",
+    "parameters": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "name": "end_focus",
+    "description": "End the current focus session. Use when user says stop, end focus, done focusing.",
+    "parameters": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    }
+  },
+  {
+    "name": "create_circle",
+    "description": "Create a new accountability circle/group.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Circle name" },
+        "emoji": { "type": "string", "description": "Circle emoji" },
+        "description": { "type": "string", "description": "Circle description" }
+      },
+      "required": ["name"]
+    }
+  },
+  {
+    "name": "invite_to_circle",
+    "description": "Invite someone to a circle.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "circle_name": { "type": "string", "description": "Name of the circle to invite to" },
+        "username": { "type": "string", "description": "Username of the person to invite" },
+        "message": { "type": "string", "description": "Optional invite message" }
+      },
+      "required": ["circle_name", "username"]
+    }
+  },
+  {
+    "name": "create_challenge",
+    "description": "Create a challenge within a circle.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "circle_name": { "type": "string", "description": "Circle name" },
+        "title": { "type": "string", "description": "Challenge title" },
+        "type": { "type": "string", "enum": ["focus_time", "tasks_completed", "daily_checkin", "custom"] },
+        "target_value": { "type": "number", "description": "Goal value to reach" },
+        "duration_days": { "type": "number", "description": "Challenge duration in days" }
+      },
+      "required": ["circle_name", "title", "type", "target_value"]
+    }
+  },
+  {
+    "name": "post_to_circle",
+    "description": "Post a message to a circle feed.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "circle_name": { "type": "string", "description": "Name of the circle to post in" },
+        "content": { "type": "string", "description": "Post content" }
+      },
+      "required": ["circle_name", "content"]
+    }
+  },
+  {
+    "name": "query_tasks",
+    "description": "Query user tasks. Use when they ask what do I have, show my tasks, what is on my plate.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "description": "Date to query (today, tomorrow, or ISO date)" },
+        "filter": { "type": "string", "enum": ["all", "pending", "completed", "high_priority"], "description": "Filter type" }
+      },
+      "required": []
+    }
+  },
+  {
+    "name": "query_schedule",
+    "description": "Query the user schedule/agenda for a day or range.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "description": "Date to check" },
+        "range": { "type": "string", "enum": ["day", "week"], "description": "Time range" }
+      },
+      "required": []
+    }
+  },
+  {
+    "name": "query_stats",
+    "description": "Query user stats: streak, XP, level, focus minutes, etc.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "metric": { "type": "string", "enum": ["streak", "xp", "level", "focus", "all"], "description": "Which stat to check" }
+      },
+      "required": []
+    }
+  },
+  {
+    "name": "query_circles",
+    "description": "Query the user circles and social activity.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "circle_name": { "type": "string", "description": "Specific circle to query (optional)" }
+      },
+      "required": []
+    }
+  },
+  {
+    "name": "brain_dump",
+    "description": "Capture unstructured thoughts that will be processed into tasks later. Use when user says let me dump, brain dump, or speaks a long stream of thoughts.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "content": { "type": "string", "description": "Raw brain dump content from user" }
+      },
+      "required": ["content"]
+    }
+  },
+  {
+    "name": "set_preference",
+    "description": "Update a user preference or setting.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "key": { "type": "string", "description": "Preference key (e.g. voice_speed, theme, focus_duration)" },
+        "value": { "type": "string", "description": "New value for the preference" }
+      },
+      "required": ["key", "value"]
+    }
+  }
+]

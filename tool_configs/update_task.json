@@ -1,0 +1,18 @@
+{
+  "name": "update_task",
+  "description": "Update an existing task. Use when user wants to change title, date, priority, or other fields of a task.",
+  "type": "client",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "taskName": { "type": "string", "description": "Name/title of the task to update (will fuzzy-match)" },
+      "title": { "type": "string", "description": "New title" },
+      "date": { "type": "string", "description": "New due date" },
+      "time": { "type": "string", "description": "New due time" },
+      "durationMin": { "type": "number", "description": "New estimated duration" },
+      "category": { "type": "string", "enum": ["Personal", "Work", "Health", "Fitness", "Wellness", "Creative"], "description": "Task category" },
+      "priority": { "type": "string", "enum": ["low", "medium", "high", "urgent"], "description": "Task priority level" }
+    },
+    "required": ["taskName"]
+  }
+}

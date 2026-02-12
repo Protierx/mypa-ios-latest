@@ -1,0 +1,10 @@
+{
+  "name": "resume_focus",
+  "description": "Resume a paused focus session.",
+  "type": "client",
+  "parameters": {
+    "type": "object",
+    "properties": {},
+    "required": []
+  }
+}

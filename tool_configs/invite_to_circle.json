@@ -1,0 +1,14 @@
+{
+  "name": "invite_to_circle",
+  "description": "Invite someone to a circle.",
+  "type": "client",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "circleName": { "type": "string", "description": "Name of the circle to invite to" },
+      "username": { "type": "string", "description": "Username of the person to invite" },
+      "message": { "type": "string", "description": "Optional invite message" }
+    },
+    "required": ["circleName", "username"]
+  }
+}

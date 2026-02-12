@@ -78,10 +78,16 @@ export function SettingsModal({ visible, onClose, onShowPaywall }: SettingsModal
   const setAiVoiceEnabled = voice.setVoiceEnabled;
   const voiceSpeed = voice.voiceSpeed;
   const setVoiceSpeed = voice.setVoiceSpeed;
-  const selectedVoice = voice.selectedVoice as 'alloy' | 'ash' | 'coral' | 'nova' | 'shimmer';
+  const selectedVoice = voice.selectedVoice;
   const setSelectedVoice = voice.setSelectedVoice;
   const isDiscreetMode = voice.isDiscreetMode;
   const setDiscreetMode = voice.setDiscreetMode;
+  const isWakeWordEnabled = voice.isWakeWordEnabled;
+  const setWakeWordEnabled = voice.setWakeWordEnabled;
+  const wakeWordSensitivity = voice.wakeWordSensitivity;
+  const setWakeWordSensitivity = voice.setWakeWordSensitivity;
+  const isNoiseIsolationEnabled = voice.isNoiseIsolationEnabled;
+  const setNoiseIsolationEnabled = voice.setNoiseIsolationEnabled;
 
   // Non-voice settings (would normally be persisted)
   const [pushEnabled, setPushEnabled] = useState(true);
@@ -91,13 +97,13 @@ export function SettingsModal({ visible, onClose, onShowPaywall }: SettingsModal
   const [focusSoundsEnabled, setFocusSoundsEnabled] = useState(false);
   const [profileVisibility, setProfileVisibility] = useState<'public' | 'friends' | 'private'>('friends');
 
-  // Voice options per Step 5.12
-  const voiceOptions: Array<{ id: 'alloy' | 'ash' | 'coral' | 'nova' | 'shimmer'; name: string; description: string }> = [
-    { id: 'ash', name: 'Ash', description: 'Warm & friendly (default)' },
-    { id: 'nova', name: 'Nova', description: 'Bright & energetic' },
-    { id: 'alloy', name: 'Alloy', description: 'Balanced & clear' },
-    { id: 'coral', name: 'Coral', description: 'Upbeat & motivating' },
-    { id: 'shimmer', name: 'Shimmer', description: 'Soft & gentle' },
+  // ElevenLabs voice options — IDs from the ElevenLabs voice library
+  const voiceOptions: Array<{ id: string; name: string; description: string }> = [
+    { id: 'cjVigY5qzO86Huf0OWal', name: 'Eric', description: 'Smooth & trustworthy (default)' },
+    { id: 'EXAVITQu4vr4xnSDxMaL', name: 'Sarah', description: 'Mature & reassuring' },
+    { id: 'cgSgspJ2msm6clMCkdW9', name: 'Jessica', description: 'Playful, bright & warm' },
+    { id: 'IKne3meq5aSn9XLyUdCD', name: 'Charlie', description: 'Deep & confident' },
+    { id: 'SAz9YHcvj6GT2YYXdXww', name: 'River', description: 'Relaxed & neutral' },
   ];
 
   const handleTestVoice = async () => {
@@ -275,6 +281,98 @@ export function SettingsModal({ visible, onClose, onShowPaywall }: SettingsModal
                 />
               }
             />
+          </View>
+
+          {/* NOISY ENVIRONMENT */}
+          <SectionHeader title="Noisy Environment" />
+          <View className="bg-zinc-900/50 mx-4 rounded-xl">
+            <SettingRow
+              icon="headset-outline"
+              iconColor="#06b6d4"
+              title="Voice Isolation"
+              subtitle="Clean audio in noisy places"
+              value={
+                <Switch
+                  value={isNoiseIsolationEnabled}
+                  onValueChange={(v) => {
+                    Haptics.selectionAsync();
+                    setNoiseIsolationEnabled(v);
+                  }}
+                  trackColor={{ false: '#3f3f46', true: '#7c3aed' }}
+                  thumbColor="#fff"
+                />
+              }
+            />
+            <View className="h-px bg-zinc-800 mx-5" />
+            <View className="px-5 py-3">
+              <Text className="text-zinc-500 text-xs">
+                Uses ElevenLabs Audio Isolation to filter background noise before processing your voice.
+                Best for coffee shops, commutes, and gyms. The built-in noise handling works well
+                for moderate noise — enable this for extreme environments.
+              </Text>
+            </View>
+          </View>
+
+          {/* HANDS-FREE ACTIVATION */}
+          <SectionHeader title="Hands-Free Activation" />
+          <View className="bg-zinc-900/50 mx-4 rounded-xl">
+            <SettingRow
+              icon="mic-outline"
+              iconColor="#f59e0b"
+              title='"Hey MYPA" Wake Word'
+              subtitle="Activate hands-free, on-device only"
+              value={
+                <Switch
+                  value={isWakeWordEnabled}
+                  onValueChange={(v) => {
+                    Haptics.selectionAsync();
+                    setWakeWordEnabled(v);
+                  }}
+                  trackColor={{ false: '#3f3f46', true: '#7c3aed' }}
+                  thumbColor="#fff"
+                />
+              }
+            />
+            {isWakeWordEnabled && (
+              <>
+                <View className="h-px bg-zinc-800 mx-5" />
+                <View className="px-5 py-4">
+                  <View className="flex-row justify-between mb-2">
+                    <Text className="text-white">Sensitivity</Text>
+                    <Text className="text-zinc-400">
+                      {wakeWordSensitivity <= 0.33 ? 'Low' : wakeWordSensitivity <= 0.66 ? 'Medium' : 'High'}
+                    </Text>
+                  </View>
+                  <View className="flex-row items-center justify-between">
+                    <TouchableOpacity
+                      className="p-2"
+                      onPress={() => setWakeWordSensitivity(Math.max(0, wakeWordSensitivity - 0.1))}
+                    >
+                      <Ionicons name="remove-circle-outline" size={24} color="#f59e0b" />
+                    </TouchableOpacity>
+                    <View className="flex-1 h-2 bg-zinc-700 rounded-full mx-2">
+                      <View
+                        className="h-2 bg-amber-500 rounded-full"
+                        style={{ width: `${wakeWordSensitivity * 100}%` }}
+                      />
+                    </View>
+                    <TouchableOpacity
+                      className="p-2"
+                      onPress={() => setWakeWordSensitivity(Math.min(1, wakeWordSensitivity + 0.1))}
+                    >
+                      <Ionicons name="add-circle-outline" size={24} color="#f59e0b" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                <View className="h-px bg-zinc-800 mx-5" />
+                <View className="px-5 py-3">
+                  <Text className="text-zinc-500 text-xs">
+                    MYPA listens for the wake word on-device. No audio is sent to the cloud until activated.
+                    {'\n'}Auto-pauses below 15% battery to save power.
+                  </Text>
+                </View>
+              </>
+            )}
           </View>
 
           {/* NOTIFICATIONS */}

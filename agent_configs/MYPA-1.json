@@ -1,0 +1,284 @@
+{
+    "name": "MYPA",
+    "conversation_config": {
+        "asr": {
+            "quality": "high",
+            "provider": "elevenlabs",
+            "user_input_audio_format": "pcm_16000",
+            "keywords": ["MYPA", "Mypa", "braindump", "brain dump", "focus session", "circle", "circles", "reschedule", "deprioritize", "overdue"]
+        },
+        "turn": {
+            "turn_timeout": 7,
+            "silence_end_call_timeout": -1,
+            "mode": "turn"
+        },
+        "tts": {
+            "model_id": "eleven_flash_v2",
+            "voice_id": "cjVigY5qzO86Huf0OWal",
+            "supported_voices": [],
+            "agent_output_audio_format": "pcm_16000",
+            "optimize_streaming_latency": 3,
+            "stability": 0.5,
+            "speed": 1,
+            "similarity_boost": 0.75,
+            "style": 0.5,
+            "pronunciation_dictionary_locators": []
+        },
+        "conversation": {
+            "text_only": false,
+            "max_duration_seconds": 600,
+            "client_events": [
+                "audio",
+                "interruption",
+                "conversation_initiation_metadata",
+                "agent_response",
+                "user_transcript",
+                "ping"
+            ]
+        },
+        "language_presets": {},
+        "agent": {
+            "first_message": "Hey {{user_name}}! {{greeting_context}}",
+            "language": "en",
+            "dynamic_variables": {
+                "dynamic_variable_placeholders": {
+                    "user_name": { "type": "string", "default": "" },
+                    "user_id": { "type": "string", "default": "" },
+                    "time_of_day": { "type": "string", "default": "" },
+                    "platform": { "type": "string", "default": "ios" },
+                    "greeting_context": { "type": "string", "default": "" },
+                    "timezone": { "type": "string", "default": "UTC" },
+                    "overwhelm_score": { "type": "number", "default": 0 },
+                    "completion_rate": { "type": "number", "default": 0 },
+                    "tone_preference": { "type": "string", "default": "warm" },
+                    "streak_days": { "type": "number", "default": 0 },
+                    "tasks_today_count": { "type": "number", "default": 0 },
+                    "overdue_count": { "type": "number", "default": 0 },
+                    "current_screen": { "type": "string", "default": "home" },
+                    "task_summary": { "type": "string", "default": "" }
+                }
+            },
+            "prompt": {
+                "prompt": "You are MYPA, the user's AI productivity companion.\n\nCRITICAL INSTRUCTION — TOOL USE:\n- You MUST use the provided function tools for ANY actionable request.\n- When the user asks to create, update, delete, complete, reschedule tasks, start focus, or anything that maps to a tool — CALL THE TOOL. Do NOT just respond with text.\n- 'Add buy groceries tomorrow' → MUST call create_task tool\n- 'What do I have today?' → MUST call query_tasks tool\n- 'I'm done with the report' → MUST call complete_task tool\n- 'Start a 25 minute focus' → MUST call start_focus_session tool\n- Only respond with plain text when the user is having casual conversation that doesn't match any tool.\n\nVOICE PERSONALITY (for your text responses after tool calls):\n- Sound like a supportive friend, not an assistant\n- Warm, genuine, and conversational\n- Keep responses SHORT — 1-2 sentences max (spoken aloud)\n- Use contractions: I'm, you're, let's, don't, can't\n\nCONTEXT:\n- The user's name is {{user_name}}\n- Time of day: {{time_of_day}} (timezone: {{timezone}})\n- Platform: {{platform}}\n- User ID (internal): {{user_id}}\n- Current time: {{system__time}}\n- Use {{greeting_context}} to craft a personalized, natural opening. Don't just say 'hello'.\n\nUSER STATE (from learning model):\n- Overwhelm score: {{overwhelm_score}} (0 = relaxed, 1 = very overwhelmed)\n- 7-day completion rate: {{completion_rate}} (0-1)\n- Preferred tone: {{tone_preference}}\n- Current streak: {{streak_days}} days\n- Tasks today: {{tasks_today_count}}, Overdue: {{overdue_count}}\n- Task summary: {{task_summary}}\n- Current screen: {{current_screen}}\n\nADAPTIVE BEHAVIOR:\n- If overwhelm_score > 0.7: Be extra gentle. Suggest breaks. Don't add pressure. Offer to reschedule or deprioritize tasks.\n- If overwhelm_score < 0.3 and completion_rate > 0.7: Be upbeat and celebrate momentum. Encourage them to keep going.\n- If streak_days > 5: Celebrate the streak naturally ('You're on fire!' etc.)\n- If overdue_count > 3: Proactively offer to help triage overdue tasks.\n- If current_screen is 'focus': Keep responses minimal so you don't break concentration.\n- Match the user's tone_preference (warm, gentle, energetic, direct).\n\nLANGUAGE:\n- ALWAYS respond in English, regardless of what language the user speaks in.\n\nPROACTIVE BEHAVIORS:\n- If the user has overdue tasks, mention them naturally: 'By the way, you have {{overdue_count}} overdue tasks. Want me to reschedule them?'\n- If the user seems stressed or overwhelmed, suggest taking a break or deprioritizing\n- After completing a task, suggest the next highest-priority one if appropriate\n- Keep it natural — don't force suggestions\n\nAVOID:\n- 'I'd be happy to help with that!'\n- Long explanations\n- Robotic confirmations like 'Task has been created successfully'\n- Never say 'I'm an AI' or break character\n- Never expose raw error messages",
+                "llm": "gpt-4o",
+                "temperature": 0.7,
+                "max_tokens": -1,
+                "tool_ids": [
+                    "tool_2701kh7fnvfkf5hsvhfxad4ynp53",
+                    "tool_8301kh7fp1dwfceb9r19xggm4z7r",
+                    "tool_1301kh7fp6mnfq8vvch34khb64fg",
+                    "tool_6601kh7fpd36fzs9nbbzm1j1qhgv",
+                    "tool_2401kh7fphtgfysspv2f32n0wcxw",
+                    "tool_0601kh7fpp0pfvk9gfnc7vsv09e2",
+                    "tool_8701kh7fptasfn49dzhhbrspm0zv",
+                    "tool_7901kh7fq09vfse9hz68hbr8ph2p",
+                    "tool_9901kh7fq9kbepwvt0qxpcx7rapz",
+                    "tool_0201kh7fqnrve859s11cd0hsyjj5",
+                    "tool_8501kh7frgmteap86xgt5xhebhhf",
+                    "tool_1401kh7frwy9eyhbs9d2c3zwz37a",
+                    "tool_4101kh7fs3hpfvdrpk3t8rs5w038",
+                    "tool_6401kh7fsdxgf9dahsf68h3vkv2t",
+                    "tool_3201kh7fsmapf72tke1f98vqgq8k",
+                    "tool_3901kh7fsvhked9bjnd7p24r4e1f",
+                    "tool_6201kh7ftmjve8zt7bd13cnacrwc",
+                    "tool_3501kh7fv4wsef79ybfdyc4c50cs",
+                    "tool_6301kh7fvastfnvtgremgx4gh3g1",
+                    "tool_8201kh7fvgzzewtr3ceqvp677wzc"
+                ],
+                "mcp_server_ids": [],
+                "native_mcp_server_ids": [],
+                "knowledge_base": [],
+                "ignore_default_personality": false,
+                "rag": {
+                    "enabled": false,
+                    "embedding_model": "e5_mistral_7b_instruct",
+                    "max_vector_distance": 0.6,
+                    "max_documents_length": 50000,
+                    "max_retrieved_rag_chunks_count": 20
+                },
+                "custom_llm": null
+            }
+        }
+    },
+    "platform_settings": {
+        "auth": {
+            "enable_auth": true,
+            "allowlist": [],
+            "shareable_token": null
+        },
+        "evaluation": {
+            "criteria": [
+                {
+                    "id": "solved_user_request",
+                    "name": "solved_user_request",
+                    "conversationGoalPrompt": "The assistant successfully completed the user's request using the appropriate tool. All user queries were answered or the correct action was taken."
+                },
+                {
+                    "id": "user_satisfied",
+                    "name": "user_satisfied",
+                    "conversationGoalPrompt": "The user seemed satisfied with the interaction. They did not express frustration, repeat themselves excessively, or abandon the conversation."
+                },
+                {
+                    "id": "response_relevance",
+                    "name": "response_relevance",
+                    "conversationGoalPrompt": "The agent's responses were relevant and on-topic. The agent understood the user's intent correctly and did not provide irrelevant information or take wrong actions."
+                }
+            ]
+        },
+        "widget": {
+            "variant": "full",
+            "placement": "bottom-right",
+            "expandable": "never",
+            "avatar": {
+                "type": "orb",
+                "color_1": "#2792dc",
+                "color_2": "#9ce6e6"
+            },
+            "feedback_mode": "none",
+            "bg_color": "#ffffff",
+            "text_color": "#000000",
+            "btn_color": "#000000",
+            "btn_text_color": "#ffffff",
+            "border_color": "#e1e1e1",
+            "focus_color": "#000000",
+            "shareable_page_show_terms": true,
+            "show_avatar_when_collapsed": false,
+            "disable_banner": false,
+            "mic_muting_enabled": false,
+            "transcript_enabled": false,
+            "text_input_enabled": true,
+            "text_contents": {
+                "main_label": null,
+                "start_call": null,
+                "new_call": null,
+                "end_call": null,
+                "mute_microphone": null,
+                "change_language": null,
+                "collapse": null,
+                "expand": null,
+                "copied": null,
+                "accept_terms": null,
+                "dismiss_terms": null,
+                "listening_status": null,
+                "speaking_status": null,
+                "connecting_status": null,
+                "input_label": null,
+                "input_placeholder": null,
+                "user_ended_conversation": null,
+                "agent_ended_conversation": null,
+                "conversation_id": null,
+                "error_occurred": null,
+                "copy_id": null
+            },
+            "language_selector": false,
+            "supports_text_only": true,
+            "language_presets": {},
+            "styles": {
+                "base": null,
+                "base_hover": null,
+                "base_active": null,
+                "base_border": null,
+                "base_subtle": null,
+                "base_primary": null,
+                "base_error": null,
+                "accent": null,
+                "accent_hover": null,
+                "accent_active": null,
+                "accent_border": null,
+                "accent_subtle": null,
+                "accent_primary": null,
+                "overlay_padding": null,
+                "button_radius": null,
+                "input_radius": null,
+                "bubble_radius": null,
+                "sheet_radius": null,
+                "compact_sheet_radius": null,
+                "dropdown_sheet_radius": null
+            },
+            "border_radius": null,
+            "btn_radius": null,
+            "action_text": null,
+            "start_call_text": null,
+            "end_call_text": null,
+            "expand_text": null,
+            "listening_text": null,
+            "speaking_text": null,
+            "shareable_page_text": null,
+            "terms_text": null,
+            "terms_html": null,
+            "terms_key": null,
+            "override_link": null,
+            "custom_avatar_path": null
+        },
+        "data_collection": {
+            "user_mood": {
+                "type": "string",
+                "description": "Extract the user's emotional tone from the conversation: calm, stressed, excited, tired, or neutral."
+            },
+            "task_types_mentioned": {
+                "type": "string",
+                "description": "Extract the categories of tasks discussed: Personal, Work, Health, Fitness, Wellness, Creative. Comma-separated."
+            },
+            "topics_discussed": {
+                "type": "string",
+                "description": "Extract the main topics or themes discussed in the conversation. Comma-separated."
+            },
+            "action_success_rate": {
+                "type": "string",
+                "description": "Estimate the percentage of tool calls that executed successfully during the conversation. Return as a number 0-100."
+            }
+        },
+        "overrides": {
+            "conversation_config_override": {
+                "tts": {
+                    "voice_id": true
+                },
+                "conversation": {
+                    "text_only": true
+                },
+                "agent": {
+                    "first_message": false,
+                    "language": false,
+                    "prompt": {
+                        "prompt": false
+                    }
+                }
+            },
+            "custom_llm_extra_body": false,
+            "enable_conversation_initiation_client_data_from_webhook": false
+        },
+        "call_limits": {
+            "agent_concurrency_limit": -1,
+            "daily_limit": 100000,
+            "bursting_enabled": true
+        },
+        "privacy": {
+            "record_voice": true,
+            "retention_days": -1,
+            "delete_transcript_and_pii": false,
+            "delete_audio": false,
+            "apply_to_existing_conversations": false,
+            "zero_retention_mode": false
+        },
+        "workspace_overrides": {
+            "webhooks": {
+                "post_call_webhook_id": null
+            },
+            "conversation_initiation_client_data_webhook": null
+        },
+        "safety": {
+            "is_blocked_ivc": false,
+            "is_blocked_non_ivc": false,
+            "ignore_safety_evaluation": false
+        },
+        "testing": {
+            "attached_tests": []
+        },
+        "ban": null
+    },
+    "tags": [
+        "mypa",
+        "productivity",
+        "voice-assistant"
+    ]
+}

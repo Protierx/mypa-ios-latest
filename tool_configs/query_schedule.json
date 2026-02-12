@@ -1,0 +1,13 @@
+{
+  "name": "query_schedule",
+  "description": "Query the user schedule/agenda for a day or range.",
+  "type": "client",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "date": { "type": "string", "description": "Date to check" },
+      "range": { "type": "string", "enum": ["day", "week"], "description": "Time range" }
+    },
+    "required": []
+  }
+}

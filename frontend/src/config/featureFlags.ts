@@ -7,7 +7,8 @@
 export const FEATURE_FLAGS = {
   // Voice System
   USE_VOICE_SYSTEM: true,
-  USE_REALTIME_VOICE: true,     // OpenAI Realtime API (WebSocket) — falls back to REST if unavailable
+  USE_ELEVENLABS_VOICE: true,   // ElevenLabs Conversational AI (WebRTC) — falls back to REST if unavailable
+  USE_WAKE_WORD: false,          // "Hey MYPA" on-device wake word (requires Picovoice access key)
   
   // AI Features
   USE_AI_LEARNING: true,

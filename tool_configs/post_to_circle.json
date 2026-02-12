@@ -1,0 +1,13 @@
+{
+  "name": "post_to_circle",
+  "description": "Post a message to a circle feed.",
+  "type": "client",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "circleName": { "type": "string", "description": "Name of the circle to post in" },
+      "content": { "type": "string", "description": "Post content" }
+    },
+    "required": ["circleName", "content"]
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "name": "delete_task",
+  "description": "Delete a task permanently. Use when user says delete, remove, cancel task. Ask for confirmation before executing.",
+  "type": "client",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "taskName": { "type": "string", "description": "Name of the task to delete (will fuzzy-match)" }
+    },
+    "required": ["taskName"]
+  }
+}
