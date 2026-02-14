@@ -53,8 +53,14 @@ interface MessagePayload {
 // Constants
 // ============================================================================
 
-/** MYPA's default ElevenLabs voice (from agent config) */
-export const DEFAULT_ELEVENLABS_VOICE_ID = 'cjVigY5qzO86Huf0OWal';
+/**
+ * Sentinel value meaning "use whatever voice is configured on the ElevenLabs agent."
+ * When this is the selected voice, NO voiceId override is sent to startSession.
+ */
+export const DEFAULT_ELEVENLABS_VOICE_ID = 'agent-default';
+
+/** Fallback voice ID for REST TTS calls (which have no agent config) */
+export const FALLBACK_TTS_VOICE_ID = 'cjVigY5qzO86Huf0OWal';
 
 /** Inactivity timeout — auto-end session after 30s silence (matches agent config) */
 export const SESSION_INACTIVITY_TIMEOUT_MS = 30_000;
@@ -270,11 +276,13 @@ export function buildConversationOptions(
  *   this JWT internally to extract the LiveKit room name.
  * @param dynamicVars - User-specific variables for the agent
  * @param voiceId - Optional voice override from settings
+ * @param voiceSettings - Adaptive voice settings (Step 17) for TTS overrides
  */
 export function buildSessionConfig(
   conversationToken: string,
   dynamicVars: SessionDynamicVariables,
   voiceId?: string,
+  voiceSettings?: { stability: number; similarity_boost: number; style: number },
 ): ConversationConfig {
   const config: ConversationConfig = {
     conversationToken,
@@ -282,11 +290,24 @@ export function buildSessionConfig(
     userId: dynamicVars.user_id,
   };
 
-  // Optional voice override from Settings
+  // Build TTS overrides from voice selection + adaptive settings
+  const ttsOverrides: Record<string, unknown> = {};
+
+  // Only override the agent's voice when the user explicitly selected a specific voice
+  // 'agent-default' means "use whatever is configured on the ElevenLabs agent dashboard"
   if (voiceId && voiceId !== DEFAULT_ELEVENLABS_VOICE_ID) {
-    config.overrides = {
-      tts: { voiceId },
-    };
+    ttsOverrides.voiceId = voiceId;
+  }
+
+  // Adaptive voice personality (Step 17) — pass stability/style as TTS overrides
+  if (voiceSettings) {
+    ttsOverrides.stability = voiceSettings.stability;
+    ttsOverrides.similarityBoost = voiceSettings.similarity_boost;
+    ttsOverrides.style = voiceSettings.style;
+  }
+
+  if (Object.keys(ttsOverrides).length > 0) {
+    config.overrides = { tts: ttsOverrides };
   }
 
   return config;

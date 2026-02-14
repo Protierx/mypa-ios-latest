@@ -40,6 +40,7 @@ import {
   getTimeOfDay,
   getTimezone,
   DEFAULT_ELEVENLABS_VOICE_ID,
+  FALLBACK_TTS_VOICE_ID,
   SESSION_INACTIVITY_TIMEOUT_MS,
   type VoiceState as ElevenLabsVoiceState,
   type SessionDynamicVariables,
@@ -48,10 +49,25 @@ import { useUserModel } from './UserModelContext';
 import { wakeWordService } from '../services/voice/WakeWordService';
 import {
   buildScreenContext,
-  buildTaskContext,
   buildUserStateContext,
+  buildKnowledgeContext,
   type ScreenContextData,
 } from '../services/voice/ScreenContextService';
+import {
+  getAdaptiveVoiceSettings,
+  getVoiceMoodLabel,
+  type AdaptiveVoiceContext,
+} from '../services/voice/AdaptiveVoiceService';
+import {
+  OfflineQueueService,
+  type ConnectionQuality,
+} from '../services/voice/OfflineQueueService';
+import {
+  scribeService,
+  type ScribeState,
+  type ScribeError,
+  type ScribeCommitStrategy,
+} from '../services/voice/ScribeService';
 import type { Screen } from '../navigation-v2/GestureContext';
 
 // ============================================================================
@@ -109,9 +125,42 @@ interface VoiceContextType {
   isNoiseIsolationEnabled: boolean;
   setNoiseIsolationEnabled: (enabled: boolean) => void;
 
+  // Offline Resilience (Step 20)
+  /** True when device has no network */
+  isOffline: boolean;
+  /** Current connection quality tier */
+  connectionQuality: ConnectionQuality;
+  /** Number of actions queued for offline sync */
+  queuedActionCount: number;
+  /** Manually retry connection after being offline */
+  retryConnection: () => Promise<void>;
+
   // Dynamic Contextual Awareness (Step 14)
   /** Send screen context update to active ElevenLabs session */
   updateScreenContext: (screen: Screen, data?: ScreenContextData) => void;
+
+  // Live Captions (Step 21f)
+  /** Whether live captions are shown during voice sessions */
+  isLiveCaptionsEnabled: boolean;
+  setLiveCaptionsEnabled: (enabled: boolean) => void;
+
+  // Scribe v2 Realtime STT (Step 21)
+  /** Current Scribe connection state */
+  scribeState: ScribeState;
+  /** Live partial transcript from Scribe */
+  scribePartialTranscript: string;
+  /** Full committed transcript from Scribe */
+  scribeFullTranscript: string;
+  /** Start Scribe transcription session */
+  startScribe: (options?: { commitStrategy?: ScribeCommitStrategy; languageCode?: string; previousText?: string }) => Promise<void>;
+  /** Stop Scribe transcription session */
+  stopScribe: () => Promise<void>;
+  /** Manually commit current speech segment (manual mode) */
+  commitScribe: () => void;
+  /** Start brain dump via Scribe — dictate freely, save when done */
+  startBrainDumpScribe: () => Promise<void>;
+  /** Finish brain dump and return the full transcript */
+  finishBrainDumpScribe: () => Promise<string>;
 }
 
 const VoiceContext = createContext<VoiceContextType | undefined>(undefined);
@@ -140,22 +189,6 @@ async function invokeWithAuth<T = unknown>(
     }
   }
   return first as { data: null; error: FunctionsHttpError | Error };
-}
-
-/** Simple connectivity check */
-async function checkNetworkConnectivity(): Promise<boolean> {
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 3000);
-    await fetch('https://api.elevenlabs.io/v1/models', {
-      method: 'HEAD',
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 // ============================================================================
@@ -189,6 +222,20 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
   // -- Noise Isolation state -----------------------------------------------
   const [isNoiseIsolationEnabled, setIsNoiseIsolationEnabled] = useState(false);
 
+  // -- Live Captions state (Step 21f) --------------------------------------
+  const [isLiveCaptionsEnabled, setIsLiveCaptionsEnabled] = useState(false);
+
+  // -- Offline Resilience state (Step 20) ----------------------------------
+  const [connectionQuality, setConnectionQuality] = useState<ConnectionQuality>('excellent');
+  const [queuedActionCount, setQueuedActionCount] = useState(0);
+  const connectionCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // -- Scribe v2 state (Step 21) ------------------------------------------
+  const [scribeState, setScribeState] = useState<ScribeState>('idle');
+  const [scribePartialTranscript, setScribePartialTranscript] = useState('');
+  const [scribeFullTranscript, setScribeFullTranscript] = useState('');
+  const isBrainDumpScribeRef = useRef(false);
+
   // -- Refs for use inside closures ----------------------------------------
   const voiceStateRef = useRef<VoiceState>('idle');
   const isPlayingAudioRef = useRef(false);
@@ -196,6 +243,8 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
   const listenStartTimeRef = useRef<number>(0);
   const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
   const startListeningRef = useRef<(() => Promise<void>) | null>(null);
+  /** Tracks recent task completion for celebration voice boost (Step 17b) */
+  const celebrationBoostRef = useRef(false);
 
   // Keep ref in sync with state
   useEffect(() => {
@@ -227,7 +276,30 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return 'Not authenticated';
       eventLogger.log('voice_command', { action: toolName, mode: 'elevenlabs' });
-      return handleToolCall(toolName, params, user.id);
+      let result: string;
+      try {
+        result = await handleToolCall(toolName, params, user.id);
+      } catch (toolErr) {
+        // If the action fails due to network, queue it for later (Step 20c)
+        if (OfflineQueueService.canQueue(toolName)) {
+          await OfflineQueueService.enqueue(toolName, params, user.id);
+          const qLen = await OfflineQueueService.getQueueLength();
+          setQueuedActionCount(qLen);
+          result = `Got it — I've saved that for when you're back online. ${qLen} action${qLen > 1 ? 's' : ''} queued.`;
+        } else {
+          result = 'That didn\'t work — check your connection and try again.';
+        }
+      }
+
+      // Celebration boost (Step 17b): after completing a task, temporarily
+      // flag for more enthusiastic voice on the next speak() call.
+      if (toolName === 'complete_task') {
+        celebrationBoostRef.current = true;
+        // Auto-clear after 10 seconds so it doesn't persist
+        setTimeout(() => { celebrationBoostRef.current = false; }, 10_000);
+      }
+
+      return result;
     },
     onModeChange: (_mode: Mode) => {
       // Reset inactivity timer on every mode change
@@ -261,6 +333,58 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
     })();
   }, []);
 
+  // -- Connection quality monitoring (Step 20a) ----------------------------
+  useEffect(() => {
+    let cancelled = false;
+
+    const checkQuality = async () => {
+      const quality = await OfflineQueueService.checkConnectionQuality();
+      if (cancelled) return;
+
+      setConnectionQuality((prev) => {
+        if (prev !== quality) {
+          console.log(`[Voice] Connection quality: ${prev} → ${quality}`);
+        }
+        return quality;
+      });
+
+      // Auto-flush queued actions when coming back online
+      if (quality !== 'offline') {
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user && !cancelled) {
+            const queueLen = await OfflineQueueService.getQueueLength();
+            setQueuedActionCount(queueLen);
+            if (queueLen > 0) {
+              console.log(`[Voice] Online — flushing ${queueLen} queued actions`);
+              const result = await OfflineQueueService.flush(user.id);
+              if (!cancelled) {
+                setQueuedActionCount(result.remaining);
+                if (result.succeeded > 0) {
+                  console.log(`[Voice] Flushed ${result.succeeded} queued actions`);
+                }
+              }
+            }
+          }
+        } catch { /* non-fatal */ }
+      }
+    };
+
+    // Check immediately on mount
+    checkQuality();
+
+    // Then check every 30s
+    connectionCheckIntervalRef.current = setInterval(checkQuality, 30_000);
+
+    return () => {
+      cancelled = true;
+      if (connectionCheckIntervalRef.current) {
+        clearInterval(connectionCheckIntervalRef.current);
+        connectionCheckIntervalRef.current = null;
+      }
+    };
+  }, []);
+
   // -- Load discreet mode + wake word settings from AsyncStorage -----------
   useEffect(() => {
     (async () => {
@@ -278,6 +402,10 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
         // Load noise isolation preference
         const noiseIsoVal = await AsyncStorage.getItem('mypa_noise_isolation');
         if (noiseIsoVal === '1') setIsNoiseIsolationEnabled(true);
+
+        // Load live captions preference (Step 21f)
+        const captionsVal = await AsyncStorage.getItem('mypa_live_captions');
+        if (captionsVal === '1') setIsLiveCaptionsEnabled(true);
       } catch { /* noop */ }
     })();
   }, []);
@@ -401,8 +529,11 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
   useEffect(() => {
     return () => {
       if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
+      if (connectionCheckIntervalRef.current) clearInterval(connectionCheckIntervalRef.current);
       conversationRef.current?.endSession('user').catch(() => {});
       stopPlayback();
+      // Clean up Scribe on unmount
+      scribeService.disconnect().catch(() => {});
       // Clean up wake word on unmount
       wakeWordService.stop().then(() => wakeWordService.destroy()).catch(() => {});
     };
@@ -436,13 +567,18 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
       return;
     }
 
-    // Offline check
-    const isOnline = await checkNetworkConnectivity();
-    if (!isOnline) {
+    // Connection quality check (Step 20a)
+    const quality = await OfflineQueueService.checkConnectionQuality();
+    setConnectionQuality(quality);
+    if (quality === 'offline') {
       setVoiceState('offline');
       setError('No network connection. Type your request instead.');
       eventLogger.log('voice_error', { errorType: 'offline' });
       return;
+    }
+    if (quality === 'poor') {
+      // Poor connection — warn but let them try; they can switch to text
+      console.warn('[Voice] Poor connection — voice may be choppy');
     }
 
     setError(null);
@@ -484,75 +620,150 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
       // 1. Fetch a conversation token (JWT) from our edge function
       const token = await fetchConversationToken();
 
-      // 2. Build dynamic variables from user model
+      // 2. Build dynamic variables from user profile + model
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
+      // Fetch profile (display_name, streak) and raw user_model row in parallel
+      const [{ data: profile }, { data: rawModel }] = await Promise.all([
+        supabase.from('profiles').select('display_name, streak_current').eq('id', user.id).single(),
+        supabase.from('user_model').select('overwhelm_score, completion_rate_7d, tone_preference, peak_hours, preferred_focus_duration').eq('user_id', user.id).single(),
+      ]);
+
+      const userName = profile?.display_name || user.user_metadata?.full_name || 'there';
+
+      // Compute adaptive voice settings (Step 17) from time-of-day + mood
+      const adaptiveCtx: AdaptiveVoiceContext = {
+        overwhelmScore: rawModel?.overwhelm_score ?? undefined,
+        completionRate: rawModel?.completion_rate_7d ?? undefined,
+      };
+      const adaptiveSettings = getAdaptiveVoiceSettings(adaptiveCtx);
+      console.log(`[Voice] Adaptive voice mood: ${getVoiceMoodLabel(adaptiveCtx)}`, adaptiveSettings);
+
+      // Fetch today's task counts for smart greeting context
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const [{ count: todayCount }, { count: overdueCount }] = await Promise.all([
+        supabase
+          .from('tasks')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .eq('status', 'pending')
+          .gte('due_date', todayStr)
+          .lt('due_date', todayStr + 'T23:59:59'),
+        supabase
+          .from('tasks')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .eq('status', 'pending')
+          .lt('due_date', todayStr),
+      ]);
+
+      const tasksToday = todayCount ?? 0;
+      const overdueTasks = overdueCount ?? 0;
+      const streakDays = profile?.streak_current ?? 0;
+      const overwhelm = rawModel?.overwhelm_score ?? 0;
+
+      // Build smart greeting context (Step 19b)
+      let greetingContext: string;
+      if (overdueTasks > 0) {
+        greetingContext = `User has ${overdueTasks} overdue task${overdueTasks > 1 ? 's' : ''} and ${tasksToday} task${tasksToday !== 1 ? 's' : ''} due today`;
+      } else if (overwhelm > 0.7) {
+        greetingContext = `User seems overwhelmed (score: ${overwhelm.toFixed(1)}). ${tasksToday} tasks today. Be gentle.`;
+      } else if (streakDays > 5) {
+        greetingContext = `User is on a ${streakDays}-day streak! ${tasksToday} tasks planned today. Celebrate!`;
+      } else if (tasksToday === 0) {
+        greetingContext = 'User has no tasks due today — a clear day! Suggest brain dump or planning.';
+      } else {
+        greetingContext = `Normal day, ${tasksToday} task${tasksToday !== 1 ? 's' : ''} planned today`;
+      }
+
       const dynamicVars: SessionDynamicVariables = {
         user_id: user.id,
-        user_name: userModelData?.userModel?.display_name || user.user_metadata?.full_name || 'there',
+        user_name: userName,
         time_of_day: getTimeOfDay(),
         platform: 'ios',
-        greeting_context: 'voice_initiated',
+        greeting_context: greetingContext,
         timezone: getTimezone(),
-        overwhelm_score: String(userModelData?.userModel?.overwhelm_score ?? '0'),
-        completion_rate: String(userModelData?.userModel?.completion_rate_7d ?? '0'),
-        tone_preference: userModelData?.userModel?.tone_preference || 'friendly',
-        streak_days: String(userModelData?.userModel?.streak_days ?? '0'),
-        tasks_today_count: '0',
-        overdue_count: '0',
+        overwhelm_score: String(overwhelm),
+        completion_rate: String(rawModel?.completion_rate_7d ?? 0),
+        tone_preference: rawModel?.tone_preference || 'friendly',
+        streak_days: String(streakDays),
+        tasks_today_count: String(tasksToday),
+        overdue_count: String(overdueTasks),
         current_screen: currentScreenRef.current,
         task_summary: '',
       };
 
-      // 3. Build session config and start
-      const sessionConfig = buildSessionConfig(token, dynamicVars, selectedVoice);
+      // 3. Build session config and start (with adaptive voice settings)
+      const sessionConfig = buildSessionConfig(token, dynamicVars, selectedVoice, adaptiveSettings);
       await conversation.startSession(sessionConfig);
 
-      // 4. Inject contextual awareness (Step 14b + 14c)
-      //    After the session is live, send task summary + user state
+      // 4. Inject per-session knowledge context (Steps 14b, 14c, 15b, 15c)
+      //    After the session is live, send rich context so the agent is grounded
+      //    in the user's actual data — tasks, focus history, preferences, and
+      //    previous conversation summaries.
       try {
-        // Task context — fetch recent tasks for contextual grounding
-        const { data: taskRows } = await supabase
-          .from('tasks')
-          .select('title, due_date, status, priority, category')
-          .eq('user_id', user.id)
-          .order('due_date', { ascending: true })
-          .limit(20);
+        // Fetch tasks, focus sessions, and conversation history in parallel
+        const [{ data: taskRows }, { data: focusRows }, { data: historyRows }] = await Promise.all([
+          supabase
+            .from('tasks')
+            .select('title, due_date, status, priority, category')
+            .eq('user_id', user.id)
+            .order('due_date', { ascending: true })
+            .limit(20),
+          supabase
+            .from('focus_sessions')
+            .select('task_id, duration_planned, duration_actual, started_at, tasks(title)')
+            .eq('user_id', user.id)
+            .order('started_at', { ascending: false })
+            .limit(10),
+          supabase
+            .from('conversation_history')
+            .select('summary, mood, created_at')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(3),
+        ]);
 
-        const now = new Date();
-        const todayStr = now.toISOString().split('T')[0];
-        const recentTasks = taskRows || [];
-        const todayTasks = recentTasks.filter(t => t.due_date?.startsWith(todayStr));
-        const overdueTasks = recentTasks.filter(t =>
-          t.status !== 'completed' && t.due_date && t.due_date < todayStr
-        );
-        // Find most common category
-        const catCounts: Record<string, number> = {};
-        recentTasks.forEach(t => {
-          if (t.category) catCounts[t.category] = (catCounts[t.category] || 0) + 1;
+        // Build unified knowledge context
+        const knowledgeCtx = buildKnowledgeContext({
+          tasks: (taskRows || []).map(t => ({
+            title: t.title,
+            status: t.status,
+            due_date: t.due_date,
+            priority: t.priority,
+            category: t.category,
+          })),
+          focusSessions: (focusRows || []).map((s: any) => ({
+            taskTitle: s.tasks?.title,
+            durationPlanned: s.duration_planned,
+            durationActual: s.duration_actual,
+            startedAt: s.started_at,
+          })),
+          preferences: {
+            tonePreference: rawModel?.tone_preference || 'friendly',
+            peakHours: rawModel?.peak_hours || userModelData?.model?.peakHours || [],
+            overwhelmScore: Number(rawModel?.overwhelm_score ?? 0),
+            preferredFocusDuration: Number(rawModel?.preferred_focus_duration ?? 25),
+          },
+          conversationHistory: (historyRows || []).map((h: any) => ({
+            summary: h.summary,
+            mood: h.mood,
+            created_at: h.created_at,
+          })),
         });
-        const topCategory = Object.entries(catCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || '';
-
-        const taskCtx = buildTaskContext({
-          recentTaskTitles: recentTasks.map(t => t.title),
-          overdueCount: overdueTasks.length,
-          todayCount: todayTasks.length,
-          topCategory,
-          peakHours: (userModelData?.model?.peakHours || []).map((h: number) => `${h}:00`),
-        });
-        conversation.sendContextualUpdate(taskCtx);
+        conversation.sendContextualUpdate(knowledgeCtx);
 
         // User state context — emotional/energy awareness (14c)
         const userStateCtx = buildUserStateContext({
-          overwhelmScore: Number(userModelData?.userModel?.overwhelm_score ?? 0),
-          completionRate7d: Number(userModelData?.userModel?.completion_rate_7d ?? 0.5),
-          streakDays: Number(userModelData?.userModel?.streak_days ?? 0),
-          tonePreference: userModelData?.userModel?.tone_preference || 'friendly',
+          overwhelmScore: Number(rawModel?.overwhelm_score ?? 0),
+          completionRate7d: Number(rawModel?.completion_rate_7d ?? 0.5),
+          streakDays: Number(profile?.streak_current ?? 0),
+          tonePreference: rawModel?.tone_preference || 'friendly',
         });
         conversation.sendContextualUpdate(userStateCtx);
 
-        console.log('[Voice] Injected task + user-state context');
+        console.log('[Voice] Injected knowledge + user-state context');
       } catch (ctxErr) {
         // Non-fatal — agent works fine without context injection
         console.warn('[Voice] Context injection failed:', ctxErr);
@@ -636,9 +847,23 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
         shouldDuckAndroid: true,
       });
 
+      // For REST TTS, resolve 'agent-default' to the actual fallback voice ID
+      const ttsVoiceId = selectedVoice === DEFAULT_ELEVENLABS_VOICE_ID
+        ? FALLBACK_TTS_VOICE_ID
+        : selectedVoice;
+
       const { data, error: ttsError } = await invokeWithAuth('text-to-speech', {
-        body: { text, voice: selectedVoice, speed: voiceSpeed },
+        body: {
+          text,
+          voice: ttsVoiceId,
+          speed: voiceSpeed,
+          voice_settings: getAdaptiveVoiceSettings({
+            celebrationBoost: celebrationBoostRef.current,
+          }),
+        },
       });
+      // Clear celebration boost after it's been used
+      celebrationBoostRef.current = false;
 
       if (ttsError || !(data as any)?.audio) {
         console.warn('[TTS] Edge function error, using device speech');
@@ -911,6 +1136,190 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
   }, []);
 
   // -----------------------------------------------------------------------
+  // Live captions toggle + persist (Step 21f)
+  // -----------------------------------------------------------------------
+  const handleSetLiveCaptionsEnabled = useCallback(async (enabled: boolean) => {
+    setIsLiveCaptionsEnabled(enabled);
+    eventLogger.log('feature_used', {
+      feature: 'live_captions',
+      action: 'live_captions_toggled',
+      success: true,
+      enabled,
+    });
+    try {
+      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+      await AsyncStorage.setItem('mypa_live_captions', enabled ? '1' : '0');
+    } catch { /* noop */ }
+  }, []);
+
+  // -----------------------------------------------------------------------
+  // retryConnection — manually re-check and flush queue (Step 20)
+  // -----------------------------------------------------------------------
+  const retryConnection = useCallback(async () => {
+    console.log('[Voice] Manual retry connection');
+    const quality = await OfflineQueueService.checkConnectionQuality();
+    setConnectionQuality(quality);
+
+    if (quality === 'offline') {
+      setError('Still offline. Please check your connection.');
+      return;
+    }
+
+    // Clear any offline error
+    if (voiceState === 'offline') {
+      setVoiceState('idle');
+      setError(null);
+    }
+
+    // Flush queued actions
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const result = await OfflineQueueService.flush(user.id);
+        setQueuedActionCount(result.remaining);
+        if (result.succeeded > 0) {
+          console.log(`[Voice] Retry flushed ${result.succeeded} queued actions`);
+        }
+      }
+    } catch (err) {
+      console.warn('[Voice] Retry flush failed:', err);
+    }
+  }, [voiceState]);
+
+  // -----------------------------------------------------------------------
+  // Scribe v2 Realtime STT (Step 21)
+  // -----------------------------------------------------------------------
+
+  /**
+   * Start a Scribe transcription session.
+   * Uses VoiceProcessor for audio capture → WebSocket → Scribe v2 Realtime.
+   * Wake word is paused while Scribe is active (mic can't be shared).
+   */
+  const startScribe = useCallback(async (options?: {
+    commitStrategy?: ScribeCommitStrategy;
+    languageCode?: string;
+    /** Previous text context (≤50 chars) for improved accuracy */
+    previousText?: string;
+  }) => {
+    if (scribeService.isConnected) {
+      console.log('[Voice] Scribe already active');
+      return;
+    }
+
+    // Can't run Scribe while ConvAI session is active (mic conflict)
+    if (conversation.status === 'connected') {
+      console.warn('[Voice] Cannot start Scribe while ConvAI session is active');
+      return;
+    }
+
+    setScribePartialTranscript('');
+    setScribeFullTranscript('');
+
+    // Use the last AI response as previous_text context for accuracy (21e)
+    const prevText = options?.previousText || aiResponse?.slice(-50) || undefined;
+
+    try {
+      await scribeService.connect({
+        commitStrategy: options?.commitStrategy || 'vad',
+        languageCode: options?.languageCode || 'en',
+        includeTimestamps: false,
+        vadSilenceThreshold: 1.5,
+        vadThreshold: 0.4,
+        minSpeechDurationMs: 100,
+        minSilenceDurationMs: 100,
+        previousText: prevText,
+        onPartialTranscript: (text) => {
+          setScribePartialTranscript(text);
+        },
+        onCommittedTranscript: (text) => {
+          setScribeFullTranscript(scribeService.fullTranscript);
+          setScribePartialTranscript('');
+
+          // In discreet mode (non-brain-dump), auto-submit committed segments
+          if (isDiscreetMode && !isBrainDumpScribeRef.current && text.trim()) {
+            submitText(text.trim());
+            // Stop Scribe after submitting in discreet mode
+            scribeService.disconnect().catch(() => {});
+          }
+        },
+        onSessionStarted: (sessionId) => {
+          console.log(`[Voice] Scribe session started: ${sessionId}`);
+          eventLogger.log('feature_used', {
+            feature: 'scribe',
+            action: 'scribe_started',
+            success: true,
+            mode: isBrainDumpScribeRef.current ? 'brain_dump' : 'discreet',
+          });
+        },
+        onError: (err) => {
+          console.error(`[Voice] Scribe error (${err.type}):`, err.message);
+          setError(`Transcription error: ${err.message}`);
+          setScribeState('error');
+          setTimeout(() => {
+            if (scribeService.state !== 'connected') {
+              setScribeState('idle');
+              setError(null);
+            }
+          }, 5000);
+        },
+        onStateChange: (state) => {
+          setScribeState(state);
+        },
+      });
+    } catch (err) {
+      console.error('[Voice] Failed to start Scribe:', err);
+      setError(err instanceof Error ? err.message : 'Failed to start transcription');
+    }
+  }, [conversation, isDiscreetMode, submitText]);
+
+  /** Stop Scribe transcription session */
+  const stopScribe = useCallback(async () => {
+    isBrainDumpScribeRef.current = false;
+    await scribeService.disconnect();
+    setScribeState('idle');
+  }, []);
+
+  /** Manually commit current speech segment (manual mode only) */
+  const commitScribe = useCallback(() => {
+    scribeService.commit();
+  }, []);
+
+  /**
+   * Start brain dump via Scribe — dictate freely in VAD mode,
+   * committed segments accumulate. Call finishBrainDumpScribe() when done.
+   */
+  const startBrainDumpScribe = useCallback(async () => {
+    isBrainDumpScribeRef.current = true;
+    await startScribe({ commitStrategy: 'vad' });
+  }, [startScribe]);
+
+  /**
+   * Finish brain dump — stop Scribe and return the full accumulated transcript.
+   * The caller can then save this as a brain dump entry.
+   */
+  const finishBrainDumpScribe = useCallback(async (): Promise<string> => {
+    const fullText = scribeService.fullTranscript;
+    isBrainDumpScribeRef.current = false;
+    await scribeService.disconnect();
+    setScribeState('idle');
+    return fullText;
+  }, []);
+
+  // -- Scribe: pause wake word while Scribe is active (mic can't be shared)
+  useEffect(() => {
+    if (!isWakeWordEnabled) return;
+
+    if (scribeState === 'connected') {
+      wakeWordService.pause().catch(() => {});
+    } else if (scribeState === 'idle') {
+      // Only resume if ConvAI session isn't also active
+      if (!isConversationActive) {
+        wakeWordService.resume().catch(() => {});
+      }
+    }
+  }, [scribeState, isWakeWordEnabled, isConversationActive]);
+
+  // -----------------------------------------------------------------------
   // Dynamic contextual awareness — screen changes (Step 14a)
   // -----------------------------------------------------------------------
   const currentScreenRef = useRef<Screen>('ai_hub');
@@ -969,7 +1378,24 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
     isNoiseIsolationEnabled,
     setNoiseIsolationEnabled: handleSetNoiseIsolationEnabled,
 
+    isOffline: connectionQuality === 'offline',
+    connectionQuality,
+    queuedActionCount,
+    retryConnection,
+
     updateScreenContext,
+
+    isLiveCaptionsEnabled,
+    setLiveCaptionsEnabled: handleSetLiveCaptionsEnabled,
+
+    scribeState,
+    scribePartialTranscript,
+    scribeFullTranscript,
+    startScribe,
+    stopScribe,
+    commitScribe,
+    startBrainDumpScribe,
+    finishBrainDumpScribe,
   };
 
   return (

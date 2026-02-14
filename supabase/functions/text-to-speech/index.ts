@@ -20,6 +20,21 @@ const DEFAULT_VOICE_ID = 'cjVigY5qzO86Huf0OWal'
 const TTS_CACHE_BUCKET = 'tts-cache'
 
 /**
+ * Server-side time-of-day voice settings fallback (Step 17a).
+ * Used when the client doesn't provide adaptive voice_settings.
+ */
+function getTimeOfDayVoiceSettings() {
+  const hour = new Date().getHours()
+  if (hour >= 5 && hour < 12) {
+    return { stability: 0.4, similarity_boost: 0.7, style: 0.6, use_speaker_boost: true }   // Energetic morning
+  } else if (hour >= 12 && hour < 18) {
+    return { stability: 0.5, similarity_boost: 0.75, style: 0.5, use_speaker_boost: true }  // Balanced afternoon
+  } else {
+    return { stability: 0.7, similarity_boost: 0.8, style: 0.3, use_speaker_boost: true }   // Calm evening
+  }
+}
+
+/**
  * Generate a SHA-256 hex hash for cache key.
  * Key = hash(text + voice_id) so same text with different voice is a cache miss.
  */
@@ -46,7 +61,7 @@ serve(async (req) => {
   }
 
   try {
-    const { text, voice, speed = 1.0 } = await req.json()
+    const { text, voice, speed = 1.0, voice_settings } = await req.json()
 
     if (!text) {
       return new Response(
@@ -54,6 +69,11 @@ serve(async (req) => {
         { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
       )
     }
+
+    // ── Adaptive voice settings (Step 17) ────────────────────────
+    // Client can pass voice_settings computed by AdaptiveVoiceService.
+    // If not provided, compute server-side from time-of-day.
+    const adaptiveSettings = voice_settings ?? getTimeOfDayVoiceSettings()
 
     // ── Validate secrets ────────────────────────────────────────────
     const apiKey = Deno.env.get('ELEVENLABS_API_KEY')
@@ -69,7 +89,9 @@ serve(async (req) => {
     const selectedVoice = voice || DEFAULT_VOICE_ID
 
     // ── Check Supabase Storage cache ────────────────────────────────
-    const hash = await cacheKey(text, selectedVoice)
+    // Include voice settings in cache key — different moods produce different audio
+    const settingsFingerprint = `${adaptiveSettings.stability}:${adaptiveSettings.style}`
+    const hash = await cacheKey(`${text}::${settingsFingerprint}`, selectedVoice)
     const cachePath = `${hash}.mp3`
 
     // Use service role to read/write the cache bucket (public read, server write)
@@ -97,6 +119,17 @@ serve(async (req) => {
 
     console.log(`[tts] Cache MISS: ${cachePath} — generating via ElevenLabs`)
 
+    // ── Build pronunciation dictionary locators (if configured) ─────
+    const dictId = Deno.env.get('PRONUNCIATION_DICT_ID')
+    const dictVersion = Deno.env.get('PRONUNCIATION_DICT_VERSION_ID')
+    const pronunciationLocators = dictId && dictVersion
+      ? [{ pronunciation_dictionary_id: dictId, version_id: dictVersion }]
+      : undefined
+
+    if (pronunciationLocators) {
+      console.log(`[tts] Using pronunciation dictionary: ${dictId} v${dictVersion}`)
+    }
+
     // ── Call ElevenLabs TTS API ─────────────────────────────────────
     // POST /v1/text-to-speech/{voice_id}
     // Returns raw audio bytes in the requested format.
@@ -112,12 +145,8 @@ serve(async (req) => {
         body: JSON.stringify({
           text,
           model_id: 'eleven_flash_v2',   // Optimized for low latency
-          voice_settings: {
-            stability: 0.5,
-            similarity_boost: 0.75,
-            style: 0.5,
-            use_speaker_boost: true,
-          },
+          voice_settings: adaptiveSettings,
+          ...(pronunciationLocators && { pronunciation_dictionary_locators: pronunciationLocators }),
         }),
       }),
       TTS_TIMEOUT_MS,
