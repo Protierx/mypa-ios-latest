@@ -467,6 +467,70 @@ serve(async (req) => {
       console.log('[webhook] conversation_history inserted')
     }
 
+    // ── 7b. Upsert voice_analytics (daily aggregate) ─────────────────
+    const today = new Date().toISOString().slice(0, 10) // YYYY-MM-DD
+    const durationSecs = Math.round(data.metadata.call_duration_secs || 0)
+    const tasksCreated = toolStats.toolNames.filter(
+      (t) => t.includes('create_task') || t.includes('add_task'),
+    ).length
+    const satisfaction =
+      evalScores['user_satisfaction'] ??
+      evalScores['solved_user_request'] ??
+      evalScores['response_relevance'] ??
+      0.5
+    const taskCompletion = parseFloat(actionSuccessRate) || (toolStats.total > 0 ? toolStats.successful / toolStats.total : 0.5)
+
+    // Build top_commands frequency map for this session
+    const cmdFreq: Record<string, number> = {}
+    for (const cmd of toolStats.toolNames) {
+      cmdFreq[cmd] = (cmdFreq[cmd] || 0) + 1
+    }
+    const sessionTopCommands = Object.entries(cmdFreq)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([name, count]) => ({ name, count }))
+
+    // First try upsert — ON CONFLICT merges into daily aggregate
+    const { error: analyticsError } = await supabaseAdmin.rpc('upsert_voice_analytics', {
+      p_user_id: userId,
+      p_date: today,
+      p_duration: durationSecs,
+      p_tasks_created: tasksCreated,
+      p_satisfaction: satisfaction,
+      p_task_completion: taskCompletion,
+      p_top_commands: sessionTopCommands,
+    })
+
+    if (analyticsError) {
+      // Fallback: raw upsert if the RPC doesn't exist yet
+      console.warn('[webhook] RPC upsert_voice_analytics failed, trying raw upsert:', analyticsError.message)
+
+      const { error: rawError } = await supabaseAdmin
+        .from('voice_analytics')
+        .upsert(
+          {
+            user_id: userId,
+            date: today,
+            sessions_count: 1,
+            total_duration_seconds: durationSecs,
+            tasks_created_by_voice: tasksCreated,
+            avg_satisfaction: satisfaction,
+            avg_task_completion: taskCompletion,
+            top_commands: sessionTopCommands,
+            interruption_rate: 0,
+          },
+          { onConflict: 'user_id,date' },
+        )
+
+      if (rawError) {
+        console.warn('[webhook] Failed to upsert voice_analytics:', rawError.message)
+      } else {
+        console.log('[webhook] voice_analytics raw-upserted (new row)')
+      }
+    } else {
+      console.log(`[webhook] voice_analytics upserted for ${today}`)
+    }
+
     // ── 8. Return 200 — required by ElevenLabs ───────────────────────
     return new Response(
       JSON.stringify({

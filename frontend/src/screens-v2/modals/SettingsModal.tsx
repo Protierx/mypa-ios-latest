@@ -88,6 +88,8 @@ export function SettingsModal({ visible, onClose, onShowPaywall }: SettingsModal
   const setWakeWordSensitivity = voice.setWakeWordSensitivity;
   const isNoiseIsolationEnabled = voice.isNoiseIsolationEnabled;
   const setNoiseIsolationEnabled = voice.setNoiseIsolationEnabled;
+  const isLiveCaptionsEnabled = voice.isLiveCaptionsEnabled;
+  const setLiveCaptionsEnabled = voice.setLiveCaptionsEnabled;
 
   // Non-voice settings (would normally be persisted)
   const [pushEnabled, setPushEnabled] = useState(true);
@@ -97,9 +99,11 @@ export function SettingsModal({ visible, onClose, onShowPaywall }: SettingsModal
   const [focusSoundsEnabled, setFocusSoundsEnabled] = useState(false);
   const [profileVisibility, setProfileVisibility] = useState<'public' | 'friends' | 'private'>('friends');
 
-  // ElevenLabs voice options — IDs from the ElevenLabs voice library
+  // ElevenLabs voice options
+  // 'agent-default' = use whatever voice is configured on the ElevenLabs agent dashboard
   const voiceOptions: Array<{ id: string; name: string; description: string }> = [
-    { id: 'cjVigY5qzO86Huf0OWal', name: 'Eric', description: 'Smooth & trustworthy (default)' },
+    { id: 'agent-default', name: 'Agent Default', description: 'Voice set in ElevenLabs dashboard' },
+    { id: 'cjVigY5qzO86Huf0OWal', name: 'Eric', description: 'Smooth & trustworthy' },
     { id: 'EXAVITQu4vr4xnSDxMaL', name: 'Sarah', description: 'Mature & reassuring' },
     { id: 'cgSgspJ2msm6clMCkdW9', name: 'Jessica', description: 'Playful, bright & warm' },
     { id: 'IKne3meq5aSn9XLyUdCD', name: 'Charlie', description: 'Deep & confident' },
@@ -275,6 +279,25 @@ export function SettingsModal({ visible, onClose, onShowPaywall }: SettingsModal
                   onValueChange={(v) => {
                     Haptics.selectionAsync();
                     setDiscreetMode(v);
+                  }}
+                  trackColor={{ false: '#3f3f46', true: '#7c3aed' }}
+                  thumbColor="#fff"
+                />
+              }
+            />
+            <View className="h-px bg-zinc-800 mx-5" />
+            {/* Live Captions (Step 21f) */}
+            <SettingRow
+              icon="chatbubble-ellipses-outline"
+              iconColor="#34d399"
+              title="Live Captions"
+              subtitle="Show what you're saying on screen"
+              value={
+                <Switch
+                  value={isLiveCaptionsEnabled}
+                  onValueChange={(v) => {
+                    Haptics.selectionAsync();
+                    setLiveCaptionsEnabled(v);
                   }}
                   trackColor={{ false: '#3f3f46', true: '#7c3aed' }}
                   thumbColor="#fff"

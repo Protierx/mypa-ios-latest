@@ -858,6 +858,7 @@ Useful for:
 - **Reconnection after network error** — pick up where it left off
 - Best results when `previous_text` is under 50 characters
 
+
 #### 21f. Three use cases in MYPA
 
 **1. Live captions (accessibility)**
