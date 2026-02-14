@@ -1,24 +1,22 @@
 /**
- * AI Hub Screen
- * 
- * The heart of MYPA - the Living Background interface.
- * The entire screen IS the AI - you're stepping INTO MYPA's presence.
- * 
+ * AI Hub Screen — Immersive Full-Screen AI
+ *
+ * The entire screen IS MYPA. No orb — the living background of aurora blobs
+ * reacts to voice state and audio level. You're stepping into the AI's
+ * consciousness. Tap anywhere to talk.
+ *
  * Features:
- * - Beautiful animated orb/focal glow center
- * - Living breathing background
- * - Ambient stats (subtle, not cards)
- * - Quick action floating pills
- * - Daily briefing auto-plays on first open
- * 
- * Tap anywhere to activate voice.
+ * - Full-screen reactive aurora background
+ * - Floating state icon + hint text (no orb)
+ * - Inline voice feedback (transcript / AI response)
+ * - Daily briefing auto-play
+ * - Quick action pills + ambient stats
  */
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { View, Text, ScrollView, StyleSheet, Pressable, Dimensions, TextInput, Keyboard, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Pressable, Dimensions, TextInput, Keyboard } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import Animated, {
   useSharedValue,
@@ -31,11 +29,13 @@ import Animated, {
   FadeIn,
   FadeInDown,
   FadeInUp,
+  FadeOut,
+  SlideInDown,
+  SlideOutUp,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 
 import { LivingBackground, VoiceState } from '../../components/LivingBackground';
-import { VoiceFeedback } from '../../components/VoiceFeedback';
 import { VoicePermissions, useVoicePermissions } from '../../components/VoicePermissions';
 import { NotificationsModal } from '../modals/NotificationsModal';
 import { useVoice } from '../../contexts/VoiceContext';
@@ -57,10 +57,6 @@ interface AIHubScreenProps {
 
 // Approximate TTS speed: ~150 chars/second
 const TTS_CHARS_PER_SEC = 150;
-
-// Orb configuration
-const ORB_SIZE = 160;
-const ORB_GLOW_SIZE = 260;
 
 export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: externalAudioLevel }: AIHubScreenProps) {
   const { user } = useSupabaseAuth();
@@ -104,6 +100,8 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
   const [isBriefingPlaying, setIsBriefingPlaying] = useState(false);
   // Keep briefing text visible after playback until user starts a new interaction
   const [showBriefingText, setShowBriefingText] = useState(false);
+  // When true, briefing card collapses into a pill button
+  const [isBriefingCollapsed, setIsBriefingCollapsed] = useState(false);
   // Track briefing start time for progress estimation
   const briefingStartTimeRef = useRef<number>(0);
   // Estimated duration in ms
@@ -113,12 +111,9 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
   // Guard: only auto-play once per mount
   const briefingTriggeredRef = useRef(false);
 
-  // ---- Orb Animation Values ----
-  const orbScale = useSharedValue(1);
-  const orbGlowOpacity = useSharedValue(0.4);
-  const orbPulse = useSharedValue(0);
-  const orbRotation = useSharedValue(0);
-  const orbInnerGlow = useSharedValue(0.6);
+  // ---- State Icon Pulse Animation ----
+  const iconScale = useSharedValue(1);
+  const iconOpacity = useSharedValue(0.7);
 
   // Get today's date
   const today = new Date();
@@ -158,112 +153,52 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
     fetchGreeting();
   }, [user]);
 
-  // ---- Orb State-Based Animations ----
+  // ---- State Icon Breathing Animation ----
   useEffect(() => {
     if (voiceState === 'idle' && !isBriefingPlaying) {
-      // Gentle breathing animation
-      orbScale.value = withRepeat(
-        withTiming(1.08, { duration: 3000, easing: Easing.inOut(Easing.ease) }),
-        -1,
-        true
-      );
-      orbGlowOpacity.value = withRepeat(
-        withTiming(0.6, { duration: 3000, easing: Easing.inOut(Easing.ease) }),
-        -1,
-        true
-      );
-      orbPulse.value = withRepeat(
-        withTiming(1, { duration: 3000, easing: Easing.inOut(Easing.ease) }),
-        -1,
-        true
-      );
-      orbInnerGlow.value = withRepeat(
+      iconScale.value = withRepeat(
         withSequence(
-          withTiming(0.8, { duration: 1500, easing: Easing.inOut(Easing.ease) }),
-          withTiming(0.5, { duration: 1500, easing: Easing.inOut(Easing.ease) })
-        ),
-        -1
+          withTiming(1.1, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
+          withTiming(0.95, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
+        ), -1,
       );
-      orbRotation.value = withTiming(0, { duration: 300 });
+      iconOpacity.value = withRepeat(
+        withSequence(
+          withTiming(0.8, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
+          withTiming(0.5, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
+        ), -1,
+      );
     } else if (voiceState === 'listening') {
-      // Responsive to audio level
-      orbScale.value = withSpring(1.15 + audioLevel * 0.25, { damping: 12, stiffness: 100 });
-      orbGlowOpacity.value = withTiming(0.8, { duration: 150 });
-      orbInnerGlow.value = withSpring(0.9 + audioLevel * 0.1, { damping: 10 });
+      iconScale.value = withSpring(1.15 + audioLevel * 0.2, { damping: 12, stiffness: 100 });
+      iconOpacity.value = withTiming(0.9, { duration: 150 });
     } else if (voiceState === 'processing') {
-      // Gentle rotation/pulse for thinking
-      orbScale.value = withRepeat(
-        withTiming(1.12, { duration: 800, easing: Easing.inOut(Easing.ease) }),
-        -1,
-        true
+      iconScale.value = withRepeat(
+        withTiming(1.15, { duration: 700, easing: Easing.inOut(Easing.ease) }), -1, true,
       );
-      orbGlowOpacity.value = withTiming(0.7, { duration: 300 });
-      orbRotation.value = withRepeat(
-        withTiming(360, { duration: 4000, easing: Easing.linear }),
-        -1
-      );
+      iconOpacity.value = withTiming(0.85, { duration: 300 });
     } else if (voiceState === 'speaking') {
-      // Larger, brighter, pulsing with speech
-      orbScale.value = withSpring(1.2, { damping: 15, stiffness: 150 });
-      orbGlowOpacity.value = withTiming(0.9, { duration: 200 });
-      orbInnerGlow.value = withRepeat(
+      iconScale.value = withRepeat(
         withSequence(
-          withTiming(1, { duration: 300 }),
-          withTiming(0.7, { duration: 300 })
-        ),
-        -1
+          withTiming(1.2, { duration: 350, easing: Easing.inOut(Easing.ease) }),
+          withTiming(1.05, { duration: 350, easing: Easing.inOut(Easing.ease) }),
+        ), -1,
       );
-    } else if (voiceState === 'timeout') {
-      // Fade back to gentle breathing (dimmer than idle)
-      orbScale.value = withTiming(1, { duration: 500 });
-      orbGlowOpacity.value = withRepeat(
-        withTiming(0.4, { duration: 2500, easing: Easing.inOut(Easing.ease) }),
-        -1,
-        true
-      );
-      orbPulse.value = withTiming(0, { duration: 500 });
-      orbRotation.value = withTiming(0, { duration: 300 });
+      iconOpacity.value = withTiming(0.95, { duration: 200 });
     } else if (voiceState === 'error') {
-      // Red pulse — fast, attention-grabbing
-      orbScale.value = withRepeat(
-        withTiming(1.05, { duration: 400, easing: Easing.inOut(Easing.ease) }),
-        6, // pulse 6 times then stop
-        true
+      iconScale.value = withRepeat(
+        withTiming(1.08, { duration: 350, easing: Easing.inOut(Easing.ease) }), 6, true,
       );
-      orbGlowOpacity.value = withRepeat(
-        withTiming(0.8, { duration: 400, easing: Easing.inOut(Easing.ease) }),
-        6,
-        true
-      );
-      orbRotation.value = withTiming(0, { duration: 200 });
-    } else if (voiceState === 'offline') {
-      // Grey, subdued, small
-      orbScale.value = withTiming(0.95, { duration: 500 });
-      orbGlowOpacity.value = withRepeat(
-        withTiming(0.35, { duration: 3000, easing: Easing.inOut(Easing.ease) }),
-        -1,
-        true
-      );
-      orbPulse.value = withTiming(0, { duration: 500 });
-      orbRotation.value = withTiming(0, { duration: 300 });
+      iconOpacity.value = withTiming(0.9, { duration: 200 });
+    } else {
+      // timeout / offline — subdued
+      iconScale.value = withTiming(1, { duration: 400 });
+      iconOpacity.value = withTiming(0.4, { duration: 400 });
     }
   }, [voiceState, audioLevel, isBriefingPlaying]);
 
-  // Orb animated styles
-  const orbContainerStyle = useAnimatedStyle(() => ({
-    transform: [
-      { scale: orbScale.value },
-      { rotate: `${orbRotation.value}deg` },
-    ],
-  }));
-
-  const orbGlowStyle = useAnimatedStyle(() => ({
-    opacity: orbGlowOpacity.value,
-    transform: [{ scale: 1 + orbPulse.value * 0.1 }],
-  }));
-
-  const orbInnerStyle = useAnimatedStyle(() => ({
-    opacity: orbInnerGlow.value,
+  const iconAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: iconScale.value }],
+    opacity: iconOpacity.value,
   }));
 
   // ---- Auto-play briefing when ready (PRD R2.1) ----
@@ -314,8 +249,9 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
       const elapsed = Date.now() - briefingStartTimeRef.current;
       if (elapsed < 2000) return;
 
-      // TTS finished naturally
+      // TTS finished naturally — collapse briefing into pill
       setIsBriefingPlaying(false);
+      setIsBriefingCollapsed(true);
 
       // Clear progress timers (they may have already fired)
       progressTimersRef.current.forEach(clearTimeout);
@@ -360,6 +296,7 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
     if (voiceState === 'speaking') {
       if (isBriefingPlaying) {
         setIsBriefingPlaying(false);
+        setIsBriefingCollapsed(true);
         progressTimersRef.current.forEach(clearTimeout);
         progressTimersRef.current = [];
         const progress = estimateBriefingProgress();
@@ -388,6 +325,7 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
 
     if (voiceState === 'idle') {
       setShowBriefingText(false);
+      setIsBriefingCollapsed(false);
       if (permissionStatus !== 'granted') {
         const hasPermission = await requestPermissionIfNeeded();
         if (!hasPermission) return;
@@ -454,7 +392,7 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
   };
 
   // Get orb icon based on state
-  const getOrbIcon = (): keyof typeof Ionicons.glyphMap => {
+  const getStateIcon = (): keyof typeof Ionicons.glyphMap => {
     if (voice.isDiscreetMode) return 'text-outline';
     if (voiceState === 'listening') return 'mic';
     if (voiceState === 'processing') return 'sparkles';
@@ -520,14 +458,41 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
                 </BlurView>
               </Pressable>
             </View>
+
+            {/* Briefing Pill — collapsed briefing card */}
+            {isBriefingCollapsed && briefText && !isVoiceActive && (
+              <Animated.View
+                entering={SlideInDown.duration(400).springify().damping(18)}
+                exiting={SlideOutUp.duration(250)}
+              >
+                <Pressable
+                  style={styles.briefingPill}
+                  onPress={(e) => {
+                    e.stopPropagation?.();
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setIsBriefingCollapsed(false);
+                    setShowBriefingText(true);
+                  }}
+                >
+                  <BlurView intensity={30} tint="dark" style={styles.briefingPillBlur}>
+                    <Ionicons name="sunny" size={16} color={specColors.brandSecondary} />
+                    <Text style={styles.briefingPillText} numberOfLines={1}>
+                      Daily Briefing
+                    </Text>
+                    <Ionicons name="chevron-down" size={14} color="rgba(255,255,255,0.4)" />
+                  </BlurView>
+                </Pressable>
+              </Animated.View>
+            )}
           </View>
 
-          {/* ---- Center Section: The Orb ---- */}
+          {/* ---- Center Section: Immersive AI Presence ---- */}
           <View style={styles.centerSection}>
-            {/* Briefing content overlay */}
-            {(showBriefingText && briefText && !isVoiceActive) ? (
+            {/* Briefing content overlay — only when not collapsed into pill */}
+            {(showBriefingText && !isBriefingCollapsed && briefText && !isVoiceActive) ? (
               <Animated.View 
-                entering={FadeIn.duration(400)} 
+                entering={FadeIn.duration(400)}
+                exiting={FadeOut.duration(300)}
                 style={styles.briefingContainer}
               >
                 <ScrollView 
@@ -548,17 +513,105 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
                 </Text>
               </Animated.View>
             ) : isVoiceActive ? (
-              // Voice feedback when active (including timeout/error/offline)
-              <VoiceFeedback
-                voiceState={voiceState}
-                audioLevel={audioLevel}
-                transcript={voice.transcript}
-                aiResponse={voice.aiResponse}
-                isConversationActive={voice.isConversationActive}
-                onCancel={() => {
-                  voice.endConversation();
-                }}
-              />
+              /* ── Voice-active: inline transcript + response ── */
+              <Animated.View
+                entering={FadeIn.duration(250)}
+                exiting={FadeOut.duration(200)}
+                style={styles.voiceActiveContainer}
+              >
+                {/* State icon — floats above text */}
+                <Animated.View style={[styles.stateIconContainer, iconAnimStyle]}>
+                  <Ionicons
+                    name={getStateIcon()}
+                    size={40}
+                    color={voiceState === 'error' ? 'rgba(239,68,68,0.9)' : 'rgba(255,255,255,0.85)'}
+                  />
+                </Animated.View>
+
+                {/* Listening waveform bars */}
+                {voiceState === 'listening' && (
+                  <Animated.View entering={FadeIn.duration(200)} style={styles.waveformRow}>
+                    {Array.from({ length: 16 }).map((_, i) => {
+                      const baseH = 4 + audioLevel * 28;
+                      const variation = Math.sin(i * 0.7 + Date.now() * 0.003) * 6;
+                      return (
+                        <View
+                          key={i}
+                          style={[
+                            styles.waveBar,
+                            { height: Math.max(3, baseH + variation) },
+                          ]}
+                        />
+                      );
+                    })}
+                  </Animated.View>
+                )}
+
+                {/* Processing dots */}
+                {voiceState === 'processing' && (
+                  <Animated.View entering={FadeIn.duration(200)} style={styles.processingRow}>
+                    <Text style={styles.processingText}>Thinking...</Text>
+                  </Animated.View>
+                )}
+
+                {/* Transcript / AI response text */}
+                <View style={styles.voiceTextContainer}>
+                  {voiceState === 'listening' && voice.transcript ? (
+                    <Text style={styles.transcriptText}>{voice.transcript}</Text>
+                  ) : voiceState === 'listening' ? (
+                    <Text style={styles.listeningHint}>Listening...</Text>
+                  ) : null}
+
+                  {voiceState === 'processing' && voice.transcript ? (
+                    <Text style={styles.transcriptText}>"{voice.transcript}"</Text>
+                  ) : null}
+
+                  {voiceState === 'speaking' && voice.aiResponse ? (
+                    <Text style={styles.aiResponseText}>{voice.aiResponse}</Text>
+                  ) : null}
+
+                  {voiceState === 'timeout' && (
+                    <Text style={styles.aiResponseText}>
+                      {voice.aiResponse || "I didn't catch that. Tap to try again."}
+                    </Text>
+                  )}
+
+                  {voiceState === 'error' && (
+                    <Text style={styles.aiResponseText}>
+                      {voice.aiResponse || "I'm having trouble. Please try again."}
+                    </Text>
+                  )}
+
+                  {voiceState === 'offline' && (
+                    <Text style={styles.aiResponseText}>
+                      No network connection. Type your request instead.
+                    </Text>
+                  )}
+                </View>
+
+                {/* Footer hint */}
+                <Text style={styles.voiceFooterHint}>
+                  {voiceState === 'listening'
+                    ? voice.isConversationActive ? 'Speak naturally • tap to end' : 'Tap anywhere to send'
+                    : voiceState === 'speaking'
+                    ? voice.isConversationActive ? 'Speak to interrupt • tap to end' : 'Speak or tap to stop'
+                    : voiceState === 'timeout' ? 'Tap to try again'
+                    : voiceState === 'error' ? 'Tap to retry'
+                    : ''}
+                </Text>
+
+                {/* Cancel button */}
+                {(voiceState === 'listening' || voiceState === 'processing') && (
+                  <Pressable
+                    style={styles.cancelButton}
+                    onPress={() => voice.endConversation()}
+                  >
+                    <BlurView intensity={25} tint="dark" style={styles.cancelBlur}>
+                      <Ionicons name="close" size={20} color="rgba(255,255,255,0.7)" />
+                    </BlurView>
+                  </Pressable>
+                )}
+              </Animated.View>
             ) : voice.isDiscreetMode && (voice.aiResponse || voiceState === 'processing') ? (
               // Discreet mode: show AI response as text card
               <Animated.View entering={FadeIn.duration(300)} style={styles.discreetResponseContainer}>
@@ -574,40 +627,20 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
                 )}
               </Animated.View>
             ) : (
-              // The beautiful orb - center of the experience
-              <Animated.View 
+              /* ── Idle: floating state icon + hint — the screen itself is the AI ── */
+              <Animated.View
                 entering={FadeIn.duration(800).delay(300)}
-                style={styles.orbWrapper}
+                style={styles.idleCenterContainer}
               >
-                <Animated.View style={[styles.orbContainer, orbContainerStyle]}>
-                  {/* Outer glow rings */}
-                  <Animated.View style={[styles.orbGlow, styles.orbGlow3, orbGlowStyle]} />
-                  <Animated.View style={[styles.orbGlow, styles.orbGlow2, orbGlowStyle]} />
-                  <Animated.View style={[styles.orbGlow, styles.orbGlow1, orbGlowStyle]} />
-                  
-                  {/* Core orb with gradient */}
-                  <View style={styles.orbCore}>
-                    <LinearGradient
-                      colors={['rgba(167, 139, 250, 0.95)', 'rgba(124, 58, 237, 0.85)', 'rgba(100, 199, 255, 0.7)']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.orbGradient}
-                    />
-                    <Animated.View style={[styles.orbInnerGlow, orbInnerStyle]} />
-                    
-                    {/* Icon in center */}
-                    <View style={styles.orbIconContainer}>
-                      <Ionicons 
-                        name={isBriefingLoading ? 'sparkles-outline' : getOrbIcon()} 
-                        size={44} 
-                        color="rgba(255,255,255,0.95)" 
-                      />
-                    </View>
-                  </View>
+                <Animated.View style={[styles.stateIconContainer, iconAnimStyle]}>
+                  <Ionicons
+                    name={isBriefingLoading ? 'sparkles-outline' : getStateIcon()}
+                    size={48}
+                    color="rgba(255,255,255,0.85)"
+                  />
                 </Animated.View>
-                
-                {/* Hint text below orb */}
-                <Animated.Text 
+
+                <Animated.Text
                   entering={FadeInUp.duration(600).delay(500)}
                   style={styles.hintText}
                 >
@@ -620,7 +653,7 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
           {/* ---- Bottom Section: Stats & Quick Actions ---- */}
           <View style={styles.bottomSection}>
             {/* Quick Action Pills */}
-            {voiceState === 'idle' && !showBriefingText && (
+            {voiceState === 'idle' && (!showBriefingText || isBriefingCollapsed) && (
               <Animated.View 
                 entering={FadeInUp.duration(500).delay(400)}
                 style={styles.quickActionsRow}
@@ -770,7 +803,7 @@ const styles = StyleSheet.create({
   tapArea: {
     flex: 1,
   },
-  
+
   // ---- Top Section ----
   topSection: {
     paddingHorizontal: 24,
@@ -809,7 +842,30 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: 'rgba(255,255,255,0.08)',
   },
-  
+
+  // ── Briefing Pill (collapsed state) ──
+  briefingPill: {
+    alignSelf: 'flex-start',
+    borderRadius: 20,
+    overflow: 'hidden',
+    marginTop: 14,
+  },
+  briefingPillBlur: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(124, 58, 237, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(124, 58, 237, 0.25)',
+  },
+  briefingPillText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.8)',
+  },
+
   // ---- Center Section ----
   centerSection: {
     flex: 1,
@@ -817,79 +873,97 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 24,
   },
-  
-  // Orb styles
-  orbWrapper: {
+
+  // ── Idle state — floating icon + hint ──
+  idleCenterContainer: {
     alignItems: 'center',
   },
-  orbContainer: {
-    width: ORB_GLOW_SIZE,
-    height: ORB_GLOW_SIZE,
+  stateIconContainer: {
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 24,
   },
-  orbGlow: {
-    position: 'absolute',
-    borderRadius: 9999,
-  },
-  orbGlow1: {
-    width: ORB_SIZE + 30,
-    height: ORB_SIZE + 30,
-    backgroundColor: 'rgba(124, 58, 237, 0.2)',
-  },
-  orbGlow2: {
-    width: ORB_SIZE + 60,
-    height: ORB_SIZE + 60,
-    backgroundColor: 'rgba(124, 58, 237, 0.12)',
-  },
-  orbGlow3: {
-    width: ORB_SIZE + 100,
-    height: ORB_SIZE + 100,
-    backgroundColor: 'rgba(124, 58, 237, 0.06)',
-  },
-  orbCore: {
-    width: ORB_SIZE,
-    height: ORB_SIZE,
-    borderRadius: ORB_SIZE / 2,
-    overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(124, 58, 237, 0.4)',
-    borderWidth: 1.5,
-    borderColor: 'rgba(167, 139, 250, 0.4)',
-    shadowColor: '#7C3AED',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 30,
-    elevation: 20,
-  },
-  orbGradient: {
-    position: 'absolute',
-    width: '100%',
-    height: '100%',
-  },
-  orbInnerGlow: {
-    position: 'absolute',
-    width: ORB_SIZE * 0.5,
-    height: ORB_SIZE * 0.5,
-    borderRadius: ORB_SIZE * 0.25,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  orbIconContainer: {
-    position: 'absolute',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  
   hintText: {
-    marginTop: 28,
     fontSize: 15,
     color: 'rgba(255, 255, 255, 0.45)',
     fontWeight: '400',
     textAlign: 'center',
   },
-  
-  // Briefing styles
+
+  // ── Voice-active state — transcript + response ──
+  voiceActiveContainer: {
+    width: '100%',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+  },
+  waveformRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
+    height: 40,
+    marginBottom: 20,
+  },
+  waveBar: {
+    width: 3,
+    borderRadius: 2,
+    backgroundColor: 'rgba(139, 92, 246, 0.8)',
+  },
+  processingRow: {
+    marginBottom: 16,
+  },
+  processingText: {
+    fontSize: 15,
+    color: 'rgba(168, 85, 247, 0.85)',
+    fontWeight: '500',
+  },
+  voiceTextContainer: {
+    width: '100%',
+    alignItems: 'center',
+    minHeight: 60,
+    justifyContent: 'center',
+  },
+  transcriptText: {
+    fontSize: 20,
+    fontWeight: '500',
+    color: 'rgba(255, 255, 255, 0.9)',
+    textAlign: 'center',
+    lineHeight: 28,
+  },
+  listeningHint: {
+    fontSize: 17,
+    color: 'rgba(255, 255, 255, 0.4)',
+    textAlign: 'center',
+  },
+  aiResponseText: {
+    fontSize: 18,
+    color: 'rgba(255, 255, 255, 0.85)',
+    textAlign: 'center',
+    lineHeight: 26,
+  },
+  voiceFooterHint: {
+    marginTop: 20,
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.35)',
+    textAlign: 'center',
+  },
+  cancelButton: {
+    position: 'absolute',
+    top: -8,
+    right: 0,
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  cancelBlur: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+
+  // ── Briefing styles ──
   briefingContainer: {
     width: '100%',
     maxHeight: SCREEN_HEIGHT * 0.45,
@@ -934,43 +1008,7 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.4)',
     textAlign: 'center',
   },
-  
-  // Loading & Error states
-  loadingContainer: {
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 20,
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.45)',
-  },
-  errorContainer: {
-    alignItems: 'center',
-    padding: 24,
-    backgroundColor: 'rgba(30, 30, 40, 0.7)',
-    borderRadius: 16,
-  },
-  errorText: {
-    fontSize: 15,
-    color: 'rgba(255, 255, 255, 0.8)',
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  retryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    backgroundColor: 'rgba(124, 58, 237, 0.2)',
-    borderRadius: 12,
-  },
-  retryText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: specColors.brandSecondary,
-  },
-  
+
   // ---- Bottom Section ----
   bottomSection: {
     paddingHorizontal: 24,
@@ -1020,7 +1058,7 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.4)',
   },
 
-  // ---- Text Input Bar (discreet mode / offline / error fallback) ----
+  // ---- Text Input Bar ----
   textInputContainer: {
     paddingHorizontal: 16,
     paddingBottom: 8,

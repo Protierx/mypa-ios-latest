@@ -272,6 +272,7 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
     setAiResponse,
     setError,
     setIsConversationActive,
+    setAudioLevel,
     onToolCall: async (toolName: string, params: Record<string, unknown>): Promise<string> => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return 'Not authenticated';

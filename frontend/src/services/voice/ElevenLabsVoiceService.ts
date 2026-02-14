@@ -80,6 +80,8 @@ export interface VoiceStateCallbacks {
   onToolCall: (toolName: string, params: Record<string, unknown>) => Promise<string>;
   /** Called when mode changes between speaking/listening */
   onModeChange: (mode: Mode) => void;
+  /** Called with VAD score (0-1) for audio level visualization */
+  setAudioLevel: (level: number) => void;
 }
 
 /** Dynamic variables passed to the agent at session start */
@@ -142,6 +144,7 @@ export function buildConversationOptions(
     setIsConversationActive,
     onToolCall,
     onModeChange: externalModeChange,
+    setAudioLevel,
   } = stateCallbacks;
 
   // ── clientTools: 20 tools registered on the ElevenLabs agent ──────
@@ -246,9 +249,7 @@ export function buildConversationOptions(
     },
 
     onVadScore: ({ vadScore }) => {
-      // VAD score 0-1 can be used for audio level visualization
-      // VoiceContext can use this for the audioLevel state
-      // (exposed via externalModeChange or a separate callback if needed)
+      setAudioLevel(vadScore);
     },
 
     onInterruption: () => {
