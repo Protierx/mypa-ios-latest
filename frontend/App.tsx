@@ -23,6 +23,7 @@ import { SupabaseAuthProvider, useSupabaseAuth } from './src/contexts/SupabaseAu
 import { VoiceProvider } from './src/contexts/VoiceContext';
 import { UserModelProvider } from './src/contexts/UserModelContext';
 import { ElevenLabsProvider } from '@elevenlabs/react-native';
+import { ThemeProvider } from './src/contexts/ThemeContext';
 
 // Services
 import { eventLogger } from './src/services/eventLogger';
@@ -41,15 +42,17 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ErrorBoundary>
-        <SupabaseAuthProvider>
-          <UserModelProvider>
-            <ElevenLabsProvider>
-              <VoiceProvider>
-                <AppContent />
-              </VoiceProvider>
-            </ElevenLabsProvider>
-          </UserModelProvider>
-        </SupabaseAuthProvider>
+        <ThemeProvider>
+          <SupabaseAuthProvider>
+            <UserModelProvider>
+              <ElevenLabsProvider>
+                <VoiceProvider>
+                  <AppContent />
+                </VoiceProvider>
+              </ElevenLabsProvider>
+            </UserModelProvider>
+          </SupabaseAuthProvider>
+        </ThemeProvider>
       </ErrorBoundary>
     </GestureHandlerRootView>
   );

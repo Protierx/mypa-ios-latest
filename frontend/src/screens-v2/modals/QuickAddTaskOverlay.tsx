@@ -1,14 +1,9 @@
 /**
- * Add Task Modal
+ * Add Task Modal — Light Theme + AI-Powered
  *
- * As the user types a title, AI auto-fills:
- * - Category (e.g. "gym" → Health)
- * - Priority (e.g. "gym" → medium, "deadline" → urgent)
- * - Duration (e.g. "gym" → 60m, "email" → 15m)
- *
- * The user can override any field manually.
- * Date and time are always set by the user.
- * AI suggestions show a sparkle indicator so the user knows they can change them.
+ * The modal that makes users feel like they're talking to an AI planner,
+ * not filling out a database form. AI suggests as you type, fills in
+ * the boring parts, and gets out of the way.
  */
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
@@ -32,6 +27,7 @@ import * as Haptics from 'expo-haptics';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 import { useTasks } from '../../hooks/supabase/useTasks';
+import { useBrainDump } from '../../hooks/supabase/useBrainDump';
 import { Task } from '../../lib/supabase';
 import {
   suggestFromTitle,
@@ -42,6 +38,23 @@ import {
 import { eventLogger } from '../../services/eventLogger';
 
 // ============================================================================
+// Light Theme Palette
+// ============================================================================
+
+const L = {
+  bg: '#FFFFFF',
+  bgSecondary: '#F9F9FB',
+  textPrimary: '#1C1C1E',
+  textSecondary: '#636366',
+  textTertiary: '#AEAEB2',
+  border: '#E5E5EA',
+  borderLight: '#F2F2F7',
+  purple: '#7C3AED',
+  purpleLight: '#F3EEFF',
+  purpleSoft: '#EDE9FE',
+};
+
+// ============================================================================
 // Types + Constants
 // ============================================================================
 
@@ -49,16 +62,21 @@ interface QuickAddTaskOverlayProps {
   visible: boolean;
   onClose: () => void;
   onTaskCreated?: (task: Task) => void;
+  onBrainDumpCreated?: () => void;
   initialDate?: Date;
+  /** When converting a brain dump item, prefill text and require scheduling */
+  brainDumpSource?: { id: string; text: string } | null;
+  /** Called after a brain dump item is successfully converted to a task */
+  onBrainDumpConverted?: (brainDumpId: string, taskId: string) => void;
 }
 
 type PriorityOption = Task['priority'];
 
-const PRIORITIES: { value: PriorityOption; label: string; color: string }[] = [
-  { value: 'low', label: 'Low', color: '#22c55e' },
-  { value: 'medium', label: 'Medium', color: '#eab308' },
-  { value: 'high', label: 'High', color: '#f97316' },
-  { value: 'urgent', label: 'Urgent', color: '#ef4444' },
+const PRIORITIES: { value: PriorityOption; label: string; color: string; dot: string }[] = [
+  { value: 'low', label: 'Low', color: '#34C759', dot: '#34C759' },
+  { value: 'medium', label: 'Med', color: '#FF9F0A', dot: '#FF9F0A' },
+  { value: 'high', label: 'High', color: '#FF6B35', dot: '#FF6B35' },
+  { value: 'urgent', label: 'Urgent', color: '#FF3B30', dot: '#FF3B30' },
 ];
 
 const DURATIONS = [15, 30, 45, 60, 90, 120];
@@ -71,10 +89,18 @@ export function QuickAddTaskOverlay({
   visible,
   onClose,
   onTaskCreated,
+  onBrainDumpCreated,
   initialDate,
+  brainDumpSource,
+  onBrainDumpConverted,
 }: QuickAddTaskOverlayProps) {
   const { createTask } = useTasks();
+  const { createItem: createBrainDumpItem } = useBrainDump();
   const inputRef = useRef<TextInput>(null);
+  const scrollRef = useRef<ScrollView>(null);
+
+  // Whether we are converting from a brain dump item
+  const isConversion = !!brainDumpSource;
 
   // Form state
   const [title, setTitle] = useState('');
@@ -84,12 +110,13 @@ export function QuickAddTaskOverlay({
   const [duration, setDuration] = useState<number | null>(null);
   const [priority, setPriority] = useState<PriorityOption>('medium');
   const [creating, setCreating] = useState(false);
+  const [dateExplicitlySet, setDateExplicitlySet] = useState(false);
 
   // AI suggestion state
   const [aiSuggestion, setAiSuggestion] = useState<TaskSuggestion | null>(null);
   const [manualCategory, setManualCategory] = useState<TaskCategory | null>(null);
-  const [manualPriority, setManualPriority] = useState(false); // user explicitly set priority
-  const [manualDuration, setManualDuration] = useState(false); // user explicitly set duration
+  const [manualPriority, setManualPriority] = useState(false);
+  const [manualDuration, setManualDuration] = useState(false);
   const [showCategories, setShowCategories] = useState(false);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -98,86 +125,71 @@ export function QuickAddTaskOverlay({
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [showDurationPicker, setShowDurationPicker] = useState(false);
 
-  // Focus title on open
   useEffect(() => {
     if (visible) {
+      // If converting from brain dump, prefill the title
+      if (brainDumpSource) {
+        setTitle(brainDumpSource.text);
+        handleTitleChange(brainDumpSource.text);
+      }
       setTimeout(() => inputRef.current?.focus(), 300);
-      eventLogger.log('modal_opened', { modal: 'add_task' });
+      eventLogger.log('modal_opened', { modal: 'add_task', isConversion });
     } else {
+      if (debounceRef.current) { clearTimeout(debounceRef.current); debounceRef.current = null; }
       resetForm();
     }
+    return () => { if (debounceRef.current) { clearTimeout(debounceRef.current); debounceRef.current = null; } };
   }, [visible]);
 
-  useEffect(() => {
-    if (initialDate) setDueDate(initialDate);
-  }, [initialDate]);
+  useEffect(() => { if (initialDate) setDueDate(initialDate); }, [initialDate]);
 
   const resetForm = () => {
-    setTitle('');
-    setNotes('');
+    setTitle(''); setNotes('');
     setDueDate(initialDate || new Date());
-    setDueTime(null);
-    setDuration(null);
-    setPriority('medium');
-    setAiSuggestion(null);
-    setManualCategory(null);
-    setManualPriority(false);
-    setManualDuration(false);
-    setShowCategories(false);
-    setShowDatePicker(false);
-    setShowTimePicker(false);
-    setShowDurationPicker(false);
+    setDueTime(null); setDuration(null); setPriority('medium');
+    setAiSuggestion(null); setManualCategory(null);
+    setManualPriority(false); setManualDuration(false);
+    setShowCategories(false); setShowDatePicker(false);
+    setShowTimePicker(false); setShowDurationPicker(false);
+    setDateExplicitlySet(false);
   };
 
-  // ── AI suggestion (debounced 400ms) ──
-  const handleTitleChange = useCallback(
-    (text: string) => {
-      setTitle(text);
-      if (debounceRef.current) clearTimeout(debounceRef.current);
+  // ── AI suggestion (debounced) ──
+  const handleTitleChange = useCallback((text: string) => {
+    setTitle(text);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      const s = suggestFromTitle(text);
+      if (s && s.confidence >= 0.25) {
+        setAiSuggestion(s);
+        if (!manualPriority) setPriority(s.priority);
+        if (!manualDuration) setDuration(s.duration);
+        eventLogger.log('feature_used', { feature: 'ai_task_suggestion', category: s.category, priority: s.priority, duration: s.duration });
+      } else {
+        setAiSuggestion(null);
+        if (!manualPriority) setPriority('medium');
+        if (!manualDuration) setDuration(null);
+      }
+    }, 400);
+  }, [manualPriority, manualDuration]);
 
-      debounceRef.current = setTimeout(() => {
-        const s = suggestFromTitle(text);
-        if (s && s.confidence >= 0.25) {
-          setAiSuggestion(s);
-
-          // Auto-fill priority if user hasn't manually changed it
-          if (!manualPriority) {
-            setPriority(s.priority);
-          }
-          // Auto-fill duration if user hasn't manually changed it
-          if (!manualDuration) {
-            setDuration(s.duration);
-          }
-
-          eventLogger.log('feature_used', {
-            feature: 'ai_task_suggestion',
-            category: s.category,
-            priority: s.priority,
-            duration: s.duration,
-          });
-        } else {
-          setAiSuggestion(null);
-          // Reset to defaults if AI can't suggest
-          if (!manualPriority) setPriority('medium');
-          if (!manualDuration) setDuration(null);
-        }
-      }, 400);
-    },
-    [manualPriority, manualDuration],
-  );
-
-  // ── Build due date ISO ──
   const buildDueDate = (): string => {
     const d = new Date(dueDate);
-    if (dueTime) {
-      d.setHours(dueTime.getHours(), dueTime.getMinutes(), 0, 0);
-    } else {
-      d.setHours(23, 59, 0, 0);
-    }
+    if (dueTime) { d.setHours(dueTime.getHours(), dueTime.getMinutes(), 0, 0); }
+    else { d.setHours(23, 59, 0, 0); }
     return d.toISOString();
   };
 
-  // ── Create ──
+  /**
+   * Smart routing: determine if user has intentionally set scheduling info.
+   * - If user explicitly picked a time OR this is a brain dump conversion → treat as scheduled task.
+   * - If user explicitly picked a date (changed from default) → treat as scheduled task.
+   * - Otherwise → brain dump item.
+   *
+   * During conversion mode, always create a task (user must schedule).
+   */
+  const hasExplicitSchedule = !!dueTime || dateExplicitlySet || isConversion;
+
   const isValid = title.trim().length >= 1;
 
   const handleCreate = useCallback(async () => {
@@ -190,64 +202,68 @@ export function QuickAddTaskOverlay({
       let desc = notes.trim();
       if (cat) desc = desc ? `[${cat}] ${desc}` : `[${cat}]`;
 
-      const task = await createTask({
-        title: title.trim(),
-        description: desc || null,
-        due_date: buildDueDate(),
-        priority,
-        estimated_duration: duration,
-      });
-
-      setCreating(false);
-
-      if (task) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        eventLogger.log('task_created', {
-          taskId: task.id,
-          priority,
-          category: cat || 'none',
-          duration,
-          aiSuggested: !!aiSuggestion,
-          aiPriorityAccepted: !manualPriority && aiSuggestion?.priority === priority,
-          aiDurationAccepted: !manualDuration && aiSuggestion?.duration === duration,
-          aiCategoryAccepted: !manualCategory && aiSuggestion?.category === cat,
+      if (hasExplicitSchedule) {
+        // ── Route to tasks table ──
+        const task = await createTask({
+          title: title.trim(), description: desc || null,
+          due_date: buildDueDate(), priority, estimated_duration: duration,
         });
-        onTaskCreated?.(task);
-        onClose();
+        setCreating(false);
+        if (task) {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          eventLogger.log('task_created', {
+            taskId: task.id, priority, category: cat || 'none', duration,
+            aiSuggested: !!aiSuggestion,
+            fromBrainDump: isConversion,
+          });
+
+          // If converting a brain dump item, mark it as converted
+          if (isConversion && brainDumpSource) {
+            onBrainDumpConverted?.(brainDumpSource.id, task.id);
+          }
+
+          onTaskCreated?.(task);
+          onClose();
+        } else {
+          Alert.alert('Hmm', "Task couldn't be saved. Please try again.");
+        }
       } else {
-        Alert.alert('Hmm', "Task couldn't be saved. Please try again.");
+        // ── Route to brain dump ──
+        const item = await createBrainDumpItem(title.trim());
+        setCreating(false);
+        if (item) {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          eventLogger.log('feature_used', {
+            feature: 'brain_dump_auto_routed',
+            itemId: item.id,
+          });
+          onBrainDumpCreated?.();
+          onClose();
+        } else {
+          Alert.alert('Hmm', "Couldn't save right now. Please try again.");
+        }
       }
     } catch (err: any) {
       setCreating(false);
-      Alert.alert('Something went wrong', err?.message || 'Please try again.');
+      Alert.alert('Something went wrong', 'Please try again later.');
     }
-  }, [title, notes, dueDate, dueTime, priority, duration, isValid, creating, manualCategory, manualPriority, manualDuration, aiSuggestion, createTask, onTaskCreated, onClose]);
+  }, [title, notes, dueDate, dueTime, priority, duration, isValid, creating,
+    manualCategory, manualPriority, manualDuration, aiSuggestion,
+    createTask, createBrainDumpItem, onTaskCreated, onBrainDumpCreated, onClose,
+    hasExplicitSchedule, isConversion, brainDumpSource, onBrainDumpConverted]);
 
   // ── Helpers ──
   const fmtDate = (d: Date): string => {
-    const t = new Date();
-    const tm = new Date(t); tm.setDate(tm.getDate() + 1);
+    const t = new Date(); const tm = new Date(t); tm.setDate(tm.getDate() + 1);
     if (d.toDateString() === t.toDateString()) return 'Today';
     if (d.toDateString() === tm.toDateString()) return 'Tomorrow';
     return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
   };
-
-  const fmtTime = (d: Date) =>
-    d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-
-  const fmtDuration = (m: number) => {
-    if (m < 60) return `${m}m`;
-    const h = Math.floor(m / 60);
-    const r = m % 60;
-    return r ? `${h}h ${r}m` : `${h}h`;
-  };
+  const fmtTime = (d: Date) => d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+  const fmtDuration = (m: number) => { if (m < 60) return `${m}m`; const h = Math.floor(m / 60); const r = m % 60; return r ? `${h}h ${r}m` : `${h}h`; };
 
   const activeCategory = manualCategory || aiSuggestion?.category || null;
-  const activeCategoryMeta = activeCategory
-    ? getAllCategories().find((c) => c.category === activeCategory)
-    : null;
-
-  // Is this field AI-filled (not manually overridden)?
+  const activeCategoryMeta = activeCategory ? getAllCategories().find((c) => c.category === activeCategory) : null;
   const isPriorityAI = !!aiSuggestion && !manualPriority;
   const isDurationAI = !!aiSuggestion && !manualDuration && duration !== null;
   const isCategoryAI = !!aiSuggestion && !manualCategory;
@@ -256,121 +272,156 @@ export function QuickAddTaskOverlay({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        className="flex-1"
-      >
-        <Pressable className="flex-1 bg-black/50" onPress={() => { Keyboard.dismiss(); onClose(); }}>
-          <View className="flex-1" />
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.35)' }}>
+          {/* Scrim — only this area dismisses */}
+          <Pressable style={{ flex: 1 }} onPress={() => { Keyboard.dismiss(); onClose(); }} />
 
           {/* Sheet */}
-          <Pressable
-            className="bg-surface-1 rounded-t-2xl border-t border-surface-4"
-            onPress={Keyboard.dismiss}
+          <View
+            style={{
+              backgroundColor: L.bg,
+              borderTopLeftRadius: 20, borderTopRightRadius: 20,
+              shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.08, shadowRadius: 16,
+              elevation: 10,
+            }}
           >
             <SafeAreaView edges={['bottom']}>
-              {/* ── Handle ── */}
-              <View className="items-center pt-3 pb-1">
-                <View className="w-9 h-1 bg-surface-4 rounded-full" />
+              {/* Handle */}
+              <View style={{ alignItems: 'center', paddingTop: 10, paddingBottom: 4 }}>
+                <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: '#D1D1D6' }} />
               </View>
 
-              {/* ── Header row ── */}
-              <View className="flex-row items-center justify-between px-5 pt-2 pb-3">
-                <Text className="text-title-3 font-bold text-ink-primary">New Task</Text>
+              {/* Header */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 4, paddingBottom: 8 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Text style={{ fontSize: 22, fontWeight: '700', color: L.textPrimary }}>
+                    {isConversion ? 'Move to Tasks' : 'New Task'}
+                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 10, backgroundColor: L.purpleSoft, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8 }}>
+                    <Ionicons name="sparkles" size={11} color={L.purple} />
+                    <Text style={{ fontSize: 11, fontWeight: '600', color: L.purple, marginLeft: 3 }}>AI Assist</Text>
+                  </View>
+                </View>
+
                 {activeCategory && activeCategoryMeta && (
                   <TouchableOpacity
-                    className="flex-row items-center px-2.5 py-1 rounded-full"
-                    style={{ backgroundColor: `${activeCategoryMeta.color}18` }}
+                    style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10, backgroundColor: `${activeCategoryMeta.color}12` }}
                     onPress={() => setShowCategories(!showCategories)}
                     activeOpacity={0.7}
                   >
                     <Ionicons name={activeCategoryMeta.icon as any} size={13} color={activeCategoryMeta.color} />
-                    <Text className="text-caption-1 font-semibold ml-1" style={{ color: activeCategoryMeta.color }}>
-                      {activeCategory}
-                    </Text>
-                    {isCategoryAI && (
-                      <View className="flex-row items-center bg-brand-purple/20 px-1.5 rounded ml-1.5">
-                        <Ionicons name="sparkles" size={9} color="#A78BFA" />
-                        <Text className="text-caption-2 font-semibold text-brand-secondary ml-0.5">AI</Text>
-                      </View>
-                    )}
+                    <Text style={{ fontSize: 12.5, fontWeight: '600', color: activeCategoryMeta.color, marginLeft: 4 }}>{activeCategory}</Text>
+                    {isCategoryAI && <Ionicons name="sparkles" size={8} color={L.purple} style={{ marginLeft: 4 }} />}
                   </TouchableOpacity>
                 )}
               </View>
 
               <ScrollView
-                className="max-h-[440px]"
+                ref={scrollRef}
+                style={{ maxHeight: 520 }}
                 keyboardShouldPersistTaps="handled"
                 bounces={false}
+                showsVerticalScrollIndicator={false}
               >
-                {/* ── Title ── */}
-                <View className="px-5">
+                {/* Title Input */}
+                <View style={{ paddingHorizontal: 20 }}>
                   <TextInput
                     ref={inputRef}
                     value={title}
                     onChangeText={handleTitleChange}
                     placeholder="What needs to be done?"
-                    placeholderTextColor="#3F3F46"
-                    className="text-ink-primary text-lg py-2"
+                    placeholderTextColor="#C7C7CC"
+                    style={{
+                      fontSize: 18, lineHeight: 24, fontWeight: '500',
+                      color: L.textPrimary, paddingVertical: 8,
+                      borderBottomWidth: 1, borderBottomColor: title.length > 0 ? L.purple : L.border,
+                    }}
                     returnKeyType="next"
                     autoCapitalize="sentences"
-                    style={{ fontSize: 18 }}
                   />
+                  {/* Smart routing hint */}
+                  {!isConversion && title.trim().length > 0 && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
+                      <Ionicons
+                        name={hasExplicitSchedule ? 'calendar-outline' : 'bulb-outline'}
+                        size={12}
+                        color={hasExplicitSchedule ? L.purple : '#FF9F0A'}
+                      />
+                      <Text style={{ fontSize: 12, color: L.textTertiary, marginLeft: 4 }}>
+                        {hasExplicitSchedule
+                          ? 'Will be saved as a scheduled task'
+                          : 'No date set — will be saved to Brain Dump'}
+                      </Text>
+                    </View>
+                  )}
                 </View>
 
-                {/* ── AI suggestion banner (shows what AI filled) ── */}
+                {/* AI Suggestion Banner */}
                 {aiSuggestion && aiSuggestion.confidence >= 0.25 && (
-                  <View className="mx-5 mt-2 flex-row items-center bg-brand-purple/10 px-3 py-2 rounded-lg border border-brand-purple/20">
-                    <Ionicons name="sparkles" size={14} color="#A78BFA" />
-                    <Text className="text-caption-1 text-brand-secondary ml-1.5 flex-1">
-                      AI filled: {aiSuggestion.category} · {aiSuggestion.priority} · {fmtDuration(aiSuggestion.duration)}
-                    </Text>
-                    <Text className="text-caption-2 text-ink-disabled">tap to change</Text>
-                  </View>
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    onPress={() => setShowCategories(true)}
+                    style={{
+                      marginHorizontal: 20, marginTop: 12,
+                      flexDirection: 'row', alignItems: 'center',
+                      paddingHorizontal: 14, paddingVertical: 10,
+                      borderRadius: 12,
+                      backgroundColor: L.purpleLight,
+                      borderWidth: 1, borderColor: '#E4D9FC',
+                    }}
+                  >
+                    <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: L.purpleSoft, alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
+                      <Ionicons name="sparkles" size={14} color={L.purple} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: L.purple }}>
+                        {aiSuggestion.category} — {aiSuggestion.priority} priority — {fmtDuration(aiSuggestion.duration)}
+                      </Text>
+                      <Text style={{ fontSize: 11, color: '#8B5CF6', marginTop: 1 }}>
+                        AI suggestion based on your title
+                      </Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={14} color={L.purple} />
+                  </TouchableOpacity>
                 )}
 
-                {/* ── Notes ── */}
-                <View className="px-5 mt-2">
+                {/* Notes */}
+                <View style={{ paddingHorizontal: 20, marginTop: 12 }}>
                   <TextInput
                     value={notes}
                     onChangeText={setNotes}
-                    placeholder="Notes (optional)"
-                    placeholderTextColor="#27272A"
-                    className="text-ink-tertiary text-subhead py-1"
-                    multiline
-                    numberOfLines={2}
-                    style={{ minHeight: 36 }}
+                    placeholder="Add notes..."
+                    placeholderTextColor="#C7C7CC"
+                    multiline numberOfLines={2}
+                    style={{ fontSize: 14.5, color: L.textSecondary, paddingVertical: 4, minHeight: 36 }}
                   />
                 </View>
 
-                {/* ── Divider ── */}
-                <View className="h-px bg-surface-4 mx-5 mt-3 mb-3" />
+                {/* Divider */}
+                <View style={{ height: 1, backgroundColor: L.borderLight, marginHorizontal: 20, marginTop: 10, marginBottom: 14 }} />
 
-                {/* ── Category picker (when open) ── */}
+                {/* Category picker */}
                 {showCategories && (
-                  <View className="px-5 pb-3">
-                    <View className="flex-row flex-wrap gap-2">
+                  <View style={{ paddingHorizontal: 20, paddingBottom: 14 }}>
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: L.textTertiary, marginBottom: 8, letterSpacing: 0.3 }}>CATEGORY</Text>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                       {getAllCategories().map((cat) => {
-                        const active = activeCategory === cat.category;
+                        const isActive = activeCategory === cat.category;
                         return (
                           <TouchableOpacity
                             key={cat.category}
-                            className="flex-row items-center px-3 py-1.5 rounded-full"
                             style={{
-                              backgroundColor: active ? `${cat.color}25` : '#1C1C1E',
-                              borderWidth: active ? 1 : 0,
-                              borderColor: cat.color,
+                              flexDirection: 'row', alignItems: 'center',
+                              paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10,
+                              backgroundColor: isActive ? `${cat.color}15` : L.bgSecondary,
+                              borderWidth: isActive ? 1.5 : 1,
+                              borderColor: isActive ? cat.color : L.border,
                             }}
-                            onPress={() => {
-                              Haptics.selectionAsync();
-                              setManualCategory(cat.category);
-                              setShowCategories(false);
-                            }}
+                            onPress={() => { Haptics.selectionAsync(); setManualCategory(cat.category); setShowCategories(false); }}
                           >
-                            <Ionicons name={cat.icon as any} size={13} color={cat.color} />
-                            <Text className="text-caption-1 font-medium text-ink-primary ml-1.5">
-                              {cat.category}
-                            </Text>
+                            <Ionicons name={cat.icon as any} size={13} color={isActive ? cat.color : L.textTertiary} />
+                            <Text style={{ fontSize: 13, fontWeight: isActive ? '600' : '500', color: isActive ? cat.color : L.textSecondary, marginLeft: 5 }}>{cat.category}</Text>
                           </TouchableOpacity>
                         );
                       })}
@@ -378,134 +429,180 @@ export function QuickAddTaskOverlay({
                   </View>
                 )}
 
-                {/* ── Date / Time / Duration chips ── */}
-                <View className="flex-row items-center px-5 gap-2.5 flex-wrap">
-                  {/* Date (always manual) */}
+                {/* Schedule label */}
+                <View style={{ paddingHorizontal: 20, marginBottom: 10 }}>
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: L.textTertiary, letterSpacing: 0.3 }}>SCHEDULE</Text>
+                </View>
+
+                {/* Date / Time / Duration — full-width row buttons */}
+                <View style={{ paddingHorizontal: 20, gap: 10 }}>
+                  {/* Date button */}
                   <TouchableOpacity
-                    className="flex-row items-center bg-surface-2 px-3 py-2 rounded-lg"
-                    onPress={() => { setShowDatePicker(!showDatePicker); setShowTimePicker(false); setShowDurationPicker(false); }}
+                    style={{
+                      flexDirection: 'row', alignItems: 'center',
+                      paddingHorizontal: 16, paddingVertical: 14, borderRadius: 12,
+                      backgroundColor: showDatePicker ? L.purpleLight : L.bgSecondary,
+                      borderWidth: 1.5, borderColor: showDatePicker ? L.purple : L.border,
+                    }}
+                    onPress={() => {
+                      const opening = !showDatePicker;
+                      setShowDatePicker(opening); setShowTimePicker(false); setShowDurationPicker(false);
+                      if (opening) setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 150);
+                    }}
+                    activeOpacity={0.7}
                   >
-                    <Ionicons name="calendar-outline" size={15} color="#71717A" />
-                    <Text className="text-subhead text-ink-secondary ml-1.5">{fmtDate(dueDate)}</Text>
+                    <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: showDatePicker ? L.purpleSoft : '#E8E8ED', alignItems: 'center', justifyContent: 'center' }}>
+                      <Ionicons name="calendar" size={17} color={showDatePicker ? L.purple : L.textSecondary} />
+                    </View>
+                    <View style={{ marginLeft: 12, flex: 1 }}>
+                      <Text style={{ fontSize: 12, color: L.textTertiary, fontWeight: '500' }}>Date</Text>
+                      <Text style={{ fontSize: 15, color: L.textPrimary, fontWeight: '600', marginTop: 1 }}>{fmtDate(dueDate)}</Text>
+                    </View>
+                    <Ionicons name={showDatePicker ? 'chevron-up' : 'chevron-down'} size={18} color={L.textTertiary} />
                   </TouchableOpacity>
 
-                  {/* Time (always manual) */}
+                  {/* Time button */}
                   <TouchableOpacity
-                    className="flex-row items-center bg-surface-2 px-3 py-2 rounded-lg"
-                    onPress={() => { setShowTimePicker(!showTimePicker); setShowDatePicker(false); setShowDurationPicker(false); }}
+                    style={{
+                      flexDirection: 'row', alignItems: 'center',
+                      paddingHorizontal: 16, paddingVertical: 14, borderRadius: 12,
+                      backgroundColor: showTimePicker ? L.purpleLight : L.bgSecondary,
+                      borderWidth: 1.5, borderColor: showTimePicker ? L.purple : L.border,
+                    }}
+                    onPress={() => {
+                      const opening = !showTimePicker;
+                      setShowTimePicker(opening); setShowDatePicker(false); setShowDurationPicker(false);
+                      if (opening) setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 150);
+                    }}
+                    activeOpacity={0.7}
                   >
-                    <Ionicons name="time-outline" size={15} color="#71717A" />
-                    <Text className={`text-subhead ml-1.5 ${dueTime ? 'text-ink-secondary' : 'text-ink-disabled'}`}>
-                      {dueTime ? fmtTime(dueTime) : 'Time'}
-                    </Text>
+                    <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: showTimePicker ? L.purpleSoft : '#E8E8ED', alignItems: 'center', justifyContent: 'center' }}>
+                      <Ionicons name="time" size={17} color={showTimePicker ? L.purple : L.textSecondary} />
+                    </View>
+                    <View style={{ marginLeft: 12, flex: 1 }}>
+                      <Text style={{ fontSize: 12, color: L.textTertiary, fontWeight: '500' }}>Time</Text>
+                      <Text style={{ fontSize: 15, color: dueTime ? L.textPrimary : L.textTertiary, fontWeight: '600', marginTop: 1 }}>
+                        {dueTime ? fmtTime(dueTime) : 'Tap to set time'}
+                      </Text>
+                    </View>
+                    <Ionicons name={showTimePicker ? 'chevron-up' : 'chevron-down'} size={18} color={L.textTertiary} />
                   </TouchableOpacity>
 
-                  {/* Duration (may be AI-filled) */}
+                  {/* Duration button */}
                   <TouchableOpacity
-                    className="flex-row items-center bg-surface-2 px-3 py-2 rounded-lg"
-                    onPress={() => { setShowDurationPicker(!showDurationPicker); setShowDatePicker(false); setShowTimePicker(false); }}
+                    style={{
+                      flexDirection: 'row', alignItems: 'center',
+                      paddingHorizontal: 16, paddingVertical: 14, borderRadius: 12,
+                      backgroundColor: showDurationPicker ? L.purpleLight : L.bgSecondary,
+                      borderWidth: 1.5, borderColor: showDurationPicker ? L.purple : L.border,
+                    }}
+                    onPress={() => {
+                      const opening = !showDurationPicker;
+                      setShowDurationPicker(opening); setShowDatePicker(false); setShowTimePicker(false);
+                      if (opening) setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 150);
+                    }}
+                    activeOpacity={0.7}
                   >
-                    <Ionicons name="hourglass-outline" size={15} color="#71717A" />
-                    <Text className={`text-subhead ml-1.5 ${duration ? 'text-ink-secondary' : 'text-ink-disabled'}`}>
-                      {duration ? fmtDuration(duration) : 'Duration'}
-                    </Text>
-                    {isDurationAI && (
-                      <Ionicons name="sparkles" size={10} color="#A78BFA" style={{ marginLeft: 4 }} />
-                    )}
+                    <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: showDurationPicker ? L.purpleSoft : '#E8E8ED', alignItems: 'center', justifyContent: 'center' }}>
+                      <Ionicons name="hourglass" size={17} color={showDurationPicker ? L.purple : L.textSecondary} />
+                    </View>
+                    <View style={{ marginLeft: 12, flex: 1 }}>
+                      <Text style={{ fontSize: 12, color: L.textTertiary, fontWeight: '500' }}>Duration</Text>
+                      <Text style={{ fontSize: 15, color: duration ? L.textPrimary : L.textTertiary, fontWeight: '600', marginTop: 1 }}>
+                        {duration ? fmtDuration(duration) : 'Tap to set duration'}
+                      </Text>
+                    </View>
+                    {isDurationAI && <Ionicons name="sparkles" size={10} color={L.purple} style={{ marginRight: 4 }} />}
+                    <Ionicons name={showDurationPicker ? 'chevron-up' : 'chevron-down'} size={18} color={L.textTertiary} />
                   </TouchableOpacity>
                 </View>
 
-                {/* ── Date Picker ── */}
+                {/* Date Picker */}
                 {showDatePicker && (
-                  <View className="px-5 mt-2">
+                  <View style={{ paddingHorizontal: 20, marginTop: 10, paddingBottom: 8 }}>
                     <DateTimePicker
-                      value={dueDate}
-                      mode="date"
-                      display="spinner"
+                      value={dueDate} mode="date" display="spinner"
                       minimumDate={new Date()}
-                      onChange={(_, date) => {
-                        if (Platform.OS !== 'ios') setShowDatePicker(false);
-                        if (date) setDueDate(date);
-                      }}
-                      textColor="#fff"
-                      style={{ height: 150 }}
+                      onChange={(_, date) => { if (Platform.OS !== 'ios') setShowDatePicker(false); if (date) { setDueDate(date); setDateExplicitlySet(true); } }}
+                      textColor={L.textPrimary}
+                      themeVariant="light"
+                      style={{ height: 200 }}
                     />
                   </View>
                 )}
 
-                {/* ── Time Picker ── */}
+                {/* Time Picker */}
                 {showTimePicker && (
-                  <View className="px-5 mt-2">
+                  <View style={{ paddingHorizontal: 20, marginTop: 10, paddingBottom: 8 }}>
                     <DateTimePicker
-                      value={dueTime || new Date()}
-                      mode="time"
-                      display="spinner"
-                      onChange={(_, date) => {
-                        if (Platform.OS !== 'ios') setShowTimePicker(false);
-                        if (date) setDueTime(date);
-                      }}
-                      textColor="#fff"
-                      style={{ height: 150 }}
+                      value={dueTime || new Date()} mode="time" display="spinner"
+                      onChange={(_, date) => { if (Platform.OS !== 'ios') setShowTimePicker(false); if (date) setDueTime(date); }}
+                      textColor={L.textPrimary}
+                      themeVariant="light"
+                      style={{ height: 200 }}
                     />
                     {dueTime && (
-                      <TouchableOpacity className="items-center py-1" onPress={() => { setDueTime(null); setShowTimePicker(false); }}>
-                        <Text className="text-caption-1 text-ink-disabled">Clear time</Text>
+                      <TouchableOpacity
+                        style={{ alignItems: 'center', paddingVertical: 8 }}
+                        onPress={() => { setDueTime(null); setShowTimePicker(false); }}
+                      >
+                        <Text style={{ fontSize: 14, color: L.purple, fontWeight: '600' }}>Clear time</Text>
                       </TouchableOpacity>
                     )}
                   </View>
                 )}
 
-                {/* ── Duration chips ── */}
+                {/* Duration chips */}
                 {showDurationPicker && (
-                  <View className="flex-row flex-wrap gap-2 px-5 mt-3">
-                    {DURATIONS.map((m) => (
-                      <TouchableOpacity
-                        key={m}
-                        className={`px-3.5 py-1.5 rounded-lg ${duration === m ? 'bg-brand-purple' : 'bg-surface-2'}`}
-                        onPress={() => {
-                          Haptics.selectionAsync();
-                          setDuration(duration === m ? null : m);
-                          setManualDuration(true); // user chose this manually
-                          setShowDurationPicker(false);
-                        }}
-                      >
-                        <Text className={`text-subhead font-medium ${duration === m ? 'text-white' : 'text-ink-secondary'}`}>
-                          {fmtDuration(m)}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingHorizontal: 20, marginTop: 12, paddingBottom: 8 }}>
+                    {DURATIONS.map((m) => {
+                      const isActive = duration === m;
+                      return (
+                        <TouchableOpacity
+                          key={m}
+                          style={{
+                            paddingHorizontal: 18, paddingVertical: 12, borderRadius: 12,
+                            backgroundColor: isActive ? L.purple : L.bgSecondary,
+                            borderWidth: isActive ? 0 : 1, borderColor: L.border,
+                            minWidth: 64, alignItems: 'center',
+                          }}
+                          onPress={() => { Haptics.selectionAsync(); setDuration(isActive ? null : m); setManualDuration(true); setShowDurationPicker(false); }}
+                        >
+                          <Text style={{ fontSize: 15, fontWeight: '600', color: isActive ? '#fff' : L.textSecondary }}>{fmtDuration(m)}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
                   </View>
                 )}
 
-                {/* ── Priority ── */}
-                <View className="px-5 mt-4 mb-2">
-                  <View className="flex-row items-center mb-2">
-                    <Text className="text-caption-1 text-ink-disabled">Priority</Text>
+                {/* Priority */}
+                <View style={{ paddingHorizontal: 20, marginTop: 18, marginBottom: 8 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: L.textTertiary, letterSpacing: 0.3 }}>PRIORITY</Text>
                     {isPriorityAI && (
-                      <View className="flex-row items-center ml-2">
-                        <Ionicons name="sparkles" size={10} color="#A78BFA" />
-                        <Text className="text-caption-2 text-brand-secondary ml-0.5">AI suggested</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 8, backgroundColor: L.purpleSoft, paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5 }}>
+                        <Ionicons name="sparkles" size={9} color={L.purple} />
+                        <Text style={{ fontSize: 10, fontWeight: '600', color: L.purple, marginLeft: 2 }}>AI</Text>
                       </View>
                     )}
                   </View>
-                  <View className="flex-row gap-2">
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
                     {PRIORITIES.map((p) => {
-                      const active = priority === p.value;
+                      const isActive = priority === p.value;
                       return (
                         <TouchableOpacity
                           key={p.value}
-                          className={`flex-1 py-2 rounded-lg items-center ${active ? 'bg-surface-3' : 'bg-surface-2'}`}
-                          style={active ? { borderWidth: 1.5, borderColor: p.color } : {}}
-                          onPress={() => {
-                            Haptics.selectionAsync();
-                            setPriority(p.value);
-                            setManualPriority(true); // user chose this manually
+                          style={{
+                            flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+                            paddingVertical: 10, borderRadius: 10,
+                            backgroundColor: isActive ? `${p.color}12` : L.bgSecondary,
+                            borderWidth: isActive ? 1.5 : 1,
+                            borderColor: isActive ? p.color : L.border,
                           }}
+                          onPress={() => { Haptics.selectionAsync(); setPriority(p.value); setManualPriority(true); }}
                         >
-                          <View className="w-2.5 h-2.5 rounded-full mb-1" style={{ backgroundColor: p.color }} />
-                          <Text className={`text-caption-1 font-medium ${active ? 'text-ink-primary' : 'text-ink-disabled'}`}>
-                            {p.label}
-                          </Text>
+                          <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: p.dot, marginRight: 5 }} />
+                          <Text style={{ fontSize: 12.5, fontWeight: isActive ? '700' : '500', color: isActive ? p.color : L.textSecondary }}>{p.label}</Text>
                         </TouchableOpacity>
                       );
                     })}
@@ -513,10 +610,17 @@ export function QuickAddTaskOverlay({
                 </View>
               </ScrollView>
 
-              {/* ── CTA ── */}
-              <View className="px-5 pt-3 pb-2">
+              {/* CTA */}
+              <View style={{ paddingHorizontal: 20, paddingTop: 14, paddingBottom: 6 }}>
                 <TouchableOpacity
-                  className={`py-3.5 rounded-xl items-center ${isValid ? 'bg-brand-purple' : 'bg-surface-3'}`}
+                  style={{
+                    paddingVertical: 15, borderRadius: 14, alignItems: 'center',
+                    backgroundColor: isValid ? L.purple : L.bgSecondary,
+                    borderWidth: isValid ? 0 : 1, borderColor: L.border,
+                    shadowColor: isValid ? L.purple : 'transparent',
+                    shadowOffset: { width: 0, height: 4 }, shadowOpacity: isValid ? 0.25 : 0, shadowRadius: 10,
+                    opacity: creating ? 0.7 : 1,
+                  }}
                   onPress={handleCreate}
                   disabled={!isValid || creating}
                   activeOpacity={0.8}
@@ -524,15 +628,22 @@ export function QuickAddTaskOverlay({
                   {creating ? (
                     <ActivityIndicator size="small" color="#fff" />
                   ) : (
-                    <Text className={`text-headline font-bold ${isValid ? 'text-white' : 'text-ink-disabled'}`}>
-                      Create Task
-                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      {isValid && <Ionicons name={hasExplicitSchedule ? 'sparkles' : 'bulb-outline'} size={15} color={isValid ? '#fff' : L.textTertiary} style={{ marginRight: 6 }} />}
+                      <Text style={{ fontSize: 16.5, fontWeight: '700', color: isValid ? '#FFFFFF' : L.textTertiary }}>
+                        {isConversion
+                          ? 'Schedule Task'
+                          : hasExplicitSchedule
+                          ? 'Create Task'
+                          : 'Save to Brain Dump'}
+                      </Text>
+                    </View>
                   )}
                 </TouchableOpacity>
               </View>
             </SafeAreaView>
-          </Pressable>
-        </Pressable>
+          </View>
+        </View>
       </KeyboardAvoidingView>
     </Modal>
   );

@@ -157,6 +157,16 @@ export type Tables = {
     active_days_count: number;
     calculated_at: string;
   };
+  brain_dump_items: {
+    id: string;
+    user_id: string;
+    text: string;
+    status: 'active' | 'converted' | 'archived';
+    converted_task_id: string | null;
+    converted_at: string | null;
+    created_at: string;
+    updated_at: string;
+  };
 };
 
 // Export convenience types
@@ -176,3 +186,5 @@ export type CircleMember = {
   role: 'owner' | 'admin' | 'member';
   joined_at: string;
 };
+
+export type BrainDumpItem = Tables['brain_dump_items'];

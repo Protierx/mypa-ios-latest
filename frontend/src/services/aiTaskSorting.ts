@@ -76,49 +76,42 @@ export function sortTasksWithAI(
     } as SortedTask;
   });
 
-  // Sort by: optimal time + priority + likelihood
+  // Sort chronologically — AI enriches metadata but does NOT reorder by default
+  // Reordering only happens when user taps "Prioritize"
   return scoredTasks.sort((a, b) => {
-    // First: Optimal time tasks bubble up
-    if (a.isOptimalTime && !b.isOptimalTime) return -1;
-    if (!a.isOptimalTime && b.isOptimalTime) return 1;
+    // 1. Tasks with due_date before tasks without
+    if (a.due_date && !b.due_date) return -1;
+    if (!a.due_date && b.due_date) return 1;
 
-    // Second: Higher priority
-    const priorityA = PRIORITY_WEIGHTS[a.priority] || 2;
-    const priorityB = PRIORITY_WEIGHTS[b.priority] || 2;
-    if (priorityA !== priorityB) return priorityB - priorityA;
-
-    // Third: Due date (sooner first)
+    // 2. Both have due_date → sort ascending
     if (a.due_date && b.due_date) {
-      const dateA = new Date(a.due_date).getTime();
-      const dateB = new Date(b.due_date).getTime();
-      if (dateA !== dateB) return dateA - dateB;
+      const diff = new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+      if (diff !== 0) return diff;
     }
 
-    // Fourth: Higher completion likelihood
-    const likelihoodA = a.completionLikelihood || 0.5;
-    const likelihoodB = b.completionLikelihood || 0.5;
-    return likelihoodB - likelihoodA;
+    // 3. Stable tiebreaker: created_at ascending
+    return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
   });
 }
 
 /**
- * Basic task sorting (no AI)
+ * Basic task sorting (no AI) — CHRONOLOGICAL DEFAULT
+ * Priority does NOT affect default ordering.
+ * Sort: due_date ascending → timed tasks before untimed → created_at tiebreaker
  */
 export function sortTasksBasic(tasks: Task[]): SortedTask[] {
   return [...tasks].sort((a, b) => {
-    // Priority first
-    const priorityA = PRIORITY_WEIGHTS[a.priority] || 2;
-    const priorityB = PRIORITY_WEIGHTS[b.priority] || 2;
-    if (priorityA !== priorityB) return priorityB - priorityA;
+    // 1. Tasks with due_date before tasks without
+    if (a.due_date && !b.due_date) return -1;
+    if (!a.due_date && b.due_date) return 1;
 
-    // Then due date
+    // 2. Both have due_date → sort ascending
     if (a.due_date && b.due_date) {
-      return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+      const diff = new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+      if (diff !== 0) return diff;
     }
-    if (a.due_date) return -1;
-    if (b.due_date) return 1;
 
-    // Then creation date
+    // 3. Stable tiebreaker: created_at ascending
     return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
   }) as SortedTask[];
 }

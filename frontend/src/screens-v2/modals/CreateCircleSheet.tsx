@@ -1,8 +1,8 @@
 /**
- * Create Circle Sheet
- * 
- * Bottom sheet for creating a new circle with members.
- * Opens from Social View "+" button.
+ * Create Circle Sheet — Premium Light Theme
+ *
+ * Bottom sheet for creating a new circle.
+ * Opens from Circles Home "Create Circle" button.
  */
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
@@ -32,6 +32,26 @@ import Animated, {
 import { useCircles } from '../../hooks/supabase/useCircles';
 import { Circle } from '../../lib/supabase';
 
+/* ────────────── Light Palette ────────────── */
+
+const L = {
+  bg:             '#F5F5F7',
+  card:           '#FFFFFF',
+  cardBorder:     '#EDEDF0',
+  textPrimary:    '#1C1C1E',
+  textSecondary:  '#48484A',
+  textTertiary:   '#8E8E93',
+  textQuaternary: '#C7C7CC',
+  divider:        '#EDEDF0',
+  purple:         '#7C3AED',
+  purpleLight:    '#F5F0FF',
+  purpleMid:      '#EDE5FF',
+  green:          '#34C759',
+  greenLight:     '#ECFDF5',
+};
+
+/* ────────────── Types ────────────── */
+
 interface CreateCircleSheetProps {
   visible: boolean;
   onClose: () => void;
@@ -48,22 +68,21 @@ const PRIVACY_OPTIONS: { value: PrivacyOption; label: string; icon: string; desc
   { value: 'private', label: 'Private', icon: 'lock-closed-outline', description: 'Hidden, invite only' },
 ];
 
+/* ────────────── Component ────────────── */
+
 export function CreateCircleSheet({ visible, onClose, onCircleCreated }: CreateCircleSheetProps) {
   const { createCircle } = useCircles();
   const nameInputRef = useRef<TextInput>(null);
-  
+
   const [emoji, setEmoji] = useState('👥');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [privacy, setPrivacy] = useState<PrivacyOption>('invite-only');
   const [isCreating, setIsCreating] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  
-  // Success state — shows invite code after creation
   const [createdCircle, setCreatedCircle] = useState<Circle | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
 
-  // Animation
   const translateY = useSharedValue(500);
 
   useEffect(() => {
@@ -72,56 +91,32 @@ export function CreateCircleSheet({ visible, onClose, onCircleCreated }: CreateC
       setTimeout(() => nameInputRef.current?.focus(), 100);
     } else {
       translateY.value = withSpring(500);
-      // Reset form
-      setEmoji('👥');
-      setName('');
-      setDescription('');
-      setPrivacy('invite-only');
-      setShowEmojiPicker(false);
-      setCreatedCircle(null);
-      setCopiedCode(false);
+      setEmoji('👥'); setName(''); setDescription(''); setPrivacy('invite-only');
+      setShowEmojiPicker(false); setCreatedCircle(null); setCopiedCode(false);
     }
   }, [visible]);
 
-  const containerStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
-  }));
+  const containerStyle = useAnimatedStyle(() => ({ transform: [{ translateY: translateY.value }] }));
 
   const handleCreate = useCallback(async () => {
-    if (!name.trim()) {
-      Alert.alert('Name Required', 'Please enter a name for your circle.');
-      return;
-    }
-
-    if (name.trim().length < 2) {
-      Alert.alert('Name Too Short', 'Circle name must be at least 2 characters.');
-      return;
-    }
+    if (!name.trim()) { Alert.alert('Name Required', 'Please enter a name for your circle.'); return; }
+    if (name.trim().length < 2) { Alert.alert('Name Too Short', 'Circle name must be at least 2 characters.'); return; }
 
     setIsCreating(true);
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
-      const circle = await createCircle({
-        name: name.trim(),
-        emoji,
-        description: description.trim() || null,
-        privacy,
-      });
-
+      const circle = await createCircle({ name: name.trim(), emoji, description: description.trim() || null, privacy });
       setIsCreating(false);
-
       if (circle) {
-        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         setCreatedCircle(circle);
         onCircleCreated?.(circle);
       } else {
-        Alert.alert('Error', 'Something went wrong creating your circle. Please try again.');
+        Alert.alert('Error', 'Something went wrong creating your circle.');
       }
     } catch (err: any) {
       setIsCreating(false);
-      const message = err?.message || 'Something went wrong. Please try again.';
-      Alert.alert('Failed to Create Circle', message);
+      Alert.alert('Failed to Create Circle', err?.message || 'Something went wrong.');
     }
   }, [name, emoji, description, privacy, createCircle, onCircleCreated]);
 
@@ -130,257 +125,203 @@ export function CreateCircleSheet({ visible, onClose, onCircleCreated }: CreateC
     const code = createdCircle.invite_code || createdCircle.id.substring(0, 8);
     await Clipboard.setStringAsync(code);
     setCopiedCode(true);
-    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setTimeout(() => setCopiedCode(false), 2000);
   }, [createdCircle]);
 
   const handleShareLink = useCallback(async () => {
     if (!createdCircle) return;
     const inviteCode = createdCircle.invite_code || createdCircle.id;
-    try {
-      await Share.share({
-        message: `Join my circle "${createdCircle.name}" on MYPA! Use invite code: ${inviteCode}`,
-      });
-    } catch (err) {
-      // User cancelled share
-    }
+    try { await Share.share({ message: `Join my circle "${createdCircle.name}" on MYPA! Use invite code: ${inviteCode}` }); } catch {}
   }, [createdCircle]);
 
   const handleClose = useCallback(() => {
-    // If we're on the success screen, just close
-    if (createdCircle) {
-      onClose();
-      return;
-    }
+    if (createdCircle) { onClose(); return; }
     if (name.trim() || description.trim()) {
-      Alert.alert(
-        'Discard Changes?',
-        'You have unsaved changes. Are you sure you want to close?',
-        [
-          { text: 'Keep Editing', style: 'cancel' },
-          { text: 'Discard', style: 'destructive', onPress: onClose },
-        ]
-      );
-    } else {
-      onClose();
-    }
+      Alert.alert('Discard Changes?', 'You have unsaved changes.', [
+        { text: 'Keep Editing', style: 'cancel' },
+        { text: 'Discard', style: 'destructive', onPress: onClose },
+      ]);
+    } else { onClose(); }
   }, [name, description, onClose, createdCircle]);
 
   if (!visible) return null;
 
   return (
-    <Modal
-      visible={visible}
-      animationType="fade"
-      transparent
-      onRequestClose={handleClose}
-    >
-      <View className="flex-1 bg-black/60 justify-end">
-        <Animated.View 
-          className="bg-zinc-900 rounded-t-3xl max-h-[90%]"
-          style={containerStyle}
-        >
+    <Modal visible={visible} animationType="fade" transparent onRequestClose={handleClose}>
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'flex-end' }}>
+        <Animated.View style={[{ backgroundColor: L.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '90%' }, containerStyle]}>
           <SafeAreaView edges={['bottom']}>
-            <KeyboardAvoidingView 
-              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            >
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
               {/* Handle */}
-              <View className="items-center py-3">
-                <View className="w-10 h-1 bg-zinc-700 rounded-full" />
+              <View style={{ alignItems: 'center', paddingVertical: 10 }}>
+                <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: L.divider }} />
               </View>
 
               {/* Header */}
-              <View className="flex-row items-center justify-between px-5 pb-4 border-b border-zinc-800">
-              {createdCircle ? (
-                <>
-                  <View style={{ width: 50 }} />
-                  <Text className="text-white text-lg font-semibold">Circle Created!</Text>
-                  <View style={{ width: 50 }} />
-                </>
-              ) : (
-                <>
-                  <TouchableOpacity onPress={handleClose}>
-                    <Text className="text-zinc-400">Cancel</Text>
-                  </TouchableOpacity>
-                  <Text className="text-white text-lg font-semibold">Create Circle</Text>
-                  <TouchableOpacity onPress={handleCreate} disabled={isCreating || !name.trim()}>
-                    {isCreating ? (
-                      <ActivityIndicator size="small" color="#a855f7" />
-                    ) : (
-                      <Text className={`font-semibold ${name.trim() ? 'text-purple-500' : 'text-zinc-600'}`}>
-                        Create
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 14, borderBottomWidth: 0.5, borderBottomColor: L.divider }}>
+                {createdCircle ? (
+                  <>
+                    <View style={{ width: 50 }} />
+                    <Text style={{ fontSize: 17, fontWeight: '700', color: L.textPrimary }}>Circle Created!</Text>
+                    <View style={{ width: 50 }} />
+                  </>
+                ) : (
+                  <>
+                    <TouchableOpacity onPress={handleClose}><Text style={{ fontSize: 15, color: L.textTertiary }}>Cancel</Text></TouchableOpacity>
+                    <Text style={{ fontSize: 17, fontWeight: '700', color: L.textPrimary }}>Create Circle</Text>
+                    <TouchableOpacity onPress={handleCreate} disabled={isCreating || !name.trim()}>
+                      {isCreating ? <ActivityIndicator size="small" color={L.purple} /> : (
+                        <Text style={{ fontSize: 15, fontWeight: '700', color: name.trim() ? L.purple : L.textQuaternary }}>Create</Text>
+                      )}
+                    </TouchableOpacity>
+                  </>
+                )}
+              </View>
+
+              <ScrollView style={{ paddingHorizontal: 20 }} showsVerticalScrollIndicator={false}>
+                {createdCircle ? (
+                  /* ── Success Screen ── */
+                  <View style={{ alignItems: 'center', paddingVertical: 32 }}>
+                    <View style={{ width: 88, height: 88, borderRadius: 44, backgroundColor: L.purpleLight, borderWidth: 2, borderColor: L.purple, alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+                      <Text style={{ fontSize: 44 }}>{createdCircle.emoji || '👥'}</Text>
+                    </View>
+                    <Text style={{ fontSize: 22, fontWeight: '800', color: L.textPrimary, marginBottom: 4 }}>{createdCircle.name}</Text>
+                    <Text style={{ fontSize: 14, fontWeight: '600', color: L.green }}>Circle Created!</Text>
+
+                    <View style={{ width: '100%', backgroundColor: L.bg, borderRadius: 16, padding: 20, marginTop: 20, marginBottom: 16, borderWidth: 0.5, borderColor: L.cardBorder }}>
+                      <Text style={{ fontSize: 12, fontWeight: '600', color: L.textTertiary, textAlign: 'center', marginBottom: 8 }}>INVITE CODE</Text>
+                      <Text style={{ fontSize: 28, fontWeight: '800', color: L.textPrimary, textAlign: 'center', letterSpacing: 3, marginBottom: 16, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' }}>
+                        {(createdCircle.invite_code || createdCircle.id.substring(0, 8)).toUpperCase()}
                       </Text>
-                    )}
-                  </TouchableOpacity>
-                </>
-              )}
-            </View>
-
-            <ScrollView className="px-5">
-              {/* ── Success Screen ── */}
-              {createdCircle ? (
-                <View className="py-8 items-center">
-                  {/* Circle Icon */}
-                  <View className="w-24 h-24 rounded-full bg-purple-900/30 border-2 border-purple-500 items-center justify-center mb-4">
-                    <Text className="text-5xl">{createdCircle.emoji || '👥'}</Text>
-                  </View>
-                  
-                  <Text className="text-white text-2xl font-bold mb-1">{createdCircle.name}</Text>
-                  <Text className="text-green-400 text-base mb-6">Circle Created!</Text>
-
-                  {/* Invite Code Box */}
-                  <View className="w-full bg-zinc-800 rounded-2xl p-5 mb-4 border border-zinc-700">
-                    <Text className="text-zinc-400 text-sm mb-2 text-center">Invite Code</Text>
-                    <Text className="text-white text-3xl font-mono font-bold text-center tracking-widest mb-4">
-                      {(createdCircle.invite_code || createdCircle.id.substring(0, 8)).toUpperCase()}
-                    </Text>
-                      
-                      <View className="flex-row gap-3">
-                        {/* Copy Code */}
+                      <View style={{ flexDirection: 'row', gap: 10 }}>
                         <TouchableOpacity
-                          className={`flex-1 flex-row items-center justify-center py-3 rounded-xl ${
-                            copiedCode ? 'bg-green-600' : 'bg-zinc-700'
-                          }`}
+                          style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: copiedCode ? L.greenLight : L.divider, paddingVertical: 12, borderRadius: 12, gap: 6 }}
                           onPress={handleCopyCode}
                         >
-                          <Ionicons 
-                            name={copiedCode ? 'checkmark' : 'copy-outline'} 
-                            size={18} 
-                            color="#fff" 
-                          />
-                          <Text className="text-white font-medium ml-2">
-                            {copiedCode ? 'Copied!' : 'Copy Code'}
-                          </Text>
+                          <Ionicons name={copiedCode ? 'checkmark' : 'copy-outline'} size={16} color={copiedCode ? L.green : L.textSecondary} />
+                          <Text style={{ fontSize: 14, fontWeight: '600', color: copiedCode ? L.green : L.textSecondary }}>{copiedCode ? 'Copied!' : 'Copy Code'}</Text>
                         </TouchableOpacity>
-
-                        {/* Share Link */}
                         <TouchableOpacity
-                          className="flex-1 flex-row items-center justify-center bg-purple-600 py-3 rounded-xl"
+                          style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: L.purple, paddingVertical: 12, borderRadius: 12, gap: 6 }}
                           onPress={handleShareLink}
                         >
-                          <Ionicons name="share-outline" size={18} color="#fff" />
-                          <Text className="text-white font-medium ml-2">Share</Text>
+                          <Ionicons name="share-outline" size={16} color="#fff" />
+                          <Text style={{ fontSize: 14, fontWeight: '600', color: '#fff' }}>Share</Text>
                         </TouchableOpacity>
                       </View>
                     </View>
 
-                  <Text className="text-zinc-500 text-sm text-center mb-6">
-                    Share this code with friends and family so they can join your circle.
-                  </Text>
+                    <Text style={{ fontSize: 13, color: L.textTertiary, textAlign: 'center', marginBottom: 20 }}>
+                      Share this code with friends so they can join your circle.
+                    </Text>
 
-                  {/* Done Button */}
-                  <TouchableOpacity
-                    className="w-full bg-purple-600 py-4 rounded-xl items-center"
-                    onPress={onClose}
-                  >
-                    <Text className="text-white text-lg font-semibold">Done</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : (
-              <>
-              {/* ── Create Form ── */}
-
-              {/* Emoji Picker */}
-              <View className="py-4 items-center">
-                <TouchableOpacity
-                  className="w-20 h-20 rounded-full bg-zinc-800 items-center justify-center"
-                  onPress={() => setShowEmojiPicker(!showEmojiPicker)}
-                >
-                  <Text className="text-4xl">{emoji}</Text>
-                </TouchableOpacity>
-                <Text className="text-zinc-500 text-sm mt-2">Tap to change emoji</Text>
-                
-                {showEmojiPicker && (
-                  <View className="flex-row flex-wrap justify-center mt-3 bg-zinc-800 rounded-xl p-3">
-                    {EMOJI_OPTIONS.map((e) => (
-                      <TouchableOpacity
-                        key={e}
-                        className={`w-12 h-12 items-center justify-center rounded-lg ${
-                          emoji === e ? 'bg-purple-600' : ''
-                        }`}
-                        onPress={() => {
-                          Haptics.selectionAsync();
-                          setEmoji(e);
-                          setShowEmojiPicker(false);
-                        }}
-                      >
-                        <Text className="text-2xl">{e}</Text>
-                      </TouchableOpacity>
-                    ))}
+                    <TouchableOpacity
+                      style={{ width: '100%', backgroundColor: L.purple, paddingVertical: 16, borderRadius: 14, alignItems: 'center', shadowColor: L.purple, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.25, shadowRadius: 8 }}
+                      onPress={onClose}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>Done</Text>
+                    </TouchableOpacity>
                   </View>
+                ) : (
+                  /* ── Create Form ── */
+                  <>
+                    {/* Emoji Picker */}
+                    <View style={{ alignItems: 'center', paddingVertical: 16 }}>
+                      <TouchableOpacity
+                        style={{ width: 76, height: 76, borderRadius: 38, backgroundColor: L.bg, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: L.cardBorder }}
+                        onPress={() => setShowEmojiPicker(!showEmojiPicker)}
+                      >
+                        <Text style={{ fontSize: 36 }}>{emoji}</Text>
+                      </TouchableOpacity>
+                      <Text style={{ fontSize: 12, color: L.textTertiary, marginTop: 6 }}>Tap to change</Text>
+                      {showEmojiPicker && (
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', marginTop: 10, backgroundColor: L.bg, borderRadius: 14, padding: 10, gap: 4 }}>
+                          {EMOJI_OPTIONS.map((e) => (
+                            <TouchableOpacity
+                              key={e}
+                              style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: emoji === e ? L.purpleLight : 'transparent' }}
+                              onPress={() => { Haptics.selectionAsync(); setEmoji(e); setShowEmojiPicker(false); }}
+                            >
+                              <Text style={{ fontSize: 22 }}>{e}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      )}
+                    </View>
+
+                    {/* Name Input */}
+                    <View style={{ paddingVertical: 14, borderBottomWidth: 0.5, borderBottomColor: L.divider }}>
+                      <Text style={{ fontSize: 12, fontWeight: '600', color: L.textTertiary, marginBottom: 6 }}>Circle Name *</Text>
+                      <TextInput
+                        ref={nameInputRef}
+                        value={name}
+                        onChangeText={setName}
+                        placeholder="e.g., Work Team, Family, Fitness Buddies"
+                        placeholderTextColor={L.textQuaternary}
+                        style={{ fontSize: 17, color: L.textPrimary, fontWeight: '500' }}
+                        maxLength={30}
+                      />
+                      <Text style={{ fontSize: 11, color: L.textQuaternary, marginTop: 4, textAlign: 'right' }}>{name.length}/30</Text>
+                    </View>
+
+                    {/* Description */}
+                    <View style={{ paddingVertical: 14, borderBottomWidth: 0.5, borderBottomColor: L.divider }}>
+                      <Text style={{ fontSize: 12, fontWeight: '600', color: L.textTertiary, marginBottom: 6 }}>Description (optional)</Text>
+                      <TextInput
+                        value={description}
+                        onChangeText={setDescription}
+                        placeholder="What's this circle about?"
+                        placeholderTextColor={L.textQuaternary}
+                        multiline numberOfLines={2}
+                        style={{ fontSize: 15, color: L.textPrimary }}
+                        maxLength={100}
+                      />
+                    </View>
+
+                    {/* Privacy */}
+                    <View style={{ paddingVertical: 14 }}>
+                      <Text style={{ fontSize: 12, fontWeight: '600', color: L.textTertiary, marginBottom: 10 }}>Privacy</Text>
+                      {PRIVACY_OPTIONS.map((option) => {
+                        const selected = privacy === option.value;
+                        return (
+                          <TouchableOpacity
+                            key={option.value}
+                            style={{
+                              flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 14, marginBottom: 8,
+                              backgroundColor: selected ? L.purpleLight : L.bg,
+                              borderWidth: 1, borderColor: selected ? `${L.purple}30` : L.cardBorder,
+                            }}
+                            onPress={() => { Haptics.selectionAsync(); setPrivacy(option.value); }}
+                          >
+                            <View style={{
+                              width: 40, height: 40, borderRadius: 20, marginRight: 12,
+                              backgroundColor: selected ? L.purpleMid : L.divider,
+                              alignItems: 'center', justifyContent: 'center',
+                            }}>
+                              <Ionicons name={option.icon as any} size={18} color={selected ? L.purple : L.textTertiary} />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                              <Text style={{ fontSize: 15, fontWeight: '600', color: L.textPrimary }}>{option.label}</Text>
+                              <Text style={{ fontSize: 12, color: L.textTertiary, marginTop: 1 }}>{option.description}</Text>
+                            </View>
+                            {selected && <Ionicons name="checkmark-circle" size={22} color={L.purple} />}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+
+                    {/* Info */}
+                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', backgroundColor: L.bg, padding: 12, borderRadius: 10, marginBottom: 20 }}>
+                      <Ionicons name="information-circle-outline" size={18} color={L.textTertiary} />
+                      <Text style={{ fontSize: 12.5, color: L.textTertiary, marginLeft: 8, flex: 1, lineHeight: 17 }}>
+                        You can invite members after creating the circle. As the creator, you'll be the owner.
+                      </Text>
+                    </View>
+                  </>
                 )}
-              </View>
-
-              {/* Name Input */}
-              <View className="py-4 border-b border-zinc-800">
-                <Text className="text-zinc-500 text-sm mb-2">Circle Name *</Text>
-                <TextInput
-                  ref={nameInputRef}
-                  value={name}
-                  onChangeText={setName}
-                  placeholder="e.g., Work Team, Family, Fitness Buddies"
-                  placeholderTextColor="#52525b"
-                  className="text-white text-lg"
-                  maxLength={30}
-                />
-                <Text className="text-zinc-600 text-xs mt-1 text-right">{name.length}/30</Text>
-              </View>
-
-              {/* Description */}
-              <View className="py-4 border-b border-zinc-800">
-                <Text className="text-zinc-500 text-sm mb-2">Description (optional)</Text>
-                <TextInput
-                  value={description}
-                  onChangeText={setDescription}
-                  placeholder="What's this circle about?"
-                  placeholderTextColor="#52525b"
-                  multiline
-                  numberOfLines={2}
-                  className="text-white text-base"
-                  maxLength={100}
-                />
-              </View>
-
-              {/* Privacy */}
-              <View className="py-4">
-                <Text className="text-zinc-500 text-sm mb-3">Privacy</Text>
-                {PRIVACY_OPTIONS.map((option) => (
-                  <TouchableOpacity
-                    key={option.value}
-                    className={`flex-row items-center p-3 rounded-xl mb-2 ${
-                      privacy === option.value ? 'bg-purple-900/50 border border-purple-500' : 'bg-zinc-800'
-                    }`}
-                    onPress={() => {
-                      Haptics.selectionAsync();
-                      setPrivacy(option.value);
-                    }}
-                  >
-                    <View className="w-10 h-10 rounded-full bg-zinc-700 items-center justify-center mr-3">
-                      <Ionicons name={option.icon as any} size={20} color="#fff" />
-                    </View>
-                    <View className="flex-1">
-                      <Text className="text-white font-medium">{option.label}</Text>
-                      <Text className="text-zinc-500 text-sm">{option.description}</Text>
-                    </View>
-                    {privacy === option.value && (
-                      <Ionicons name="checkmark-circle" size={24} color="#a855f7" />
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              {/* Info */}
-              <View className="py-4 mb-4">
-                <View className="flex-row items-start bg-zinc-800/50 p-3 rounded-lg">
-                  <Ionicons name="information-circle-outline" size={20} color="#71717a" />
-                  <Text className="text-zinc-500 text-sm ml-2 flex-1">
-                    You can invite members after creating the circle. As the creator, you'll be the owner.
-                  </Text>
-                </View>
-              </View>
-              </>
-              )}
-            </ScrollView>
+              </ScrollView>
             </KeyboardAvoidingView>
           </SafeAreaView>
         </Animated.View>

@@ -1,16 +1,10 @@
 /**
- * Date Filter Bar
- *
- * Quick date navigation for the Tasks page:
- * - "All" chip (default — shows grouped overdue/today/tomorrow/later)
- * - "Today" chip
- * - "Tomorrow" chip
- * - Calendar button → opens full month picker for any date
- * - When a specific date is picked, shows it as an active chip with ✕ to clear
+ * Date Filter Bar — Light Theme
  */
 
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, Modal, Pressable, Platform } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -24,19 +18,14 @@ interface DateFilterBarProps {
 }
 
 function isSameDay(a: Date, b: Date): boolean {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  );
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 
 function formatCustomDate(d: Date): string {
   const today = new Date();
   const diff = Math.floor(
     (new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() -
-      new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()) /
-      86400000,
+      new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()) / 86400000,
   );
   if (diff === 0) return 'Today';
   if (diff === 1) return 'Tomorrow';
@@ -48,31 +37,15 @@ export function DateFilterBar({ activeFilter, customDate, onFilterChange }: Date
   const [showPicker, setShowPicker] = useState(false);
   const [tempDate, setTempDate] = useState<Date>(new Date());
 
-  const handleChipPress = (filter: DateFilter) => {
-    Haptics.selectionAsync();
-    onFilterChange(filter);
-  };
-
-  const handleCalendarPress = () => {
-    Haptics.selectionAsync();
-    setTempDate(customDate || new Date());
-    setShowPicker(true);
-  };
+  const handleChipPress = (filter: DateFilter) => { Haptics.selectionAsync(); onFilterChange(filter); };
+  const handleCalendarPress = () => { Haptics.selectionAsync(); setTempDate(customDate || new Date()); setShowPicker(true); };
 
   const handleDateConfirm = () => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
-    // If they picked today or tomorrow, use those filters instead
-    if (isSameDay(tempDate, today)) {
-      onFilterChange('today');
-    } else if (isSameDay(tempDate, tomorrow)) {
-      onFilterChange('tomorrow');
-    } else {
-      onFilterChange('custom', tempDate);
-    }
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+    if (isSameDay(tempDate, today)) onFilterChange('today');
+    else if (isSameDay(tempDate, tomorrow)) onFilterChange('tomorrow');
+    else onFilterChange('custom', tempDate);
     setShowPicker(false);
   };
 
@@ -83,108 +56,101 @@ export function DateFilterBar({ activeFilter, customDate, onFilterChange }: Date
   ];
 
   return (
-    <View className="border-b border-surface-4">
-      <View className="flex-row items-center px-5 py-2.5 gap-2">
-        {/* Quick filter chips */}
+    <View style={{ borderBottomWidth: 0.5, borderBottomColor: 'rgba(229,229,234,0.8)' }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 10, gap: 8 }}>
         {chips.map((chip) => {
           const active = activeFilter === chip.filter;
           return (
             <TouchableOpacity
               key={chip.filter}
-              className={`px-3.5 py-1.5 rounded-full ${
-                active ? 'bg-brand-purple' : 'bg-surface-2'
-              }`}
+              style={{
+                paddingHorizontal: 18, paddingVertical: 10, borderRadius: 12, minHeight: 44,
+                justifyContent: 'center', alignItems: 'center',
+                backgroundColor: active ? '#7C3AED' : '#FFFFFF',
+                borderWidth: active ? 0 : 1,
+                borderColor: '#EDEDF0',
+                ...(active ? {
+                  shadowColor: '#7C3AED',
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.2,
+                  shadowRadius: 4,
+                  elevation: 2,
+                } : {}),
+              }}
               onPress={() => handleChipPress(chip.filter)}
               activeOpacity={0.7}
             >
-              <Text
-                className={`text-subhead font-medium ${
-                  active ? 'text-white' : 'text-ink-tertiary'
-                }`}
-              >
+              <Text style={{ fontSize: 14, fontWeight: active ? '600' : '500', color: active ? '#FFFFFF' : '#48484A' }}>
                 {chip.label}
               </Text>
             </TouchableOpacity>
           );
         })}
 
-        {/* Custom date chip (shown when a custom date is selected) */}
         {activeFilter === 'custom' && customDate && (
           <TouchableOpacity
-            className="flex-row items-center bg-brand-purple px-3 py-1.5 rounded-full"
+            style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10, backgroundColor: '#7C3AED' }}
             onPress={handleCalendarPress}
             activeOpacity={0.7}
           >
-            <Ionicons name="calendar" size={13} color="#fff" />
-            <Text className="text-subhead font-medium text-white ml-1.5">
-              {formatCustomDate(customDate)}
-            </Text>
+            <Ionicons name="calendar" size={12} color="#fff" />
+            <Text style={{ fontSize: 13.5, fontWeight: '600', color: '#FFFFFF', marginLeft: 5 }}>{formatCustomDate(customDate)}</Text>
             <TouchableOpacity
-              onPress={(e) => {
-                e.stopPropagation();
-                Haptics.selectionAsync();
-                onFilterChange('all');
-              }}
+              onPress={(e) => { e.stopPropagation(); Haptics.selectionAsync(); onFilterChange('all'); }}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              className="ml-1.5"
+              style={{ marginLeft: 6 }}
             >
-              <Ionicons name="close-circle" size={16} color="rgba(255,255,255,0.6)" />
+              <Ionicons name="close-circle" size={15} color="rgba(255,255,255,0.5)" />
             </TouchableOpacity>
           </TouchableOpacity>
         )}
 
-        {/* Spacer */}
-        <View className="flex-1" />
+        <View style={{ flex: 1 }} />
 
-        {/* Calendar button */}
         {activeFilter !== 'custom' && (
           <TouchableOpacity
-            className="w-9 h-9 bg-surface-2 rounded-full items-center justify-center"
+            style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E5EA', alignItems: 'center', justifyContent: 'center' }}
             onPress={handleCalendarPress}
             activeOpacity={0.7}
           >
-            <Ionicons name="calendar-outline" size={18} color="#71717A" />
+            <Ionicons name="calendar-outline" size={18} color="#636366" />
           </TouchableOpacity>
         )}
       </View>
 
-      {/* ── Date Picker Modal ── */}
+      {/* iOS Date Picker */}
       {showPicker && Platform.OS === 'ios' && (
         <Modal visible transparent animationType="fade">
-          <Pressable className="flex-1 bg-black/50 justify-end" onPress={() => setShowPicker(false)}>
-            <Pressable className="bg-surface-1 rounded-t-2xl border-t border-surface-4" onPress={(e) => e.stopPropagation()}>
-              {/* Header */}
-              <View className="flex-row items-center justify-between px-5 pt-4 pb-2">
-                <TouchableOpacity onPress={() => setShowPicker(false)}>
-                  <Text className="text-headline text-ink-tertiary">Cancel</Text>
-                </TouchableOpacity>
-                <Text className="text-headline font-semibold text-ink-primary">Pick a Date</Text>
-                <TouchableOpacity onPress={handleDateConfirm}>
-                  <Text className="text-headline font-semibold text-brand-purple">Done</Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Calendar */}
-              <DateTimePicker
-                value={tempDate}
-                mode="date"
-                display="inline"
-                onChange={(_, date) => {
-                  if (date) setTempDate(date);
-                }}
-                textColor="#fff"
-                themeVariant="dark"
-                style={{ height: 340 }}
-              />
-
-              {/* Bottom safe area padding */}
-              <View className="h-8" />
+          <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'flex-end' }} onPress={() => setShowPicker(false)}>
+            <Pressable
+              style={{ backgroundColor: '#FFFFFF', borderTopLeftRadius: 20, borderTopRightRadius: 20 }}
+              onPress={(e) => e.stopPropagation()}
+            >
+              <SafeAreaView edges={['bottom']}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 }}>
+                  <TouchableOpacity onPress={() => setShowPicker(false)}>
+                    <Text style={{ fontSize: 16, color: '#8E8E93' }}>Cancel</Text>
+                  </TouchableOpacity>
+                  <Text style={{ fontSize: 16, fontWeight: '600', color: '#1C1C1E' }}>Pick a Date</Text>
+                  <TouchableOpacity onPress={handleDateConfirm}>
+                    <Text style={{ fontSize: 16, fontWeight: '600', color: '#7C3AED' }}>Done</Text>
+                  </TouchableOpacity>
+                </View>
+                <DateTimePicker
+                  value={tempDate}
+                  mode="date"
+                  display="inline"
+                  onChange={(_, date) => { if (date) setTempDate(date); }}
+                  themeVariant="light"
+                  accentColor="#7C3AED"
+                  style={{ height: 340 }}
+                />
+              </SafeAreaView>
             </Pressable>
           </Pressable>
         </Modal>
       )}
 
-      {/* Android — inline picker (no modal needed, auto-dismisses) */}
       {showPicker && Platform.OS === 'android' && (
         <DateTimePicker
           value={tempDate}
@@ -193,19 +159,11 @@ export function DateFilterBar({ activeFilter, customDate, onFilterChange }: Date
           onChange={(event, date) => {
             setShowPicker(false);
             if (event.type === 'set' && date) {
-              setTempDate(date);
-              // Auto-confirm on Android
-              const today = new Date();
-              today.setHours(0, 0, 0, 0);
-              const tomorrow = new Date(today);
-              tomorrow.setDate(tomorrow.getDate() + 1);
-              if (isSameDay(date, today)) {
-                onFilterChange('today');
-              } else if (isSameDay(date, tomorrow)) {
-                onFilterChange('tomorrow');
-              } else {
-                onFilterChange('custom', date);
-              }
+              const today = new Date(); today.setHours(0, 0, 0, 0);
+              const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+              if (isSameDay(date, today)) onFilterChange('today');
+              else if (isSameDay(date, tomorrow)) onFilterChange('tomorrow');
+              else onFilterChange('custom', date);
             }
           }}
         />

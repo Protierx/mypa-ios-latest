@@ -1,8 +1,8 @@
 /**
- * Challenge Detail Modal
- * 
+ * Challenge Detail Modal — Premium Light Theme
+ *
  * Full challenge view with progress, leaderboard, and proof submission.
- * Opens when tapping a challenge from Social View or Circle Home.
+ * Opens when tapping a challenge from Circles Home or Circle Detail.
  */
 
 import React, { useState, useCallback, useEffect } from 'react';
@@ -12,7 +12,6 @@ import {
   TouchableOpacity,
   ScrollView,
   Modal,
-  FlatList,
   ActivityIndicator,
   Image,
   Alert,
@@ -22,8 +21,31 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
 import { useChallenges } from '../../hooks/supabase/useChallenges';
-import { Challenge, Profile } from '../../lib/supabase';
+import { Challenge } from '../../lib/supabase';
 import { useSupabaseAuth } from '../../contexts/SupabaseAuthContext';
+
+/* ────────────── Light Palette ────────────── */
+
+const L = {
+  bg:             '#F5F5F7',
+  card:           '#FFFFFF',
+  cardBorder:     '#EDEDF0',
+  textPrimary:    '#1C1C1E',
+  textSecondary:  '#48484A',
+  textTertiary:   '#8E8E93',
+  textQuaternary: '#C7C7CC',
+  divider:        '#EDEDF0',
+  purple:         '#7C3AED',
+  purpleLight:    '#F5F0FF',
+  purpleMid:      '#EDE5FF',
+  green:          '#34C759',
+  greenLight:     '#ECFDF5',
+  amber:          '#F59E0B',
+  amberLight:     '#FFFBEB',
+  danger:         '#DC2626',
+};
+
+/* ────────────── Types ────────────── */
 
 interface ChallengeDetailModalProps {
   visible: boolean;
@@ -39,55 +61,46 @@ interface LeaderboardEntry {
   rank: number;
 }
 
+/* ────────────── Component ────────────── */
+
 export function ChallengeDetailModal({ visible, challengeId, onClose }: ChallengeDetailModalProps) {
   const { user } = useSupabaseAuth();
   const { getChallenge, getChallengeLeaderboard, leaveChallenge, submitProof } = useChallenges();
-  
+
   const [challenge, setChallenge] = useState<Challenge | null>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [myProgress, setMyProgress] = useState(0);
   const [myRank, setMyRank] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [showRules, setShowRules] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const loadChallengeData = useCallback(async () => {
     if (!challengeId) return;
-    
     try {
       const [challengeData, leaderboardData] = await Promise.all([
         getChallenge(challengeId),
         getChallengeLeaderboard(challengeId),
       ]);
-      
       setChallenge(challengeData);
       setLeaderboard(leaderboardData || []);
-      
-      // Find my progress
       const myEntry = leaderboardData?.find((e: LeaderboardEntry) => e.user_id === user?.id);
-      if (myEntry) {
-        setMyProgress(myEntry.progress);
-        setMyRank(myEntry.rank);
-      }
+      if (myEntry) { setMyProgress(myEntry.progress); setMyRank(myEntry.rank); }
     } catch (error) {
       console.error('Error loading challenge data:', error);
     } finally {
       setIsLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [challengeId, user?.id]);
 
   useEffect(() => {
-    if (visible && challengeId) {
-      setIsLoading(true);
-      loadChallengeData();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (visible && challengeId) { setIsLoading(true); loadChallengeData(); }
   }, [visible, challengeId]);
 
   const handleLeaveChallenge = useCallback(() => {
     Alert.alert(
       'Leave Challenge',
-      'Are you sure you want to leave this challenge? Your progress will be lost.',
+      'Are you sure? Your progress will be lost.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -95,7 +108,7 @@ export function ChallengeDetailModal({ visible, challengeId, onClose }: Challeng
           style: 'destructive',
           onPress: async () => {
             if (!challengeId) return;
-            await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
             await leaveChallenge(challengeId);
             onClose();
           },
@@ -105,24 +118,35 @@ export function ChallengeDetailModal({ visible, challengeId, onClose }: Challeng
   }, [challengeId, leaveChallenge, onClose]);
 
   const handleSubmitProof = useCallback(async () => {
-    if (!challengeId) return;
-    
-    // TODO: Open camera/gallery picker
-    Alert.alert('Coming Soon', 'Proof submission will be available soon.');
-  }, [challengeId]);
+    if (!challengeId || isSubmitting) return;
+    setIsSubmitting(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      const ok = await submitProof(challengeId, 'checkin');
+      if (ok) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setMyProgress(prev => prev + 1);
+        // Reload leaderboard
+        const lb = await getChallengeLeaderboard(challengeId);
+        setLeaderboard(lb || []);
+        const myEntry = lb?.find((e: LeaderboardEntry) => e.user_id === user?.id);
+        if (myEntry) setMyRank(myEntry.rank);
+      } else {
+        Alert.alert('Error', 'Could not submit. Try again.');
+      }
+    } catch {
+      Alert.alert('Error', 'Something went wrong.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [challengeId, isSubmitting, submitProof, getChallengeLeaderboard, user?.id]);
 
   const getTimeRemaining = (): string => {
     if (!challenge?.ends_at) return '';
-    
-    const now = new Date();
-    const end = new Date(challenge.ends_at);
-    const diff = end.getTime() - now.getTime();
-    
+    const diff = new Date(challenge.ends_at).getTime() - Date.now();
     if (diff <= 0) return 'Ended';
-    
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    
+    const days = Math.floor(diff / 86400000);
+    const hours = Math.floor((diff % 86400000) / 3600000);
     if (days > 0) return `${days}d ${hours}h remaining`;
     return `${hours}h remaining`;
   };
@@ -132,193 +156,204 @@ export function ChallengeDetailModal({ visible, challengeId, onClose }: Challeng
     return Math.min((myProgress / challenge.goal_value) * 100, 100);
   };
 
-  const renderLeaderboardItem = ({ item, index }: { item: LeaderboardEntry; index: number }) => {
-    const isCurrentUser = item.user_id === user?.id;
-    const progressPercent = challenge?.goal_value 
-      ? Math.min((item.progress / challenge.goal_value) * 100, 100) 
-      : 0;
-    
-    return (
-      <View className={`flex-row items-center py-3 px-4 ${isCurrentUser ? 'bg-purple-900/30 rounded-lg' : ''}`}>
-        {/* Rank */}
-        <View className="w-8 items-center">
-          {index < 3 ? (
-            <Text className={`text-lg ${
-              index === 0 ? 'text-yellow-500' : index === 1 ? 'text-zinc-300' : 'text-orange-400'
-            }`}>
-              {index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉'}
-            </Text>
-          ) : (
-            <Text className="text-zinc-500">{item.rank}</Text>
-          )}
-        </View>
-        
-        {/* Avatar */}
-        {item.user_avatar ? (
-          <Image source={{ uri: item.user_avatar }} className="w-10 h-10 rounded-full ml-2" />
-        ) : (
-          <View className="w-10 h-10 rounded-full bg-zinc-800 items-center justify-center ml-2">
-            <Text className="text-white font-semibold">
-              {item.user_name[0]?.toUpperCase()}
-            </Text>
-          </View>
-        )}
-        
-        {/* Name & Progress */}
-        <View className="flex-1 ml-3">
-          <Text className={`font-medium ${isCurrentUser ? 'text-purple-400' : 'text-white'}`}>
-            {item.user_name}
-            {isCurrentUser && ' (You)'}
-          </Text>
-          <View className="flex-row items-center mt-1">
-            <View className="flex-1 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-              <View 
-                className="h-full bg-purple-500 rounded-full"
-                style={{ width: `${progressPercent}%` }}
-              />
-            </View>
-            <Text className="text-zinc-500 text-xs ml-2">
-              {item.progress}/{challenge?.goal_value}
-            </Text>
-          </View>
-        </View>
-      </View>
-    );
+  const getTypeLabel = (): string => {
+    if (!challenge) return 'progress';
+    switch (challenge.type) {
+      case 'focus_time': return 'minutes focused';
+      case 'tasks_completed': return 'tasks completed';
+      case 'daily_checkin': return 'days checked in';
+      default: return 'progress';
+    }
   };
 
   if (!visible) return null;
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      presentationStyle="pageSheet"
-      onRequestClose={onClose}
-    >
-      <SafeAreaView className="flex-1 bg-black" edges={['top', 'bottom']}>
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: L.bg }} edges={['top', 'bottom']}>
         {/* Header */}
-        <View className="flex-row items-center justify-between px-5 py-4 border-b border-zinc-800">
-          <TouchableOpacity onPress={onClose} className="p-2 -ml-2">
-            <Ionicons name="close" size={24} color="#fff" />
+        <View style={{
+          flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+          paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 0.5, borderBottomColor: L.divider,
+          backgroundColor: L.card,
+        }}>
+          <TouchableOpacity onPress={onClose} style={{ padding: 4 }}>
+            <Ionicons name="close" size={24} color={L.textSecondary} />
           </TouchableOpacity>
-          
-          <Text className="text-white text-lg font-semibold">Challenge</Text>
-          
-          <View className="w-10" />
+          <Text style={{ fontSize: 17, fontWeight: '700', color: L.textPrimary }}>Challenge</Text>
+          <View style={{ width: 32 }} />
         </View>
 
         {isLoading ? (
-          <View className="flex-1 items-center justify-center">
-            <ActivityIndicator size="large" color="#a855f7" />
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+            <ActivityIndicator size="large" color={L.purple} />
           </View>
         ) : challenge ? (
-          <ScrollView className="flex-1">
-            {/* Challenge Info */}
-            <View className="px-5 py-6 items-center border-b border-zinc-800">
-              <Text className="text-5xl mb-3">{challenge.emoji || '🏆'}</Text>
-              <Text className="text-white text-xl font-bold text-center">{challenge.title}</Text>
-              
-              {/* Timer */}
-              <View className="flex-row items-center mt-3 bg-zinc-900 px-4 py-2 rounded-full">
-                <Ionicons name="time-outline" size={16} color="#f97316" />
-                <Text className="text-orange-400 ml-2 font-medium">{getTimeRemaining()}</Text>
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 40 }}>
+            {/* Challenge Hero */}
+            <View style={{
+              alignItems: 'center', paddingVertical: 24, paddingHorizontal: 20,
+              backgroundColor: L.card, borderBottomWidth: 0.5, borderBottomColor: L.divider,
+            }}>
+              <Text style={{ fontSize: 56 }}>{challenge.emoji || '🏆'}</Text>
+              <Text style={{ fontSize: 22, fontWeight: '800', color: L.textPrimary, textAlign: 'center', marginTop: 8, letterSpacing: -0.3 }}>
+                {challenge.title}
+              </Text>
+              <View style={{
+                flexDirection: 'row', alignItems: 'center', marginTop: 10,
+                backgroundColor: L.amberLight, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 10,
+              }}>
+                <Ionicons name="time-outline" size={14} color={L.amber} />
+                <Text style={{ fontSize: 13, fontWeight: '600', color: L.amber, marginLeft: 5 }}>{getTimeRemaining()}</Text>
               </View>
             </View>
 
             {/* Your Progress */}
-            <View className="px-5 py-4 border-b border-zinc-800">
-              <Text className="text-zinc-500 text-sm mb-3">Your Progress</Text>
-              <View className="flex-row items-end justify-between mb-2">
-                <Text className="text-white text-3xl font-bold">
+            <View style={{ margin: 16, backgroundColor: L.card, borderRadius: 16, padding: 20, borderWidth: 0.5, borderColor: L.cardBorder, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8 }}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: L.textTertiary, letterSpacing: 0.5, marginBottom: 10 }}>YOUR PROGRESS</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 10 }}>
+                <Text style={{ fontSize: 36, fontWeight: '800', color: L.textPrimary }}>
                   {myProgress}
-                  <Text className="text-zinc-500 text-lg font-normal">/{challenge.goal_value}</Text>
+                  <Text style={{ fontSize: 18, fontWeight: '500', color: L.textTertiary }}>/{challenge.goal_value}</Text>
                 </Text>
                 {myRank > 0 && (
-                  <Text className="text-purple-400">Rank #{myRank}</Text>
+                  <View style={{ backgroundColor: L.purpleLight, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: L.purple }}>#{myRank}</Text>
+                  </View>
                 )}
               </View>
-              <View className="h-3 bg-zinc-800 rounded-full overflow-hidden">
-                <View 
-                  className="h-full bg-gradient-to-r from-purple-600 to-purple-400 rounded-full"
-                  style={{ width: `${getProgressPercentage()}%` }}
-                />
+              <View style={{ height: 10, backgroundColor: L.divider, borderRadius: 5, overflow: 'hidden' }}>
+                <View style={{ height: '100%', width: `${getProgressPercentage()}%`, backgroundColor: getProgressPercentage() >= 100 ? L.green : L.purple, borderRadius: 5 }} />
               </View>
-              <Text className="text-zinc-500 text-sm mt-2">
-                {challenge.type === 'focus_time' ? 'minutes focused' : 
-                 challenge.type === 'tasks_completed' ? 'tasks completed' :
-                 challenge.type === 'daily_checkin' ? 'days checked in' : 'progress'}
-              </Text>
+              <Text style={{ fontSize: 12, color: L.textTertiary, marginTop: 6, fontWeight: '500' }}>{getTypeLabel()}</Text>
             </View>
 
-            {/* Daily Check-in (if applicable) */}
-            {challenge.type === 'daily_checkin' && (
-              <View className="px-5 py-4 border-b border-zinc-800">
+            {/* Check-in / Submit Button */}
+            {challenge.type === 'daily_checkin' && challenge.status === 'active' && (
+              <View style={{ paddingHorizontal: 16, marginBottom: 16 }}>
                 <TouchableOpacity
-                  className="bg-purple-600 py-4 rounded-xl items-center"
+                  style={{
+                    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+                    backgroundColor: L.purple, paddingVertical: 16, borderRadius: 14, gap: 8,
+                    shadowColor: L.purple, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.3, shadowRadius: 8,
+                    opacity: isSubmitting ? 0.7 : 1,
+                  }}
                   onPress={handleSubmitProof}
+                  disabled={isSubmitting}
+                  activeOpacity={0.8}
                 >
-                  <View className="flex-row items-center">
-                    <Ionicons name="camera-outline" size={20} color="#fff" />
-                    <Text className="text-white font-semibold ml-2">Submit Today's Proof</Text>
-                  </View>
+                  {isSubmitting ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                      <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>Check In Today</Text>
+                    </>
+                  )}
                 </TouchableOpacity>
               </View>
             )}
 
             {/* Leaderboard */}
-            <View className="px-5 py-4">
-              <Text className="text-white text-lg font-semibold mb-3">Leaderboard</Text>
+            <View style={{ paddingHorizontal: 16, marginBottom: 16 }}>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: L.textTertiary, letterSpacing: 0.5, marginBottom: 10 }}>LEADERBOARD</Text>
               {leaderboard.length > 0 ? (
-                <View className="bg-zinc-900/50 rounded-xl overflow-hidden">
-                  {leaderboard.map((item, index) => (
-                    <View key={item.user_id}>
-                      {renderLeaderboardItem({ item, index })}
-                      {index < leaderboard.length - 1 && (
-                        <View className="h-px bg-zinc-800 mx-4" />
-                      )}
-                    </View>
-                  ))}
+                <View style={{ backgroundColor: L.card, borderRadius: 14, overflow: 'hidden', borderWidth: 0.5, borderColor: L.cardBorder }}>
+                  {leaderboard.map((item, index) => {
+                    const isCurrentUser = item.user_id === user?.id;
+                    const progressPercent = challenge.goal_value
+                      ? Math.min((item.progress / challenge.goal_value) * 100, 100)
+                      : 0;
+                    return (
+                      <View key={item.user_id}>
+                        <View style={{
+                          flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 14,
+                          backgroundColor: isCurrentUser ? L.purpleLight : 'transparent',
+                        }}>
+                          {/* Rank */}
+                          <View style={{ width: 28, alignItems: 'center' }}>
+                            {index < 3 ? (
+                              <Text style={{ fontSize: 16 }}>{index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉'}</Text>
+                            ) : (
+                              <Text style={{ fontSize: 13, fontWeight: '600', color: L.textTertiary }}>{item.rank}</Text>
+                            )}
+                          </View>
+                          {/* Avatar */}
+                          {item.user_avatar ? (
+                            <Image source={{ uri: item.user_avatar }} style={{ width: 36, height: 36, borderRadius: 18, marginLeft: 8 }} />
+                          ) : (
+                            <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: isCurrentUser ? L.purpleMid : L.divider, alignItems: 'center', justifyContent: 'center', marginLeft: 8 }}>
+                              <Text style={{ fontSize: 14, fontWeight: '600', color: isCurrentUser ? L.purple : L.textSecondary }}>{item.user_name[0]?.toUpperCase()}</Text>
+                            </View>
+                          )}
+                          {/* Name & Progress Bar */}
+                          <View style={{ flex: 1, marginLeft: 10 }}>
+                            <Text style={{ fontSize: 14, fontWeight: '600', color: isCurrentUser ? L.purple : L.textPrimary }}>
+                              {item.user_name}{isCurrentUser ? ' (You)' : ''}
+                            </Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                              <View style={{ flex: 1, height: 4, backgroundColor: L.divider, borderRadius: 2, overflow: 'hidden' }}>
+                                <View style={{ height: '100%', width: `${progressPercent}%`, backgroundColor: L.purple, borderRadius: 2 }} />
+                              </View>
+                              <Text style={{ fontSize: 11, color: L.textTertiary, marginLeft: 8, fontWeight: '500' }}>
+                                {item.progress}/{challenge.goal_value}
+                              </Text>
+                            </View>
+                          </View>
+                        </View>
+                        {index < leaderboard.length - 1 && (
+                          <View style={{ height: 0.5, backgroundColor: L.divider, marginHorizontal: 14 }} />
+                        )}
+                      </View>
+                    );
+                  })}
                 </View>
               ) : (
-                <View className="py-8 items-center">
-                  <Text className="text-zinc-500">No participants yet</Text>
+                <View style={{ alignItems: 'center', paddingVertical: 24, backgroundColor: L.card, borderRadius: 14, borderWidth: 0.5, borderColor: L.cardBorder }}>
+                  <Ionicons name="podium-outline" size={28} color={L.textQuaternary} />
+                  <Text style={{ fontSize: 13, color: L.textTertiary, marginTop: 6 }}>No participants yet</Text>
                 </View>
               )}
             </View>
 
-            {/* Rules */}
-            <TouchableOpacity
-              className="mx-5 mb-4"
-              onPress={() => setShowRules(!showRules)}
-            >
-              <View className="flex-row items-center justify-between py-3">
-                <Text className="text-zinc-400">Challenge Rules</Text>
-                <Ionicons 
-                  name={showRules ? 'chevron-up' : 'chevron-down'} 
-                  size={20} 
-                  color="#71717a" 
-                />
-              </View>
+            {/* Rules (Collapsible) */}
+            <View style={{ paddingHorizontal: 16, marginBottom: 16 }}>
+              <TouchableOpacity
+                style={{
+                  flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+                  backgroundColor: L.card, borderRadius: 12, padding: 14,
+                  borderWidth: 0.5, borderColor: L.cardBorder,
+                }}
+                onPress={() => setShowRules(!showRules)}
+                activeOpacity={0.7}
+              >
+                <Text style={{ fontSize: 14, fontWeight: '600', color: L.textSecondary }}>Challenge Rules</Text>
+                <Ionicons name={showRules ? 'chevron-up' : 'chevron-down'} size={18} color={L.textTertiary} />
+              </TouchableOpacity>
               {showRules && (
-                <Text className="text-zinc-500 text-sm pb-3">
-                  {challenge.description || 'Complete the goal before the challenge ends to win!'}
-                </Text>
+                <View style={{ backgroundColor: L.card, borderRadius: 12, padding: 14, marginTop: 4, borderWidth: 0.5, borderColor: L.cardBorder }}>
+                  <Text style={{ fontSize: 13, color: L.textSecondary, lineHeight: 19 }}>
+                    {challenge.description || 'Complete the goal before the challenge ends to win!'}
+                  </Text>
+                </View>
               )}
-            </TouchableOpacity>
+            </View>
 
             {/* Leave Challenge */}
-            <View className="px-5 pb-8">
+            <View style={{ paddingHorizontal: 16, paddingBottom: 20 }}>
               <TouchableOpacity
-                className="py-3 items-center"
+                style={{ alignItems: 'center', paddingVertical: 12 }}
                 onPress={handleLeaveChallenge}
+                activeOpacity={0.7}
               >
-                <Text className="text-red-500">Leave Challenge</Text>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: L.danger }}>Leave Challenge</Text>
               </TouchableOpacity>
             </View>
           </ScrollView>
         ) : (
-          <View className="flex-1 items-center justify-center">
-            <Text className="text-zinc-500">Challenge not found</Text>
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name="trophy-outline" size={40} color={L.textQuaternary} />
+            <Text style={{ fontSize: 14, color: L.textTertiary, marginTop: 8 }}>Challenge not found</Text>
           </View>
         )}
       </SafeAreaView>

@@ -7,6 +7,7 @@
 // Task Modals
 export { TaskDetailModal } from './TaskDetailModal';
 export { QuickAddTaskOverlay } from './QuickAddTaskOverlay';
+export { BrainDumpModal } from './BrainDumpModal';
 
 // Social Modals
 export { CircleHomeModal } from './CircleHomeModal';

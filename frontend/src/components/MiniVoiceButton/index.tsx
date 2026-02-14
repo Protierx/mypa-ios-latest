@@ -1,12 +1,13 @@
 /**
- * Mini Voice Button Component
- * 
+ * Mini Voice Button Component — Light Theme Compatible
+ *
  * Floating voice button for screens other than AI Hub.
  * Per Architecture Plan: "Mini orb in corner (tap to talk)"
+ * Works on both light and dark backgrounds.
  */
 
 import React, { useCallback } from 'react';
-import { TouchableOpacity, StyleSheet, ViewStyle } from 'react-native';
+import { TouchableOpacity, StyleSheet, ViewStyle, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, {
   useSharedValue,
@@ -16,27 +17,32 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { BlurView } from 'expo-blur';
 
 import { useVoice } from '../../contexts/VoiceContext';
+
+const PURPLE = '#7C3AED';
+const PURPLE_LIGHT = '#F5F0FF';
 
 interface MiniVoiceButtonProps {
   /** Position on screen */
   position?: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left' | 'bottom-center';
   /** Screen context for voice commands */
   screenContext?: string;
+  /** Button size in px (default 48) */
+  size?: number;
   /** Custom style overrides */
   style?: ViewStyle;
 }
 
-export function MiniVoiceButton({ 
+export function MiniVoiceButton({
   position = 'top-right',
   screenContext,
+  size = 48,
   style,
 }: MiniVoiceButtonProps) {
   const voice = useVoice();
   const isActive = voice.voiceState !== 'idle';
-  
+
   // Animation values
   const scale = useSharedValue(1);
   const pulseOpacity = useSharedValue(0);
@@ -64,7 +70,7 @@ export function MiniVoiceButton({
 
   const handlePress = useCallback(async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    
+
     // Animate button press
     scale.value = withSpring(0.9, {}, () => {
       scale.value = withSpring(1);
@@ -130,10 +136,10 @@ export function MiniVoiceButton({
           style={[
             {
               position: 'absolute',
-              width: 56,
-              height: 56,
-              borderRadius: 28,
-              backgroundColor: '#7C3AED',
+              width: size + 8,
+              height: size + 8,
+              borderRadius: (size + 8) / 2,
+              backgroundColor: PURPLE,
               top: -4,
               left: -4,
             },
@@ -141,24 +147,20 @@ export function MiniVoiceButton({
           ]}
         />
       )}
-      
-      {/* Button */}
+
+      {/* Button — solid white card with purple accent */}
       <TouchableOpacity
         onPress={handlePress}
         activeOpacity={0.8}
-        style={styles.button}
+        style={[styles.button, { width: size, height: size, borderRadius: size / 2 }]}
       >
-        <BlurView
-          intensity={40}
-          tint="dark"
-          style={styles.blurContainer}
-        >
+        <View style={[styles.solidContainer, { borderRadius: size / 2 }, isActive && styles.activeContainer]}>
           <Ionicons
             name={getIcon()}
-            size={22}
-            color={isActive ? '#A855F7' : 'rgba(255, 255, 255, 0.9)'}
+            size={Math.round(size * 0.46)}
+            color={isActive ? '#FFFFFF' : PURPLE}
           />
-        </BlurView>
+        </View>
       </TouchableOpacity>
     </Animated.View>
   );
@@ -170,14 +172,24 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 24,
     overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  blurContainer: {
+  solidContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: 'rgba(124, 58, 237, 0.15)',
+  },
+  activeContainer: {
+    backgroundColor: PURPLE,
+    borderColor: PURPLE,
   },
 });
 

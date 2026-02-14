@@ -8,3 +8,4 @@ export { useChallenges, default as useChallengesDefault } from './useChallenges'
 export { useFocusSessions, default as useFocusSessionsDefault } from './useFocusSessions';
 export { useUnlocks, default as useUnlocksDefault } from './useUnlocks';
 export { useNotifications, default as useNotificationsDefault } from './useNotifications';
+export { useBrainDump, default as useBrainDumpDefault } from './useBrainDump';

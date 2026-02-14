@@ -37,6 +37,7 @@ export type EventType =
   // Task events (key for AI learning)
   | 'task_created'
   | 'task_completed'
+  | 'task_uncompleted'
   | 'task_deferred'
   | 'task_deleted'
   | 'task_edited'
@@ -393,6 +394,18 @@ class EventLoggerService {
       taskId,
       taskTitle: title,
       completionTimeMinutes,
+    });
+  }
+
+  /**
+   * Log task uncompleted (re-opened)
+   */
+  logTaskUncompleted(taskId: string, title?: string): void {
+    this.log('task_uncompleted', {
+      action: 'uncomplete_task',
+      success: true,
+      taskId,
+      taskTitle: title,
     });
   }
 

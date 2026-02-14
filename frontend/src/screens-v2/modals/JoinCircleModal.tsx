@@ -1,8 +1,8 @@
 /**
- * Join Circle Modal
- * 
- * Handle circle invitation acceptance via deep links.
- * Shows circle preview and join/decline options.
+ * Join Circle Modal — Light Theme v2
+ *
+ * Handles circle invitation acceptance via deep links.
+ * Uses joinCircleByCode from useCircles hook.
  */
 
 import React, { useState, useCallback, useEffect } from 'react';
@@ -11,7 +11,6 @@ import {
   Text,
   TouchableOpacity,
   Modal,
-  Image,
   ActivityIndicator,
   Alert,
 } from 'react-native';
@@ -25,33 +24,39 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { useCircles } from '../../hooks/supabase/useCircles';
-import { Circle, Profile } from '../../lib/supabase';
+
+/* ── Light Palette ── */
+const L = {
+  bg:             '#F5F5F7',
+  card:           '#FFFFFF',
+  cardBorder:     '#EDEDF0',
+  textPrimary:    '#1C1C1E',
+  textSecondary:  '#48484A',
+  textTertiary:   '#8E8E93',
+  textQuaternary: '#C7C7CC',
+  divider:        '#EDEDF0',
+  purple:         '#7C3AED',
+  purpleLight:    '#F5F0FF',
+  green:          '#34C759',
+  greenLight:     '#ECFDF5',
+  danger:         '#DC2626',
+  dangerLight:    '#FEF2F2',
+};
 
 interface JoinCircleModalProps {
   visible: boolean;
   inviteCode: string | null;
   onClose: () => void;
-  onJoined?: (circle: Circle) => void;
-}
-
-interface CirclePreview {
-  circle: Circle;
-  members: Profile[];
-  inviter?: Profile;
-  memberCount: number;
+  onJoined?: () => void;
 }
 
 export function JoinCircleModal({ visible, inviteCode, onClose, onJoined }: JoinCircleModalProps) {
-  const { getInvitePreview, acceptInvite, declineInvite, checkMembership } = useCircles();
-  
-  const [preview, setPreview] = useState<CirclePreview | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isJoining, setIsJoining] = useState(false);
-  const [isDeclining, setIsDeclining] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [alreadyMember, setAlreadyMember] = useState(false);
+  const { joinCircleByCode } = useCircles();
 
-  // Animation
+  const [isJoining, setIsJoining] = useState(false);
+  const [result, setResult] = useState<'idle' | 'success' | 'error' | 'already_member'>('idle');
+  const [errorMessage, setErrorMessage] = useState('');
+
   const scale = useSharedValue(0.9);
   const opacity = useSharedValue(0);
 
@@ -59,6 +64,8 @@ export function JoinCircleModal({ visible, inviteCode, onClose, onJoined }: Join
     if (visible) {
       scale.value = withSpring(1, { damping: 20, stiffness: 200 });
       opacity.value = withSpring(1);
+      setResult('idle');
+      setErrorMessage('');
     } else {
       scale.value = withSpring(0.9);
       opacity.value = withSpring(0);
@@ -70,211 +77,114 @@ export function JoinCircleModal({ visible, inviteCode, onClose, onJoined }: Join
     opacity: opacity.value,
   }));
 
-  const loadPreview = useCallback(async () => {
-    if (!inviteCode) return;
-    
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      const data = await getInvitePreview(inviteCode);
-      
-      if (!data) {
-        setError('This invitation link is invalid or has expired.');
-        return;
-      }
-      
-      // Check if already a member
-      const isMember = await checkMembership(data.circle.id);
-      if (isMember) {
-        setAlreadyMember(true);
-        setPreview(data);
-        return;
-      }
-      
-      setPreview(data);
-    } catch (err) {
-      setError('Unable to load invitation. Please try again.');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [inviteCode, getInvitePreview, checkMembership]);
-
-  useEffect(() => {
-    if (visible && inviteCode) {
-      loadPreview();
-    }
-  }, [visible, inviteCode, loadPreview]);
-
   const handleJoin = useCallback(async () => {
-    if (!inviteCode) return;
-    
+    if (!inviteCode || isJoining) return;
+
     setIsJoining(true);
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
     try {
-      const circle = await acceptInvite(inviteCode);
-      
-      if (circle) {
-        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        onJoined?.(circle);
-        onClose();
+      const res = await joinCircleByCode(inviteCode);
+      if (res.success) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setResult('success');
+        onJoined?.();
       } else {
-        Alert.alert('Error', 'Unable to join circle. Please try again.');
+        const msg = res.error || 'Unable to join circle.';
+        if (msg.toLowerCase().includes('already')) {
+          setResult('already_member');
+        } else {
+          setResult('error');
+          setErrorMessage(msg);
+        }
       }
-    } catch (err) {
-      Alert.alert('Error', 'Something went wrong. Please try again.');
+    } catch {
+      setResult('error');
+      setErrorMessage('Something went wrong. Please try again.');
     } finally {
       setIsJoining(false);
     }
-  }, [inviteCode, acceptInvite, onJoined, onClose]);
+  }, [inviteCode, isJoining, joinCircleByCode, onJoined]);
 
-  const handleDecline = useCallback(async () => {
-    if (!inviteCode) return;
-    
-    setIsDeclining(true);
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    
-    try {
-      await declineInvite(inviteCode);
-    } finally {
-      setIsDeclining(false);
-      onClose();
+  // Auto-join on open
+  useEffect(() => {
+    if (visible && inviteCode && result === 'idle') {
+      handleJoin();
     }
-  }, [inviteCode, declineInvite, onClose]);
+  }, [visible, inviteCode]);
 
   if (!visible) return null;
 
   return (
-    <Modal
-      visible={visible}
-      animationType="fade"
-      transparent
-      onRequestClose={onClose}
-    >
-      <View className="flex-1 bg-black/80 items-center justify-center px-6">
-        <Animated.View 
-          className="bg-zinc-900 rounded-3xl w-full max-w-sm overflow-hidden"
-          style={containerStyle}
-        >
-          {isLoading ? (
-            <View className="py-16 items-center">
-              <ActivityIndicator size="large" color="#a855f7" />
-              <Text className="text-zinc-500 mt-4">Loading invitation...</Text>
-            </View>
-          ) : error ? (
-            <View className="p-6 items-center">
-              <View className="w-16 h-16 rounded-full bg-red-900/50 items-center justify-center mb-4">
-                <Ionicons name="close-circle-outline" size={40} color="#ef4444" />
+    <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 }}>
+        <Animated.View style={[{
+          backgroundColor: L.card, borderRadius: 24, width: '100%', maxWidth: 360,
+          padding: 28, alignItems: 'center',
+          shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.15, shadowRadius: 20,
+        }, containerStyle]}>
+          {isJoining ? (
+            <>
+              <ActivityIndicator size="large" color={L.purple} />
+              <Text style={{ fontSize: 15, color: L.textTertiary, marginTop: 16, fontWeight: '500' }}>Joining circle…</Text>
+            </>
+          ) : result === 'success' ? (
+            <>
+              <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: L.greenLight, alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+                <Ionicons name="checkmark-circle" size={36} color={L.green} />
               </View>
-              <Text className="text-white text-lg font-semibold mb-2">Invalid Invitation</Text>
-              <Text className="text-zinc-500 text-center">{error}</Text>
-              <TouchableOpacity
-                className="mt-6 py-3 px-6 bg-zinc-800 rounded-xl"
-                onPress={onClose}
-              >
-                <Text className="text-white font-medium">Close</Text>
-              </TouchableOpacity>
-            </View>
-          ) : alreadyMember ? (
-            <View className="p-6 items-center">
-              <View className="w-16 h-16 rounded-full bg-green-900/50 items-center justify-center mb-4">
-                <Ionicons name="checkmark-circle-outline" size={40} color="#22c55e" />
-              </View>
-              <Text className="text-white text-lg font-semibold mb-2">Already a Member</Text>
-              <Text className="text-zinc-500 text-center">
-                You're already part of {preview?.circle.name || 'this circle'}!
+              <Text style={{ fontSize: 20, fontWeight: '800', color: L.textPrimary, marginBottom: 6 }}>You're In!</Text>
+              <Text style={{ fontSize: 14, color: L.textTertiary, textAlign: 'center', marginBottom: 24 }}>
+                You've successfully joined the circle.
               </Text>
               <TouchableOpacity
-                className="mt-6 py-3 px-6 bg-purple-600 rounded-xl"
+                style={{ backgroundColor: L.purple, paddingHorizontal: 32, paddingVertical: 14, borderRadius: 14, width: '100%', alignItems: 'center' }}
                 onPress={onClose}
+                activeOpacity={0.8}
               >
-                <Text className="text-white font-semibold">Got it</Text>
+                <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>Done</Text>
               </TouchableOpacity>
-            </View>
-          ) : preview ? (
-            <>
-              {/* Circle Preview */}
-              <View className="p-6 items-center border-b border-zinc-800">
-                <View className="w-20 h-20 rounded-full bg-zinc-800 items-center justify-center mb-4">
-                  <Text className="text-4xl">{preview.circle.emoji || '👥'}</Text>
-                </View>
-                <Text className="text-white text-xl font-bold mb-1">{preview.circle.name}</Text>
-                <Text className="text-zinc-500">{preview.memberCount} member{preview.memberCount !== 1 ? 's' : ''}</Text>
-                
-                {preview.circle.description && (
-                  <Text className="text-zinc-400 text-center mt-3">{preview.circle.description}</Text>
-                )}
-              </View>
-
-              {/* Member Avatars */}
-              {preview.members.length > 0 && (
-                <View className="px-6 py-4 border-b border-zinc-800">
-                  <View className="flex-row justify-center">
-                    {preview.members.slice(0, 5).map((member, index) => (
-                      <View 
-                        key={member.id}
-                        className="w-10 h-10 rounded-full bg-zinc-700 items-center justify-center border-2 border-zinc-900"
-                        style={{ marginLeft: index > 0 ? -10 : 0 }}
-                      >
-                        {member.avatar_url ? (
-                          <Image source={{ uri: member.avatar_url }} className="w-full h-full rounded-full" />
-                        ) : (
-                          <Text className="text-white font-semibold">
-                            {member.display_name?.[0]?.toUpperCase() || '?'}
-                          </Text>
-                        )}
-                      </View>
-                    ))}
-                    {preview.memberCount > 5 && (
-                      <View 
-                        className="w-10 h-10 rounded-full bg-zinc-600 items-center justify-center border-2 border-zinc-900"
-                        style={{ marginLeft: -10 }}
-                      >
-                        <Text className="text-white text-xs font-medium">+{preview.memberCount - 5}</Text>
-                      </View>
-                    )}
-                  </View>
-                </View>
-              )}
-
-              {/* Inviter */}
-              {preview.inviter && (
-                <View className="px-6 py-3 border-b border-zinc-800">
-                  <Text className="text-zinc-500 text-sm text-center">
-                    Invited by <Text className="text-white">{preview.inviter.display_name}</Text>
-                  </Text>
-                </View>
-              )}
-
-              {/* Action Buttons */}
-              <View className="p-6">
-                <TouchableOpacity
-                  className="bg-purple-600 py-4 rounded-xl items-center mb-3"
-                  onPress={handleJoin}
-                  disabled={isJoining}
-                >
-                  {isJoining ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <Text className="text-white font-semibold text-base">Join Circle</Text>
-                  )}
-                </TouchableOpacity>
-                
-                <TouchableOpacity
-                  className="py-3 items-center"
-                  onPress={handleDecline}
-                  disabled={isDeclining}
-                >
-                  {isDeclining ? (
-                    <ActivityIndicator size="small" color="#71717a" />
-                  ) : (
-                    <Text className="text-zinc-500">Decline</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
             </>
-          ) : null}
+          ) : result === 'already_member' ? (
+            <>
+              <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: L.purpleLight, alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+                <Ionicons name="people" size={32} color={L.purple} />
+              </View>
+              <Text style={{ fontSize: 20, fontWeight: '800', color: L.textPrimary, marginBottom: 6 }}>Already a Member</Text>
+              <Text style={{ fontSize: 14, color: L.textTertiary, textAlign: 'center', marginBottom: 24 }}>
+                You're already part of this circle!
+              </Text>
+              <TouchableOpacity
+                style={{ backgroundColor: L.purple, paddingHorizontal: 32, paddingVertical: 14, borderRadius: 14, width: '100%', alignItems: 'center' }}
+                onPress={onClose}
+                activeOpacity={0.8}
+              >
+                <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>Got It</Text>
+              </TouchableOpacity>
+            </>
+          ) : result === 'error' ? (
+            <>
+              <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: L.dangerLight, alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+                <Ionicons name="close-circle" size={36} color={L.danger} />
+              </View>
+              <Text style={{ fontSize: 20, fontWeight: '800', color: L.textPrimary, marginBottom: 6 }}>Couldn't Join</Text>
+              <Text style={{ fontSize: 14, color: L.textTertiary, textAlign: 'center', marginBottom: 24 }}>
+                {errorMessage}
+              </Text>
+              <TouchableOpacity
+                style={{ backgroundColor: L.purple, paddingHorizontal: 32, paddingVertical: 14, borderRadius: 14, width: '100%', alignItems: 'center' }}
+                onPress={onClose}
+                activeOpacity={0.8}
+              >
+                <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>Close</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <ActivityIndicator size="large" color={L.purple} />
+              <Text style={{ fontSize: 15, color: L.textTertiary, marginTop: 16, fontWeight: '500' }}>Loading…</Text>
+            </>
+          )}
         </Animated.View>
       </View>
     </Modal>

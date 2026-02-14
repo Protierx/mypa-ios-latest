@@ -72,12 +72,12 @@ export function useChallenges(): UseChallengesReturn {
         return;
       }
 
-      // Get challenge details
+      // Get challenge details (all statuses, not just active)
       const { data: challengesData, error: challengesError } = await supabase
         .from('challenges')
         .select('*')
         .in('id', challengeIds)
-        .eq('status', 'active');
+        .order('created_at', { ascending: false });
 
       if (challengesError) throw challengesError;
 

@@ -50,6 +50,7 @@ interface UseTasksReturn {
   updateTask: (id: string, updates: Partial<Task>) => Promise<boolean>;
   deleteTask: (id: string) => Promise<boolean>;
   completeTask: (id: string) => Promise<boolean>;
+  uncompleteTask: (id: string) => Promise<boolean>;
   deferTask: (id: string, toDate?: Date) => Promise<boolean>;
   refresh: () => Promise<void>;
 }
@@ -118,7 +119,7 @@ export function useTasks(filter: TaskFilter = 'all'): UseTasksReturn {
           break;
         case 'all':
         default:
-          query = query.neq('status', 'completed');
+          // Fetch ALL tasks including completed — UI layer handles separation
           break;
       }
 
@@ -233,29 +234,44 @@ export function useTasks(filter: TaskFilter = 'all'): UseTasksReturn {
   };
 
   const updateTask = async (id: string, updates: Partial<Task>): Promise<boolean> => {
+    const now = new Date().toISOString();
+    const prev = tasks;
+
+    // Optimistic update — reflect changes immediately in UI
+    setTasks(prevTasks => prevTasks.map(t =>
+      t.id === id ? { ...t, ...updates, updated_at: now } : t
+    ));
+
     try {
       const { error } = await supabase
         .from('tasks')
         .update({
           ...updates,
-          updated_at: new Date().toISOString(),
+          updated_at: now,
         })
         .eq('id', id);
 
       if (error) throw error;
 
-      const task = tasks.find(t => t.id === id);
+      const task = prev.find(t => t.id === id);
       eventLogger.logTaskEdited(id, task?.title);
       return true;
     } catch (err: any) {
       console.error('[useTasks] Error updating task:', err?.message || err);
+      // Revert optimistic update on failure
+      setTasks(prev);
       return false;
     }
   };
 
   const deleteTask = async (id: string): Promise<boolean> => {
+    const prev = tasks;
+    const task = tasks.find(t => t.id === id);
+
+    // Optimistic update — remove from list immediately
+    setTasks(prevTasks => prevTasks.filter(t => t.id !== id));
+
     try {
-      const task = tasks.find(t => t.id === id);
       const { error } = await supabase
         .from('tasks')
         .delete()
@@ -263,10 +279,12 @@ export function useTasks(filter: TaskFilter = 'all'): UseTasksReturn {
 
       if (error) throw error;
 
-      eventLogger.logTaskDeleted(id, task?.title);
+      if (task) eventLogger.logTaskDeleted(id, task.title);
       return true;
     } catch (err) {
       console.error('Error deleting task:', err);
+      // Revert optimistic update on failure
+      setTasks(prev);
       return false;
     }
   };
@@ -274,13 +292,19 @@ export function useTasks(filter: TaskFilter = 'all'): UseTasksReturn {
   const completeTask = async (id: string): Promise<boolean> => {
     try {
       const task = tasks.find(t => t.id === id);
-      
+      const now = new Date().toISOString();
+
+      // Optimistic update — show completed immediately
+      setTasks(prev => prev.map(t =>
+        t.id === id ? { ...t, status: 'completed' as const, completed_at: now, updated_at: now } : t
+      ));
+
       const { error } = await supabase
         .from('tasks')
         .update({
           status: 'completed',
-          completed_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
+          completed_at: now,
+          updated_at: now,
         })
         .eq('id', id);
 
@@ -292,13 +316,47 @@ export function useTasks(filter: TaskFilter = 'all'): UseTasksReturn {
       return true;
     } catch (err: any) {
       console.error('[useTasks] Error completing task:', err?.message || err);
-      // Still refresh — server may have partially succeeded
+      // Revert optimistic update on failure
+      fetchTasks();
+      return false;
+    }
+  };
+
+  const uncompleteTask = async (id: string): Promise<boolean> => {
+    try {
+      const task = tasks.find(t => t.id === id);
+      const now = new Date().toISOString();
+
+      // Optimistic update — show uncompleted immediately
+      setTasks(prev => prev.map(t =>
+        t.id === id ? { ...t, status: 'pending' as const, completed_at: null, updated_at: now } : t
+      ));
+
+      const { error } = await supabase
+        .from('tasks')
+        .update({
+          status: 'pending',
+          completed_at: null,
+          updated_at: now,
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      if (task) {
+        eventLogger.logTaskUncompleted(id, task.title);
+      }
+      return true;
+    } catch (err: any) {
+      console.error('[useTasks] Error uncompleting task:', err?.message || err);
+      // Revert optimistic update on failure
       fetchTasks();
       return false;
     }
   };
 
   const deferTask = async (id: string, toDate?: Date): Promise<boolean> => {
+    const prev = tasks;
     try {
       const task = tasks.find(t => t.id === id);
       const deferTo = toDate || (() => {
@@ -308,12 +366,16 @@ export function useTasks(filter: TaskFilter = 'all'): UseTasksReturn {
         return tomorrow;
       })();
 
+      // Optimistic update — move task to new date immediately
+      const nowISO = new Date().toISOString();
+      setTasks(ts => ts.map(t => t.id === id ? { ...t, due_date: deferTo.toISOString(), status: 'pending' as const, updated_at: nowISO } : t));
+
       const { error } = await supabase
         .from('tasks')
         .update({
           due_date: deferTo.toISOString(),
           status: 'pending', // Reset from deferred back to pending
-          updated_at: new Date().toISOString(),
+          updated_at: nowISO,
         })
         .eq('id', id);
 
@@ -325,6 +387,7 @@ export function useTasks(filter: TaskFilter = 'all'): UseTasksReturn {
       return true;
     } catch (err) {
       console.error('Error deferring task:', err);
+      setTasks(prev); // Rollback on failure
       return false;
     }
   };
@@ -339,6 +402,7 @@ export function useTasks(filter: TaskFilter = 'all'): UseTasksReturn {
     updateTask,
     deleteTask,
     completeTask,
+    uncompleteTask,
     deferTask,
     refresh: fetchTasks,
   };
