@@ -17,10 +17,12 @@ import {
   StatusBar,
   TextInput,
   Alert,
+  ActionSheetIOS,
   Dimensions,
-  Image,
-  Keyboard,
   Platform,
+  Modal,
+  Pressable,
+  FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -57,7 +59,7 @@ const L = {
   danger:         '#DC2626',
 };
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const FREE_TIER_CIRCLE_LIMIT = 1;
 
 /* ────────────── Helpers ────────────── */
@@ -114,11 +116,10 @@ export function SocialViewScreen() {
   const [showCreateCircle, setShowCreateCircle] = useState(false);
   const [showCreateChallenge, setShowCreateChallenge] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
+  const [showActiveChallenges, setShowActiveChallenges] = useState(false);
 
-  // Join flow
-  const [joinCode, setJoinCode] = useState('');
-  const [isJoining, setIsJoining] = useState(false);
-  const joinInputRef = useRef<TextInput>(null);
+  // Search
+  const [searchQuery, setSearchQuery] = useState('');
 
   const isPremium = (user as any)?.isPremium ?? false;
   const isCircleLimitReached = !isPremium && circles.length >= FREE_TIER_CIRCLE_LIMIT;
@@ -142,6 +143,20 @@ export function SocialViewScreen() {
     return map;
   }, [activeChallenges]);
 
+  // Search-filtered circles
+  const filteredCircles = useMemo(() => {
+    if (!searchQuery.trim()) return circles;
+    const q = searchQuery.trim().toLowerCase();
+    return circles.filter((c: any) => (c.name || '').toLowerCase().includes(q));
+  }, [circles, searchQuery]);
+
+  // Map circle_id → circle name for Active Challenges modal
+  const circleNameMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    circles.forEach((c: any) => { map[c.id] = c.name || 'Unknown'; });
+    return map;
+  }, [circles]);
+
   /* ── Handlers ── */
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -159,27 +174,55 @@ export function SocialViewScreen() {
     }
   }, [isCircleLimitReached]);
 
-  const handleJoinCircle = useCallback(async () => {
-    const code = joinCode.trim();
-    if (!code) return;
-    setIsJoining(true);
-    Keyboard.dismiss();
+  /** + button — iOS ActionSheet with Create / Join options */
+  const handlePlusButton = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    try {
-      const result = await joinCircleByCode(code);
-      if (result.success) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        setJoinCode('');
-        refreshCircles();
-      } else {
-        Alert.alert("Couldn't Join", result.error || 'Invalid code or you\'re already a member.');
-      }
-    } catch {
-      Alert.alert("Couldn't Join", 'Something went wrong. Please try again.');
-    } finally {
-      setIsJoining(false);
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: ['Cancel', 'Create a Circle', 'Join with Code'],
+          cancelButtonIndex: 0,
+        },
+        (buttonIndex) => {
+          if (buttonIndex === 1) handleCreateCircle();
+          if (buttonIndex === 2) {
+            Alert.prompt(
+              'Join a Circle',
+              'Enter the invite code you received.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Join',
+                  onPress: async (code?: string) => {
+                    const trimmed = (code || '').trim();
+                    if (!trimmed) return;
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    try {
+                      const result = await joinCircleByCode(trimmed);
+                      if (result.success) {
+                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                        refreshCircles();
+                      } else {
+                        Alert.alert("Couldn't Join", result.error || 'Invalid code or you\'re already a member.');
+                      }
+                    } catch {
+                      Alert.alert("Couldn't Join", 'Something went wrong. Please try again.');
+                    }
+                  },
+                },
+              ],
+              'plain-text',
+              '',
+              'default',
+            );
+          }
+        },
+      );
+    } else {
+      // Android fallback — just create
+      handleCreateCircle();
     }
-  }, [joinCode, joinCircleByCode, refreshCircles]);
+  }, [handleCreateCircle, joinCircleByCode, refreshCircles]);
 
   const openCircle = useCallback((id: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -197,33 +240,76 @@ export function SocialViewScreen() {
    * RENDER HELPERS
    * ══════════════════════════════════════════════════════════════ */
 
-  /* ── Quick Stats Banner (only when user has circles) ── */
-  const renderStatsBanner = () => {
+  /* ── Summary Tabs (tappable — Active opens modal) ── */
+  const renderSummaryTabs = () => {
     if (circles.length === 0) return null;
     const totalMembers = circles.reduce((sum: number, c: any) => sum + (c.memberCount || 1), 0);
+    const tabs = [
+      { value: circles.length, label: 'Circles', icon: 'people', color: L.purple, onPress: undefined },
+      { value: totalMembers, label: 'Members', icon: 'person', color: '#6D28D9', onPress: undefined },
+      { value: activeChallenges.length, label: 'Active', icon: 'trophy', color: L.amber, onPress: () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowActiveChallenges(true); } },
+    ];
     return (
       <View style={{
-        marginHorizontal: 16, marginBottom: 20,
+        marginHorizontal: 16, marginBottom: 14,
         backgroundColor: L.card, borderRadius: 18,
         flexDirection: 'row',
         borderWidth: 0.5, borderColor: L.cardBorder,
         shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8,
         overflow: 'hidden',
       }}>
-        {[
-          { value: circles.length, label: 'Circles', icon: 'people', color: L.purple },
-          { value: totalMembers, label: 'Members', icon: 'person', color: '#6D28D9' },
-          { value: activeChallenges.length, label: 'Active', icon: 'trophy', color: L.amber },
-        ].map((stat, idx) => (
-          <View key={stat.label} style={{
-            flex: 1, alignItems: 'center', paddingVertical: 18,
-            borderLeftWidth: idx > 0 ? 0.5 : 0, borderLeftColor: L.divider,
-          }}>
-            <Ionicons name={stat.icon as any} size={16} color={stat.color} style={{ marginBottom: 6, opacity: 0.85 }} />
-            <Text style={{ fontSize: 22, fontWeight: '800', color: L.textPrimary, letterSpacing: -0.5 }}>{stat.value}</Text>
-            <Text style={{ fontSize: 11, fontWeight: '600', color: L.textTertiary, marginTop: 2, letterSpacing: 0.3, textTransform: 'uppercase' }}>{stat.label}</Text>
-          </View>
+        {tabs.map((tab, idx) => (
+          <TouchableOpacity
+            key={tab.label}
+            style={{
+              flex: 1, alignItems: 'center', paddingVertical: 18,
+              borderLeftWidth: idx > 0 ? 0.5 : 0, borderLeftColor: L.divider,
+            }}
+            onPress={tab.onPress}
+            activeOpacity={tab.onPress ? 0.6 : 1}
+            disabled={!tab.onPress}
+            accessibilityRole={tab.onPress ? 'button' : 'text'}
+            accessibilityLabel={`${tab.value} ${tab.label}${tab.onPress ? ', tap to view' : ''}`}
+          >
+            <Ionicons name={tab.icon as any} size={16} color={tab.color} style={{ marginBottom: 6, opacity: 0.85 }} />
+            <Text style={{ fontSize: 22, fontWeight: '800', color: L.textPrimary, letterSpacing: -0.5 }}>{tab.value}</Text>
+            <Text style={{ fontSize: 11, fontWeight: '600', color: L.textTertiary, marginTop: 2, letterSpacing: 0.3, textTransform: 'uppercase' }}>{tab.label}</Text>
+          </TouchableOpacity>
         ))}
+      </View>
+    );
+  };
+
+  /* ── Search Bar (iOS WhatsApp-style) ── */
+  const renderSearchBar = () => {
+    if (circles.length === 0) return null;
+    return (
+      <View style={{ marginHorizontal: 16, marginBottom: 16 }}>
+        <View style={{
+          flexDirection: 'row', alignItems: 'center',
+          backgroundColor: 'rgba(142,142,147,0.12)',
+          borderRadius: 12, paddingHorizontal: 12, height: 40,
+        }}>
+          <Ionicons name="search" size={16} color={L.textTertiary} style={{ marginRight: 6 }} />
+          <TextInput
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="Search circles"
+            placeholderTextColor={L.textTertiary}
+            style={{ flex: 1, fontSize: 15, fontWeight: '400', color: L.textPrimary, paddingVertical: 0 }}
+            returnKeyType="search"
+            autoCorrect={false}
+            clearButtonMode="while-editing"
+          />
+          {searchQuery.length > 0 && Platform.OS !== 'ios' && (
+            <TouchableOpacity
+              onPress={() => setSearchQuery('')}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="close-circle" size={18} color={L.textQuaternary} />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
     );
   };
@@ -306,7 +392,7 @@ export function SocialViewScreen() {
                         flexDirection: 'row', alignItems: 'center',
                         marginTop: idx > 0 ? 10 : 0,
                       }}
-                      onPress={(e) => { e.stopPropagation; openChallenge(ch.id); }}
+                      onPress={() => { openChallenge(ch.id); }}
                       activeOpacity={0.7}
                     >
                       <Text style={{ fontSize: 16, marginRight: 8 }}>{ch.emoji || '🏆'}</Text>
@@ -335,114 +421,9 @@ export function SocialViewScreen() {
     );
   };
 
-  /* ── Global Challenges (not attached to any circle) ── */
-  const renderGlobalChallenges = () => {
-    const global = challengesByCircle['_global'];
-    if (!global || global.length === 0) return null;
-    return (
-      <View style={{ marginBottom: 20 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, marginBottom: 12 }}>
-          <Ionicons name="trophy" size={14} color={L.amber} style={{ marginRight: 6 }} />
-          <Text style={{ fontSize: 12, fontWeight: '700', color: L.textTertiary, letterSpacing: 0.6, textTransform: 'uppercase' }}>
-            Solo Challenges
-          </Text>
-        </View>
-        {global.map((ch: any) => {
-          const progress = ch.userProgress || 0;
-          const goal = ch.goal_value || 1;
-          const pct = Math.min((progress / goal) * 100, 100);
-          const daysLeft = ch.ends_at ? Math.max(0, Math.ceil((new Date(ch.ends_at).getTime() - Date.now()) / 86400000)) : null;
-          return (
-            <TouchableOpacity
-              key={ch.id}
-              style={{
-                marginHorizontal: 16, marginBottom: 10,
-                flexDirection: 'row', alignItems: 'center',
-                backgroundColor: L.card, borderRadius: 14, padding: 14,
-                borderWidth: 0.5, borderColor: L.cardBorder,
-                shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 6,
-              }}
-              onPress={() => openChallenge(ch.id)}
-              activeOpacity={0.7}
-            >
-              <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: L.amberLight, alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
-                <Text style={{ fontSize: 20 }}>{ch.emoji || '🏆'}</Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text numberOfLines={1} style={{ fontSize: 14.5, fontWeight: '600', color: L.textPrimary }}>{ch.title}</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 5, gap: 6 }}>
-                  <View style={{ flex: 1, height: 4, backgroundColor: L.divider, borderRadius: 2, overflow: 'hidden' }}>
-                    <View style={{ height: '100%', width: `${pct}%`, backgroundColor: pct >= 100 ? L.green : L.amber, borderRadius: 2 }} />
-                  </View>
-                  <Text style={{ fontSize: 11, fontWeight: '600', color: L.textTertiary }}>{Math.round(pct)}%</Text>
-                </View>
-              </View>
-              {daysLeft !== null && (
-                <View style={{ marginLeft: 10, backgroundColor: daysLeft <= 3 ? L.amberLight : L.bg, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6 }}>
-                  <Text style={{ fontSize: 10.5, fontWeight: '700', color: daysLeft <= 3 ? L.amber : L.textTertiary }}>{daysLeft}d</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-    );
-  };
+  /* ── Solo / Global Challenges — REMOVED from home (visible only inside circles or Active modal) ── */
 
-  /* ── Join Code (always visible, minimal, bottom of list) ── */
-  const renderJoinSection = () => (
-    <View style={{
-      marginHorizontal: 16, marginTop: 8, marginBottom: 24,
-      backgroundColor: L.card, borderRadius: 16,
-      borderWidth: 0.5, borderColor: L.cardBorder,
-      shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.03, shadowRadius: 6,
-      overflow: 'hidden',
-    }}>
-      <View style={{ padding: 16 }}>
-        <Text style={{ fontSize: 14, fontWeight: '600', color: L.textPrimary, marginBottom: 4 }}>Have an invite code?</Text>
-        <Text style={{ fontSize: 12.5, color: L.textTertiary, lineHeight: 17, marginBottom: 14 }}>
-          Paste a code to join someone's circle instantly.
-        </Text>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <View style={{
-            flex: 1, flexDirection: 'row', alignItems: 'center',
-            backgroundColor: L.bg, borderRadius: 12,
-            paddingHorizontal: 14, height: 46,
-            borderWidth: 1, borderColor: joinCode.trim() ? `${L.purple}30` : L.divider,
-          }}>
-            <Ionicons name="key-outline" size={15} color={L.textQuaternary} style={{ marginRight: 8 }} />
-            <TextInput
-              ref={joinInputRef}
-              value={joinCode}
-              onChangeText={setJoinCode}
-              placeholder="Enter invite code"
-              placeholderTextColor={L.textQuaternary}
-              style={{ flex: 1, fontSize: 15, fontWeight: '500', color: L.textPrimary, letterSpacing: 0.5 }}
-              autoCapitalize="none"
-              autoCorrect={false}
-              returnKeyType="join"
-              onSubmitEditing={handleJoinCircle}
-            />
-          </View>
-          <TouchableOpacity
-            style={{
-              height: 46, paddingHorizontal: 18, borderRadius: 12,
-              backgroundColor: joinCode.trim() ? L.purple : L.divider,
-              alignItems: 'center', justifyContent: 'center',
-            }}
-            onPress={handleJoinCircle}
-            disabled={!joinCode.trim() || isJoining}
-            activeOpacity={0.8}
-          >
-            {isJoining
-              ? <ActivityIndicator size="small" color="#fff" />
-              : <Text style={{ fontSize: 14, fontWeight: '700', color: joinCode.trim() ? '#fff' : L.textQuaternary }}>Join</Text>
-            }
-          </TouchableOpacity>
-        </View>
-      </View>
-    </View>
-  );
+  /* ── Join Code section REMOVED — now handled via + button ActionSheet ── */
 
   /* ── Premium Empty State ── */
   const renderEmptyState = () => (
@@ -499,7 +480,7 @@ export function SocialViewScreen() {
 
       <TouchableOpacity
         style={{ marginTop: 16, paddingVertical: 12 }}
-        onPress={() => joinInputRef.current?.focus()}
+        onPress={handlePlusButton}
         activeOpacity={0.7}
       >
         <Text style={{ fontSize: 14, fontWeight: '600', color: L.purple }}>I have an invite code</Text>
@@ -519,23 +500,23 @@ export function SocialViewScreen() {
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
 
         {/* ── Header ── */}
-        <View style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 10 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <View style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 14 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 42 }}>
             <Text style={{ fontSize: 34, fontWeight: '800', color: L.textPrimary, letterSpacing: -0.5 }}>Circles</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              {/* Subtle New button */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 24 }}>
+              {/* + button — Create or Join */}
               <TouchableOpacity
                 style={{
-                  width: 38, height: 38, borderRadius: 19,
+                  width: 50, height: 50, borderRadius: 25,
                   backgroundColor: L.purpleLight,
                   alignItems: 'center', justifyContent: 'center',
                 }}
-                onPress={handleCreateCircle}
+                onPress={handlePlusButton}
                 activeOpacity={0.7}
               >
-                <Ionicons name="add" size={22} color={L.purple} />
+                <Ionicons name="add" size={28} color={L.purple} />
               </TouchableOpacity>
-              <MiniVoiceButton position="top-right" screenContext="social" size={52} style={{ position: 'relative', top: 0, right: 0 }} />
+              <MiniVoiceButton position="top-right" screenContext="social" size={50} style={{ position: 'relative', top: 0, right: 0 }} />
             </View>
           </View>
           <Text style={{ fontSize: 13, color: L.textTertiary, marginTop: 2, fontWeight: '500' }}>
@@ -558,7 +539,6 @@ export function SocialViewScreen() {
             keyboardShouldPersistTaps="handled"
           >
             {renderEmptyState()}
-            {renderJoinSection()}
           </ScrollView>
         ) : (
           <ScrollView
@@ -568,8 +548,11 @@ export function SocialViewScreen() {
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            {/* Stats */}
-            {renderStatsBanner()}
+            {/* Summary Tabs */}
+            {renderSummaryTabs()}
+
+            {/* Search Bar */}
+            {renderSearchBar()}
 
             {/* Circles */}
             {circles.length > 0 && (
@@ -579,15 +562,18 @@ export function SocialViewScreen() {
                     Your Circles
                   </Text>
                 </View>
-                {circles.map(renderCircleCard)}
+                {filteredCircles.length > 0 ? (
+                  filteredCircles.map(renderCircleCard)
+                ) : (
+                  <View style={{ alignItems: 'center', paddingVertical: 32, paddingHorizontal: 40 }}>
+                    <Ionicons name="search-outline" size={28} color={L.textQuaternary} style={{ marginBottom: 10 }} />
+                    <Text style={{ fontSize: 15, fontWeight: '600', color: L.textTertiary, textAlign: 'center' }}>No circles found</Text>
+                    <Text style={{ fontSize: 13, color: L.textQuaternary, marginTop: 4, textAlign: 'center' }}>Try a different search</Text>
+                  </View>
+                )}
               </View>
             )}
 
-            {/* Global / Solo challenges */}
-            {renderGlobalChallenges()}
-
-            {/* Join Code (always present) */}
-            {renderJoinSection()}
           </ScrollView>
         )}
       </SafeAreaView>
@@ -620,6 +606,157 @@ export function SocialViewScreen() {
         onClose={() => setShowPaywall(false)}
         trigger="circle_limit"
       />
+
+      {/* ── Active Challenges Bottom Sheet Modal ── */}
+      <Modal
+        visible={showActiveChallenges}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowActiveChallenges(false)}
+      >
+        <View style={{ flex: 1, justifyContent: 'flex-end' }}>
+          {/* Backdrop */}
+          <Pressable
+            style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.35)' }}
+            onPress={() => setShowActiveChallenges(false)}
+          />
+
+          {/* Sheet */}
+          <View style={{
+            height: SCREEN_HEIGHT * 0.75,
+            backgroundColor: L.bg,
+            borderTopLeftRadius: 20, borderTopRightRadius: 20,
+            shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.1, shadowRadius: 16,
+            elevation: 10,
+          }}>
+            {/* Drag Handle */}
+            <View style={{ alignItems: 'center', paddingTop: 10, paddingBottom: 4 }}>
+              <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: '#D1D1D6' }} />
+            </View>
+
+            {/* Header */}
+            <View style={{
+              flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+              paddingHorizontal: 20, paddingTop: 8, paddingBottom: 14,
+              borderBottomWidth: 0.5, borderBottomColor: L.divider,
+            }}>
+              <View>
+                <Text style={{ fontSize: 22, fontWeight: '700', color: L.textPrimary }}>Active Challenges</Text>
+                <Text style={{ fontSize: 13, color: L.textTertiary, marginTop: 2, fontWeight: '500' }}>Across your circles</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowActiveChallenges(false)}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                style={{
+                  width: 30, height: 30, borderRadius: 15,
+                  backgroundColor: 'rgba(142,142,147,0.12)',
+                  alignItems: 'center', justifyContent: 'center',
+                }}
+              >
+                <Ionicons name="close" size={16} color={L.textTertiary} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Challenge List */}
+            {activeChallenges.length === 0 ? (
+              <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, paddingBottom: 40 }}>
+                <View style={{
+                  width: 56, height: 56, borderRadius: 18,
+                  backgroundColor: L.amberLight,
+                  alignItems: 'center', justifyContent: 'center', marginBottom: 16,
+                }}>
+                  <Ionicons name="trophy-outline" size={26} color={L.amber} />
+                </View>
+                <Text style={{ fontSize: 17, fontWeight: '600', color: L.textPrimary, textAlign: 'center' }}>No active challenges</Text>
+                <Text style={{ fontSize: 14, color: L.textTertiary, marginTop: 6, textAlign: 'center', lineHeight: 20 }}>
+                  Create one inside a circle.
+                </Text>
+              </View>
+            ) : (
+              <FlatList
+                data={activeChallenges}
+                keyExtractor={(item: any) => item.id}
+                contentContainerStyle={{ paddingTop: 8, paddingBottom: 40 }}
+                showsVerticalScrollIndicator={false}
+                renderItem={({ item: ch }: { item: any }) => {
+                  const circleName = ch.circle_id ? (circleNameMap[ch.circle_id] || 'Unknown circle') : 'Unassigned';
+                  if (!ch.circle_id) {
+                    console.warn('[ActiveChallengesModal] Challenge has no circle_id:', ch.id, ch.title);
+                  }
+                  const progress = ch.userProgress || 0;
+                  const goal = ch.goal_value || 1;
+                  const pct = Math.min((progress / goal) * 100, 100);
+                  const daysLeft = ch.ends_at ? Math.max(0, Math.ceil((new Date(ch.ends_at).getTime() - Date.now()) / 86400000)) : null;
+
+                  return (
+                    <TouchableOpacity
+                      style={{
+                        marginHorizontal: 16, marginBottom: 10,
+                        flexDirection: 'row', alignItems: 'center',
+                        backgroundColor: L.card, borderRadius: 16, padding: 16,
+                        borderWidth: 0.5, borderColor: L.cardBorder,
+                        shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 6,
+                      }}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setShowActiveChallenges(false);
+                        if (ch.circle_id) {
+                          // Navigate into the circle (which has a Challenges tab)
+                          setTimeout(() => openCircle(ch.circle_id), 300);
+                        } else {
+                          // No circle — open challenge detail directly
+                          setTimeout(() => openChallenge(ch.id), 300);
+                        }
+                      }}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${ch.title} in ${circleName}`}
+                    >
+                      {/* Emoji */}
+                      <View style={{
+                        width: 44, height: 44, borderRadius: 14,
+                        backgroundColor: L.amberLight,
+                        alignItems: 'center', justifyContent: 'center', marginRight: 14,
+                      }}>
+                        <Text style={{ fontSize: 22 }}>{ch.emoji || '🏆'}</Text>
+                      </View>
+
+                      {/* Content */}
+                      <View style={{ flex: 1 }}>
+                        <Text numberOfLines={1} style={{ fontSize: 15, fontWeight: '600', color: L.textPrimary }}>{ch.title}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3, gap: 6 }}>
+                          <Ionicons name="people" size={11} color={L.textQuaternary} />
+                          <Text numberOfLines={1} style={{ fontSize: 12.5, color: L.textTertiary, fontWeight: '500' }}>{circleName}</Text>
+                        </View>
+                        {/* Progress bar */}
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 8 }}>
+                          <View style={{ flex: 1, height: 4, backgroundColor: L.divider, borderRadius: 2, overflow: 'hidden' }}>
+                            <View style={{ height: '100%', width: `${pct}%`, backgroundColor: pct >= 100 ? L.green : L.amber, borderRadius: 2 }} />
+                          </View>
+                          <Text style={{ fontSize: 11, fontWeight: '600', color: L.textTertiary, minWidth: 32, textAlign: 'right' }}>{Math.round(pct)}%</Text>
+                        </View>
+                      </View>
+
+                      {/* Days left badge */}
+                      {daysLeft !== null && (
+                        <View style={{
+                          marginLeft: 10,
+                          backgroundColor: daysLeft <= 3 ? L.amberLight : L.bg,
+                          paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8,
+                        }}>
+                          <Text style={{ fontSize: 11, fontWeight: '700', color: daysLeft <= 3 ? L.amber : L.textTertiary }}>{daysLeft}d</Text>
+                        </View>
+                      )}
+
+                      <Ionicons name="chevron-forward" size={16} color={L.textQuaternary} style={{ marginLeft: 4 }} />
+                    </TouchableOpacity>
+                  );
+                }}
+              />
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }

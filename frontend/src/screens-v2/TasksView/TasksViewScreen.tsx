@@ -211,6 +211,7 @@ interface TimeStats {
   taskCount: number;
   withEstimate: number;
   missingEstimate: number;
+  label: string;
 }
 
 // ============================================================================
@@ -264,14 +265,34 @@ export function TasksViewScreen() {
   const completedTasks = useMemo(() => sortedTasks.filter((t) => t.status === 'completed'), [sortedTasks]);
   const sections = useMemo(() => buildSections(sortedTasks, dateFilter, customDate), [sortedTasks, dateFilter, customDate]);
 
-  // Time stats derived from today's tasks only
-  const timeStats: TimeStats = useMemo(() => {
-    const todaySection = sections.find((s) => s.key === 'today');
-    const todayTasks = todaySection ? todaySection.data : [];
+  // Time stats — derived from the currently viewed day's tasks
+  const timeStats = useMemo(() => {
+    let relevantTasks: (Task | SortedTask)[] = [];
+    let label = 'Today';
+
+    if (dateFilter === 'today') {
+      const s = sections.find((sec) => sec.key === 'today');
+      relevantTasks = s ? s.data : [];
+      label = 'Today';
+    } else if (dateFilter === 'tomorrow') {
+      const s = sections.find((sec) => sec.key === 'tomorrow');
+      relevantTasks = s ? s.data : [];
+      label = 'Tomorrow';
+    } else if (dateFilter === 'custom' && customDate) {
+      const s = sections.find((sec) => sec.key === 'custom');
+      relevantTasks = s ? s.data : [];
+      label = customDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    } else {
+      // "All" filter — show stats for today's section
+      const s = sections.find((sec) => sec.key === 'today');
+      relevantTasks = s ? s.data : [];
+      label = 'Today';
+    }
+
     let total = 0;
     let withEst = 0;
     let missing = 0;
-    for (const t of todayTasks) {
+    for (const t of relevantTasks) {
       if (t.estimated_duration && t.estimated_duration > 0) {
         total += t.estimated_duration;
         withEst++;
@@ -279,8 +300,8 @@ export function TasksViewScreen() {
         missing++;
       }
     }
-    return { totalMinutes: total, taskCount: todayTasks.length, withEstimate: withEst, missingEstimate: missing };
-  }, [sections]);
+    return { totalMinutes: total, taskCount: relevantTasks.length, withEstimate: withEst, missingEstimate: missing, label };
+  }, [sections, dateFilter, customDate]);
 
 
 
@@ -593,7 +614,7 @@ export function TasksViewScreen() {
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3 }}>
               <Text style={{ fontSize: 12.5, color: L.textTertiary, fontWeight: '500' }}>
-                Today · {timeStats.taskCount} task{timeStats.taskCount !== 1 ? 's' : ''}
+                {timeStats.label} · {timeStats.taskCount} task{timeStats.taskCount !== 1 ? 's' : ''}
               </Text>
               {timeStats.missingEstimate > 0 && (
                 <>

@@ -208,12 +208,18 @@ export function useBrainDump(): UseBrainDumpReturn {
   // ── Archive ──
   const archiveItem = useCallback(
     async (id: string): Promise<boolean> => {
+      const prev = items;
+      const now = new Date().toISOString();
+
+      // Optimistic: move item to archived immediately
+      setItems(cur => cur.map(i => i.id === id ? { ...i, status: 'archived' as const, updated_at: now } : i));
+
       try {
         const { error } = await supabase
           .from('brain_dump_items')
           .update({
             status: 'archived',
-            updated_at: new Date().toISOString(),
+            updated_at: now,
           })
           .eq('id', id)
           .eq('status', 'active'); // Only archive active items
@@ -228,21 +234,28 @@ export function useBrainDump(): UseBrainDumpReturn {
         return true;
       } catch (err: any) {
         console.error('[useBrainDump] Error archiving item:', err?.message || err);
+        setItems(prev); // Rollback on failure
         return false;
       }
     },
-    []
+    [items]
   );
 
   // ── Restore (archived → active) ──
   const restoreItem = useCallback(
     async (id: string): Promise<boolean> => {
+      const prev = items;
+      const now = new Date().toISOString();
+
+      // Optimistic: move item back to active immediately
+      setItems(cur => cur.map(i => i.id === id ? { ...i, status: 'active' as const, updated_at: now } : i));
+
       try {
         const { error } = await supabase
           .from('brain_dump_items')
           .update({
             status: 'active',
-            updated_at: new Date().toISOString(),
+            updated_at: now,
           })
           .eq('id', id)
           .eq('status', 'archived'); // Only restore archived items
@@ -257,10 +270,11 @@ export function useBrainDump(): UseBrainDumpReturn {
         return true;
       } catch (err: any) {
         console.error('[useBrainDump] Error restoring item:', err?.message || err);
+        setItems(prev); // Rollback on failure
         return false;
       }
     },
-    []
+    [items]
   );
 
   // ── Convert to task (idempotent) ──

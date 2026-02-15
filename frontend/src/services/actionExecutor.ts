@@ -15,6 +15,7 @@
 
 import { supabase } from '@/lib/supabase';
 import { eventLogger } from './eventLogger';
+import { suggestFromTitle } from './categorySuggestion';
 
 // ============================================================================
 // Types (PRD 4.7 Action System Contract)
@@ -188,34 +189,50 @@ const ACTION_HANDLERS: Record<string, ActionHandler> = {
     const date = params.date as string | undefined;
     const priority = (params.priority as string) || 'medium';
     const durationMin = params.duration_min as number | undefined;
-    const category = params.category as string | undefined;
 
     // Parse natural language date
     const dueDate = parseNaturalDate(date);
+
+    // Always ensure duration — if user didn't specify, AI estimates from title
+    let estimatedDuration = durationMin;
+    if (!estimatedDuration) {
+      const suggestion = suggestFromTitle(title);
+      estimatedDuration = suggestion?.duration ?? 30; // fallback 30 min
+    }
 
     const insertData: Record<string, unknown> = {
       user_id: userId,
       title,
       due_date: dueDate,
       priority,
+      estimated_duration: estimatedDuration,
     };
-    if (durationMin) insertData.estimated_duration = durationMin;
-    if (category) insertData.category = category;
+    // Note: 'category' column does not exist in tasks table — omitted
 
-    const { data: task, error } = await supabase
+    // Two-step insert: avoid .insert().select().single() which can hang
+    // with PostgREST + RLS policies (same pattern as useTasks hook)
+    const { error: insertError } = await supabase
       .from('tasks')
-      .insert(insertData)
-      .select()
-      .single();
+      .insert(insertData);
 
-    if (error) {
+    if (insertError) {
       return { success: false, message: "Hmm, couldn't add that task. Mind trying again?" };
     }
+
+    // Fetch the just-created task separately
+    const { data: task } = await supabase
+      .from('tasks')
+      .select()
+      .eq('user_id', userId)
+      .eq('title', title)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
 
     return {
       success: true,
       message: `Got it! Added "${title}" to your list.`,
-      data: { task },
+      data: { task: task || { title } },
     };
   },
 
@@ -231,7 +248,6 @@ const ACTION_HANDLERS: Record<string, ActionHandler> = {
     if (params.date) updates.due_date = new Date(params.date as string).toISOString();
     if (params.priority) updates.priority = params.priority;
     if (params.duration_min) updates.estimated_duration = params.duration_min;
-    if (params.category) updates.category = params.category;
 
     const { error } = await supabase
       .from('tasks')
@@ -345,6 +361,9 @@ const ACTION_HANDLERS: Record<string, ActionHandler> = {
     // "every week", spread them across consecutive days starting from
     // the next relevant day.
     const inserts = tasks.map((t, index) => {
+      // AI-estimate duration from title for each task
+      const suggestion = suggestFromTitle(t.title);
+
       let dueDate: string;
       if (t.date) {
         // Try parsing each task's date individually
@@ -370,14 +389,14 @@ const ACTION_HANDLERS: Record<string, ActionHandler> = {
         title: t.title,
         due_date: dueDate,
         priority: t.priority || 'medium',
-        ...(t.category ? { category: t.category } : {}),
+        estimated_duration: suggestion?.duration ?? 30, // always set duration
       };
     });
 
-    const { data, error } = await supabase
+    // Insert without .select() to avoid PostgREST + RLS hang
+    const { error } = await supabase
       .from('tasks')
-      .insert(inserts)
-      .select();
+      .insert(inserts);
 
     if (error) {
       return { success: false, message: "Couldn't create those tasks. Try again?" };
@@ -386,7 +405,7 @@ const ACTION_HANDLERS: Record<string, ActionHandler> = {
     return {
       success: true,
       message: `Added ${tasks.length} tasks to your list!`,
-      data: { tasks: data },
+      data: { count: tasks.length },
     };
   },
 
@@ -410,10 +429,12 @@ const ACTION_HANDLERS: Record<string, ActionHandler> = {
         task_id: taskId || null,
         started_at: new Date().toISOString(),
       })
-      .select()
+      .select('id, duration_planned, task_id, started_at')
       .single();
 
     if (error) {
+      // If insert+select hangs, the insert may have still succeeded.
+      // The useFocusSessions hook will pick it up via refresh.
       return { success: false, message: "Couldn't start a focus session. Try again?" };
     }
 
@@ -670,15 +691,13 @@ const ACTION_HANDLERS: Record<string, ActionHandler> = {
   brain_dump: async (params, userId) => {
     const content = params.content as string;
 
-    // Store as a task with a special category/tag
+    // Store in brain_dump_items table (matches UI flow in BrainDumpModal)
     const { error } = await supabase
-      .from('tasks')
+      .from('brain_dump_items')
       .insert({
         user_id: userId,
-        title: content.length > 100 ? content.substring(0, 97) + '...' : content,
-        description: content,
-        priority: 'low',
-        due_date: new Date().toISOString(),
+        text: content,
+        status: 'active',
       });
 
     if (error) {

@@ -107,7 +107,7 @@ export function QuickAddTaskOverlay({
   const [notes, setNotes] = useState('');
   const [dueDate, setDueDate] = useState<Date>(initialDate || new Date());
   const [dueTime, setDueTime] = useState<Date | null>(null);
-  const [duration, setDuration] = useState<number | null>(null);
+  const [duration, setDuration] = useState<number | null>(30); // default 30 min, AI will refine
   const [priority, setPriority] = useState<PriorityOption>('medium');
   const [creating, setCreating] = useState(false);
   const [dateExplicitlySet, setDateExplicitlySet] = useState(false);
@@ -146,7 +146,7 @@ export function QuickAddTaskOverlay({
   const resetForm = () => {
     setTitle(''); setNotes('');
     setDueDate(initialDate || new Date());
-    setDueTime(null); setDuration(null); setPriority('medium');
+    setDueTime(null); setDuration(30); setPriority('medium');
     setAiSuggestion(null); setManualCategory(null);
     setManualPriority(false); setManualDuration(false);
     setShowCategories(false); setShowDatePicker(false);
@@ -168,7 +168,8 @@ export function QuickAddTaskOverlay({
       } else {
         setAiSuggestion(null);
         if (!manualPriority) setPriority('medium');
-        if (!manualDuration) setDuration(null);
+        // Always default to 30 min — every task must have a duration
+        if (!manualDuration) setDuration(s?.duration ?? 30);
       }
     }, 400);
   }, [manualPriority, manualDuration]);

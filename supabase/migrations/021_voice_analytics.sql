@@ -27,6 +27,7 @@ CREATE INDEX IF NOT EXISTS idx_voice_analytics_user_date
 ALTER TABLE public.voice_analytics ENABLE ROW LEVEL SECURITY;
 
 -- Users can read their own analytics
+DROP POLICY IF EXISTS "Users can read own voice_analytics" ON public.voice_analytics;
 CREATE POLICY "Users can read own voice_analytics"
   ON public.voice_analytics FOR SELECT
   USING (auth.uid() = user_id);

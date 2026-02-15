@@ -32,6 +32,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_conversation_history_conv_id
 -- 4. RLS — users can read their own history; writes via service role (webhook)
 ALTER TABLE public.conversation_history ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "conversation_history_select" ON public.conversation_history;
 CREATE POLICY "conversation_history_select"
   ON public.conversation_history FOR SELECT
   USING (auth.uid() = user_id);

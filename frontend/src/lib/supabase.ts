@@ -167,6 +167,40 @@ export type Tables = {
     created_at: string;
     updated_at: string;
   };
+  circle_checkins: {
+    id: string;
+    circle_id: string;
+    user_id: string;
+    date: string;
+    intention_text: string;
+    committed_task_ids: string[];
+    committed_focus_minutes: number | null;
+    committed_challenge_id: string | null;
+    proof_type: 'none' | 'photo' | 'voice';
+    proof_url: string | null;
+    created_at: string;
+  };
+  circle_checkouts: {
+    id: string;
+    circle_id: string;
+    user_id: string;
+    date: string;
+    result_status: 'done' | 'partial' | 'missed';
+    completed_task_ids: string[];
+    reflection_win: string | null;
+    reflection_blocker: string | null;
+    proof_type: 'none' | 'photo' | 'voice';
+    proof_url: string | null;
+    created_at: string;
+  };
+  circle_posts: {
+    id: string;
+    circle_id: string;
+    user_id: string;
+    type: 'checkin' | 'checkout' | 'challenge_created' | 'challenge_completed' | 'milestone' | 'achievement' | 'member_joined';
+    payload: Record<string, any>;
+    created_at: string;
+  };
 };
 
 // Export convenience types
@@ -188,3 +222,6 @@ export type CircleMember = {
 };
 
 export type BrainDumpItem = Tables['brain_dump_items'];
+export type CircleCheckin = Tables['circle_checkins'];
+export type CircleCheckout = Tables['circle_checkouts'];
+export type CirclePost = Tables['circle_posts'];

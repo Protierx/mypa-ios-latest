@@ -54,11 +54,12 @@ interface ChallengeDetailModalProps {
 }
 
 interface LeaderboardEntry {
-  user_id: string;
-  user_name: string;
-  user_avatar?: string;
+  userId: string;
+  displayName: string;
+  avatarUrl?: string;
   progress: number;
   rank: number;
+  isCurrentUser: boolean;
 }
 
 /* ────────────── Component ────────────── */
@@ -84,7 +85,7 @@ export function ChallengeDetailModal({ visible, challengeId, onClose }: Challeng
       ]);
       setChallenge(challengeData);
       setLeaderboard(leaderboardData || []);
-      const myEntry = leaderboardData?.find((e: LeaderboardEntry) => e.user_id === user?.id);
+      const myEntry = leaderboardData?.find((e: LeaderboardEntry) => e.userId === user?.id);
       if (myEntry) { setMyProgress(myEntry.progress); setMyRank(myEntry.rank); }
     } catch (error) {
       console.error('Error loading challenge data:', error);
@@ -129,7 +130,7 @@ export function ChallengeDetailModal({ visible, challengeId, onClose }: Challeng
         // Reload leaderboard
         const lb = await getChallengeLeaderboard(challengeId);
         setLeaderboard(lb || []);
-        const myEntry = lb?.find((e: LeaderboardEntry) => e.user_id === user?.id);
+        const myEntry = lb?.find((e: LeaderboardEntry) => e.userId === user?.id);
         if (myEntry) setMyRank(myEntry.rank);
       } else {
         Alert.alert('Error', 'Could not submit. Try again.');
@@ -260,12 +261,12 @@ export function ChallengeDetailModal({ visible, challengeId, onClose }: Challeng
               {leaderboard.length > 0 ? (
                 <View style={{ backgroundColor: L.card, borderRadius: 14, overflow: 'hidden', borderWidth: 0.5, borderColor: L.cardBorder }}>
                   {leaderboard.map((item, index) => {
-                    const isCurrentUser = item.user_id === user?.id;
+                    const isCurrentUser = item.isCurrentUser;
                     const progressPercent = challenge.goal_value
                       ? Math.min((item.progress / challenge.goal_value) * 100, 100)
                       : 0;
                     return (
-                      <View key={item.user_id}>
+                      <View key={item.userId}>
                         <View style={{
                           flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 14,
                           backgroundColor: isCurrentUser ? L.purpleLight : 'transparent',
@@ -279,17 +280,17 @@ export function ChallengeDetailModal({ visible, challengeId, onClose }: Challeng
                             )}
                           </View>
                           {/* Avatar */}
-                          {item.user_avatar ? (
-                            <Image source={{ uri: item.user_avatar }} style={{ width: 36, height: 36, borderRadius: 18, marginLeft: 8 }} />
+                          {item.avatarUrl ? (
+                            <Image source={{ uri: item.avatarUrl }} style={{ width: 36, height: 36, borderRadius: 18, marginLeft: 8 }} />
                           ) : (
                             <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: isCurrentUser ? L.purpleMid : L.divider, alignItems: 'center', justifyContent: 'center', marginLeft: 8 }}>
-                              <Text style={{ fontSize: 14, fontWeight: '600', color: isCurrentUser ? L.purple : L.textSecondary }}>{item.user_name[0]?.toUpperCase()}</Text>
+                              <Text style={{ fontSize: 14, fontWeight: '600', color: isCurrentUser ? L.purple : L.textSecondary }}>{item.displayName[0]?.toUpperCase()}</Text>
                             </View>
                           )}
                           {/* Name & Progress Bar */}
                           <View style={{ flex: 1, marginLeft: 10 }}>
                             <Text style={{ fontSize: 14, fontWeight: '600', color: isCurrentUser ? L.purple : L.textPrimary }}>
-                              {item.user_name}{isCurrentUser ? ' (You)' : ''}
+                              {item.displayName}{isCurrentUser ? ' (You)' : ''}
                             </Text>
                             <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
                               <View style={{ flex: 1, height: 4, backgroundColor: L.divider, borderRadius: 2, overflow: 'hidden' }}>

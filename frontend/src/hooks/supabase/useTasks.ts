@@ -8,6 +8,7 @@ import { supabase, Task } from '@/lib/supabase';
 import { useSupabaseAuth } from '@/contexts/SupabaseAuthContext';
 import { useUserModel, AI_FEATURES } from '@/contexts/UserModelContext';
 import { sortTasksWithAI, SortedTask } from '@/services/aiTaskSorting';
+import { suggestFromTitle } from '@/services/categorySuggestion';
 import { eventLogger } from '@/services/eventLogger';
 
 // ============================================================================
@@ -179,6 +180,13 @@ export function useTasks(filter: TaskFilter = 'all'): UseTasksReturn {
     console.log('[useTasks] createTask called:', { title: task.title, priority: task.priority });
 
     try {
+      // If no duration provided, AI-estimate from title (every task must have duration)
+      let estimatedDuration = task.estimated_duration;
+      if (!estimatedDuration) {
+        const suggestion = suggestFromTitle(task.title || 'New Task');
+        estimatedDuration = suggestion?.duration ?? 30; // fallback 30 min
+      }
+
       const insertPayload = {
         user_id: user.id,
         title: task.title || 'New Task',
@@ -186,7 +194,7 @@ export function useTasks(filter: TaskFilter = 'all'): UseTasksReturn {
         due_date: task.due_date || new Date().toISOString(),
         priority: task.priority || 'medium',
         status: 'pending',
-        estimated_duration: task.estimated_duration || null,
+        estimated_duration: estimatedDuration,
       };
 
       // Check auth state first

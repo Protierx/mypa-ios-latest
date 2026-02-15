@@ -179,7 +179,10 @@ export function BrainDumpModal({ visible, onClose, onMoveToTasks, onOpenTask, ta
     const ok = await restoreItem(item.id);
     if (ok) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setActiveTab('active');
       showToast('Restored to Active');
+    } else {
+      showToast("Couldn't restore item. Try again.");
     }
   }, [restoreItem, showToast]);
 

@@ -15,6 +15,8 @@ export { ChallengeDetailModal } from './ChallengeDetailModal';
 export { CreateCircleSheet } from './CreateCircleSheet';
 export { CreateChallengeSheet } from './CreateChallengeSheet';
 export { JoinCircleModal } from './JoinCircleModal';
+export { CheckInSheet } from './CheckInSheet';
+export { CheckOutSheet } from './CheckOutSheet';
 
 // Profile & Settings
 export { SettingsModal } from './SettingsModal';
