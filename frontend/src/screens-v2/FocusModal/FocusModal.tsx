@@ -11,7 +11,6 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -29,8 +28,8 @@ import { useFocusSessions } from '../../hooks/supabase/useFocusSessions';
 import { useGestureNavigation } from '../../navigation-v2/useGestureNavigation';
 import { MiniVoiceButton } from '../../components/MiniVoiceButton';
 import { useVoice } from '../../contexts/VoiceContext';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+import { bg, brand, text as textTokens, border as borderTokens, semantic } from '../../styles/colors';
+import { shadows, radius, spacing } from '../../styles/theme';
 
 type FocusState = 'selecting' | 'active' | 'paused' | 'completed';
 
@@ -180,7 +179,7 @@ export function FocusModal({ onDismiss }: FocusModalProps = {}) {
             style={styles.closeButton}
             onPress={handleEnd}
           >
-            <Ionicons name="chevron-down" size={28} color="#71717a" />
+            <Ionicons name="chevron-down" size={28} color={textTokens.tertiary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>
             {state === 'selecting' ? 'Start Focus' : 'Focus Session'}
@@ -224,7 +223,7 @@ export function FocusModal({ onDismiss }: FocusModalProps = {}) {
                 style={styles.startButton}
                 onPress={handleStart}
               >
-                <Ionicons name="play" size={24} color="#fff" />
+                <Ionicons name="play" size={24} color={textTokens.inverse} />
                 <Text style={styles.startButtonText}>Start Focus</Text>
               </TouchableOpacity>
             </Animated.View>
@@ -249,7 +248,7 @@ export function FocusModal({ onDismiss }: FocusModalProps = {}) {
                   <Ionicons
                     name={state === 'paused' ? 'play' : 'pause'}
                     size={32}
-                    color="#fff"
+                    color={textTokens.inverse}
                   />
                 </TouchableOpacity>
                 
@@ -257,7 +256,7 @@ export function FocusModal({ onDismiss }: FocusModalProps = {}) {
                   style={[styles.controlButton, styles.endButton]}
                   onPress={handleEnd}
                 >
-                  <Ionicons name="stop" size={28} color="#ef4444" />
+                  <Ionicons name="stop" size={28} color={semantic.error} />
                 </TouchableOpacity>
               </View>
             </Animated.View>
@@ -266,7 +265,7 @@ export function FocusModal({ onDismiss }: FocusModalProps = {}) {
           {state === 'completed' && (
             <Animated.View entering={FadeIn.duration(300)} style={styles.completedContainer}>
               <View style={styles.celebrationIcon}>
-                <Ionicons name="checkmark-circle" size={80} color="#22c55e" />
+                <Ionicons name="checkmark-circle" size={80} color={semantic.success} />
               </View>
               <Text style={styles.completedTitle}>Great work!</Text>
               <Text style={styles.completedSubtitle}>
@@ -274,7 +273,7 @@ export function FocusModal({ onDismiss }: FocusModalProps = {}) {
               </Text>
               
               <View style={styles.xpEarned}>
-                <Ionicons name="star" size={20} color="#eab308" />
+                <Ionicons name="star" size={20} color={semantic.warning} />
                 <Text style={styles.xpText}>+{selectedDuration} XP earned</Text>
               </View>
               
@@ -304,7 +303,7 @@ export function FocusModal({ onDismiss }: FocusModalProps = {}) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0a0a0f',
+    backgroundColor: bg.primary,
   },
   content: {
     flex: 1,
@@ -313,7 +312,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
+    paddingHorizontal: spacing.md,
     paddingVertical: 12,
   },
   closeButton: {
@@ -323,7 +322,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerTitle: {
-    color: '#fff',
+    color: textTokens.primary,
     fontSize: 17,
     fontWeight: '600',
   },
@@ -331,15 +330,15 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: spacing.lg,
   },
   selectingContainer: {
     alignItems: 'center',
   },
   selectLabel: {
-    color: '#71717a',
+    color: textTokens.tertiary,
     fontSize: 16,
-    marginBottom: 24,
+    marginBottom: spacing.xl,
   },
   durationOptions: {
     flexDirection: 'row',
@@ -350,39 +349,41 @@ const styles = StyleSheet.create({
     width: 70,
     height: 70,
     borderRadius: 35,
-    backgroundColor: '#1c1c1e',
+    backgroundColor: bg.card,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: 'transparent',
+    borderColor: borderTokens.primary,
+    ...shadows.sm,
   },
   durationOptionSelected: {
-    borderColor: '#a855f7',
-    backgroundColor: 'rgba(168, 85, 247, 0.15)',
+    borderColor: brand.primary,
+    backgroundColor: brand.primary,
   },
   durationText: {
-    color: '#fff',
+    color: textTokens.secondary,
     fontSize: 24,
     fontWeight: '600',
   },
   durationTextSelected: {
-    color: '#a855f7',
+    color: textTokens.inverse,
   },
   durationUnit: {
-    color: '#71717a',
+    color: textTokens.tertiary,
     fontSize: 12,
   },
   startButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#a855f7',
+    backgroundColor: brand.primary,
     paddingHorizontal: 32,
     paddingVertical: 16,
-    borderRadius: 30,
+    borderRadius: radius.full,
     gap: 8,
+    ...shadows.purple,
   },
   startButtonText: {
-    color: '#fff',
+    color: textTokens.inverse,
     fontSize: 18,
     fontWeight: '600',
   },
@@ -390,23 +391,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   timerRing: {
-    width: SCREEN_WIDTH * 0.7,
-    height: SCREEN_WIDTH * 0.7,
-    borderRadius: SCREEN_WIDTH * 0.35,
-    borderWidth: 4,
-    borderColor: 'rgba(168, 85, 247, 0.3)',
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    borderWidth: 6,
+    borderColor: brand.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(168, 85, 247, 0.05)',
+    backgroundColor: brand.muted,
   },
   timerText: {
-    color: '#fff',
-    fontSize: 64,
-    fontWeight: '200',
+    color: textTokens.primary,
+    fontSize: 48,
+    fontWeight: '700',
     fontVariant: ['tabular-nums'],
   },
   timerLabel: {
-    color: '#71717a',
+    color: textTokens.tertiary,
     fontSize: 16,
     marginTop: 8,
   },
@@ -416,57 +417,63 @@ const styles = StyleSheet.create({
     marginTop: 48,
   },
   controlButton: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#1c1c1e',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: brand.primary,
     alignItems: 'center',
     justifyContent: 'center',
+    ...shadows.purple,
   },
   endButton: {
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    backgroundColor: bg.card,
+    borderWidth: 1,
+    borderColor: borderTokens.primary,
+    ...shadows.sm,
   },
   completedContainer: {
     alignItems: 'center',
   },
   celebrationIcon: {
-    marginBottom: 24,
+    marginBottom: spacing.xl,
   },
   completedTitle: {
-    color: '#fff',
+    color: textTokens.primary,
     fontSize: 32,
     fontWeight: '600',
     marginBottom: 8,
   },
   completedSubtitle: {
-    color: '#71717a',
+    color: textTokens.secondary,
     fontSize: 16,
     textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: spacing.xl,
   },
   xpEarned: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(234, 179, 8, 0.15)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+    backgroundColor: brand.muted,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.full,
     gap: 8,
     marginBottom: 48,
+    ...shadows.sm,
   },
   xpText: {
-    color: '#eab308',
+    color: brand.primary,
     fontSize: 16,
     fontWeight: '600',
   },
   doneButton: {
-    backgroundColor: '#a855f7',
+    backgroundColor: brand.primary,
     paddingHorizontal: 48,
     paddingVertical: 16,
-    borderRadius: 30,
+    borderRadius: radius.full,
+    ...shadows.purple,
   },
   doneButtonText: {
-    color: '#fff',
+    color: textTokens.inverse,
     fontSize: 18,
     fontWeight: '600',
   },
