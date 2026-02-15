@@ -9,7 +9,7 @@
 -- One per user per circle per day (enforced by unique constraint)
 -- =====================================================
 CREATE TABLE IF NOT EXISTS public.circle_checkins (
-  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   circle_id UUID REFERENCES public.circles(id) ON DELETE CASCADE NOT NULL,
   user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
   date DATE NOT NULL DEFAULT CURRENT_DATE,
@@ -32,7 +32,7 @@ CREATE INDEX IF NOT EXISTS idx_checkins_user_date ON public.circle_checkins(user
 -- One per user per circle per day (enforced by unique constraint)
 -- =====================================================
 CREATE TABLE IF NOT EXISTS public.circle_checkouts (
-  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   circle_id UUID REFERENCES public.circles(id) ON DELETE CASCADE NOT NULL,
   user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
   date DATE NOT NULL DEFAULT CURRENT_DATE,
@@ -55,7 +55,7 @@ CREATE INDEX IF NOT EXISTS idx_checkouts_user_date ON public.circle_checkouts(us
 -- Unified feed for all circle activity
 -- =====================================================
 CREATE TABLE IF NOT EXISTS public.circle_posts (
-  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   circle_id UUID REFERENCES public.circles(id) ON DELETE CASCADE NOT NULL,
   user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
   type TEXT NOT NULL CHECK (type IN (
@@ -78,14 +78,8 @@ ALTER TABLE public.circle_checkins ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.circle_checkouts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.circle_posts ENABLE ROW LEVEL SECURITY;
 
--- Helper: check if user is a member of a circle
-CREATE OR REPLACE FUNCTION public.is_circle_member(p_circle_id UUID, p_user_id UUID)
-RETURNS BOOLEAN AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM public.circle_members
-    WHERE circle_id = p_circle_id AND user_id = p_user_id
-  );
-$$ LANGUAGE sql SECURITY DEFINER STABLE;
+-- Helper: is_circle_member(uuid, uuid) already exists from earlier migrations
+-- Skipping re-creation to avoid parameter name conflicts
 
 -- CIRCLE_CHECKINS policies
 DROP POLICY IF EXISTS "Circle members can view checkins" ON public.circle_checkins;
