@@ -20,7 +20,13 @@ import React, {
   useEffect,
 } from 'react';
 import { Alert, Linking } from 'react-native';
-import { Audio } from 'expo-av';
+import {
+  createAudioPlayer,
+  setAudioModeAsync,
+  getRecordingPermissionsAsync,
+  requestRecordingPermissionsAsync,
+  type AudioPlayer,
+} from 'expo-audio';
 import * as Haptics from 'expo-haptics';
 import * as FileSystem from 'expo-file-system/legacy';
 import { supabase } from '../lib/supabase';
@@ -68,7 +74,26 @@ import {
   type ScribeError,
   type ScribeCommitStrategy,
 } from '../services/voice/ScribeService';
+import { audioSessionService } from '../services/voice/AudioSessionService';
 import type { Screen } from '../navigation-v2/GestureContext';
+
+// ============================================================================
+// Constants
+// ============================================================================
+
+/** Map 2-letter language codes to BCP-47 locale tags for expo-speech */
+const LANGUAGE_TO_LOCALE: Record<string, string> = {
+  en: 'en-US',
+  es: 'es-ES',
+  ar: 'ar-SA',
+  fr: 'fr-FR',
+  de: 'de-DE',
+  pt: 'pt-BR',
+  hi: 'hi-IN',
+  zh: 'zh-CN',
+  ja: 'ja-JP',
+  ko: 'ko-KR',
+};
 
 // ============================================================================
 // Types
@@ -109,6 +134,10 @@ interface VoiceContextType {
   selectedVoice: string;
   setSelectedVoice: (voice: string) => void;
 
+  // Language
+  preferredLanguage: string;
+  setPreferredLanguage: (lang: string) => void;
+
   // Discreet Mode (text-only fallback)
   isDiscreetMode: boolean;
   setDiscreetMode: (enabled: boolean) => void;
@@ -129,7 +158,7 @@ interface VoiceContextType {
   /** True when device has no network */
   isOffline: boolean;
   /** Current connection quality tier */
-  connectionQuality: ConnectionQuality;
+  connectionQuality: ConnectionQuality | null;
   /** Number of actions queued for offline sync */
   queuedActionCount: number;
   /** Manually retry connection after being offline */
@@ -138,6 +167,12 @@ interface VoiceContextType {
   // Dynamic Contextual Awareness (Step 14)
   /** Send screen context update to active ElevenLabs session */
   updateScreenContext: (screen: Screen, data?: ScreenContextData) => void;
+
+  // Contextual Auto-Navigation (Step 7b)
+  /** Request the gesture navigator to animate to a screen (set by AI tool call) */
+  requestedNavigation: { screen: Screen; ts: number } | null;
+  /** Acknowledge / clear the navigation request after it's been handled */
+  clearNavigationRequest: () => void;
 
   // Live Captions (Step 21f)
   /** Whether live captions are shown during voice sessions */
@@ -201,6 +236,8 @@ interface VoiceProviderProps {
 
 export function VoiceProvider({ children }: VoiceProviderProps) {
   // -- Core State ----------------------------------------------------------
+  const [requestedNavigation, setRequestedNavigation] = useState<{ screen: Screen; ts: number } | null>(null);
+  const clearNavigationRequest = useCallback(() => setRequestedNavigation(null), []);
   const [voiceState, setVoiceState] = useState<VoiceState>('idle');
   const [isVoiceEnabled, setVoiceEnabled] = useState(true);
   const [audioLevel, setAudioLevel] = useState(0);
@@ -217,7 +254,9 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
   // -- Wake Word state ----------------------------------------------------
   const [isWakeWordEnabled, setIsWakeWordEnabled] = useState(false);
   const [wakeWordSensitivity, setWakeWordSensitivityState] = useState(0.5);
-  const wakeWordDisabledByBatteryRef = useRef(false);
+
+  // -- Language preference state -------------------------------------------
+  const [preferredLanguage, setPreferredLanguage] = useState('en');
 
   // -- Noise Isolation state -----------------------------------------------
   const [isNoiseIsolationEnabled, setIsNoiseIsolationEnabled] = useState(false);
@@ -226,9 +265,10 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
   const [isLiveCaptionsEnabled, setIsLiveCaptionsEnabled] = useState(false);
 
   // -- Offline Resilience state (Step 20) ----------------------------------
-  const [connectionQuality, setConnectionQuality] = useState<ConnectionQuality>('excellent');
+  const [connectionQuality, setConnectionQuality] = useState<ConnectionQuality | null>(null);
   const [queuedActionCount, setQueuedActionCount] = useState(0);
   const connectionCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const lastQualityCheckRef = useRef<{ quality: ConnectionQuality; ts: number } | null>(null);
 
   // -- Scribe v2 state (Step 21) ------------------------------------------
   const [scribeState, setScribeState] = useState<ScribeState>('idle');
@@ -239,10 +279,12 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
   // -- Refs for use inside closures ----------------------------------------
   const voiceStateRef = useRef<VoiceState>('idle');
   const isPlayingAudioRef = useRef(false);
-  const soundRef = useRef<Audio.Sound | null>(null);
+  const soundRef = useRef<AudioPlayer | null>(null);
   const listenStartTimeRef = useRef<number>(0);
   const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
   const startListeningRef = useRef<(() => Promise<void>) | null>(null);
+  const sessionStartInFlightRef = useRef(false);
+  const wakeWordCooldownUntilRef = useRef(0);
   /** Tracks recent task completion for celebration voice boost (Step 17b) */
   const celebrationBoostRef = useRef(false);
 
@@ -265,6 +307,14 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
   // options on every render (which would break the hook).
   const stateCallbacksRef = useRef({
     setVoiceState: (state: VoiceState) => {
+      // Haptic feedback on key state transitions
+      if (state === 'listening' && voiceStateRef.current !== 'listening') {
+        // Session connected or returned to listening — subtle success pulse
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      } else if (state === 'error') {
+        // Error state — error haptic
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+      }
       setVoiceState(state);
       voiceStateRef.current = state;
     },
@@ -274,6 +324,27 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
     setIsConversationActive,
     setAudioLevel,
     onToolCall: async (toolName: string, params: Record<string, unknown>): Promise<string> => {
+      // Step 7b: Contextual auto-navigation — intercept before action system
+      if (toolName === 'navigate_to_screen') {
+        const screenMap: Record<string, Screen> = {
+          tasks: 'tasks',
+          challenges: 'social',
+          circles: 'social',
+          social: 'social',
+          focus: 'focus',
+          profile: 'profile',
+          ai_hub: 'ai_hub',
+          home: 'ai_hub',
+        };
+        const target = screenMap[String(params.screen || '').toLowerCase()] || null;
+        if (target) {
+          setRequestedNavigation({ screen: target, ts: Date.now() });
+          console.log(`[Voice] Navigate → ${target} (reason: ${params.reason || 'user request'})`);
+          return `Navigated to ${target}`;
+        }
+        return 'Unknown screen';
+      }
+
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return 'Not authenticated';
       eventLogger.log('voice_command', { action: toolName, mode: 'elevenlabs' });
@@ -303,11 +374,16 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
       return result;
     },
     onModeChange: (_mode: Mode) => {
+      // Light haptic when MYPA starts speaking — user feels the AI respond
+      if (_mode === 'speaking') {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+      }
       // Reset inactivity timer on every mode change
       if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
       inactivityTimerRef.current = setTimeout(() => {
         if (voiceStateRef.current === 'listening') {
           console.log('[Voice] Inactivity timeout — ending session');
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
           conversationRef.current?.endSession('user');
         }
       }, SESSION_INACTIVITY_TIMEOUT_MS);
@@ -327,7 +403,8 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
   useEffect(() => {
     (async () => {
       try {
-        await Audio.requestPermissionsAsync();
+        await requestRecordingPermissionsAsync();
+        await audioSessionService.configure();
       } catch (err) {
         console.error('[Voice] Failed to request audio permissions:', err);
       }
@@ -342,8 +419,9 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
       const quality = await OfflineQueueService.checkConnectionQuality();
       if (cancelled) return;
 
+      lastQualityCheckRef.current = { quality, ts: Date.now() };
       setConnectionQuality((prev) => {
-        if (prev !== quality) {
+        if (prev !== null && prev !== quality) {
           console.log(`[Voice] Connection quality: ${prev} → ${quality}`);
         }
         return quality;
@@ -371,14 +449,16 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
       }
     };
 
-    // Check immediately on mount
-    checkQuality();
-
-    // Then check every 30s
-    connectionCheckIntervalRef.current = setInterval(checkQuality, 30_000);
+    // Delay first check by 3s to let DNS/TLS warm up (avoids false-poor on cold launch)
+    const warmupTimer = setTimeout(() => {
+      checkQuality();
+      // Then check every 30s
+      connectionCheckIntervalRef.current = setInterval(checkQuality, 30_000);
+    }, 3000);
 
     return () => {
       cancelled = true;
+      clearTimeout(warmupTimer);
       if (connectionCheckIntervalRef.current) {
         clearInterval(connectionCheckIntervalRef.current);
         connectionCheckIntervalRef.current = null;
@@ -407,44 +487,74 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
         // Load live captions preference (Step 21f)
         const captionsVal = await AsyncStorage.getItem('mypa_live_captions');
         if (captionsVal === '1') setIsLiveCaptionsEnabled(true);
+
+        // Load preferred language
+        const langVal = await AsyncStorage.getItem('mypa_preferred_language');
+        if (langVal) setPreferredLanguage(langVal);
       } catch { /* noop */ }
     })();
   }, []);
 
   // -- Wake word: init/start/stop based on isWakeWordEnabled ----------------
+  // Split from sensitivity to avoid full destroy→init cycle on slider changes.
+  const wakeWordInitializingRef = useRef(false);
+
   useEffect(() => {
     if (!isWakeWordEnabled) {
-      // User disabled wake word — tear down
+      // User disabled wake word — tear down fully
       wakeWordService.stop().then(() => wakeWordService.destroy()).catch(() => {});
       return;
     }
 
-    // Initialize and start Porcupine
+    // Initialize and start Porcupine (guarded against double-init)
     let cancelled = false;
     (async () => {
-      if (!wakeWordService.isInitialized) {
+      if (wakeWordInitializingRef.current) return; // already in flight
+      if (wakeWordService.isInitialized) {
+        // Already initialized (e.g. re-mount) — just ensure it's running
+        if (!cancelled) await wakeWordService.start().catch(() => {});
+        return;
+      }
+
+      wakeWordInitializingRef.current = true;
+      try {
         await wakeWordService.initialize({
           sensitivity: wakeWordSensitivity,
           onDetected: () => {
-            // Wake word heard → auto-start ElevenLabs voice session
+            const now = Date.now();
+            const status = conversationRef.current?.status;
+            if (now < wakeWordCooldownUntilRef.current) return;
+            if (sessionStartInFlightRef.current) return;
+            if (status === 'connected' || status === 'connecting') return;
+
+            wakeWordCooldownUntilRef.current = now + 1500;
+            // Wake word heard → pause wake word to release mic, then start session
             console.log('[WakeWord] Triggering startListening()');
-            startListeningRef.current?.();
+            wakeWordService.pause().then(() => {
+              startListeningRef.current?.();
+            }).catch(() => {
+              startListeningRef.current?.();
+            });
           },
           onError: (err) => {
             console.warn('[WakeWord] Error:', err.message);
           },
         });
-      }
-      if (!cancelled && wakeWordService.isInitialized) {
-        await wakeWordService.start();
+        if (!cancelled && wakeWordService.isInitialized) {
+          await wakeWordService.start();
+        }
+      } finally {
+        wakeWordInitializingRef.current = false;
       }
     })();
 
     return () => {
       cancelled = true;
-      wakeWordService.stop().catch(() => {});
+      // On unmount/re-render: just pause, don't destroy.
+      // Destroy only happens when user explicitly disables wake word (above).
+      wakeWordService.pause().catch(() => {});
     };
-  }, [isWakeWordEnabled, wakeWordSensitivity]);
+  }, [isWakeWordEnabled]); // sensitivity NOT a dep — handled by setSensitivity()
 
   // -- Wake word: pause/resume when ElevenLabs session toggles --------------
   // Mic can't be shared between Porcupine and WebRTC simultaneously.
@@ -460,72 +570,6 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
     }
   }, [isConversationActive, isWakeWordEnabled]);
 
-  // -- Wake word: auto-disable on low battery (<15%) -----------------------
-  // expo-battery needs a native rebuild; use dynamic import() so the entire
-  // module load is async and any native-module-missing error is safely caught.
-  useEffect(() => {
-    if (!isWakeWordEnabled) return;
-
-    const LOW_BATTERY_THRESHOLD = 0.15;
-    const RESUME_BATTERY_THRESHOLD = 0.20;
-    let subscription: { remove: () => void } | null = null;
-    let cancelled = false;
-
-    (async () => {
-      let Battery: any;
-      try {
-        Battery = await import('expo-battery');
-        // Verify native module is actually linked
-        await Battery.getBatteryLevelAsync();
-      } catch {
-        console.log('[WakeWord] Battery monitoring unavailable — skipping');
-        return;
-      }
-      if (cancelled) return;
-
-      const checkBattery = async () => {
-        try {
-          const level = await Battery.getBatteryLevelAsync();
-          if (level >= 0 && level < LOW_BATTERY_THRESHOLD && !wakeWordDisabledByBatteryRef.current) {
-            wakeWordDisabledByBatteryRef.current = true;
-            await wakeWordService.stop();
-            console.log(`[WakeWord] Auto-paused — battery at ${Math.round(level * 100)}%`);
-          } else if (level >= RESUME_BATTERY_THRESHOLD && wakeWordDisabledByBatteryRef.current) {
-            wakeWordDisabledByBatteryRef.current = false;
-            if (wakeWordService.isInitialized) {
-              await wakeWordService.start();
-              console.log(`[WakeWord] Auto-resumed — battery at ${Math.round(level * 100)}%`);
-            }
-          }
-        } catch { /* ignore */ }
-      };
-
-      checkBattery();
-
-      try {
-        subscription = Battery.addBatteryLevelListener(({ batteryLevel }: { batteryLevel: number }) => {
-          if (batteryLevel >= 0 && batteryLevel < LOW_BATTERY_THRESHOLD && !wakeWordDisabledByBatteryRef.current) {
-            wakeWordDisabledByBatteryRef.current = true;
-            wakeWordService.stop().catch(() => {});
-            console.log(`[WakeWord] Auto-paused — battery at ${Math.round(batteryLevel * 100)}%`);
-          } else if (batteryLevel >= RESUME_BATTERY_THRESHOLD && wakeWordDisabledByBatteryRef.current) {
-            wakeWordDisabledByBatteryRef.current = false;
-            if (wakeWordService.isInitialized) {
-              wakeWordService.start().catch(() => {});
-              console.log(`[WakeWord] Auto-resumed — battery at ${Math.round(batteryLevel * 100)}%`);
-            }
-          }
-        });
-      } catch { /* listener not supported */ }
-    })();
-
-    return () => {
-      cancelled = true;
-      subscription?.remove();
-      wakeWordDisabledByBatteryRef.current = false;
-    };
-  }, [isWakeWordEnabled]);
-
   // -- Cleanup on unmount --------------------------------------------------
   useEffect(() => {
     return () => {
@@ -537,6 +581,8 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
       scribeService.disconnect().catch(() => {});
       // Clean up wake word on unmount
       wakeWordService.stop().then(() => wakeWordService.destroy()).catch(() => {});
+      // Clean up audio session
+      audioSessionService.teardown();
     };
   }, []);
 
@@ -546,8 +592,8 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
   const stopPlayback = async () => {
     if (soundRef.current) {
       try {
-        await soundRef.current.stopAsync();
-        await soundRef.current.unloadAsync();
+        soundRef.current.pause();
+        soundRef.current.remove();
       } catch { /* ignore */ }
       soundRef.current = null;
     }
@@ -558,6 +604,31 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
   // -----------------------------------------------------------------------
   const startListening = useCallback(async () => {
     if (!isVoiceEnabled) return;
+    if (sessionStartInFlightRef.current) {
+      console.log('[Voice] startListening ignored — session start already in flight');
+      return;
+    }
+
+    // DND / Phone Call — don't start voice if audio session is interrupted
+    if (audioSessionService.isInterrupted) {
+      console.log('[Voice] Audio session interrupted (call/DND) — skipping');
+      setError('Voice unavailable — phone call or Focus mode active');
+      return;
+    }
+
+    // Mic permission self-check (guard for wake word / programmatic triggers)
+    const { status: micStatus } = await getRecordingPermissionsAsync();
+    if (micStatus === 'denied') {
+      setError('Microphone access denied. Go to Settings → MYPA to enable.');
+      return;
+    }
+    if (micStatus !== 'granted') {
+      const { status: newMicStatus } = await requestRecordingPermissionsAsync();
+      if (newMicStatus !== 'granted') {
+        setError('Microphone permission is required for voice.');
+        return;
+      }
+    }
 
     // Discreet mode: just set state, UI shows text input
     if (isDiscreetMode) {
@@ -568,13 +639,23 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
       return;
     }
 
-    // Connection quality check (Step 20a)
-    const quality = await OfflineQueueService.checkConnectionQuality();
-    setConnectionQuality(quality);
+    sessionStartInFlightRef.current = true;
+
+    // Connection quality check (Step 20a) — use cached result if <10s old
+    const cached = lastQualityCheckRef.current;
+    let quality: ConnectionQuality;
+    if (cached && Date.now() - cached.ts < 10_000) {
+      quality = cached.quality;
+    } else {
+      quality = await OfflineQueueService.checkConnectionQuality();
+      lastQualityCheckRef.current = { quality, ts: Date.now() };
+      setConnectionQuality(quality);
+    }
     if (quality === 'offline') {
       setVoiceState('offline');
       setError('No network connection. Type your request instead.');
       eventLogger.log('voice_error', { errorType: 'offline' });
+      sessionStartInFlightRef.current = false;
       return;
     }
     if (quality === 'poor') {
@@ -586,6 +667,10 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
     setTranscript('');
     setAiResponse('');
     listenStartTimeRef.current = Date.now();
+    if (inactivityTimerRef.current) {
+      clearTimeout(inactivityTimerRef.current);
+      inactivityTimerRef.current = null;
+    }
 
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -593,26 +678,28 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
       // If already connected, the session is live — just log
       if (conversation.status === 'connected') {
         console.log('[Voice] Session already active');
+        sessionStartInFlightRef.current = false;
         return;
       }
 
-      // End any stale/zombie session before starting a new one
+      // If the SDK is still connecting/disconnecting, don't force-end it.
+      // Overlapping teardown/startup is what causes immediate session drops.
       if (conversation.status !== 'disconnected') {
-        try {
-          await conversation.endSession('user');
-        } catch { /* ignore — might already be disconnected */ }
+        console.log(`[Voice] Session busy (${conversation.status}) — skipping new start`);
+        sessionStartInFlightRef.current = false;
+        return;
       }
 
       setVoiceState('processing'); // Show loading while connecting
 
       // Reset iOS audio session to allow recording — the briefing TTS
-      // sets allowsRecordingIOS:false which blocks the WebRTC mic.
+      // sets allowsRecording:false which blocks the WebRTC mic.
       try {
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: true,
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: false,
-          shouldDuckAndroid: true,
+        await setAudioModeAsync({
+          allowsRecording: true,
+          playsInSilentMode: true,
+          shouldPlayInBackground: false,
+          interruptionMode: 'doNotMix',
         });
       } catch (audioErr) {
         console.warn('[Voice] Failed to reset audio mode:', audioErr);
@@ -693,6 +780,8 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
         overdue_count: String(overdueTasks),
         current_screen: currentScreenRef.current,
         task_summary: '',
+        language: preferredLanguage,
+        voice_speed: String(voiceSpeed),
       };
 
       // 3. Build session config and start (with adaptive voice settings)
@@ -790,6 +879,8 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
           setError(null);
         }
       }, 5000);
+    } finally {
+      sessionStartInFlightRef.current = false;
     }
   }, [isVoiceEnabled, isDiscreetMode, selectedVoice, conversation, userModelData]);
 
@@ -827,6 +918,12 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
       return;
     }
 
+    // DND / Phone Call — skip TTS playback if audio session is interrupted
+    if (audioSessionService.isInterrupted) {
+      console.log('[Voice] Audio session interrupted — skipping TTS');
+      return;
+    }
+
     // If ElevenLabs session is active, send as contextual update instead
     if (conversation.status === 'connected') {
       conversation.sendContextualUpdate(text);
@@ -841,11 +938,11 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
     setVoiceState('speaking');
 
     try {
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: true,
+      await setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
+        shouldPlayInBackground: false,
+        interruptionMode: 'doNotMix',
       });
 
       // For REST TTS, resolve 'agent-default' to the actual fallback voice ID
@@ -872,7 +969,7 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
         await new Promise<void>((resolve) => {
           Speech.speak(text, {
             rate: voiceSpeed,
-            language: 'en-US',
+            language: LANGUAGE_TO_LOCALE[preferredLanguage] || preferredLanguage,
             onDone: resolve,
             onError: () => resolve(),
           });
@@ -889,16 +986,26 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
       });
       const uri = tempPath.startsWith('file://') ? tempPath : 'file://' + tempPath;
 
-      const { sound } = await Audio.Sound.createAsync({ uri }, { shouldPlay: true });
-      soundRef.current = sound;
+      const player = createAudioPlayer({ uri });
+      soundRef.current = player;
 
       await new Promise<void>((resolve) => {
         let resolved = false;
         const done = () => { if (!resolved) { resolved = true; resolve(); } };
-        sound.setOnPlaybackStatusUpdate((status) => {
-          if (status.isLoaded && (status as any).didJustFinish) done();
+        const subscription = player.addListener('playbackStatusUpdate', (status) => {
+          if (status.didJustFinish) {
+            subscription.remove();
+            done();
+          }
         });
-        setTimeout(done, 30000);
+        // Wait for the player to load, then play
+        const checkLoaded = setInterval(() => {
+          if (player.isLoaded) {
+            clearInterval(checkLoaded);
+            player.play();
+          }
+        }, 50);
+        setTimeout(() => { clearInterval(checkLoaded); done(); }, 30000);
       });
 
       await stopPlayback();
@@ -910,7 +1017,7 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
         await new Promise<void>((resolve) => {
           Speech.speak(text, {
             rate: voiceSpeed,
-            language: 'en-US',
+            language: LANGUAGE_TO_LOCALE[preferredLanguage] || preferredLanguage,
             onDone: resolve,
             onError: () => resolve(),
           });
@@ -922,7 +1029,7 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
     if (voiceStateRef.current === 'speaking') {
       setVoiceState('idle');
     }
-  }, [isVoiceEnabled, selectedVoice, voiceSpeed, conversation]);
+  }, [isVoiceEnabled, selectedVoice, voiceSpeed, preferredLanguage, conversation]);
 
   // -----------------------------------------------------------------------
   // stopSpeaking — end session or stop REST TTS
@@ -968,6 +1075,7 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
     setVoiceState('idle');
     setAudioLevel(0);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    audioSessionService.setInterrupted(false);
   }, [conversation]);
 
   // -----------------------------------------------------------------------
@@ -1052,7 +1160,7 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
   const handleSetWakeWordEnabled = useCallback(async (enabled: boolean) => {
     if (enabled) {
       // Request microphone permission before enabling wake word
-      const { status } = await Audio.requestPermissionsAsync();
+      const { status } = await requestRecordingPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert(
           'Microphone Required',
@@ -1064,19 +1172,6 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
         );
         return; // Don't enable without permission
       }
-
-      // Check battery level — warn if low
-      try {
-        const BatteryMod = await import('expo-battery');
-        const level = await BatteryMod.getBatteryLevelAsync();
-        if (level >= 0 && level < 0.15) {
-          Alert.alert(
-            'Low Battery',
-            `Battery is at ${Math.round(level * 100)}%. Wake word detection will be paused to save power and will resume when battery is above 20%.`,
-            [{ text: 'OK' }],
-          );
-        }
-      } catch { /* expo-battery not available in simulator */ }
     }
 
     setIsWakeWordEnabled(enabled);
@@ -1154,6 +1249,23 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
   }, []);
 
   // -----------------------------------------------------------------------
+  // Preferred language toggle + persist (Step 5)
+  // -----------------------------------------------------------------------
+  const handleSetPreferredLanguage = useCallback(async (lang: string) => {
+    setPreferredLanguage(lang);
+    eventLogger.log('feature_used', {
+      feature: 'language',
+      action: 'language_changed',
+      success: true,
+      language: lang,
+    });
+    try {
+      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+      await AsyncStorage.setItem('mypa_preferred_language', lang);
+    } catch { /* noop */ }
+  }, []);
+
+  // -----------------------------------------------------------------------
   // retryConnection — manually re-check and flush queue (Step 20)
   // -----------------------------------------------------------------------
   const retryConnection = useCallback(async () => {
@@ -1202,6 +1314,16 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
     /** Previous text context (≤50 chars) for improved accuracy */
     previousText?: string;
   }) => {
+    // Mic permission self-check (guard for programmatic Scribe triggers)
+    const { status: micStatus } = await getRecordingPermissionsAsync();
+    if (micStatus !== 'granted') {
+      const { status: newMicStatus } = await requestRecordingPermissionsAsync();
+      if (newMicStatus !== 'granted') {
+        setError('Microphone permission is required for transcription.');
+        return;
+      }
+    }
+
     if (scribeService.isConnected) {
       console.log('[Voice] Scribe already active');
       return;
@@ -1222,7 +1344,7 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
     try {
       await scribeService.connect({
         commitStrategy: options?.commitStrategy || 'vad',
-        languageCode: options?.languageCode || 'en',
+        languageCode: options?.languageCode || preferredLanguage,
         includeTimestamps: false,
         vadSilenceThreshold: 1.5,
         vadThreshold: 0.4,
@@ -1233,6 +1355,8 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
           setScribePartialTranscript(text);
         },
         onCommittedTranscript: (text) => {
+          // Subtle pulse on each committed speech segment
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
           setScribeFullTranscript(scribeService.fullTranscript);
           setScribePartialTranscript('');
 
@@ -1367,6 +1491,9 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
     selectedVoice,
     setSelectedVoice,
 
+    preferredLanguage,
+    setPreferredLanguage: handleSetPreferredLanguage,
+
     isDiscreetMode,
     setDiscreetMode: handleSetDiscreetMode,
     submitText,
@@ -1385,6 +1512,9 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
     retryConnection,
 
     updateScreenContext,
+
+    requestedNavigation,
+    clearNavigationRequest,
 
     isLiveCaptionsEnabled,
     setLiveCaptionsEnabled: handleSetLiveCaptionsEnabled,

@@ -6,7 +6,7 @@
     "type": "object",
     "properties": {
       "title": { "type": "string", "description": "The task title, extracted from user speech" },
-      "date": { "type": "string", "description": "Due date in ISO 8601 format or natural language (today, tomorrow, next monday, etc.)" },
+      "date": { "type": "string", "description": "Due date. Use: 'today', 'tomorrow', a day name like 'monday'/'tuesday', 'next wednesday', 'in 3 days', or ISO 8601 (2026-02-17)." },
       "time": { "type": "string", "description": "Due time (e.g. 3pm, 15:00)" },
       "duration_min": { "type": "number", "description": "Estimated duration in minutes" },
       "category": { "type": "string", "enum": ["Personal", "Work", "Health", "Fitness", "Wellness", "Creative"], "description": "Task category" },

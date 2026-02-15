@@ -111,6 +111,7 @@ export interface ScribeConfig {
   onPartialTranscript?: (text: string) => void;
   /** Called when a segment is committed (final transcript) */
   onCommittedTranscript?: (text: string) => void;
+  
   /** Called with committed transcript + word-level timestamps */
   onCommittedTranscriptWithTimestamps?: (data: ScribeTimestampData) => void;
   /** Called when the WebSocket session starts */

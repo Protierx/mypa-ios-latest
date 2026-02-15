@@ -1,6 +1,6 @@
 {
   "name": "batch_create_tasks",
-  "description": "Create multiple tasks at once. Use when user lists several things to do.",
+  "description": "Create multiple tasks at once. Use when user lists several things to do or wants a repeating schedule. IMPORTANT: When the user asks for a recurring schedule (e.g. Push/Pull/Legs, weekly meal prep, study plan), you MUST assign each task a DIFFERENT date spread across the relevant days. Use day names like 'monday', 'tuesday', etc. — NOT 'every monday' or 'every week'. For a weekly gym rotation, assign each workout to the next occurrence of that specific day. Never put all tasks on the same date.",
   "type": "client",
   "parameters": {
     "type": "object",
@@ -11,13 +11,13 @@
           "type": "object",
           "properties": {
             "title": { "type": "string", "description": "Task title" },
-            "date": { "type": "string", "description": "Task due date" },
+            "date": { "type": "string", "description": "Due date. Use: 'today', 'tomorrow', a day name like 'monday'/'tuesday', 'next wednesday', 'in 3 days', or ISO 8601 (2026-02-17). Each task in a batch MUST have its own unique date when scheduling across days." },
             "priority": { "type": "string", "enum": ["low", "medium", "high", "urgent"], "description": "Task priority level" },
             "category": { "type": "string", "description": "Task category" }
           },
           "required": ["title"]
         },
-        "description": "Array of tasks to create"
+        "description": "Array of tasks to create. Each task should have its own date when creating a schedule."
       }
     },
     "required": ["tasks"]

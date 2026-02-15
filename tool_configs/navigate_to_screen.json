@@ -1,0 +1,45 @@
+{
+    "type": "client",
+    "name": "navigate_to_screen",
+    "description": "Navigate the user to a specific screen in the app. Use when they say things like show me my tasks, open focus, let me see my challenges, go to profile. Also use when the conversation context is heavy enough that viewing the relevant screen would help (e.g. creating multiple tasks, discussing challenge progress). Do NOT navigate for simple one-off questions.",
+    "response_timeout_secs": 20,
+    "disable_interruptions": false,
+    "force_pre_tool_speech": false,
+    "assignments": [],
+    "tool_call_sound_behavior": "auto",
+    "tool_error_handling_mode": "auto",
+    "parameters": {
+        "type": "object",
+        "required": [
+            "screen"
+        ],
+        "description": "",
+        "properties": {
+            "screen": {
+                "type": "string",
+                "description": "Which screen to navigate to. tasks = to-do list, challenges = social/leaderboard/circles, focus = timer/deep work, profile = settings/stats",
+                "enum": [
+                    "tasks",
+                    "challenges",
+                    "focus",
+                    "profile"
+                ],
+                "is_system_provided": false,
+                "dynamic_variable": "",
+                "constant_value": ""
+            },
+            "reason": {
+                "type": "string",
+                "description": "Brief reason for navigation, spoken naturally to the user (e.g. 'Let me pull up your tasks')",
+                "is_system_provided": false,
+                "dynamic_variable": "",
+                "constant_value": ""
+            }
+        }
+    },
+    "expects_response": false,
+    "dynamic_variables": {
+        "dynamicVariablePlaceholders": {}
+    },
+    "execution_mode": "immediate"
+}

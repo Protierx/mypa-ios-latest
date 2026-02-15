@@ -3,8 +3,8 @@
  * 
  * Main navigation component using swipe gestures.
  * - CENTER: AI Hub (default)
- * - LEFT: Tasks View
- * - RIGHT: Social View
+ * - LEFT: Social View
+ * - RIGHT: Tasks View
  * - DOWN: Profile View
  * - UP: Focus Modal (opens as overlay)
  */
@@ -48,6 +48,7 @@ const SPRING_CONFIG = {
 
 function GestureNavigatorContent() {
   const { currentScreen, navigateTo, canSwipe } = useGestureNavigation();
+  const { requestedNavigation, clearNavigationRequest } = useVoice();
   
   // Focus modal overlay state
   const [showFocusModal, setShowFocusModal] = useState(false);
@@ -78,13 +79,13 @@ function GestureNavigatorContent() {
     
     switch (screen) {
       case 'tasks':
-        translateX.value = withSpring(SCREEN_WIDTH, SPRING_CONFIG, () => {
+        translateX.value = withSpring(-SCREEN_WIDTH, SPRING_CONFIG, () => {
           isTransitioning.value = false;
         });
         translateY.value = withSpring(0, SPRING_CONFIG);
         break;
       case 'social':
-        translateX.value = withSpring(-SCREEN_WIDTH, SPRING_CONFIG, () => {
+        translateX.value = withSpring(SCREEN_WIDTH, SPRING_CONFIG, () => {
           isTransitioning.value = false;
         });
         translateY.value = withSpring(0, SPRING_CONFIG);
@@ -108,6 +109,23 @@ function GestureNavigatorContent() {
     runOnJS(triggerHaptic)();
   }, [navigateTo, triggerHaptic]);
 
+  // Step 7b: Voice-triggered navigation — AI tool call sets requestedNavigation,
+  // we animate to that screen and clear the request.
+  useEffect(() => {
+    if (!requestedNavigation) return;
+    const { screen } = requestedNavigation;
+    if (screen === currentScreen) {
+      clearNavigationRequest();
+      return;
+    }
+    if (screen === 'focus') {
+      openFocusModal();
+    } else {
+      animateToScreen(screen);
+    }
+    clearNavigationRequest();
+  }, [requestedNavigation, currentScreen, animateToScreen, openFocusModal, clearNavigationRequest]);
+
   // Pan gesture handler
   const panGesture = useMemo(() => Gesture.Pan()
     .onUpdate((event) => {
@@ -118,11 +136,11 @@ function GestureNavigatorContent() {
         translateX.value = event.translationX * 0.5;
         translateY.value = event.translationY * 0.5;
       } else if (currentScreen === 'tasks') {
-        // Can only swipe right to return
-        translateX.value = SCREEN_WIDTH + Math.max(0, event.translationX * 0.5);
+        // Tasks is on the right: base translateX = -SCREEN_WIDTH, swipe right to return
+        translateX.value = -SCREEN_WIDTH + Math.max(0, event.translationX * 0.5);
       } else if (currentScreen === 'social') {
-        // Can only swipe left to return
-        translateX.value = -SCREEN_WIDTH + Math.min(0, event.translationX * 0.5);
+        // Social is on the left: base translateX = SCREEN_WIDTH, swipe left to return
+        translateX.value = SCREEN_WIDTH + Math.min(0, event.translationX * 0.5);
       } else if (currentScreen === 'profile') {
         // Can only swipe up to return
         translateY.value = -SCREEN_HEIGHT + Math.min(0, event.translationY * 0.5);
@@ -153,7 +171,7 @@ function GestureNavigatorContent() {
           animateToScreen('ai_hub');
         }
       }
-      // From Tasks - can only swipe right to return
+      // From Tasks (on the right) - swipe right to return
       else if (currentScreen === 'tasks') {
         if (translationX > HORIZONTAL_THRESHOLD || velocityX > 500) {
           animateToScreen('ai_hub');
@@ -161,7 +179,7 @@ function GestureNavigatorContent() {
           animateToScreen('tasks');
         }
       }
-      // From Social - can only swipe left to return
+      // From Social (on the left) - swipe left to return
       else if (currentScreen === 'social') {
         if (translationX < -HORIZONTAL_THRESHOLD || velocityX < -500) {
           animateToScreen('ai_hub');
@@ -194,13 +212,13 @@ function GestureNavigatorContent() {
           <View style={styles.container}>
             <Animated.View style={[styles.screenContainer, animatedContainerStyle]}>
               <View style={[styles.screen, styles.leftScreen]}>
-                <TasksViewScreen />
+                <SocialViewScreen />
               </View>
               <View style={[styles.screen, styles.centerScreen]}>
                 <AIHubScreen />
               </View>
               <View style={[styles.screen, styles.rightScreen]}>
-                <SocialViewScreen />
+                <TasksViewScreen />
               </View>
               <View style={[styles.screen, styles.bottomScreen]}>
                 <ProfileViewScreen />

@@ -14,7 +14,10 @@ import {
   Linking,
   Platform,
 } from 'react-native';
-import { Audio } from 'expo-av';
+import {
+  getRecordingPermissionsAsync,
+  requestRecordingPermissionsAsync,
+} from 'expo-audio';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, {
@@ -81,7 +84,7 @@ export function VoicePermissions({
   }));
 
   const checkPermission = useCallback(async () => {
-    const { status } = await Audio.getPermissionsAsync();
+    const { status } = await getRecordingPermissionsAsync();
     if (status === 'granted') {
       setPermissionStatus('granted');
       return true;
@@ -94,7 +97,7 @@ export function VoicePermissions({
   }, []);
 
   const requestPermission = useCallback(async () => {
-    const { status } = await Audio.requestPermissionsAsync();
+    const { status } = await requestRecordingPermissionsAsync();
     
     if (status === 'granted') {
       setPermissionStatus('granted');
@@ -339,7 +342,7 @@ export function useVoicePermissions() {
   const [showPermissionModal, setShowPermissionModal] = useState(false);
 
   const checkPermission = useCallback(async (): Promise<PermissionStatus> => {
-    const { status: audioStatus } = await Audio.getPermissionsAsync();
+    const { status: audioStatus } = await getRecordingPermissionsAsync();
     
     const newStatus: PermissionStatus = 
       audioStatus === 'granted' ? 'granted' :

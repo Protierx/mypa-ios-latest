@@ -99,6 +99,11 @@
             "type": "client",
             "config": "tool_configs/set_preference.json",
             "id": "tool_8201kh7fvgzzewtr3ceqvp677wzc"
+        },
+        {
+            "type": "client",
+            "config": "tool_configs/navigate_to_screen.json",
+            "id": "tool_9501khfx2zz3fftv0xcjjh7vd0tx"
         }
     ]
 }

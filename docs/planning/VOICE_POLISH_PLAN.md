@@ -1,16 +1,36 @@
-# Voice Polish Plan — Close 7 Launch-Critical Gaps
+# Voice Polish Plan — Close Launch-Critical Gaps
 
 All 21 ElevenLabs migration steps are complete. This plan addresses the remaining UX gaps that real users of voice-first apps will notice.
 
 **Status:** Mic permissions (#8 from the gap audit) is already well implemented — `VoicePermissions` modal + `useVoicePermissions` hook + Settings deep-link all exist.
 
+### Completed ✅
+- **Step 1:** VAD scores wired into `audioLevel` — all visualizers alive
+- **Step 2:** Haptic feedback at 6 voice flow touchpoints
+- **Step 3:** DND / phone call awareness — `AudioSessionService` with `DoNotMix` interruption mode, guards in `startListening` + `speak`, configured on mount
+- **Step 4:** Mic permission self-check in `startListening` and `startScribe` — guards for wake word / programmatic triggers
+- **Step 5:** Multi-language support — `preferredLanguage` state + AsyncStorage persistence, wired into Scribe/TTS/ConvAI, language picker in SettingsModal (10 languages)
+- **Step 6:** Conversation History modal — grouped-by-date FlatList with mood emoji, action count, expand/collapse details, swipe-to-delete, pull-to-refresh
+- **Step 7:** Voice speed wired into ConvAI — `voice_speed` dynamic variable passed to agent session
+- **Step 7b:** Contextual auto-navigation — `navigate_to_screen` client tool, VoiceContext intercept + requestedNavigation state, GestureNavigatorContent listener with animated transition
+- **Step 8:** WakeWord lifecycle fix — split effect (isEnabled vs sensitivity), `isInitializingRef` guard, cleanup uses `pause()` not `destroy()`
+- **Step 9:** `useChallenges` realtime subscription filtered by `user_id` — no more global refetch storms
+- **Step 10:** Deduplicated `useCircles` / `useChallenges` triple-fetch — `isFetchingRef` guard, `userId` string dep, 500ms debounced realtime handler
+- **Step 11:** Fixed connection quality false-poor on cold launch — `null` initial state, 3s delayed first check, 10s cached result in `startListening`
+- **Step 12:** Removed `expo-battery` monitoring entirely — battery effect, low-battery warning in toggle, and `wakeWordDisabledByBatteryRef` all deleted
+- **Step 13:** Deleted dead `VoiceAssistantService.ts` — 657 lines of pre-ElevenLabs dead code removed
+- **Immersive AI Hub:** Orb removed, full-screen aurora background with state-reactive blobs
+- **Briefing Pill:** Daily briefing collapses into a pill button after TTS playback
+- **Worklet Crash Fix:** `useFrameCallback` converted JS props → `SharedValue`s for thread safety
+- **Center Glow Wired:** `focusGlowOpacity` / `focusGlowScale` now drive rendered center glow
+
 ---
 
 ## Phase A — Before Launch (Steps 1–4)
 
-### Step 1. Fix Audio Level Visualizer — Wire VAD Scores Into `audioLevel`
+### Step 1. Fix Audio Level Visualizer — Wire VAD Scores Into `audioLevel` ✅ DONE
 
-**Problem:** The visualizer components exist and look great, but `audioLevel` is always `0` during ConvAI sessions because the `onVadScore` callback is an empty TODO stub.
+**Problem:** ~~The visualizer components exist and look great, but `audioLevel` is always `0` during ConvAI sessions because the `onVadScore` callback is an empty TODO stub.~~ **Fixed — VAD scores now flow through `setAudioLevel` into all visualizers.**
 
 **Components that consume `audioLevel` (all working, all receiving `0`):**
 | Component | File | Visual |
@@ -53,9 +73,9 @@ Already handled — `setAudioLevel(0)` is called in `stopListening`, `cancelList
 
 ---
 
-### Step 2. Add Haptic Feedback Throughout the Voice Flow
+### Step 2. Add Haptic Feedback Throughout the Voice Flow ✅ DONE
 
-**Problem:** Only `startListening` (Medium impact) and `endConversation` (Medium impact) fire haptics. The entire voice flow feels "dead" compared to Apple's own apps which use haptics extensively.
+**Problem:** ~~Only `startListening` (Medium impact) and `endConversation` (Medium impact) fire haptics. The entire voice flow feels "dead" compared to Apple's own apps which use haptics extensively.~~ **Fixed — 6 haptic touchpoints added across the entire voice lifecycle.**
 
 **Changes in `VoiceContext.tsx`:**
 
@@ -77,7 +97,7 @@ Already handled — `setAudioLevel(0)` is called in `stopListening`, `cancelList
 
 ---
 
-### Step 3. Add DND / Phone Call Awareness
+### Step 3. Add DND / Phone Call Awareness ✅ DONE
 
 **Problem:** If a phone call comes in or the user has Focus/DND enabled, MYPA will blast audio through the speaker. No audio interruption handling exists.
 
@@ -151,7 +171,7 @@ In VoiceContext's initialization `useEffect`, call `audioSessionService.configur
 
 ---
 
-### Step 4. Add Mic Permission Self-Check in `startListening` and `startScribe`
+### Step 4. Add Mic Permission Self-Check in `startListening` and `startScribe` ✅ DONE
 
 **Problem:** The permission modal works great when triggered from AIHubScreen's tap handler, but `startListening` itself doesn't check — meaning wake word triggers or programmatic calls could fail silently.
 
@@ -196,7 +216,7 @@ const startScribe = useCallback(async (options?) => {
 
 ## Phase B — Week 1 Post-Launch (Steps 5–7)
 
-### Step 5. Multi-Language Support
+### Step 5. Multi-Language Support ✅ DONE
 
 **Problem:** `languageCode: 'en'` is hardcoded in Scribe, `expo-speech` uses `'en-US'`, and ConvAI has no language parameter at all.
 
@@ -260,7 +280,7 @@ UI pattern: same chip-grid as voice picker — tap to select, current selection 
 
 ---
 
-### Step 6. Conversation History Screen
+### Step 6. Conversation History Screen ✅ DONE
 
 **Problem:** The `conversation_history` table exists and the webhook populates it, but users have no way to view past conversations.
 
@@ -328,7 +348,7 @@ Add `ConversationHistory` to the navigation stack in the existing screen registr
 
 ---
 
-### Step 7. Wire `voiceSpeed` Into ConvAI Sessions
+### Step 7. Wire `voiceSpeed` Into ConvAI Sessions ✅ DONE
 
 **Problem:** `voiceSpeed` (0.5x–2.0x) adjusts the REST TTS path but has zero effect during live ConvAI sessions, which is the primary mode.
 
@@ -365,6 +385,312 @@ The user's preferred voice speed is {{voice_speed}}x.
 
 ---
 
+### Step 7b. Contextual Auto-Navigation — "Take Me There" Intelligence ✅ DONE
+
+**Problem:** When the user is talking about tasks, challenges, or focus sessions, they're stuck on the AI Hub screen and can't see the relevant content. The AI should auto-navigate to the relevant screen when the conversation context is heavy enough that viewing the page while talking would be more useful.
+
+**Architecture:** The app already has 20 registered ElevenLabs client tools (`create_task`, `start_focus`, `join_challenge`, `query_tasks`, etc.) and a swipe-based gesture navigator with programmatic `navigateTo(screen)`. We add a new `navigate_to_screen` client tool so the agent can trigger navigation itself.
+
+#### 7b-1. Register `navigate_to_screen` Client Tool
+
+**File:** `frontend/src/services/voice/ElevenLabsVoiceService.ts`
+
+Add to the `clientTools` map alongside existing tools:
+
+```typescript
+navigate_to_screen: async (params: { screen: string; reason?: string }) => {
+  // This gets intercepted in VoiceContext before hitting executeAction
+  return `Navigated to ${params.screen}`;
+},
+```
+
+#### 7b-2. Handle Navigation in VoiceContext
+
+**File:** `frontend/src/contexts/VoiceContext.tsx`
+
+In the `onToolCall` callback (where tool calls are dispatched to `executeAction`), intercept `navigate_to_screen` before it reaches the action system:
+
+```typescript
+// In the onToolCall handler:
+if (toolName === 'navigate_to_screen') {
+  const screenMap: Record<string, Screen> = {
+    tasks: 'tasks',
+    challenges: 'social',
+    circles: 'social',
+    social: 'social',
+    focus: 'focus',
+    profile: 'profile',
+    ai_hub: 'ai_hub',
+    home: 'ai_hub',
+  };
+  const target = screenMap[params.screen?.toLowerCase()] || null;
+  if (target && navigationRef.current) {
+    navigationRef.current.navigateTo(target);
+  }
+  return; // Don't pass to executeAction
+}
+```
+
+#### 7b-3. Expose Navigation Ref Bridge
+
+**File:** `frontend/src/navigation-v2/GestureNavigator.tsx`
+
+The `navigateTo` function currently only updates state — the animation is driven by a local `animateToScreen` worklet. Expose a ref so VoiceContext can trigger animated navigation:
+
+```typescript
+// Add a ref bridge (similar to how ScreenTracker watches currentScreen):
+export const navigationRef = React.createRef<{
+  navigateTo: (screen: Screen) => void;
+  currentScreen: Screen;
+}>();
+
+// Inside GestureNavigator component, wire the ref:
+useImperativeHandle(navigationRef, () => ({
+  navigateTo: (screen: Screen) => {
+    animateToScreen(screen);  // The worklet that does spring animation
+    setCurrentScreen(screen);
+  },
+  currentScreen,
+}));
+```
+
+#### 7b-4. Pass Navigation Ref to VoiceContext
+
+**File:** `frontend/App.tsx`
+
+```typescript
+<VoiceProvider navigationRef={navigationRef}>
+```
+
+#### 7b-5. Register Tool on ElevenLabs Dashboard
+
+Add a new client tool to the MYPA agent:
+
+```json
+{
+  "name": "navigate_to_screen",
+  "description": "Navigate the user to a specific screen in the app. Call this when the conversation is about a specific area and it would help the user to see the relevant content while talking. Do NOT navigate for simple questions — only when the user explicitly asks to see something, or when the context is heavy enough that viewing the page would be helpful.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "screen": {
+        "type": "string",
+        "enum": ["tasks", "challenges", "focus", "profile"],
+        "description": "Which screen to navigate to"
+      },
+      "reason": {
+        "type": "string",
+        "description": "Brief reason for navigation, spoken to user"
+      }
+    },
+    "required": ["screen"]
+  }
+}
+```
+
+#### 7b-6. Agent Prompt Addition (Dashboard)
+
+Add to the MYPA system prompt:
+
+```
+CONTEXTUAL NAVIGATION:
+You can navigate the user to relevant screens using the navigate_to_screen tool.
+
+WHEN to navigate:
+- User says "show me my tasks" / "let me see my challenges" / "open focus"
+- User is creating or managing multiple tasks (navigate to tasks so they can see them being added)
+- User asks about challenge progress (navigate to social so they can see the leaderboard)
+- User starts a focus session (navigate to focus screen)
+- Heavy task discussion where seeing the list would help
+
+WHEN NOT to navigate:
+- Simple one-off questions ("how many tasks do I have?")
+- User is already on the relevant screen (check current_screen context)
+- Quick actions that don't need visual confirmation
+- The user explicitly says "don't switch" or "stay here"
+
+Always say something natural when navigating: "Let me pull up your tasks" / "Here are your challenges"
+```
+
+**Screen mapping:**
+| User Intent | `screen` param | App Screen |
+|-------------|----------------|------------|
+| Tasks, to-do, assignments | `tasks` | TasksScreen (swipe left) |
+| Challenges, leaderboard, compete | `challenges` | SocialScreen (swipe right) |
+| Circles, friends, social | `challenges` | SocialScreen (swipe right) |
+| Focus, timer, deep work | `focus` | FocusScreen (swipe up) |
+| Profile, settings, stats | `profile` | ProfileScreen (swipe down) |
+
+**Result:** The AI becomes spatially aware — it talks AND shows. User asks "what's on my plate today?" → AI navigates to Tasks, reads out the list while the user sees it update in real-time.
+
+**Effort:** 🟡 1–2 hours (code) + dashboard tool registration
+
+**Dashboard task:** Register `navigate_to_screen` tool with the params schema above, add CONTEXTUAL NAVIGATION section to agent prompt.
+
+---
+
+## Phase C — Stability & Performance (Steps 8–14)
+
+*Discovered from runtime log audit on 14 Feb 2026.*
+
+---
+
+### Step 8. Fix WakeWord Lifecycle Chaos ✅ DONE
+
+**Problem:** `[WakeWord] Destroyed` → re-initialized fires multiple times on screen transitions. The `useEffect` in `WakeWordService.ts` depends on both `isEnabled` AND `sensitivity`, so every sensitivity slider change triggers a full destroy → init cycle. If AIHubScreen unmounts/remounts (tab switches), the entire Porcupine init/destroy cycle repeats.
+
+**File:** `frontend/src/services/voice/WakeWordService.ts`
+
+**Changes:**
+1. **Split the effect:** One effect for `isEnabled` (init/destroy), a separate effect for `sensitivity` (just calls `setSensitivity()` without recreating Porcupine)
+2. **Guard cleanup:** The cleanup function should only call `pause()`, not `destroy()` — save `destroy()` for the final unmount only
+3. **Add `isInitializedRef`:** Gate `initialize()` calls so double-mounts in StrictMode or fast tab switches don't create duplicate Porcupine instances
+
+**Effort:** 🟡 30 min
+
+---
+
+### Step 9. Fix `useChallenges` Unfiltered Realtime Subscription ✅ DONE
+
+**Problem:** The Postgres changes subscription on `challenge_participants` has **no filter** — it fires `fetchChallenges()` for *any* participant change by *any* user in *any* challenge. As the user base grows, every connected client will refetch on every other user's update.
+
+**File:** `frontend/src/hooks/supabase/useChallenges.ts`
+
+**Compare:** `useCircles.ts` correctly filters with `.eq('user_id', userId)` on its subscription.
+
+**Change:**
+```typescript
+// Before (unfiltered — fires for ALL users):
+.on('postgres_changes', { event: '*', schema: 'public', table: 'challenge_participants' }, ...)
+
+// After (filtered — fires only for this user):
+.on('postgres_changes', {
+  event: '*',
+  schema: 'public',
+  table: 'challenge_participants',
+  filter: `user_id=eq.${userId}`,
+}, ...)
+```
+
+**Effort:** 🟢 5 min
+
+---
+
+### Step 10. Deduplicate `useCircles` / `useChallenges` Triple-Fetch ✅ DONE
+
+**Problem:** Both hooks fetch 3× on mount: (1) initial `useEffect`, (2) realtime subscription's first event, (3) `fetchX` identity change when auth state settles and `useCallback` deps change.
+
+**Files:** `frontend/src/hooks/supabase/useCircles.ts`, `frontend/src/hooks/supabase/useChallenges.ts`
+
+**Changes:**
+1. **Add `isFetchingRef`:** Skip redundant fetches if one is already in flight
+2. **Stabilize `fetchX` deps:** Depend on `userId` (string) instead of the `user` object reference
+3. **Debounce realtime handler:** Use a 500ms debounce on the subscription callback so rapid Postgres events don't cause fetch storms
+
+```typescript
+const isFetchingRef = useRef(false);
+
+const fetchChallenges = useCallback(async () => {
+  if (isFetchingRef.current || !userId) return;
+  isFetchingRef.current = true;
+  try {
+    // ... existing fetch logic
+  } finally {
+    isFetchingRef.current = false;
+  }
+}, [userId]); // ← userId string, not user object
+```
+
+**Effort:** 🟢 20 min
+
+---
+
+### Step 11. Fix Connection Quality False-Poor on Cold Launch ✅ DONE
+
+**Problem:** `[Voice] Connection quality: excellent → poor` fires immediately on launch. The quality check does a `HEAD` request to `https://api.elevenlabs.io/v1/models` — on cold launch, DNS/TLS handshake makes the first request slow (>1000ms), triggering a false `poor` rating.
+
+**Files:** `frontend/src/contexts/VoiceContext.tsx`, `frontend/src/services/voice/OfflineQueueService.ts`
+
+**Changes:**
+1. **Set initial state to `null`:** Don't default to `'excellent'` — use `null` or `'unknown'` and suppress the first transition log
+2. **Delay first check by 3s:** Let DNS/TLS warm up before measuring
+3. **Cache quality result for 10s:** The check runs both periodically AND on every `startListening()` call — skip the check in `startListening` if a recent result exists
+
+```typescript
+// Initial state:
+const [connectionQuality, setConnectionQuality] = useState<string | null>(null);
+
+// In the periodic check effect:
+useEffect(() => {
+  const timer = setTimeout(() => {
+    // First check after 3s warm-up
+    checkConnectionQuality();
+  }, 3000);
+  // ...
+}, []);
+```
+
+**Effort:** 🟢 15 min
+
+---
+
+### Step 12. Silence `ExpoBattery` Native Module Error ✅ DONE
+
+**Problem:** `[Error: Cannot find native module 'ExpoBattery']` logs on every launch. The `expo-battery` dynamic import's `try/catch` catches the crash, but React Native's module resolver still prints the error during `import()` resolution.
+
+**File:** `frontend/src/services/voice/WakeWordService.ts`
+
+**Options (pick one):**
+1. **Check `NativeModules` first:** Before calling `import('expo-battery')`, check `NativeModules.ExpoBattery` exists
+2. **Remove battery monitoring entirely:** Porcupine uses ~5mW — the battery checks are over-engineering for negligible power draw. Delete the `startBatteryMonitoring()` and `checkBatteryLevel()` methods
+3. **Rebuild dev client:** Run `npx expo prebuild --clean && npx expo run:ios` to properly link the native module
+
+**Recommended:** Option 2 — remove battery monitoring. It adds complexity for no real benefit.
+
+```typescript
+// Delete these methods:
+// - startBatteryMonitoring()
+// - checkBatteryLevel()
+// Remove the battery check from toggleEnabled()
+```
+
+**Effort:** 🟢 15 min
+
+---
+
+### Step 13. Delete Dead `VoiceAssistantService.ts` ✅ DONE
+
+**Problem:** `frontend/src/services/VoiceAssistantService.ts` (657 lines) is the pre-ElevenLabs voice assistant using `expo-av` recording + OpenAI Whisper + GPT. The entire ElevenLabs migration replaced this. No screen imports it. It's dead code and one of the three remaining `expo-av` import sites.
+
+**File:** `frontend/src/services/VoiceAssistantService.ts`
+
+**Change:** Delete the file. Verify no imports reference it.
+
+**Effort:** 🟢 5 min
+
+---
+
+### Step 14. Migrate `expo-av` → `expo-audio` (SDK 54 Readiness)
+
+**Problem:** `expo-av` is deprecated in SDK 53+ and will be removed in SDK 54. Three files still import it.
+
+**Files with `import { Audio } from 'expo-av'`:**
+| File | Usage | Migration |
+|------|-------|-----------|
+| `VoiceContext.tsx` | `Audio.getPermissionsAsync()`, `Audio.requestPermissionsAsync()`, `Audio.setAudioModeAsync()`, `Audio.Sound.createAsync()` for TTS playback | Replace with `expo-audio`: `usePermissions()`, `useAudioPlayer()` or `createAudioPlayer()` |
+| `VoiceAssistantService.ts` | Full recording + playback (dead code) | Delete file (Step 13) |
+| `VoicePermissions.tsx` | `Audio.getPermissionsAsync()` / `requestPermissionsAsync()` | Swap to `expo-audio` permissions API |
+
+**Migration steps:**
+1. Delete `VoiceAssistantService.ts` (Step 13 removes one import)
+2. In `VoiceContext.tsx`: Replace `Audio.Sound.createAsync()` → `createAudioPlayer()`, Replace permission calls → `expo-audio` equivalents, Replace `Audio.setAudioModeAsync()` → `Audio.setAudioModeAsync()` from `expo-audio` (API is similar)
+3. In `VoicePermissions.tsx`: Swap `import { Audio } from 'expo-av'` → `import { usePermissions } from 'expo-audio'`
+4. Remove `expo-av` from `package.json`
+
+**Effort:** 🟡 1–2 hours
+
+---
+
 ## Deferred to V1.1
 
 | Feature | Reason for deferral |
@@ -382,17 +708,34 @@ The user's preferred voice speed is {{voice_speed}}x.
 
 ```
 Phase A — Before Launch (~1 day)
-  Step 1: Wire audioLevel (30 min)
-  Step 2: Add haptics (30 min)
-  Step 3: DND / audio interruption (1-2 hours)
-  Step 4: Mic permission guard (15 min)
+  Step 1: Wire audioLevel (30 min)                    ✅ DONE
+  Step 2: Add haptics (30 min)                         ✅ DONE
+  Step 3: DND / audio interruption (1-2 hours)            ✅ DONE
+  Step 4: Mic permission guard (15 min)                 ✅ DONE
 
 Phase B — Week 1 Post-Launch (~2 days)
-  Step 5: Multi-language (3-4 hours)
-  Step 6: Conversation history screen (3-4 hours)
-  Step 7: Voice speed in ConvAI (30 min — mostly dashboard)
+  Step 5: Multi-language (3-4 hours)                     ✅ DONE
+  Step 6: Conversation history screen (3-4 hours)         ✅ DONE
+  Step 7: Voice speed in ConvAI (30 min — mostly dashboard)    ✅ DONE
+  Step 7b: Contextual auto-navigation (1-2 hours)    ✅ DONE
+
+Phase C — Stability & Performance (~half day)
+  Step 8:  Fix WakeWord lifecycle (30 min)             ✅ DONE
+  Step 9:  Fix useChallenges unfiltered sub (5 min)    ✅ DONE
+  Step 10: Deduplicate hook triple-fetch (20 min)      ✅ DONE
+  Step 11: Fix false-poor connection quality (15 min)  ✅ DONE
+  Step 12: Silence ExpoBattery error (15 min)           ✅ DONE
+  Step 13: Delete dead VoiceAssistantService (5 min)    ✅ DONE
+  Step 14: Migrate expo-av → expo-audio (1-2 hours)    ✅ DONE
 ```
 
 **Dashboard tasks (manual, not code):**
 - Step 5: Enable multi-language on agent, add `{{language}}` to prompt
 - Step 7: Add `voice_speed` dynamic variable, add SPEECH PACING section to prompt
+- Step 7b: Register `navigate_to_screen` client tool, add CONTEXTUAL NAVIGATION prompt section
+
+**Also completed (not in original plan):**
+- Immersive AI Hub redesign (orb → aurora background)
+- Daily briefing pill collapse animation
+- `useFrameCallback` worklet crash fix (JS props → SharedValues)
+- Center glow `focusGlowOpacity` / `focusGlowScale` wired to render

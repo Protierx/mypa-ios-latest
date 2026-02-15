@@ -1,9 +1,6 @@
 PODS:
   - EXApplication (7.0.8):
     - ExpoModulesCore
-  - EXAV (16.0.8):
-    - ExpoModulesCore
-    - ReactCommon/turbomodule/core
   - EXConstants (18.0.13):
     - ExpoModulesCore
   - EXJSONUtils (0.15.0)
@@ -210,6 +207,8 @@ PODS:
   - ExpoAppleAuthentication (8.0.8):
     - ExpoModulesCore
   - ExpoAsset (12.0.12):
+    - ExpoModulesCore
+  - ExpoAudio (1.1.1):
     - ExpoModulesCore
   - ExpoBattery (10.0.8):
     - ExpoModulesCore
@@ -2343,7 +2342,6 @@ PODS:
 
 DEPENDENCIES:
   - EXApplication (from `../node_modules/expo-application/ios`)
-  - EXAV (from `../node_modules/expo-av/ios`)
   - EXConstants (from `../node_modules/expo-constants/ios`)
   - EXJSONUtils (from `../node_modules/expo-json-utils/ios`)
   - EXManifests (from `../node_modules/expo-manifests/ios`)
@@ -2355,6 +2353,7 @@ DEPENDENCIES:
   - expo-dev-menu-interface (from `../node_modules/expo-dev-menu-interface/ios`)
   - ExpoAppleAuthentication (from `../node_modules/expo-apple-authentication/ios`)
   - ExpoAsset (from `../node_modules/expo-asset/ios`)
+  - ExpoAudio (from `../node_modules/expo-audio/ios`)
   - ExpoBattery (from `../node_modules/expo-battery/ios`)
   - ExpoBlur (from `../node_modules/expo-blur/ios`)
   - ExpoCalendar (from `../node_modules/expo-calendar/ios`)
@@ -2465,8 +2464,6 @@ SPEC REPOS:
 EXTERNAL SOURCES:
   EXApplication:
     :path: "../node_modules/expo-application/ios"
-  EXAV:
-    :path: "../node_modules/expo-av/ios"
   EXConstants:
     :path: "../node_modules/expo-constants/ios"
   EXJSONUtils:
@@ -2489,6 +2486,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-apple-authentication/ios"
   ExpoAsset:
     :path: "../node_modules/expo-asset/ios"
+  ExpoAudio:
+    :path: "../node_modules/expo-audio/ios"
   ExpoBattery:
     :path: "../node_modules/expo-battery/ios"
   ExpoBlur:
@@ -2689,7 +2688,6 @@ EXTERNAL SOURCES:
 
 SPEC CHECKSUMS:
   EXApplication: 1e98d4b1dccdf30627f92917f4b2c5a53c330e5f
-  EXAV: b60fcf142fae6684d295bc28cd7cfcb3335570ea
   EXConstants: fce59a631a06c4151602843667f7cfe35f81e271
   EXJSONUtils: 1d3e4590438c3ee593684186007028a14b3686cd
   EXManifests: a8d97683e5c7a3b026ffbd58559c64dc655b747b
@@ -2701,6 +2699,7 @@ SPEC CHECKSUMS:
   expo-dev-menu-interface: 600df12ea01efecdd822daaf13cc0ac091775533
   ExpoAppleAuthentication: 9413ae9a5e631a424cc04c1b13b0694dbab7d594
   ExpoAsset: f867e55ceb428aab99e1e8c082b5aee7c159ea18
+  ExpoAudio: e4cfe3a2f3317b8487460685385a9867a07fb4fb
   ExpoBattery: 01773ee7ce17cf970c98bc35f85f13dc985336b7
   ExpoBlur: b90747a3f22a8b6ceffd9cb0dc41a4184efdc656
   ExpoCalendar: b35805a0a9e3f46a4cef0cbfdf36673b4c973c63

@@ -1,4 +1,4 @@
-export { colors, darkColors } from './colors';
+export { colors, darkColors, bg, brand, text, border, semantic, category, status, lightAurora, specColors } from './colors';
 export { 
   theme,
   typography,
@@ -8,6 +8,9 @@ export {
   shadows,
   cardStyles,
   textStyles,
+  pillStyles,
+  fabStyles,
+  sectionHeaderStyles,
 } from './theme';
 export {
   animationDurations,

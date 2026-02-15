@@ -4,7 +4,7 @@
  * Circle management with real-time updates, invite-code join,
  * role management (owner/admin/member), and member controls.
  */
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase, Circle, CircleMember } from '@/lib/supabase';
 import { useSupabaseAuth } from '@/contexts/SupabaseAuthContext';
 import { eventLogger } from '@/services/eventLogger';
@@ -55,10 +55,15 @@ export function useCircles(): UseCirclesReturn {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const hasLoadedOnce = React.useRef(false);
+  const userId = user?.id ?? null;
+  const isFetchingRef = useRef(false);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Fetch all user's circles ──
   const fetchCircles = useCallback(async () => {
-    if (!user) { setCircles([]); setLoading(false); return; }
+    if (isFetchingRef.current) return;
+    if (!userId) { setCircles([]); setLoading(false); return; }
+    isFetchingRef.current = true;
 
     try {
       if (!hasLoadedOnce.current) setLoading(true);
@@ -67,7 +72,7 @@ export function useCircles(): UseCirclesReturn {
       const memberQuery = supabase
         .from('circle_members')
         .select('circle_id, role')
-        .eq('user_id', user.id);
+        .eq('user_id', userId);
 
       const timeout = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error('Circles fetch timed out')), 8000)
@@ -108,19 +113,29 @@ export function useCircles(): UseCirclesReturn {
       setError(err instanceof Error ? err : new Error('Failed to fetch circles'));
     } finally {
       setLoading(false);
+      isFetchingRef.current = false;
     }
-  }, [user]);
+  }, [userId]);
 
   useEffect(() => { fetchCircles(); }, [fetchCircles]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!userId) return;
     const channel = supabase
       .channel('circles-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'circle_members', filter: `user_id=eq.${user.id}` }, () => fetchCircles())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'circle_members', filter: `user_id=eq.${userId}` }, () => {
+        // Debounce rapid Postgres events (500ms)
+        if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = setTimeout(() => {
+          fetchCircles();
+        }, 500);
+      })
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [user, fetchCircles]);
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+      supabase.removeChannel(channel);
+    };
+  }, [userId, fetchCircles]);
 
   const createCircle = async (circle: Partial<Circle>): Promise<Circle | null> => {
     if (!user) return null;

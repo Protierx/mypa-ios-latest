@@ -5,39 +5,62 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // MYPA Living Background Colors
-        space: {
-          deep: '#0A0A1A',
-          violet: '#1A1030',
-          midnight: '#0D1B2A',
-          rich: '#12082A',
+        // ── Backgrounds ──────────────────────────────────────
+        bg: {
+          primary:   '#F8F8FA',
+          secondary: '#F2F2F7',
+          card:      '#FFFFFF',
+          elevated:  '#FFFFFF',
+          input:     '#F2F2F7',
+          hover:     '#E8E8ED',
         },
-        // Brand Colors (MYPA Design Spec Section 1.2)
+        // ── Brand ────────────────────────────────────────────
         brand: {
-          purple: '#7C3AED',
+          primary:   '#7C3AED',
           secondary: '#A78BFA',
-          tertiary: '#C4B5FD',
-          muted: '#4C1D95',
+          tertiary:  '#C4B5FD',
+          muted:     '#F5F0FF',
+          surface:   '#EDE5FF',
         },
-        // Surface Colors (Section 1.1)
+        // ── Text ─────────────────────────────────────────────
+        ink: {
+          primary:   '#1C1C1E',
+          secondary: '#48484A',
+          tertiary:  '#8E8E93',
+          disabled:  '#C7C7CC',
+          inverse:   '#FFFFFF',
+        },
+        // ── Borders ──────────────────────────────────────────
+        line: {
+          primary:   '#E5E5EA',
+          secondary: '#F2F2F7',
+          focus:     '#7C3AED',
+        },
+        // ── Semantic ─────────────────────────────────────────
+        success: '#34C759',
+        warning: '#FF9F0A',
+        error:   '#FF3B30',
+        info:    '#007AFF',
+        // ── Living Background (light glassmorphic aurora) ────
+        aurora: {
+          white:    '#FFFFFF',
+          lavender: '#F5F0FF',
+          blue:     '#EFF6FF',
+          peach:    '#FFF7ED',
+        },
+        // ── Legacy surface aliases (kept for dark Login) ─────
         surface: {
           1: '#0D0D0D',
           2: '#161616',
           3: '#1C1C1E',
           4: '#2C2C2E',
         },
-        // Text colors (Section 1.3) — use as text-ink-primary, bg-ink-secondary, etc.
-        ink: {
-          primary: '#FFFFFF',
-          secondary: '#A1A1AA',
-          tertiary: '#71717A',
-          disabled: '#52525B',
+        space: {
+          deep:     '#0A0A1A',
+          violet:   '#1A1030',
+          midnight: '#0D1B2A',
+          rich:     '#12082A',
         },
-        // Semantic (Section 1.4)
-        success: '#22C55E',
-        warning: '#EAB308',
-        error: '#EF4444',
-        info: '#3B82F6',
       },
       fontFamily: {
         sans: ['SF Pro Display', 'System'],
@@ -72,20 +95,21 @@ module.exports = {
         10: '64px',
       },
       borderRadius: {
-        // Spec Section 4 — override so rounded-lg = 14px etc.
         none: '0px',
         sm: '6px',
         md: '10px',
-        lg: '14px',
-        xl: '20px',
+        lg: '16px',
+        xl: '24px',
         '2xl': '28px',
         full: '9999px',
       },
       boxShadow: {
-        // Spec Section 5.1 & 5.2
-        sm: '0 1px 2px rgba(0, 0, 0, 0.5)',
-        md: '0 4px 6px rgba(0, 0, 0, 0.4)',
-        lg: '0 10px 25px rgba(0, 0, 0, 0.5)',
+        // Light-mode shadows
+        sm: '0 1px 3px rgba(0, 0, 0, 0.08)',
+        md: '0 4px 12px rgba(0, 0, 0, 0.08)',
+        lg: '0 8px 24px rgba(0, 0, 0, 0.12)',
+        purple: '0 4px 14px rgba(124, 58, 237, 0.15)',
+        // Legacy dark aliases
         xl: '0 20px 40px rgba(0, 0, 0, 0.6)',
         'glow-button': '0 4px 14px rgba(124, 58, 237, 0.4)',
         'glow-orb-idle': '0 0 40px rgba(124, 58, 237, 0.3), 0 0 80px rgba(124, 58, 237, 0.15)',

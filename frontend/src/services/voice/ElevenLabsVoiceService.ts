@@ -100,6 +100,8 @@ export interface SessionDynamicVariables {
   overdue_count: string;
   current_screen: string;
   task_summary: string;
+  language: string;
+  voice_speed: string;
 }
 
 // ============================================================================
@@ -173,6 +175,7 @@ export function buildConversationOptions(
     'query_schedule',
     'query_stats',
     'query_circles',
+    'navigate_to_screen',
   ];
 
   for (const toolName of TOOL_NAMES) {
@@ -283,7 +286,7 @@ export function buildSessionConfig(
   conversationToken: string,
   dynamicVars: SessionDynamicVariables,
   voiceId?: string,
-  voiceSettings?: { stability: number; similarity_boost: number; style: number },
+  _voiceSettings?: { stability: number; similarity_boost: number; style: number },
 ): ConversationConfig {
   const config: ConversationConfig = {
     conversationToken,
@@ -291,20 +294,17 @@ export function buildSessionConfig(
     userId: dynamicVars.user_id,
   };
 
-  // Build TTS overrides from voice selection + adaptive settings
+  // Build TTS overrides from voice selection only
+  // NOTE: stability/similarityBoost/style overrides are NOT allowed by the
+  // ElevenLabs agent config — sending them causes "Override for field
+  // 'stability' is not allowed by config" and the agent disconnects instantly.
+  // Voice personality is configured on the agent dashboard instead.
   const ttsOverrides: Record<string, unknown> = {};
 
   // Only override the agent's voice when the user explicitly selected a specific voice
   // 'agent-default' means "use whatever is configured on the ElevenLabs agent dashboard"
   if (voiceId && voiceId !== DEFAULT_ELEVENLABS_VOICE_ID) {
     ttsOverrides.voiceId = voiceId;
-  }
-
-  // Adaptive voice personality (Step 17) — pass stability/style as TTS overrides
-  if (voiceSettings) {
-    ttsOverrides.stability = voiceSettings.stability;
-    ttsOverrides.similarityBoost = voiceSettings.similarity_boost;
-    ttsOverrides.style = voiceSettings.style;
   }
 
   if (Object.keys(ttsOverrides).length > 0) {

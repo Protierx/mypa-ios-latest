@@ -22,6 +22,7 @@ import * as Haptics from 'expo-haptics';
 
 import { useSupabaseAuth } from '../../contexts/SupabaseAuthContext';
 import { useVoice } from '../../contexts/VoiceContext';
+import { ConversationHistoryModal } from './ConversationHistoryModal';
 
 interface SettingsModalProps {
   visible: boolean;
@@ -90,6 +91,8 @@ export function SettingsModal({ visible, onClose, onShowPaywall }: SettingsModal
   const setNoiseIsolationEnabled = voice.setNoiseIsolationEnabled;
   const isLiveCaptionsEnabled = voice.isLiveCaptionsEnabled;
   const setLiveCaptionsEnabled = voice.setLiveCaptionsEnabled;
+  const preferredLanguage = voice.preferredLanguage;
+  const setPreferredLanguage = voice.setPreferredLanguage;
 
   // Non-voice settings (would normally be persisted)
   const [pushEnabled, setPushEnabled] = useState(true);
@@ -98,6 +101,7 @@ export function SettingsModal({ visible, onClose, onShowPaywall }: SettingsModal
   const [defaultFocusDuration, setDefaultFocusDuration] = useState(25);
   const [focusSoundsEnabled, setFocusSoundsEnabled] = useState(false);
   const [profileVisibility, setProfileVisibility] = useState<'public' | 'friends' | 'private'>('friends');
+  const [showConversationHistory, setShowConversationHistory] = useState(false);
 
   // ElevenLabs voice options
   // 'agent-default' = use whatever voice is configured on the ElevenLabs agent dashboard
@@ -304,6 +308,42 @@ export function SettingsModal({ visible, onClose, onShowPaywall }: SettingsModal
                 />
               }
             />
+            <View className="h-px bg-zinc-800 mx-5" />
+            {/* Language Selection (Step 5) */}
+            <View className="px-5 py-4">
+              <Text className="text-white mb-3">Language</Text>
+              <View className="flex-row flex-wrap gap-2">
+                {[
+                  { code: 'en', name: 'English', flag: '🇺🇸' },
+                  { code: 'es', name: 'Español', flag: '🇪🇸' },
+                  { code: 'ar', name: 'العربية', flag: '🇸🇦' },
+                  { code: 'fr', name: 'Français', flag: '🇫🇷' },
+                  { code: 'de', name: 'Deutsch', flag: '🇩🇪' },
+                  { code: 'pt', name: 'Português', flag: '🇧🇷' },
+                  { code: 'hi', name: 'हिन्दी', flag: '🇮🇳' },
+                  { code: 'zh', name: '中文', flag: '🇨🇳' },
+                  { code: 'ja', name: '日本語', flag: '🇯🇵' },
+                  { code: 'ko', name: '한국어', flag: '🇰🇷' },
+                ].map((lang) => (
+                  <TouchableOpacity
+                    key={lang.code}
+                    className={`px-4 py-2 rounded-lg border ${
+                      preferredLanguage === lang.code
+                        ? 'bg-purple-500/20 border-purple-500'
+                        : 'bg-zinc-800 border-zinc-700'
+                    }`}
+                    onPress={() => {
+                      Haptics.selectionAsync();
+                      setPreferredLanguage(lang.code);
+                    }}
+                  >
+                    <Text className={preferredLanguage === lang.code ? 'text-purple-400 font-semibold' : 'text-white'}>
+                      {lang.flag} {lang.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
           </View>
 
           {/* NOISY ENVIRONMENT */}
@@ -520,6 +560,18 @@ export function SettingsModal({ visible, onClose, onShowPaywall }: SettingsModal
             />
           </View>
 
+          {/* HISTORY */}
+          <SectionHeader title="History" />
+          <View className="bg-zinc-900/50 mx-4 rounded-xl">
+            <SettingRow
+              icon="chatbubbles-outline"
+              iconColor="#8b5cf6"
+              title="Conversation History"
+              subtitle="Browse past voice conversations"
+              onPress={() => setShowConversationHistory(true)}
+            />
+          </View>
+
           {/* ACCOUNT */}
           <SectionHeader title="Account" />
           <View className="bg-zinc-900/50 mx-4 rounded-xl">
@@ -582,6 +634,12 @@ export function SettingsModal({ visible, onClose, onShowPaywall }: SettingsModal
           </View>
         </ScrollView>
       </SafeAreaView>
+
+      {/* Sub-modals */}
+      <ConversationHistoryModal
+        visible={showConversationHistory}
+        onClose={() => setShowConversationHistory(false)}
+      />
     </Modal>
   );
 }

@@ -2,7 +2,7 @@
  * Supabase Challenges Hook
  * Challenge management with real-time leaderboard updates
  */
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase, Challenge, ChallengeParticipant } from '@/lib/supabase';
 import { useSupabaseAuth } from '@/contexts/SupabaseAuthContext';
 import { eventLogger } from '@/services/eventLogger';
@@ -34,26 +34,31 @@ export function useChallenges(): UseChallengesReturn {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const hasLoadedOnce = React.useRef(false);
+  const userId = user?.id ?? null;
+  const isFetchingRef = useRef(false);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchChallenges = useCallback(async () => {
-    if (!user) {
+    if (isFetchingRef.current) return;
+    if (!userId) {
       setChallenges([]);
       setLoading(false);
       return;
     }
+    isFetchingRef.current = true;
 
     try {
       // Only show loading spinner on first fetch, not on refetches
       if (!hasLoadedOnce.current) setLoading(true);
       setError(null);
 
-      console.log('[useChallenges] Fetching challenges for user:', user.id.substring(0, 8));
+      console.log('[useChallenges] Fetching challenges for user:', userId.substring(0, 8));
 
       // Get challenges user is participating in (with timeout)
       const partQuery = supabase
         .from('challenge_participants')
         .select('challenge_id, progress')
-        .eq('user_id', user.id);
+        .eq('user_id', userId);
       const partTimeout = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error('Challenges fetch timed out')), 8000)
       );
@@ -95,7 +100,7 @@ export function useChallenges(): UseChallengesReturn {
             p => p.challenge_id === challenge.id
           );
 
-          const userRank = participants?.findIndex(p => p.user_id === user.id) ?? -1;
+          const userRank = participants?.findIndex(p => p.user_id === userId) ?? -1;
 
           return {
             ...challenge,
@@ -114,17 +119,18 @@ export function useChallenges(): UseChallengesReturn {
       setError(err instanceof Error ? err : new Error('Failed to fetch challenges'));
     } finally {
       setLoading(false);
+      isFetchingRef.current = false;
     }
-  }, [user]);
+  }, [userId]);
 
   // Initial fetch
   useEffect(() => {
     fetchChallenges();
   }, [fetchChallenges]);
 
-  // Real-time subscription for leaderboard updates
+  // Real-time subscription for leaderboard updates (debounced)
   useEffect(() => {
-    if (!user) return;
+    if (!userId) return;
 
     const channel = supabase
       .channel('challenges-changes')
@@ -134,17 +140,23 @@ export function useChallenges(): UseChallengesReturn {
           event: '*',
           schema: 'public',
           table: 'challenge_participants',
+          filter: `user_id=eq.${userId}`,
         },
         () => {
-          fetchChallenges();
+          // Debounce rapid Postgres events (500ms)
+          if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+          debounceTimerRef.current = setTimeout(() => {
+            fetchChallenges();
+          }, 500);
         }
       )
       .subscribe();
 
     return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
       supabase.removeChannel(channel);
     };
-  }, [user, fetchChallenges]);
+  }, [userId, fetchChallenges]);
 
   const createChallenge = async (challenge: Partial<Challenge>): Promise<Challenge | null> => {
     if (!user) return null;

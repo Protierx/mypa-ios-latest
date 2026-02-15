@@ -94,6 +94,92 @@ async function findTaskByName(
   return data && data.length > 0 ? data[0] : null;
 }
 
+// ============================================================================
+// Natural Language Date Parser
+// ============================================================================
+
+const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+/**
+ * Parse a natural language date string into an ISO date string.
+ * Handles: today, tomorrow, next week, day names (monday, next tuesday),
+ * "every Monday" (maps to next occurrence), ISO dates, and offsets like
+ * "in 3 days".
+ *
+ * Returns today's date if the input is empty or unparseable.
+ */
+function parseNaturalDate(input: string | undefined | null, baseDate?: Date): string {
+  const now = baseDate ?? new Date();
+  if (!input || !input.trim()) return now.toISOString();
+
+  const lower = input.toLowerCase().trim();
+
+  // "today"
+  if (lower === 'today') return now.toISOString();
+
+  // "tomorrow"
+  if (lower === 'tomorrow') {
+    const d = new Date(now);
+    d.setDate(d.getDate() + 1);
+    return d.toISOString();
+  }
+
+  // "yesterday" (edge case)
+  if (lower === 'yesterday') {
+    const d = new Date(now);
+    d.setDate(d.getDate() - 1);
+    return d.toISOString();
+  }
+
+  // "next week"
+  if (lower === 'next week') {
+    const d = new Date(now);
+    d.setDate(d.getDate() + 7);
+    return d.toISOString();
+  }
+
+  // "in X days/weeks"
+  const inMatch = lower.match(/^in\s+(\d+)\s+(day|week|month)s?$/);
+  if (inMatch) {
+    const n = parseInt(inMatch[1], 10);
+    const unit = inMatch[2];
+    const d = new Date(now);
+    if (unit === 'day') d.setDate(d.getDate() + n);
+    else if (unit === 'week') d.setDate(d.getDate() + n * 7);
+    else if (unit === 'month') d.setMonth(d.getMonth() + n);
+    return d.toISOString();
+  }
+
+  // Day name: "monday", "next monday", "every monday", "this friday"
+  // Strip prefixes like "every", "next", "this"
+  const dayPrefixMatch = lower.match(/^(?:every|next|this)\s+(.+)$/);
+  const dayCandidate = dayPrefixMatch ? dayPrefixMatch[1] : lower;
+  const dayIndex = DAY_NAMES.indexOf(dayCandidate);
+  if (dayIndex !== -1) {
+    const d = new Date(now);
+    const currentDay = d.getDay();
+    let daysAhead = dayIndex - currentDay;
+    // If the day is today or in the past this week, push to next week
+    if (daysAhead <= 0) daysAhead += 7;
+    // "next X" always means next week's occurrence
+    if (dayPrefixMatch && dayPrefixMatch[0].startsWith('next') && daysAhead <= 7) {
+      // If it's already pointing to next week, fine; otherwise add 7
+      if (daysAhead < 7) daysAhead += 7;
+    }
+    d.setDate(d.getDate() + daysAhead);
+    return d.toISOString();
+  }
+
+  // Try ISO / standard date parsing as fallback
+  const parsed = new Date(input);
+  if (!isNaN(parsed.getTime()) && parsed.getFullYear() > 2000) {
+    return parsed.toISOString();
+  }
+
+  // Unparseable — default to today
+  return now.toISOString();
+}
+
 const ACTION_HANDLERS: Record<string, ActionHandler> = {
   // ── Task Management ──────────────────────────────────────────────
 
@@ -105,24 +191,7 @@ const ACTION_HANDLERS: Record<string, ActionHandler> = {
     const category = params.category as string | undefined;
 
     // Parse natural language date
-    let dueDate = new Date().toISOString();
-    if (date) {
-      const lower = date.toLowerCase();
-      if (lower.includes('tomorrow')) {
-        const d = new Date();
-        d.setDate(d.getDate() + 1);
-        dueDate = d.toISOString();
-      } else if (lower.includes('next week')) {
-        const d = new Date();
-        d.setDate(d.getDate() + 7);
-        dueDate = d.toISOString();
-      } else {
-        const parsed = new Date(date);
-        if (!isNaN(parsed.getTime())) {
-          dueDate = parsed.toISOString();
-        }
-      }
-    }
+    const dueDate = parseNaturalDate(date);
 
     const insertData: Record<string, unknown> = {
       user_id: userId,
@@ -272,12 +341,38 @@ const ACTION_HANDLERS: Record<string, ActionHandler> = {
       return { success: false, message: "No tasks to create." };
     }
 
-    const inserts = tasks.map(t => ({
-      user_id: userId,
-      title: t.title,
-      due_date: t.date ? new Date(t.date).toISOString() : new Date().toISOString(),
-      priority: t.priority || 'medium',
-    }));
+    // When tasks have no dates or all have the same generic date like
+    // "every week", spread them across consecutive days starting from
+    // the next relevant day.
+    const inserts = tasks.map((t, index) => {
+      let dueDate: string;
+      if (t.date) {
+        // Try parsing each task's date individually
+        dueDate = parseNaturalDate(t.date);
+        // If parseNaturalDate returned today (fallback) but the input
+        // wasn't literally "today", it means it couldn't parse —
+        // spread across consecutive days instead
+        const lower = (t.date || '').toLowerCase().trim();
+        if (lower && lower !== 'today' && dueDate === parseNaturalDate('today')) {
+          const d = new Date();
+          d.setDate(d.getDate() + 1 + index); // tomorrow + offset
+          dueDate = d.toISOString();
+        }
+      } else {
+        // No date given — spread across days starting tomorrow
+        const d = new Date();
+        d.setDate(d.getDate() + 1 + index);
+        dueDate = d.toISOString();
+      }
+
+      return {
+        user_id: userId,
+        title: t.title,
+        due_date: dueDate,
+        priority: t.priority || 'medium',
+        ...(t.category ? { category: t.category } : {}),
+      };
+    });
 
     const { data, error } = await supabase
       .from('tasks')

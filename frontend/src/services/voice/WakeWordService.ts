@@ -14,8 +14,6 @@
  * IMPORTANT: Picovoice modules are lazy-imported inside initialize() to avoid
  * crashing the app at module load time if native bindings aren't ready.
  *
- * Battery: Porcupine uses ~5mW — negligible impact. Auto-disabled below 15%.
- *
  * Reference: docs/planning/ELEVENLABS_VOICE_MIGRATION_PLAN.md §12
  */
 
@@ -104,6 +102,7 @@ class WakeWordServiceImpl {
   private onDetected: (() => void) | null = null;
   private onError: ((error: Error) => void) | null = null;
   private _isPaused = false; // Paused while ElevenLabs session is active
+  private _lastDetectionTs = 0;
 
   // -----------------------------------------------------------------------
   // Public getters
@@ -296,11 +295,27 @@ class WakeWordServiceImpl {
    * Resume wake word detection after an ElevenLabs session ends.
    */
   async resume(): Promise<void> {
-    if (!this._isPaused || !this._isInitialized || !this.porcupine) return;
+    if (!this._isInitialized || !this.porcupine) return;
+    if (this._isListening) return;
 
-    this._isPaused = false;
-    await this.start();
-    console.log('[WakeWord] Resumed');
+    // If restart happens too quickly after WebRTC teardown, the mic can still
+    // be busy. Retry a few times before giving up to avoid "works once" stalls.
+    const maxAttempts = 3;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      await this.start();
+      if (this._isListening) {
+        this._isPaused = false;
+        console.log('[WakeWord] Resumed');
+        return;
+      }
+      if (attempt < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 250 * attempt));
+      }
+    }
+
+    // Keep paused=true so future resume() calls can still recover.
+    this._isPaused = true;
+    console.warn('[WakeWord] Resume failed after retries; will retry on next trigger');
   }
 
   // -----------------------------------------------------------------------
@@ -367,7 +382,18 @@ class WakeWordServiceImpl {
       const keywordIndex = await this.porcupine.process(frame);
 
       if (keywordIndex >= 0) {
+        const now = Date.now();
+        if (now - this._lastDetectionTs < 1500) return;
+        this._lastDetectionTs = now;
         console.log('[WakeWord] 🎤 Wake word detected! (index:', keywordIndex, ')');
+        // Immediately pause Porcupine so mic handoff to WebRTC is reliable.
+        // VoiceContext will resume wake word after the session ends.
+        this.pause().catch(() => {});
+        // Heavy haptic — user feels the wake word land
+        try {
+          const Haptics = await import('expo-haptics');
+          await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+        } catch {}
         this.onDetected?.();
       }
     } catch (err) {
