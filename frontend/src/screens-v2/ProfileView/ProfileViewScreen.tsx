@@ -1,8 +1,9 @@
 /**
- * Profile View Screen
- * 
+ * Profile View Screen — Light Mode
+ *
  * Swipe DOWN from AI Hub to access.
  * Shows user profile, stats, unlocks, and settings.
+ * Uses unified design tokens (Step 6 of UI Redesign Plan).
  */
 
 import React, { useState, useCallback } from 'react';
@@ -14,6 +15,7 @@ import {
   Image,
   Modal,
   Pressable,
+  StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -28,6 +30,9 @@ import { MiniVoiceButton } from '../../components/MiniVoiceButton';
 import { SettingsModal } from '../modals/SettingsModal';
 import { PaywallSheet } from '../modals/PaywallSheet';
 import { UnlockDetailsModal, FEATURE_UNLOCKS } from '../modals/UnlockDetailsModal';
+
+import { bg, brand, text as textTokens, border as borderTokens, semantic } from '../../styles/colors';
+import { shadows, radius, spacing } from '../../styles/theme';
 
 // All AI features with their required unlock levels
 const ALL_AI_FEATURES: { id: string; name: string; icon: keyof typeof Ionicons.glyphMap; level: number }[] = [
@@ -70,138 +75,136 @@ export function ProfileViewScreen() {
   };
 
   return (
-    <View className="flex-1 bg-black">
-      <SafeAreaView className="flex-1" edges={['top', 'bottom']}>
+    <View style={{ flex: 1, backgroundColor: bg.primary }}>
+      <StatusBar barStyle="dark-content" />
+      <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
         <ScrollView
-          className="flex-1"
+          style={{ flex: 1 }}
           contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 100 }}
         >
-          {/* Profile Header */}
-          <View className="items-center pt-6 pb-8">
-            {/* Avatar */}
-            <View className="w-24 h-24 rounded-full bg-surface-3 items-center justify-center mb-4 border-2 border-brand-purple">
+          {/* ── Profile Header ── */}
+          <View style={{ alignItems: 'center', paddingTop: 24, paddingBottom: 32 }}>
+            {/* Avatar — 80px with purple border ring */}
+            <View style={{
+              width: 80, height: 80, borderRadius: 40,
+              backgroundColor: bg.secondary,
+              alignItems: 'center', justifyContent: 'center',
+              marginBottom: 16,
+              borderWidth: 3, borderColor: brand.primary,
+              ...shadows.purple,
+            }}>
               {user?.avatarUrl ? (
                 <Image
                   source={{ uri: user.avatarUrl }}
-                  className="w-full h-full rounded-full"
+                  style={{ width: 74, height: 74, borderRadius: 37 }}
                 />
               ) : (
-                <Text className="text-title-1 text-ink-primary">
+                <Text style={{ fontSize: 28, fontWeight: '700', color: textTokens.primary }}>
                   {(user?.name || user?.username || 'U')[0].toUpperCase()}
                 </Text>
               )}
             </View>
-            
-            <Text className="text-title-2 font-bold text-ink-primary">
+
+            {/* Name */}
+            <Text style={{ fontSize: 22, fontWeight: '800', color: textTokens.primary, letterSpacing: -0.3 }}>
               {user?.name || 'User'}
             </Text>
             {user?.username && (
-              <Text className="text-body text-ink-tertiary">@{user.username}</Text>
+              <Text style={{ fontSize: 15, color: textTokens.tertiary, marginTop: 2 }}>@{user.username}</Text>
             )}
-            
-            <View className="flex-row items-center mt-3 bg-surface-2 px-4 py-2 rounded-full border border-surface-4">
-              <Ionicons name="star" size={16} color="#EAB308" />
-              <Text className="text-headline font-semibold text-ink-primary ml-2">
+
+            {/* Level badge pill */}
+            <View style={{
+              flexDirection: 'row', alignItems: 'center',
+              marginTop: 12,
+              backgroundColor: brand.muted,
+              paddingHorizontal: 16, paddingVertical: 8,
+              borderRadius: 9999,
+            }}>
+              <Ionicons name="star" size={16} color={semantic.warning} />
+              <Text style={{ fontSize: 15, fontWeight: '700', color: textTokens.primary, marginLeft: 8 }}>
                 Level {user?.level || 1}
               </Text>
-              <Text className="text-ink-tertiary ml-2">·</Text>
-              <Text className="text-ink-tertiary ml-2">{user?.xp || 0} XP</Text>
+              <Text style={{ color: textTokens.disabled, marginLeft: 8 }}>·</Text>
+              <Text style={{ fontSize: 13, color: textTokens.tertiary, marginLeft: 8 }}>{user?.xp || 0} XP</Text>
             </View>
-            
-            <View className="w-48 h-1.5 bg-surface-4 rounded-full mt-3 overflow-hidden">
+
+            {/* XP progress bar */}
+            <View style={{
+              width: 200, height: 6, backgroundColor: bg.secondary,
+              borderRadius: 3, marginTop: 12, overflow: 'hidden',
+            }}>
               <View
-                className="h-full bg-brand-purple rounded-full"
-                style={{ width: `${xpProgress * 100}%` }}
+                style={{
+                  height: '100%', borderRadius: 3,
+                  backgroundColor: brand.primary,
+                  width: `${xpProgress * 100}%`,
+                }}
               />
             </View>
-            <Text className="text-caption-2 text-ink-disabled mt-1">
+            <Text style={{ fontSize: 11, color: textTokens.disabled, marginTop: 6 }}>
               {Math.round(xpProgress * 100)}% to Level {(user?.level || 1) + 1}
             </Text>
           </View>
 
-          <View className="flex-row flex-wrap justify-between mb-6">
-            <View className="w-[48%] bg-surface-2 rounded-xl p-4 mb-3 border border-surface-4">
-              <View className="flex-row items-center">
-                <Ionicons name="flame" size={20} color="#f97316" />
-                <Text className="text-caption-1 text-ink-tertiary ml-2">Streak</Text>
+          {/* ── Stats Grid (2×2) ── */}
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', marginBottom: 24 }}>
+            {[
+              { icon: 'flame' as const, iconColor: '#F97316', label: 'Streak', value: `${user?.currentStreak || 0} days`, sub: `Longest: ${user?.longestStreak || 0} days` },
+              { icon: 'checkbox' as const, iconColor: semantic.success, label: 'Tasks', value: `${tasksCompleted}`, sub: 'Completed' },
+              { icon: 'timer' as const, iconColor: brand.primary, label: 'Focus', value: `${totalFocusMinutes}m`, sub: 'Total time' },
+              { icon: 'trophy' as const, iconColor: semantic.warning, label: 'Days Active', value: `${stats?.daysActive ?? 0}`, sub: 'Days active' },
+            ].map((stat, idx) => (
+              <View
+                key={stat.label}
+                style={{
+                  width: '48%',
+                  backgroundColor: bg.card,
+                  borderRadius: radius.lg,
+                  padding: 16,
+                  marginBottom: 12,
+                  ...shadows.sm,
+                }}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Ionicons name={stat.icon} size={20} color={stat.iconColor} />
+                  <Text style={{ fontSize: 12, color: textTokens.tertiary, marginLeft: 8, fontWeight: '500' }}>{stat.label}</Text>
+                </View>
+                <Text style={{ fontSize: 28, fontWeight: '800', color: textTokens.primary, marginTop: 8, letterSpacing: -0.5 }}>
+                  {stat.value}
+                </Text>
+                <Text style={{ fontSize: 11, color: textTokens.disabled, marginTop: 2 }}>{stat.sub}</Text>
               </View>
-              <Text className="text-title-1 font-bold text-ink-primary mt-2">
-                {user?.currentStreak || 0} days
-              </Text>
-              <Text className="text-caption-2 text-ink-disabled">
-                Longest: {user?.longestStreak || 0} days
-              </Text>
-            </View>
-            
-            <View className="w-[48%] bg-surface-2 rounded-xl p-4 mb-3 border border-surface-4">
-              <View className="flex-row items-center">
-                <Ionicons name="checkbox" size={20} color="#22C55E" />
-                <Text className="text-caption-1 text-ink-tertiary ml-2">Tasks</Text>
-              </View>
-              <Text className="text-title-1 font-bold text-ink-primary mt-2">{tasksCompleted}</Text>
-              <Text className="text-caption-2 text-ink-disabled">Completed</Text>
-            </View>
-            
-            <View className="w-[48%] bg-surface-2 rounded-xl p-4 border border-surface-4">
-              <View className="flex-row items-center">
-                <Ionicons name="timer" size={20} color="#7C3AED" />
-                <Text className="text-caption-1 text-ink-tertiary ml-2">Focus</Text>
-              </View>
-              <Text className="text-title-1 font-bold text-ink-primary mt-2">{totalFocusMinutes}m</Text>
-              <Text className="text-caption-2 text-ink-disabled">Total time</Text>
-            </View>
-            
-            <View className="w-[48%] bg-surface-2 rounded-xl p-4 border border-surface-4">
-              <View className="flex-row items-center">
-                <Ionicons name="trophy" size={20} color="#EAB308" />
-                <Text className="text-caption-1 text-ink-tertiary ml-2">Challenges</Text>
-              </View>
-              <Text className="text-title-1 font-bold text-ink-primary mt-2">{stats?.daysActive ?? 0}</Text>
-              <Text className="text-caption-2 text-ink-disabled">Days active</Text>
-            </View>
+            ))}
           </View>
 
-          <View className="mb-6">
-            <Text className="text-caption-1 font-semibold text-ink-tertiary mb-3 uppercase tracking-wide">
+          {/* ── AI Features — grouped iOS-style list ── */}
+          <View style={{ marginBottom: 24 }}>
+            <Text style={{
+              fontSize: 13, fontWeight: '600', color: textTokens.tertiary,
+              marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5,
+            }}>
               AI Features
             </Text>
-            {ALL_AI_FEATURES.map((feature) => {
-              const unlock = unlocks.find((u) => u.feature === feature.id);
-              const isFeatureUnlocked = !!unlock?.unlocked_at;
+            <View style={{
+              backgroundColor: bg.card, borderRadius: radius.lg,
+              ...shadows.sm, overflow: 'hidden',
+            }}>
+              {ALL_AI_FEATURES.map((feature, idx) => {
+                const unlock = unlocks.find((u) => u.feature === feature.id);
+                const isFeatureUnlocked = !!unlock?.unlocked_at;
 
-              return (
-                <LockedFeature
-                  key={feature.id}
-                  requiredLevel={feature.level}
-                  featureName={feature.name}
-                  onLockedPress={() => {
-                    const featureMeta = FEATURE_UNLOCKS[feature.id];
-                    if (featureMeta) {
-                      setSelectedUnlockFeature({
-                        ...featureMeta,
-                        isUnlocked: false,
-                        requirements: Object.entries(unlock?.progress || {}).map(([key, val]) => ({
-                          id: key,
-                          description: key.replace(/_/g, ' '),
-                          current: val?.current || 0,
-                          required: val?.required || 0,
-                          completed: (val?.current || 0) >= (val?.required || 0),
-                        })),
-                      });
-                      setShowUnlockDetails(true);
-                    }
-                  }}
-                >
-                  <TouchableOpacity
-                    className="flex-row items-center bg-surface-2 rounded-lg p-4 mb-2 border border-surface-4"
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                return (
+                  <LockedFeature
+                    key={feature.id}
+                    requiredLevel={feature.level}
+                    featureName={feature.name}
+                    onLockedPress={() => {
                       const featureMeta = FEATURE_UNLOCKS[feature.id];
                       if (featureMeta) {
                         setSelectedUnlockFeature({
                           ...featureMeta,
-                          isUnlocked: isFeatureUnlocked,
-                          unlockedAt: unlock?.unlocked_at,
+                          isUnlocked: false,
                           requirements: Object.entries(unlock?.progress || {}).map(([key, val]) => ({
                             id: key,
                             description: key.replace(/_/g, ' '),
@@ -213,80 +216,158 @@ export function ProfileViewScreen() {
                         setShowUnlockDetails(true);
                       }
                     }}
-                    activeOpacity={0.7}
                   >
-                    <Ionicons
-                      name={isFeatureUnlocked ? 'checkmark-circle' : feature.icon}
-                      size={20}
-                      color={isFeatureUnlocked ? '#22c55e' : '#A1A1AA'}
-                    />
-                    <Text className="text-body text-ink-primary ml-3 flex-1">
-                      {feature.name}
-                    </Text>
-                    <Text className="text-caption-2 text-ink-disabled mr-2">
-                      L{feature.level}
-                    </Text>
-                    <Ionicons name="chevron-forward" size={16} color="#52525B" />
-                  </TouchableOpacity>
-                </LockedFeature>
-              );
-            })}
+                    <TouchableOpacity
+                      style={{
+                        flexDirection: 'row', alignItems: 'center',
+                        paddingVertical: 14, paddingHorizontal: 16,
+                        borderTopWidth: idx > 0 ? 0.5 : 0,
+                        borderTopColor: borderTokens.secondary,
+                      }}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        const featureMeta = FEATURE_UNLOCKS[feature.id];
+                        if (featureMeta) {
+                          setSelectedUnlockFeature({
+                            ...featureMeta,
+                            isUnlocked: isFeatureUnlocked,
+                            unlockedAt: unlock?.unlocked_at,
+                            requirements: Object.entries(unlock?.progress || {}).map(([key, val]) => ({
+                              id: key,
+                              description: key.replace(/_/g, ' '),
+                              current: val?.current || 0,
+                              required: val?.required || 0,
+                              completed: (val?.current || 0) >= (val?.required || 0),
+                            })),
+                          });
+                          setShowUnlockDetails(true);
+                        }
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons
+                        name={isFeatureUnlocked ? 'checkmark-circle' : feature.icon}
+                        size={20}
+                        color={isFeatureUnlocked ? brand.primary : textTokens.disabled}
+                      />
+                      <Text style={{ fontSize: 15, color: textTokens.primary, marginLeft: 12, flex: 1 }}>
+                        {feature.name}
+                      </Text>
+                      {!isFeatureUnlocked && (
+                        <View style={{
+                          backgroundColor: bg.secondary,
+                          paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6,
+                          marginRight: 8,
+                        }}>
+                          <Text style={{ fontSize: 11, fontWeight: '700', color: textTokens.tertiary }}>
+                            Lv.{feature.level}
+                          </Text>
+                        </View>
+                      )}
+                      {isFeatureUnlocked && (
+                        <Text style={{ fontSize: 11, color: textTokens.disabled, marginRight: 8 }}>
+                          L{feature.level}
+                        </Text>
+                      )}
+                      <Ionicons name="chevron-forward" size={16} color={textTokens.disabled} />
+                    </TouchableOpacity>
+                  </LockedFeature>
+                );
+              })}
+            </View>
           </View>
 
-          {/* Upgrade Banner (free users only) */}
+          {/* ── Upgrade Banner (free users only) ── */}
           {!user?.isPremium && (
             <TouchableOpacity
-              className="mb-6 bg-brand-purple/15 rounded-xl p-4 border border-brand-purple/30 flex-row items-center"
+              style={{
+                marginBottom: 24,
+                backgroundColor: brand.muted,
+                borderRadius: radius.lg, padding: 16,
+                flexDirection: 'row', alignItems: 'center',
+                borderWidth: 1, borderColor: brand.surface,
+                ...shadows.purple,
+              }}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                 setShowPaywall(true);
               }}
               activeOpacity={0.7}
             >
-              <View className="w-10 h-10 bg-brand-purple/20 rounded-full items-center justify-center mr-3">
-                <Ionicons name="diamond" size={20} color="#7C3AED" />
+              <View style={{
+                width: 40, height: 40, borderRadius: 20,
+                backgroundColor: brand.surface,
+                alignItems: 'center', justifyContent: 'center', marginRight: 12,
+              }}>
+                <Ionicons name="diamond" size={20} color={brand.primary} />
               </View>
-              <View className="flex-1">
-                <Text className="text-headline font-semibold text-ink-primary">Upgrade to Premium</Text>
-                <Text className="text-subhead text-ink-tertiary mt-0.5">Unlimited voice, circles & more</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 16, fontWeight: '700', color: textTokens.primary }}>Upgrade to Premium</Text>
+                <Text style={{ fontSize: 13, color: textTokens.tertiary, marginTop: 2 }}>Unlimited voice, circles & more</Text>
               </View>
-              <Ionicons name="chevron-forward" size={20} color="#7C3AED" />
+              <Ionicons name="chevron-forward" size={20} color={brand.primary} />
             </TouchableOpacity>
           )}
 
-          <View className="mb-6">
-            <TouchableOpacity
-              className="flex-row items-center bg-surface-2 rounded-lg p-4 mb-3 border border-surface-4"
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setShowSettings(true);
-              }}
-            >
-              <Ionicons name="settings-outline" size={22} color="#A1A1AA" />
-              <Text className="text-body text-ink-primary ml-3 flex-1">Settings</Text>
-              <Ionicons name="chevron-forward" size={20} color="#52525B" />
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              className="flex-row items-center bg-surface-2 rounded-lg p-4 mb-3 border border-surface-4"
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setShowHelp(true);
-              }}
-            >
-              <Ionicons name="help-circle-outline" size={22} color="#A1A1AA" />
-              <Text className="text-body text-ink-primary ml-3 flex-1">Help & Support</Text>
-              <Ionicons name="chevron-forward" size={20} color="#52525B" />
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              className="flex-row items-center bg-error/10 rounded-lg p-4 border border-error/30"
-              onPress={handleSignOut}
-            >
-              <Ionicons name="log-out-outline" size={22} color="#EF4444" />
-              <Text className="text-body text-error ml-3">Sign Out</Text>
-            </TouchableOpacity>
+          {/* ── Settings Section — grouped iOS-style list ── */}
+          <View style={{ marginBottom: 24 }}>
+            <Text style={{
+              fontSize: 13, fontWeight: '600', color: textTokens.tertiary,
+              marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5,
+            }}>
+              Settings
+            </Text>
+            <View style={{
+              backgroundColor: bg.card, borderRadius: radius.lg,
+              ...shadows.sm, overflow: 'hidden',
+            }}>
+              <TouchableOpacity
+                style={{
+                  flexDirection: 'row', alignItems: 'center',
+                  paddingVertical: 14, paddingHorizontal: 16,
+                }}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setShowSettings(true);
+                }}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="settings-outline" size={22} color={textTokens.tertiary} />
+                <Text style={{ fontSize: 15, color: textTokens.primary, marginLeft: 12, flex: 1 }}>Settings</Text>
+                <Ionicons name="chevron-forward" size={20} color={textTokens.disabled} />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={{
+                  flexDirection: 'row', alignItems: 'center',
+                  paddingVertical: 14, paddingHorizontal: 16,
+                  borderTopWidth: 0.5, borderTopColor: borderTokens.secondary,
+                }}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setShowHelp(true);
+                }}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="help-circle-outline" size={22} color={textTokens.tertiary} />
+                <Text style={{ fontSize: 15, color: textTokens.primary, marginLeft: 12, flex: 1 }}>Help & Support</Text>
+                <Ionicons name="chevron-forward" size={20} color={textTokens.disabled} />
+              </TouchableOpacity>
+            </View>
           </View>
+
+          {/* ── Sign Out ── */}
+          <TouchableOpacity
+            style={{
+              flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+              paddingVertical: 14, marginBottom: 24,
+            }}
+            onPress={handleSignOut}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="log-out-outline" size={20} color={semantic.error} />
+            <Text style={{ fontSize: 15, fontWeight: '600', color: semantic.error, marginLeft: 8 }}>Sign Out</Text>
+          </TouchableOpacity>
         </ScrollView>
 
         {/* Mini Voice Button */}
@@ -321,17 +402,31 @@ export function ProfileViewScreen() {
 
       {/* Help Modal */}
       <Modal visible={showHelp} transparent animationType="fade">
-        <Pressable className="flex-1 bg-black/60 justify-center px-5" onPress={() => setShowHelp(false)}>
-          <Pressable className="bg-surface-2 rounded-xl p-6 border border-surface-4" onPress={(e) => e.stopPropagation()}>
-            <Text className="text-title-2 font-bold text-ink-primary mb-2">Help & Support</Text>
-            <Text className="text-body text-ink-secondary mb-4">
+        <Pressable
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'center', paddingHorizontal: 20 }}
+          onPress={() => setShowHelp(false)}
+        >
+          <Pressable
+            style={{
+              backgroundColor: bg.elevated, borderRadius: radius.lg,
+              padding: 24, ...shadows.lg,
+            }}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <Text style={{ fontSize: 20, fontWeight: '700', color: textTokens.primary, marginBottom: 8 }}>Help & Support</Text>
+            <Text style={{ fontSize: 15, color: textTokens.secondary, lineHeight: 22, marginBottom: 16 }}>
               Need a hand? Tap anywhere to talk to MYPA, or swipe between Tasks, Social, and Profile. Swipe up from the home screen to start a focus session.
             </Text>
             <TouchableOpacity
-              className="bg-brand-purple py-3 rounded-lg items-center"
+              style={{
+                backgroundColor: brand.primary,
+                paddingVertical: 14, borderRadius: radius.md,
+                alignItems: 'center',
+              }}
               onPress={() => setShowHelp(false)}
+              activeOpacity={0.85}
             >
-              <Text className="text-headline font-semibold text-ink-primary">Got it</Text>
+              <Text style={{ fontSize: 16, fontWeight: '600', color: textTokens.inverse }}>Got it</Text>
             </TouchableOpacity>
           </Pressable>
         </Pressable>
