@@ -38,26 +38,8 @@ import { CreateCircleSheet } from '../modals/CreateCircleSheet';
 import { CreateChallengeSheet } from '../modals/CreateChallengeSheet';
 import { PaywallSheet } from '../modals/PaywallSheet';
 
-/* ────────────── Palette ────────────── */
-
-const L = {
-  bg:             '#F5F5F7',
-  card:           '#FFFFFF',
-  cardBorder:     '#EDEDF0',
-  textPrimary:    '#1C1C1E',
-  textSecondary:  '#48484A',
-  textTertiary:   '#8E8E93',
-  textQuaternary: '#C7C7CC',
-  divider:        '#EDEDF0',
-  purple:         '#7C3AED',
-  purpleLight:    '#F5F0FF',
-  purpleMid:      '#EDE5FF',
-  green:          '#34C759',
-  greenLight:     '#ECFDF5',
-  amber:          '#F59E0B',
-  amberLight:     '#FFFBEB',
-  danger:         '#DC2626',
-};
+import { bg, brand, text as textTokens, border as borderTokens, semantic } from '../../styles/colors';
+import { shadows, radius, spacing } from '../../styles/theme';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const FREE_TIER_CIRCLE_LIMIT = 1;
@@ -67,7 +49,7 @@ const FREE_TIER_CIRCLE_LIMIT = 1;
 /** Stacked avatar row — shows up to N initials, +overflow badge */
 function AvatarStack({ count, size = 22 }: { count: number; size?: number }) {
   const show = Math.min(count, 4);
-  const colours = ['#7C3AED', '#6D28D9', '#8B5CF6', '#A78BFA'];
+  const colours = [brand.primary, '#6D28D9', '#8B5CF6', brand.secondary];
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
       {Array.from({ length: show }).map((_, i) => (
@@ -76,7 +58,7 @@ function AvatarStack({ count, size = 22 }: { count: number; size?: number }) {
           style={{
             width: size, height: size, borderRadius: size / 2,
             backgroundColor: colours[i % colours.length],
-            borderWidth: 2, borderColor: L.card,
+            borderWidth: 2, borderColor: bg.card,
             marginLeft: i === 0 ? 0 : -(size * 0.35),
             alignItems: 'center', justifyContent: 'center',
           }}
@@ -87,11 +69,11 @@ function AvatarStack({ count, size = 22 }: { count: number; size?: number }) {
       {count > 4 && (
         <View style={{
           height: size, paddingHorizontal: 5, borderRadius: size / 2,
-          backgroundColor: L.divider, marginLeft: -(size * 0.25),
+          backgroundColor: borderTokens.primary, marginLeft: -(size * 0.25),
           alignItems: 'center', justifyContent: 'center',
-          borderWidth: 2, borderColor: L.card,
+          borderWidth: 2, borderColor: bg.card,
         }}>
-          <Text style={{ fontSize: size * 0.4, fontWeight: '700', color: L.textTertiary }}>+{count - 4}</Text>
+          <Text style={{ fontSize: size * 0.4, fontWeight: '700', color: textTokens.tertiary }}>+{count - 4}</Text>
         </View>
       )}
     </View>
@@ -245,17 +227,16 @@ export function SocialViewScreen() {
     if (circles.length === 0) return null;
     const totalMembers = circles.reduce((sum: number, c: any) => sum + (c.memberCount || 1), 0);
     const tabs = [
-      { value: circles.length, label: 'Circles', icon: 'people', color: L.purple, onPress: undefined },
+      { value: circles.length, label: 'Circles', icon: 'people', color: brand.primary, onPress: undefined },
       { value: totalMembers, label: 'Members', icon: 'person', color: '#6D28D9', onPress: undefined },
-      { value: activeChallenges.length, label: 'Active', icon: 'trophy', color: L.amber, onPress: () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowActiveChallenges(true); } },
+      { value: activeChallenges.length, label: 'Active', icon: 'trophy', color: semantic.warning, onPress: () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowActiveChallenges(true); } },
     ];
     return (
       <View style={{
         marginHorizontal: 16, marginBottom: 14,
-        backgroundColor: L.card, borderRadius: 18,
+        backgroundColor: bg.card, borderRadius: 18,
         flexDirection: 'row',
-        borderWidth: 0.5, borderColor: L.cardBorder,
-        shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8,
+        ...shadows.sm,
         overflow: 'hidden',
       }}>
         {tabs.map((tab, idx) => (
@@ -263,7 +244,7 @@ export function SocialViewScreen() {
             key={tab.label}
             style={{
               flex: 1, alignItems: 'center', paddingVertical: 18,
-              borderLeftWidth: idx > 0 ? 0.5 : 0, borderLeftColor: L.divider,
+              borderLeftWidth: idx > 0 ? 0.5 : 0, borderLeftColor: borderTokens.primary,
             }}
             onPress={tab.onPress}
             activeOpacity={tab.onPress ? 0.6 : 1}
@@ -272,8 +253,8 @@ export function SocialViewScreen() {
             accessibilityLabel={`${tab.value} ${tab.label}${tab.onPress ? ', tap to view' : ''}`}
           >
             <Ionicons name={tab.icon as any} size={16} color={tab.color} style={{ marginBottom: 6, opacity: 0.85 }} />
-            <Text style={{ fontSize: 22, fontWeight: '800', color: L.textPrimary, letterSpacing: -0.5 }}>{tab.value}</Text>
-            <Text style={{ fontSize: 11, fontWeight: '600', color: L.textTertiary, marginTop: 2, letterSpacing: 0.3, textTransform: 'uppercase' }}>{tab.label}</Text>
+            <Text style={{ fontSize: 22, fontWeight: '800', color: textTokens.primary, letterSpacing: -0.5 }}>{tab.value}</Text>
+            <Text style={{ fontSize: 11, fontWeight: '600', color: textTokens.tertiary, marginTop: 2, letterSpacing: 0.3, textTransform: 'uppercase' }}>{tab.label}</Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -290,13 +271,13 @@ export function SocialViewScreen() {
           backgroundColor: 'rgba(142,142,147,0.12)',
           borderRadius: 12, paddingHorizontal: 12, height: 40,
         }}>
-          <Ionicons name="search" size={16} color={L.textTertiary} style={{ marginRight: 6 }} />
+          <Ionicons name="search" size={16} color={textTokens.tertiary} style={{ marginRight: 6 }} />
           <TextInput
             value={searchQuery}
             onChangeText={setSearchQuery}
             placeholder="Search circles"
-            placeholderTextColor={L.textTertiary}
-            style={{ flex: 1, fontSize: 15, fontWeight: '400', color: L.textPrimary, paddingVertical: 0 }}
+            placeholderTextColor={textTokens.tertiary}
+            style={{ flex: 1, fontSize: 15, fontWeight: '400', color: textTokens.primary, paddingVertical: 0 }}
             returnKeyType="search"
             autoCorrect={false}
             clearButtonMode="while-editing"
@@ -306,7 +287,7 @@ export function SocialViewScreen() {
               onPress={() => setSearchQuery('')}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <Ionicons name="close-circle" size={18} color={L.textQuaternary} />
+              <Ionicons name="close-circle" size={18} color={textTokens.disabled} />
             </TouchableOpacity>
           )}
         </View>
@@ -318,37 +299,36 @@ export function SocialViewScreen() {
   const renderCircleCard = (circle: any) => {
     const challenges = challengesByCircle[circle.id] || [];
     const roleBadge = circle.userRole === 'owner' ? 'Owner' : circle.userRole === 'admin' ? 'Admin' : null;
-    const roleColor = circle.userRole === 'owner' ? L.amber : L.purple;
+    const roleColor = circle.userRole === 'owner' ? semantic.warning : brand.primary;
 
     return (
       <TouchableOpacity
         key={circle.id}
         style={{
           marginHorizontal: 16, marginBottom: 14,
-          backgroundColor: L.card, borderRadius: 20,
-          borderWidth: 0.5, borderColor: L.cardBorder,
-          shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.06, shadowRadius: 12,
+          backgroundColor: bg.card, borderRadius: radius.lg,
+          ...shadows.sm,
           overflow: 'hidden',
         }}
         onPress={() => openCircle(circle.id)}
         activeOpacity={0.7}
       >
         {/* Top colour accent bar */}
-        <View style={{ height: 3, backgroundColor: L.purple, opacity: 0.7 }} />
+        <View style={{ height: 3, backgroundColor: brand.primary, opacity: 0.7 }} />
 
         <View style={{ padding: 18 }}>
           {/* Row 1: Emoji + Name + Role */}
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <View style={{
-              width: 50, height: 50, borderRadius: 16,
-              backgroundColor: L.purpleLight,
+              width: 50, height: 50, borderRadius: radius.lg,
+              backgroundColor: brand.muted,
               alignItems: 'center', justifyContent: 'center',
             }}>
               <Text style={{ fontSize: 24 }}>{circle.emoji || '👥'}</Text>
             </View>
             <View style={{ flex: 1, marginLeft: 14 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Text style={{ fontSize: 17, fontWeight: '700', color: L.textPrimary, flexShrink: 1 }} numberOfLines={1}>{circle.name}</Text>
+                <Text style={{ fontSize: 17, fontWeight: '700', color: textTokens.primary, flexShrink: 1 }} numberOfLines={1}>{circle.name}</Text>
                 {roleBadge && (
                   <View style={{ backgroundColor: `${roleColor}14`, paddingHorizontal: 8, paddingVertical: 2.5, borderRadius: 6 }}>
                     <Text style={{ fontSize: 10.5, fontWeight: '700', color: roleColor, letterSpacing: 0.3, textTransform: 'uppercase' }}>{roleBadge}</Text>
@@ -357,18 +337,18 @@ export function SocialViewScreen() {
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 5, gap: 12 }}>
                 <AvatarStack count={circle.memberCount || 1} size={20} />
-                <Text style={{ fontSize: 12.5, color: L.textTertiary, fontWeight: '500' }}>
+                <Text style={{ fontSize: 12.5, color: textTokens.tertiary, fontWeight: '500' }}>
                   {circle.memberCount || 1} member{(circle.memberCount || 1) !== 1 ? 's' : ''}
                 </Text>
               </View>
             </View>
-            <Ionicons name="chevron-forward" size={18} color={L.textQuaternary} />
+            <Ionicons name="chevron-forward" size={18} color={textTokens.disabled} />
           </View>
 
           {/* Description if exists */}
           {circle.description ? (
             <Text numberOfLines={2} style={{
-              fontSize: 13.5, color: L.textTertiary, lineHeight: 19,
+              fontSize: 13.5, color: textTokens.tertiary, lineHeight: 19,
               marginTop: 12, marginLeft: 64,
             }}>
               {circle.description}
@@ -379,7 +359,7 @@ export function SocialViewScreen() {
           {challenges.length > 0 && (
             <View style={{ marginTop: 14, marginLeft: 64 }}>
               <View style={{
-                backgroundColor: L.bg, borderRadius: 12, padding: 12,
+                backgroundColor: bg.secondary, borderRadius: radius.md, padding: 12,
               }}>
                 {challenges.slice(0, 2).map((ch: any, idx: number) => {
                   const progress = ch.userProgress || 0;
@@ -397,19 +377,19 @@ export function SocialViewScreen() {
                     >
                       <Text style={{ fontSize: 16, marginRight: 8 }}>{ch.emoji || '🏆'}</Text>
                       <View style={{ flex: 1 }}>
-                        <Text numberOfLines={1} style={{ fontSize: 13, fontWeight: '600', color: L.textPrimary }}>{ch.title}</Text>
-                        <View style={{ height: 4, backgroundColor: L.divider, borderRadius: 2, marginTop: 5, overflow: 'hidden' }}>
-                          <View style={{ height: '100%', width: `${pct}%`, backgroundColor: pct >= 100 ? L.green : L.purple, borderRadius: 2 }} />
+                        <Text numberOfLines={1} style={{ fontSize: 13, fontWeight: '600', color: textTokens.primary }}>{ch.title}</Text>
+                        <View style={{ height: 4, backgroundColor: borderTokens.primary, borderRadius: 2, marginTop: 5, overflow: 'hidden' }}>
+                          <View style={{ height: '100%', width: `${pct}%`, backgroundColor: pct >= 100 ? semantic.success : brand.primary, borderRadius: 2 }} />
                         </View>
                       </View>
-                      <Text style={{ fontSize: 11, fontWeight: '600', color: L.textTertiary, marginLeft: 10 }}>
+                      <Text style={{ fontSize: 11, fontWeight: '600', color: textTokens.tertiary, marginLeft: 10 }}>
                         {Math.round(pct)}%
                       </Text>
                     </TouchableOpacity>
                   );
                 })}
                 {challenges.length > 2 && (
-                  <Text style={{ fontSize: 11.5, color: L.purple, fontWeight: '600', marginTop: 8 }}>
+                  <Text style={{ fontSize: 11.5, color: brand.primary, fontWeight: '600', marginTop: 8 }}>
                     +{challenges.length - 2} more challenge{challenges.length - 2 !== 1 ? 's' : ''}
                   </Text>
                 )}
@@ -433,49 +413,49 @@ export function SocialViewScreen() {
         <View style={{
           position: 'absolute', top: 10, left: 10,
           width: 100, height: 100, borderRadius: 50,
-          backgroundColor: L.purpleLight,
+          backgroundColor: brand.muted,
         }} />
         <View style={{
           position: 'absolute', top: 0, left: 30,
           width: 60, height: 60, borderRadius: 30,
-          backgroundColor: L.purpleMid, alignItems: 'center', justifyContent: 'center',
+          backgroundColor: brand.surface, alignItems: 'center', justifyContent: 'center',
         }}>
-          <Ionicons name="people" size={26} color={L.purple} />
+          <Ionicons name="people" size={26} color={brand.primary} />
         </View>
         <View style={{
           position: 'absolute', bottom: 8, right: 5,
           width: 44, height: 44, borderRadius: 22,
-          backgroundColor: L.amberLight, alignItems: 'center', justifyContent: 'center',
+          backgroundColor: 'rgba(255,159,10,0.10)', alignItems: 'center', justifyContent: 'center',
         }}>
-          <Ionicons name="trophy" size={18} color={L.amber} />
+          <Ionicons name="trophy" size={18} color={semantic.warning} />
         </View>
         <View style={{
           position: 'absolute', bottom: 25, left: 0,
           width: 32, height: 32, borderRadius: 16,
-          backgroundColor: L.greenLight, alignItems: 'center', justifyContent: 'center',
+          backgroundColor: 'rgba(52,199,89,0.10)', alignItems: 'center', justifyContent: 'center',
         }}>
-          <Ionicons name="checkmark" size={14} color={L.green} />
+          <Ionicons name="checkmark" size={14} color={semantic.success} />
         </View>
       </View>
 
-      <Text style={{ fontSize: 24, fontWeight: '800', color: L.textPrimary, textAlign: 'center', letterSpacing: -0.4 }}>
+      <Text style={{ fontSize: 24, fontWeight: '800', color: textTokens.primary, textAlign: 'center', letterSpacing: -0.4 }}>
         Better together
       </Text>
-      <Text style={{ fontSize: 15, color: L.textTertiary, marginTop: 10, textAlign: 'center', lineHeight: 22 }}>
+      <Text style={{ fontSize: 15, color: textTokens.tertiary, marginTop: 10, textAlign: 'center', lineHeight: 22 }}>
         Create a circle to stay accountable with friends, family, or teammates. Challenge each other and grow.
       </Text>
 
       <TouchableOpacity
         style={{
           marginTop: 28, width: '100%',
-          backgroundColor: L.purple, paddingVertical: 16, borderRadius: 16,
+          backgroundColor: brand.primary, paddingVertical: 16, borderRadius: radius.lg,
           alignItems: 'center',
-          shadowColor: L.purple, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 14,
+          ...shadows.purple,
         }}
         onPress={handleCreateCircle}
         activeOpacity={0.85}
       >
-        <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>Create Your First Circle</Text>
+        <Text style={{ fontSize: 16, fontWeight: '700', color: textTokens.inverse }}>Create Your First Circle</Text>
       </TouchableOpacity>
 
       <TouchableOpacity
@@ -483,7 +463,7 @@ export function SocialViewScreen() {
         onPress={handlePlusButton}
         activeOpacity={0.7}
       >
-        <Text style={{ fontSize: 14, fontWeight: '600', color: L.purple }}>I have an invite code</Text>
+        <Text style={{ fontSize: 14, fontWeight: '600', color: brand.primary }}>I have an invite code</Text>
       </TouchableOpacity>
     </View>
   );
@@ -495,31 +475,31 @@ export function SocialViewScreen() {
   const hasContent = circles.length > 0 || activeChallenges.length > 0;
 
   return (
-    <View style={{ flex: 1, backgroundColor: L.bg }}>
+    <View style={{ flex: 1, backgroundColor: bg.primary }}>
       <StatusBar barStyle="dark-content" />
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
 
         {/* ── Header ── */}
         <View style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 14 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 42 }}>
-            <Text style={{ fontSize: 34, fontWeight: '800', color: L.textPrimary, letterSpacing: -0.5 }}>Circles</Text>
+            <Text style={{ fontSize: 34, fontWeight: '800', color: textTokens.primary, letterSpacing: -0.5 }}>Circles</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 24 }}>
               {/* + button — Create or Join */}
               <TouchableOpacity
                 style={{
                   width: 50, height: 50, borderRadius: 25,
-                  backgroundColor: L.purpleLight,
+                  backgroundColor: brand.muted,
                   alignItems: 'center', justifyContent: 'center',
                 }}
                 onPress={handlePlusButton}
                 activeOpacity={0.7}
               >
-                <Ionicons name="add" size={28} color={L.purple} />
+                <Ionicons name="add" size={28} color={brand.primary} />
               </TouchableOpacity>
               <MiniVoiceButton position="top-right" screenContext="social" size={50} style={{ position: 'relative', top: 0, right: 0 }} />
             </View>
           </View>
-          <Text style={{ fontSize: 13, color: L.textTertiary, marginTop: 2, fontWeight: '500' }}>
+          <Text style={{ fontSize: 13, color: textTokens.tertiary, marginTop: 2, fontWeight: '500' }}>
             {circles.length > 0
               ? new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
               : 'Accountability with your people'}
@@ -529,13 +509,13 @@ export function SocialViewScreen() {
         {/* ── Body ── */}
         {loading && !refreshing ? (
           <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-            <ActivityIndicator color={L.purple} size="large" />
+            <ActivityIndicator color={brand.primary} size="large" />
           </View>
         ) : !hasContent ? (
           <ScrollView
             style={{ flex: 1 }}
             contentContainerStyle={{ flexGrow: 1 }}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={L.purple} />}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={brand.primary} />}
             keyboardShouldPersistTaps="handled"
           >
             {renderEmptyState()}
@@ -544,7 +524,7 @@ export function SocialViewScreen() {
           <ScrollView
             style={{ flex: 1 }}
             contentContainerStyle={{ paddingTop: 8, paddingBottom: 100 }}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={L.purple} />}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={brand.primary} />}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
@@ -558,7 +538,7 @@ export function SocialViewScreen() {
             {circles.length > 0 && (
               <View style={{ marginBottom: 8 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, marginBottom: 14 }}>
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: L.textTertiary, letterSpacing: 0.6, textTransform: 'uppercase', flex: 1 }}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: textTokens.tertiary, letterSpacing: 0.5, textTransform: 'uppercase', flex: 1 }}>
                     Your Circles
                   </Text>
                 </View>
@@ -566,9 +546,9 @@ export function SocialViewScreen() {
                   filteredCircles.map(renderCircleCard)
                 ) : (
                   <View style={{ alignItems: 'center', paddingVertical: 32, paddingHorizontal: 40 }}>
-                    <Ionicons name="search-outline" size={28} color={L.textQuaternary} style={{ marginBottom: 10 }} />
-                    <Text style={{ fontSize: 15, fontWeight: '600', color: L.textTertiary, textAlign: 'center' }}>No circles found</Text>
-                    <Text style={{ fontSize: 13, color: L.textQuaternary, marginTop: 4, textAlign: 'center' }}>Try a different search</Text>
+                    <Ionicons name="search-outline" size={28} color={textTokens.disabled} style={{ marginBottom: 10 }} />
+                    <Text style={{ fontSize: 15, fontWeight: '600', color: textTokens.tertiary, textAlign: 'center' }}>No circles found</Text>
+                    <Text style={{ fontSize: 13, color: textTokens.disabled, marginTop: 4, textAlign: 'center' }}>Try a different search</Text>
                   </View>
                 )}
               </View>
@@ -624,25 +604,25 @@ export function SocialViewScreen() {
           {/* Sheet */}
           <View style={{
             height: SCREEN_HEIGHT * 0.75,
-            backgroundColor: L.bg,
+            backgroundColor: bg.primary,
             borderTopLeftRadius: 20, borderTopRightRadius: 20,
-            shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.1, shadowRadius: 16,
+            ...shadows.lg,
             elevation: 10,
           }}>
             {/* Drag Handle */}
             <View style={{ alignItems: 'center', paddingTop: 10, paddingBottom: 4 }}>
-              <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: '#D1D1D6' }} />
+              <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: textTokens.disabled }} />
             </View>
 
             {/* Header */}
             <View style={{
               flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
               paddingHorizontal: 20, paddingTop: 8, paddingBottom: 14,
-              borderBottomWidth: 0.5, borderBottomColor: L.divider,
+              borderBottomWidth: 0.5, borderBottomColor: borderTokens.primary,
             }}>
               <View>
-                <Text style={{ fontSize: 22, fontWeight: '700', color: L.textPrimary }}>Active Challenges</Text>
-                <Text style={{ fontSize: 13, color: L.textTertiary, marginTop: 2, fontWeight: '500' }}>Across your circles</Text>
+                <Text style={{ fontSize: 22, fontWeight: '700', color: textTokens.primary }}>Active Challenges</Text>
+                <Text style={{ fontSize: 13, color: textTokens.tertiary, marginTop: 2, fontWeight: '500' }}>Across your circles</Text>
               </View>
               <TouchableOpacity
                 onPress={() => setShowActiveChallenges(false)}
@@ -653,7 +633,7 @@ export function SocialViewScreen() {
                   alignItems: 'center', justifyContent: 'center',
                 }}
               >
-                <Ionicons name="close" size={16} color={L.textTertiary} />
+                <Ionicons name="close" size={16} color={textTokens.tertiary} />
               </TouchableOpacity>
             </View>
 
@@ -662,13 +642,13 @@ export function SocialViewScreen() {
               <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, paddingBottom: 40 }}>
                 <View style={{
                   width: 56, height: 56, borderRadius: 18,
-                  backgroundColor: L.amberLight,
+                  backgroundColor: 'rgba(255,159,10,0.10)',
                   alignItems: 'center', justifyContent: 'center', marginBottom: 16,
                 }}>
-                  <Ionicons name="trophy-outline" size={26} color={L.amber} />
+                  <Ionicons name="trophy-outline" size={26} color={semantic.warning} />
                 </View>
-                <Text style={{ fontSize: 17, fontWeight: '600', color: L.textPrimary, textAlign: 'center' }}>No active challenges</Text>
-                <Text style={{ fontSize: 14, color: L.textTertiary, marginTop: 6, textAlign: 'center', lineHeight: 20 }}>
+                <Text style={{ fontSize: 17, fontWeight: '600', color: textTokens.primary, textAlign: 'center' }}>No active challenges</Text>
+                <Text style={{ fontSize: 14, color: textTokens.tertiary, marginTop: 6, textAlign: 'center', lineHeight: 20 }}>
                   Create one inside a circle.
                 </Text>
               </View>
@@ -693,18 +673,15 @@ export function SocialViewScreen() {
                       style={{
                         marginHorizontal: 16, marginBottom: 10,
                         flexDirection: 'row', alignItems: 'center',
-                        backgroundColor: L.card, borderRadius: 16, padding: 16,
-                        borderWidth: 0.5, borderColor: L.cardBorder,
-                        shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 6,
+                        backgroundColor: bg.card, borderRadius: radius.lg, padding: 16,
+                        ...shadows.sm,
                       }}
                       onPress={() => {
                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                         setShowActiveChallenges(false);
                         if (ch.circle_id) {
-                          // Navigate into the circle (which has a Challenges tab)
                           setTimeout(() => openCircle(ch.circle_id), 300);
                         } else {
-                          // No circle — open challenge detail directly
                           setTimeout(() => openChallenge(ch.id), 300);
                         }
                       }}
@@ -715,7 +692,7 @@ export function SocialViewScreen() {
                       {/* Emoji */}
                       <View style={{
                         width: 44, height: 44, borderRadius: 14,
-                        backgroundColor: L.amberLight,
+                        backgroundColor: 'rgba(255,159,10,0.10)',
                         alignItems: 'center', justifyContent: 'center', marginRight: 14,
                       }}>
                         <Text style={{ fontSize: 22 }}>{ch.emoji || '🏆'}</Text>
@@ -723,17 +700,17 @@ export function SocialViewScreen() {
 
                       {/* Content */}
                       <View style={{ flex: 1 }}>
-                        <Text numberOfLines={1} style={{ fontSize: 15, fontWeight: '600', color: L.textPrimary }}>{ch.title}</Text>
+                        <Text numberOfLines={1} style={{ fontSize: 15, fontWeight: '600', color: textTokens.primary }}>{ch.title}</Text>
                         <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3, gap: 6 }}>
-                          <Ionicons name="people" size={11} color={L.textQuaternary} />
-                          <Text numberOfLines={1} style={{ fontSize: 12.5, color: L.textTertiary, fontWeight: '500' }}>{circleName}</Text>
+                          <Ionicons name="people" size={11} color={textTokens.disabled} />
+                          <Text numberOfLines={1} style={{ fontSize: 12.5, color: textTokens.tertiary, fontWeight: '500' }}>{circleName}</Text>
                         </View>
                         {/* Progress bar */}
                         <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 8 }}>
-                          <View style={{ flex: 1, height: 4, backgroundColor: L.divider, borderRadius: 2, overflow: 'hidden' }}>
-                            <View style={{ height: '100%', width: `${pct}%`, backgroundColor: pct >= 100 ? L.green : L.amber, borderRadius: 2 }} />
+                          <View style={{ flex: 1, height: 4, backgroundColor: borderTokens.primary, borderRadius: 2, overflow: 'hidden' }}>
+                            <View style={{ height: '100%', width: `${pct}%`, backgroundColor: pct >= 100 ? semantic.success : semantic.warning, borderRadius: 2 }} />
                           </View>
-                          <Text style={{ fontSize: 11, fontWeight: '600', color: L.textTertiary, minWidth: 32, textAlign: 'right' }}>{Math.round(pct)}%</Text>
+                          <Text style={{ fontSize: 11, fontWeight: '600', color: textTokens.tertiary, minWidth: 32, textAlign: 'right' }}>{Math.round(pct)}%</Text>
                         </View>
                       </View>
 
@@ -741,14 +718,14 @@ export function SocialViewScreen() {
                       {daysLeft !== null && (
                         <View style={{
                           marginLeft: 10,
-                          backgroundColor: daysLeft <= 3 ? L.amberLight : L.bg,
+                          backgroundColor: daysLeft <= 3 ? 'rgba(255,159,10,0.10)' : bg.secondary,
                           paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8,
                         }}>
-                          <Text style={{ fontSize: 11, fontWeight: '700', color: daysLeft <= 3 ? L.amber : L.textTertiary }}>{daysLeft}d</Text>
+                          <Text style={{ fontSize: 11, fontWeight: '700', color: daysLeft <= 3 ? semantic.warning : textTokens.tertiary }}>{daysLeft}d</Text>
                         </View>
                       )}
 
-                      <Ionicons name="chevron-forward" size={16} color={L.textQuaternary} style={{ marginLeft: 4 }} />
+                      <Ionicons name="chevron-forward" size={16} color={textTokens.disabled} style={{ marginLeft: 4 }} />
                     </TouchableOpacity>
                   );
                 }}
