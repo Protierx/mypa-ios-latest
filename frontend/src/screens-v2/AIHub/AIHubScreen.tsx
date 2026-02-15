@@ -1,16 +1,16 @@
 /**
- * AI Hub Screen — Immersive Full-Screen AI
+ * AI Hub Screen — Premium Light Glassmorphic Design
  *
- * The entire screen IS MYPA. No orb — the living background of aurora blobs
- * reacts to voice state and audio level. You're stepping into the AI's
- * consciousness. Tap anywhere to talk.
+ * Clean, minimal AI interface inspired by Apple Weather, Notion Calendar,
+ * and Arc browser. Light gradient background with frosted glass cards.
+ * Voice interaction zone floats in the center with smooth state transitions.
  *
  * Features:
- * - Full-screen reactive aurora background
- * - Floating state icon + hint text (no orb)
- * - Inline voice feedback (transcript / AI response)
- * - Daily briefing auto-play
- * - Quick action pills + ambient stats
+ * - Soft animated gradient background (white → lavender → blue, time-of-day tint)
+ * - Frosted glass briefing card (collapsible)
+ * - Clean mic icon with breathing animation (idle) / waveform (listening)
+ * - Quick action pill chips + ambient stats bar
+ * - Text input fallback for offline / discreet mode
  */
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
@@ -18,6 +18,7 @@ import { View, Text, ScrollView, StyleSheet, Pressable, Dimensions, TextInput, K
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -35,7 +36,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 
-import { LivingBackground, VoiceState } from '../../components/LivingBackground';
+import { VoiceState } from '../../components/LivingBackground';
 import { VoicePermissions, useVoicePermissions } from '../../components/VoicePermissions';
 import { NotificationsModal } from '../modals/NotificationsModal';
 import { useVoice } from '../../contexts/VoiceContext';
@@ -45,7 +46,8 @@ import { useTasks } from '../../hooks/supabase/useTasks';
 import { useDailyBriefing } from '../../hooks/useDailyBriefing';
 import { eventLogger } from '../../services/eventLogger';
 import { getLevelFromDays } from '../../components/LockedFeature';
-import { specColors } from '../../styles/colors';
+import { bg, brand, text as textTokens, border as borderTokens, semantic, lightAurora } from '../../styles/colors';
+import { shadows, spacing, radius } from '../../styles/theme';
 import supabaseApi from '../../services/supabaseApi';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -57,6 +59,21 @@ interface AIHubScreenProps {
 
 // Approximate TTS speed: ~150 chars/second
 const TTS_CHARS_PER_SEC = 150;
+
+/** Returns time-of-day gradient colours for the background */
+function getTimeOfDayGradient(): [string, string, string] {
+  const hour = new Date().getHours();
+  if (hour >= 5 && hour < 12) {
+    // Morning: warm peach tint
+    return [lightAurora.white, lightAurora.peach, lightAurora.lavender];
+  } else if (hour >= 12 && hour < 17) {
+    // Afternoon: neutral white
+    return [lightAurora.white, '#F8F8FA', lightAurora.blue];
+  } else {
+    // Evening / Night: soft lavender
+    return [lightAurora.white, lightAurora.lavender, lightAurora.blue];
+  }
+}
 
 export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: externalAudioLevel }: AIHubScreenProps) {
   const { user } = useSupabaseAuth();
@@ -115,11 +132,14 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
   const iconScale = useSharedValue(1);
   const iconOpacity = useSharedValue(0.7);
 
+  // Background gradient colours (time-of-day)
+  const gradientColors = getTimeOfDayGradient();
+
   // Get today's date
   const today = new Date();
   const dateString = today.toLocaleDateString('en-US', {
     weekday: 'long',
-    month: 'long',
+    month: 'short',
     day: 'numeric',
   });
 
@@ -158,32 +178,32 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
     if (voiceState === 'idle' && !isBriefingPlaying) {
       iconScale.value = withRepeat(
         withSequence(
-          withTiming(1.1, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
-          withTiming(0.95, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
+          withTiming(1.08, { duration: 2500, easing: Easing.inOut(Easing.ease) }),
+          withTiming(0.95, { duration: 2500, easing: Easing.inOut(Easing.ease) }),
         ), -1,
       );
       iconOpacity.value = withRepeat(
         withSequence(
-          withTiming(0.8, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
-          withTiming(0.5, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
+          withTiming(1, { duration: 2500, easing: Easing.inOut(Easing.ease) }),
+          withTiming(0.6, { duration: 2500, easing: Easing.inOut(Easing.ease) }),
         ), -1,
       );
     } else if (voiceState === 'listening') {
       iconScale.value = withSpring(1.15 + audioLevel * 0.2, { damping: 12, stiffness: 100 });
-      iconOpacity.value = withTiming(0.9, { duration: 150 });
+      iconOpacity.value = withTiming(1, { duration: 150 });
     } else if (voiceState === 'processing') {
       iconScale.value = withRepeat(
         withTiming(1.15, { duration: 700, easing: Easing.inOut(Easing.ease) }), -1, true,
       );
-      iconOpacity.value = withTiming(0.85, { duration: 300 });
+      iconOpacity.value = withTiming(0.9, { duration: 300 });
     } else if (voiceState === 'speaking') {
       iconScale.value = withRepeat(
         withSequence(
-          withTiming(1.2, { duration: 350, easing: Easing.inOut(Easing.ease) }),
-          withTiming(1.05, { duration: 350, easing: Easing.inOut(Easing.ease) }),
+          withTiming(1.18, { duration: 350, easing: Easing.inOut(Easing.ease) }),
+          withTiming(1.02, { duration: 350, easing: Easing.inOut(Easing.ease) }),
         ), -1,
       );
-      iconOpacity.value = withTiming(0.95, { duration: 200 });
+      iconOpacity.value = withTiming(1, { duration: 200 });
     } else if (voiceState === 'error') {
       iconScale.value = withRepeat(
         withTiming(1.08, { duration: 350, easing: Easing.inOut(Easing.ease) }), 6, true,
@@ -192,7 +212,7 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
     } else {
       // timeout / offline — subdued
       iconScale.value = withTiming(1, { duration: 400 });
-      iconOpacity.value = withTiming(0.4, { duration: 400 });
+      iconOpacity.value = withTiming(0.5, { duration: 400 });
     }
   }, [voiceState, audioLevel, isBriefingPlaying]);
 
@@ -245,7 +265,6 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
   useEffect(() => {
     if (isBriefingPlaying && voiceState === 'idle') {
       // Guard: only consider TTS done if at least 2 seconds have elapsed
-      // (prevents false-positive idle transitions during state machine changes)
       const elapsed = Date.now() - briefingStartTimeRef.current;
       if (elapsed < 2000) return;
 
@@ -253,7 +272,7 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
       setIsBriefingPlaying(false);
       setIsBriefingCollapsed(true);
 
-      // Clear progress timers (they may have already fired)
+      // Clear progress timers
       progressTimersRef.current.forEach(clearTimeout);
       progressTimersRef.current = [];
 
@@ -355,7 +374,6 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
 
   // Handle permission granted callback
   const handlePermissionGranted = useCallback(async () => {
-    // Start listening after permission granted
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     try {
       await voice.startListening();
@@ -366,7 +384,6 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
 
   // Handle permission denied callback
   const handlePermissionDenied = useCallback(() => {
-    // User chose not to enable voice - that's okay
     console.log('Voice permission denied by user');
   }, []);
 
@@ -388,10 +405,10 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
     if (voiceState === 'error') return 'Something went wrong. Tap to retry.';
     if (voiceState === 'offline') return 'No connection. Type below.';
     if (isBriefingLoading) return 'Preparing briefing... tap to talk';
-    return 'Tap anywhere to talk';
+    return 'Tap to talk to MYPA';
   };
 
-  // Get orb icon based on state
+  // Get icon based on state
   const getStateIcon = (): keyof typeof Ionicons.glyphMap => {
     if (voice.isDiscreetMode) return 'text-outline';
     if (voiceState === 'listening') return 'mic';
@@ -403,7 +420,7 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
     return 'mic-outline';
   };
 
-  // Whether to show the text input bar (offline, error after max retries, or discreet mode)
+  // Whether to show the text input bar
   const showTextInput = voice.isDiscreetMode || voiceState === 'offline' || voiceState === 'error';
 
   // Handle text submission
@@ -420,14 +437,20 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
 
   return (
     <View style={styles.container}>
-      {/* Living Background */}
-      <LivingBackground voiceState={voiceState} audioLevel={audioLevel} />
-      
+      {/* Soft gradient background — time-of-day tinted */}
+      <LinearGradient
+        colors={gradientColors}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={StyleSheet.absoluteFill}
+      />
+
       {/* SafeAreaView wraps everything for proper insets */}
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         {/* Tap Area - entire screen */}
         <Pressable style={styles.tapArea} onPress={handleTap}>
-          {/* ---- Top Section: Greeting & Date ---- */}
+
+          {/* ──── Top Section: Greeting & Date ──── */}
           <View style={styles.topSection}>
             <View style={styles.headerRow}>
               <View style={styles.greetingContainer}>
@@ -453,13 +476,13 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
                   setShowNotifications(true);
                 }}
               >
-                <BlurView intensity={40} tint="dark" style={styles.notificationBlur}>
-                  <Ionicons name="notifications-outline" size={22} color="rgba(255,255,255,0.9)" />
-                </BlurView>
+                <View style={styles.notificationCircle}>
+                  <Ionicons name="notifications-outline" size={20} color={textTokens.secondary} />
+                </View>
               </Pressable>
             </View>
 
-            {/* Briefing Pill — collapsed briefing card */}
+            {/* ──── Smart Briefing Card (collapsed pill) ──── */}
             {isBriefingCollapsed && briefText && !isVoiceActive && (
               <Animated.View
                 entering={SlideInDown.duration(400).springify().damping(18)}
@@ -474,21 +497,19 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
                     setShowBriefingText(true);
                   }}
                 >
-                  <BlurView intensity={30} tint="dark" style={styles.briefingPillBlur}>
-                    <Ionicons name="sunny" size={16} color={specColors.brandSecondary} />
-                    <Text style={styles.briefingPillText} numberOfLines={1}>
-                      Daily Briefing
-                    </Text>
-                    <Ionicons name="chevron-down" size={14} color="rgba(255,255,255,0.4)" />
-                  </BlurView>
+                  <Text style={styles.briefingPillText} numberOfLines={1}>
+                    {pendingTasks} task{pendingTasks !== 1 ? 's' : ''} today
+                    {(user?.currentStreak ?? 0) > 0 ? ` • ${user?.currentStreak}-day streak 🔥` : ''}
+                  </Text>
+                  <Ionicons name="chevron-down" size={14} color={textTokens.tertiary} />
                 </Pressable>
               </Animated.View>
             )}
           </View>
 
-          {/* ---- Center Section: Immersive AI Presence ---- */}
+          {/* ──── Center Section: Voice Interaction Zone ──── */}
           <View style={styles.centerSection}>
-            {/* Briefing content overlay — only when not collapsed into pill */}
+            {/* Briefing content — frosted glass card (expanded state) */}
             {(showBriefingText && !isBriefingCollapsed && briefText && !isVoiceActive) ? (
               <Animated.View 
                 entering={FadeIn.duration(400)}
@@ -500,32 +521,47 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
                   contentContainerStyle={styles.briefingScrollContent}
                   showsVerticalScrollIndicator={false}
                 >
-                  <View style={styles.briefingCard}>
+                  <BlurView intensity={20} tint="light" style={styles.briefingCard}>
                     <View style={styles.briefingHeader}>
-                      <Ionicons name="sunny" size={18} color={specColors.brandSecondary} />
-                      <Text style={styles.briefingTitle}>Your Daily Briefing</Text>
+                      <Text style={styles.briefingEmoji}>📋</Text>
+                      <Text style={styles.briefingTitle}>Daily Briefing</Text>
+                      <Pressable
+                        onPress={(e) => {
+                          e.stopPropagation?.();
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          setIsBriefingCollapsed(true);
+                        }}
+                        hitSlop={12}
+                      >
+                        <Ionicons name="chevron-up" size={18} color={textTokens.tertiary} />
+                      </Pressable>
                     </View>
                     <Text style={styles.briefingText}>{briefText}</Text>
-                  </View>
+                  </BlurView>
                 </ScrollView>
                 <Text style={styles.briefingHint}>
-                  {isBriefingPlaying ? 'Listening to your briefing... tap to skip' : 'Tap anywhere to start talking'}
+                  {isBriefingPlaying ? 'Listening to your briefing… tap to skip' : 'Tap anywhere to start talking'}
                 </Text>
               </Animated.View>
             ) : isVoiceActive ? (
-              /* ── Voice-active: inline transcript + response ── */
+              /* ── Voice-active: inline transcript + AI response ── */
               <Animated.View
                 entering={FadeIn.duration(250)}
                 exiting={FadeOut.duration(200)}
                 style={styles.voiceActiveContainer}
               >
-                {/* State icon — floats above text */}
+                {/* State icon */}
                 <Animated.View style={[styles.stateIconContainer, iconAnimStyle]}>
-                  <Ionicons
-                    name={getStateIcon()}
-                    size={40}
-                    color={voiceState === 'error' ? 'rgba(239,68,68,0.9)' : 'rgba(255,255,255,0.85)'}
-                  />
+                  <View style={[
+                    styles.iconRing,
+                    voiceState === 'error' && { borderColor: semantic.error },
+                  ]}>
+                    <Ionicons
+                      name={getStateIcon()}
+                      size={32}
+                      color={voiceState === 'error' ? semantic.error : brand.primary}
+                    />
+                  </View>
                 </Animated.View>
 
                 {/* Listening waveform bars */}
@@ -547,10 +583,10 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
                   </Animated.View>
                 )}
 
-                {/* Processing dots */}
+                {/* Processing indicator */}
                 {voiceState === 'processing' && (
                   <Animated.View entering={FadeIn.duration(200)} style={styles.processingRow}>
-                    <Text style={styles.processingText}>Thinking...</Text>
+                    <Text style={styles.processingText}>Thinking…</Text>
                   </Animated.View>
                 )}
 
@@ -559,7 +595,7 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
                   {voiceState === 'listening' && voice.transcript ? (
                     <Text style={styles.transcriptText}>{voice.transcript}</Text>
                   ) : voiceState === 'listening' ? (
-                    <Text style={styles.listeningHint}>Listening...</Text>
+                    <Text style={styles.listeningHint}>Listening…</Text>
                   ) : null}
 
                   {voiceState === 'processing' && voice.transcript ? (
@@ -567,23 +603,26 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
                   ) : null}
 
                   {voiceState === 'speaking' && voice.aiResponse ? (
-                    <Text style={styles.aiResponseText}>{voice.aiResponse}</Text>
+                    <BlurView intensity={15} tint="light" style={styles.aiResponseCard}>
+                      <Ionicons name="sparkles" size={16} color={brand.primary} style={{ marginBottom: 6 }} />
+                      <Text style={styles.aiResponseText}>{voice.aiResponse}</Text>
+                    </BlurView>
                   ) : null}
 
                   {voiceState === 'timeout' && (
-                    <Text style={styles.aiResponseText}>
+                    <Text style={styles.aiResponseTextPlain}>
                       {voice.aiResponse || "I didn't catch that. Tap to try again."}
                     </Text>
                   )}
 
                   {voiceState === 'error' && (
-                    <Text style={styles.aiResponseText}>
+                    <Text style={styles.aiResponseTextPlain}>
                       {voice.aiResponse || "I'm having trouble. Please try again."}
                     </Text>
                   )}
 
                   {voiceState === 'offline' && (
-                    <Text style={styles.aiResponseText}>
+                    <Text style={styles.aiResponseTextPlain}>
                       No network connection. Type your request instead.
                     </Text>
                   )}
@@ -606,9 +645,9 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
                     style={styles.cancelButton}
                     onPress={() => voice.endConversation()}
                   >
-                    <BlurView intensity={25} tint="dark" style={styles.cancelBlur}>
-                      <Ionicons name="close" size={20} color="rgba(255,255,255,0.7)" />
-                    </BlurView>
+                    <View style={styles.cancelCircle}>
+                      <Ionicons name="close" size={18} color={textTokens.tertiary} />
+                    </View>
                   </Pressable>
                 )}
               </Animated.View>
@@ -617,27 +656,29 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
               <Animated.View entering={FadeIn.duration(300)} style={styles.discreetResponseContainer}>
                 {voiceState === 'processing' ? (
                   <View style={styles.discreetThinking}>
-                    <Ionicons name="sparkles" size={20} color="#a855f7" />
-                    <Text style={styles.discreetThinkingText}>Thinking...</Text>
+                    <Ionicons name="sparkles" size={20} color={brand.primary} />
+                    <Text style={styles.discreetThinkingText}>Thinking…</Text>
                   </View>
                 ) : (
-                  <View style={styles.discreetCard}>
+                  <BlurView intensity={15} tint="light" style={styles.discreetCard}>
                     <Text style={styles.discreetResponseText}>{voice.aiResponse}</Text>
-                  </View>
+                  </BlurView>
                 )}
               </Animated.View>
             ) : (
-              /* ── Idle: floating state icon + hint — the screen itself is the AI ── */
+              /* ── Idle: mic icon with breathing animation ── */
               <Animated.View
                 entering={FadeIn.duration(800).delay(300)}
                 style={styles.idleCenterContainer}
               >
                 <Animated.View style={[styles.stateIconContainer, iconAnimStyle]}>
-                  <Ionicons
-                    name={isBriefingLoading ? 'sparkles-outline' : getStateIcon()}
-                    size={48}
-                    color="rgba(255,255,255,0.85)"
-                  />
+                  <View style={styles.idleMicRing}>
+                    <Ionicons
+                      name={isBriefingLoading ? 'sparkles-outline' : getStateIcon()}
+                      size={48}
+                      color={brand.primary}
+                    />
+                  </View>
                 </Animated.View>
 
                 <Animated.Text
@@ -650,110 +691,106 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
             )}
           </View>
 
-          {/* ---- Bottom Section: Stats & Quick Actions ---- */}
+          {/* ──── Bottom Section: Quick Actions & Stats ──── */}
           <View style={styles.bottomSection}>
             {/* Quick Action Pills */}
             {voiceState === 'idle' && (!showBriefingText || isBriefingCollapsed) && (
               <Animated.View 
                 entering={FadeInUp.duration(500).delay(400)}
-                style={styles.quickActionsRow}
               >
-                <Pressable style={styles.quickActionPill}>
-                  <BlurView intensity={25} tint="dark" style={styles.pillBlur}>
-                    <Ionicons name="timer-outline" size={18} color="rgba(255,255,255,0.85)" />
-                    <Text style={styles.pillText}>Focus</Text>
-                  </BlurView>
-                </Pressable>
-                
-                <Pressable style={styles.quickActionPill}>
-                  <BlurView intensity={25} tint="dark" style={styles.pillBlur}>
-                    <Ionicons name="add-circle-outline" size={18} color="rgba(255,255,255,0.85)" />
-                    <Text style={styles.pillText}>Add Task</Text>
-                  </BlurView>
-                </Pressable>
-
-                {/* Locked: Smart Sort — Level 2 */}
-                <Pressable
-                  style={[styles.quickActionPill, currentLevel < 2 && { opacity: 0.45 }]}
-                  onPress={() => {
-                    if (currentLevel < 2) {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    }
-                  }}
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.quickActionsContent}
+                  style={styles.quickActionsScroll}
                 >
-                  <BlurView intensity={25} tint="dark" style={styles.pillBlur}>
+                  <Pressable style={styles.quickActionPill}>
+                    <Ionicons name="timer-outline" size={16} color={brand.primary} />
+                    <Text style={styles.pillText}>🎯 Focus</Text>
+                  </Pressable>
+                  
+                  <Pressable style={styles.quickActionPill}>
+                    <Ionicons name="add-circle-outline" size={16} color={brand.primary} />
+                    <Text style={styles.pillText}>➕ Add Task</Text>
+                  </Pressable>
+
+                  {/* Locked: Smart Sort — Level 2 */}
+                  <Pressable
+                    style={[styles.quickActionPill, currentLevel < 2 && styles.pillLocked]}
+                    onPress={() => {
+                      if (currentLevel < 2) {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      }
+                    }}
+                  >
                     <Ionicons
                       name={currentLevel >= 2 ? 'sparkles-outline' : 'lock-closed'}
-                      size={16}
-                      color={currentLevel >= 2 ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.4)'}
+                      size={14}
+                      color={currentLevel >= 2 ? brand.primary : textTokens.disabled}
                     />
-                    <Text style={[styles.pillText, currentLevel < 2 && { color: 'rgba(255,255,255,0.4)' }]}>
-                      Smart Sort
+                    <Text style={[styles.pillText, currentLevel < 2 && styles.pillTextLocked]}>
+                      🧠 Smart Sort
                     </Text>
-                  </BlurView>
-                </Pressable>
+                  </Pressable>
 
-                {/* Locked: Reminders — Level 4 */}
-                <Pressable
-                  style={[styles.quickActionPill, currentLevel < 4 && { opacity: 0.45 }]}
-                  onPress={() => {
-                    if (currentLevel < 4) {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    }
-                  }}
-                >
-                  <BlurView intensity={25} tint="dark" style={styles.pillBlur}>
+                  {/* Locked: Reminders — Level 4 */}
+                  <Pressable
+                    style={[styles.quickActionPill, currentLevel < 4 && styles.pillLocked]}
+                    onPress={() => {
+                      if (currentLevel < 4) {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      }
+                    }}
+                  >
                     <Ionicons
                       name={currentLevel >= 4 ? 'notifications-outline' : 'lock-closed'}
-                      size={16}
-                      color={currentLevel >= 4 ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.4)'}
+                      size={14}
+                      color={currentLevel >= 4 ? brand.primary : textTokens.disabled}
                     />
-                    <Text style={[styles.pillText, currentLevel < 4 && { color: 'rgba(255,255,255,0.4)' }]}>
-                      Reminders
+                    <Text style={[styles.pillText, currentLevel < 4 && styles.pillTextLocked]}>
+                      ⏰ Reminders
                     </Text>
-                  </BlurView>
-                </Pressable>
+                  </Pressable>
+                </ScrollView>
               </Animated.View>
             )}
             
-            {/* Ambient Stats Line */}
+            {/* Ambient Stats Bar */}
             <Animated.View 
               entering={FadeInUp.duration(500).delay(600)}
               style={styles.statsContainer}
             >
+              <View style={styles.statsDivider} />
               <View style={styles.statsRow}>
                 {pendingTasks > 0 && (
                   <View style={styles.statItem}>
-                    <Ionicons name="checkbox-outline" size={14} color="rgba(255,255,255,0.4)" />
-                    <Text style={styles.statsText}>{pendingTasks} tasks</Text>
+                    <Text style={styles.statsText}>📋 {pendingTasks} task{pendingTasks !== 1 ? 's' : ''}</Text>
                   </View>
                 )}
                 {(user?.currentStreak ?? 0) > 0 && (
                   <View style={styles.statItem}>
-                    <Ionicons name="flame" size={14} color={specColors.warning} />
-                    <Text style={styles.statsText}>{user?.currentStreak} day streak</Text>
+                    <Text style={styles.statsText}>🔥 {user?.currentStreak}-day streak</Text>
                   </View>
                 )}
                 <View style={styles.statItem}>
-                  <Ionicons name="star" size={14} color="rgba(255,255,255,0.4)" />
-                  <Text style={styles.statsText}>Level {user?.level || 1}</Text>
+                  <Text style={styles.statsText}>⭐ Level {user?.level || 1}</Text>
                 </View>
               </View>
             </Animated.View>
           </View>
 
-          {/* ---- Text Input Bar (discreet mode / offline / error fallback) ---- */}
+          {/* ──── Text Input Bar (discreet mode / offline / error fallback) ──── */}
           {showTextInput && (
             <Animated.View
               entering={FadeInUp.duration(300)}
               style={styles.textInputContainer}
             >
-              <BlurView intensity={30} tint="dark" style={styles.textInputBlur}>
+              <View style={styles.textInputRow}>
                 <TextInput
                   ref={textInputRef}
                   style={styles.textInput}
-                  placeholder={voice.isDiscreetMode ? 'Type your request...' : 'Type here instead...'}
-                  placeholderTextColor="rgba(255,255,255,0.35)"
+                  placeholder={voice.isDiscreetMode ? 'Type your request…' : 'Type here instead…'}
+                  placeholderTextColor={textTokens.disabled}
                   value={textInputValue}
                   onChangeText={setTextInputValue}
                   onSubmitEditing={handleTextSubmit}
@@ -768,9 +805,13 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
                   onPress={handleTextSubmit}
                   disabled={!textInputValue.trim() || voiceState === 'processing'}
                 >
-                  <Ionicons name="send" size={18} color={textInputValue.trim() ? '#a855f7' : 'rgba(255,255,255,0.2)'} />
+                  <Ionicons
+                    name="send"
+                    size={18}
+                    color={textInputValue.trim() ? brand.primary : textTokens.disabled}
+                  />
                 </Pressable>
-              </BlurView>
+              </View>
             </Animated.View>
           )}
         </Pressable>
@@ -792,10 +833,11 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
   );
 }
 
+// ─── Styles ──────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
+    backgroundColor: bg.primary,
   },
   safeArea: {
     ...StyleSheet.absoluteFillObject,
@@ -804,7 +846,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  // ---- Top Section ----
+  // ──── Top Section ────
   topSection: {
     paddingHorizontal: 24,
     paddingTop: 8,
@@ -819,54 +861,51 @@ const styles = StyleSheet.create({
     paddingRight: 16,
   },
   greetingText: {
-    fontSize: 30,
+    fontSize: 22,
     fontWeight: '700',
-    color: '#fff',
-    letterSpacing: -0.5,
-    marginBottom: 4,
+    color: textTokens.primary,
+    letterSpacing: -0.3,
+    marginBottom: 2,
   },
   dateText: {
     fontSize: 15,
-    color: 'rgba(255, 255, 255, 0.5)',
+    color: textTokens.tertiary,
     fontWeight: '400',
   },
   notificationButton: {
     marginTop: 4,
   },
-  notificationBlur: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+  notificationCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: bg.secondary,
   },
 
   // ── Briefing Pill (collapsed state) ──
   briefingPill: {
     alignSelf: 'flex-start',
-    borderRadius: 20,
-    overflow: 'hidden',
-    marginTop: 14,
-  },
-  briefingPillBlur: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
+    borderRadius: 20,
+    marginTop: 14,
     paddingVertical: 10,
     paddingHorizontal: 16,
-    backgroundColor: 'rgba(124, 58, 237, 0.15)',
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
     borderWidth: 1,
-    borderColor: 'rgba(124, 58, 237, 0.25)',
+    borderColor: borderTokens.primary,
+    ...shadows.sm,
   },
   briefingPillText: {
     fontSize: 14,
     fontWeight: '600',
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: textTokens.secondary,
   },
 
-  // ---- Center Section ----
+  // ──── Center Section ────
   centerSection: {
     flex: 1,
     justifyContent: 'center',
@@ -874,18 +913,38 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
 
-  // ── Idle state — floating icon + hint ──
+  // ── Idle state — floating mic icon + hint ──
   idleCenterContainer: {
     alignItems: 'center',
   },
   stateIconContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 24,
+    marginBottom: 20,
+  },
+  idleMicRing: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: brand.muted,
+    borderWidth: 2,
+    borderColor: brand.tertiary,
+  },
+  iconRing: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: brand.muted,
+    borderWidth: 2,
+    borderColor: brand.tertiary,
   },
   hintText: {
     fontSize: 15,
-    color: 'rgba(255, 255, 255, 0.45)',
+    color: textTokens.tertiary,
     fontWeight: '400',
     textAlign: 'center',
   },
@@ -907,14 +966,14 @@ const styles = StyleSheet.create({
   waveBar: {
     width: 3,
     borderRadius: 2,
-    backgroundColor: 'rgba(139, 92, 246, 0.8)',
+    backgroundColor: brand.secondary,
   },
   processingRow: {
     marginBottom: 16,
   },
   processingText: {
     fontSize: 15,
-    color: 'rgba(168, 85, 247, 0.85)',
+    color: brand.primary,
     fontWeight: '500',
   },
   voiceTextContainer: {
@@ -926,44 +985,57 @@ const styles = StyleSheet.create({
   transcriptText: {
     fontSize: 20,
     fontWeight: '500',
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: textTokens.primary,
     textAlign: 'center',
     lineHeight: 28,
   },
   listeningHint: {
     fontSize: 17,
-    color: 'rgba(255, 255, 255, 0.4)',
+    color: textTokens.tertiary,
     textAlign: 'center',
+  },
+  aiResponseCard: {
+    borderRadius: 16,
+    padding: 16,
+    width: '100%',
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.5)',
   },
   aiResponseText: {
     fontSize: 18,
-    color: 'rgba(255, 255, 255, 0.85)',
+    color: textTokens.primary,
+    textAlign: 'center',
+    lineHeight: 26,
+  },
+  aiResponseTextPlain: {
+    fontSize: 18,
+    color: textTokens.secondary,
     textAlign: 'center',
     lineHeight: 26,
   },
   voiceFooterHint: {
     marginTop: 20,
     fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.35)',
+    color: textTokens.tertiary,
     textAlign: 'center',
   },
   cancelButton: {
     position: 'absolute',
     top: -8,
     right: 0,
-    borderRadius: 20,
-    overflow: 'hidden',
   },
-  cancelBlur: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  cancelCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: bg.secondary,
   },
 
-  // ── Briefing styles ──
+  // ── Briefing card (expanded) ──
   briefingContainer: {
     width: '100%',
     maxHeight: SCREEN_HEIGHT * 0.45,
@@ -977,12 +1049,13 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   briefingCard: {
-    backgroundColor: 'rgba(30, 30, 40, 0.85)',
     borderRadius: 20,
     padding: 20,
     width: '100%',
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
     borderWidth: 1,
-    borderColor: 'rgba(124, 58, 237, 0.25)',
+    borderColor: 'rgba(255, 255, 255, 0.5)',
   },
   briefingHeader: {
     flexDirection: 'row',
@@ -990,58 +1063,72 @@ const styles = StyleSheet.create({
     marginBottom: 14,
     gap: 8,
   },
+  briefingEmoji: {
+    fontSize: 16,
+  },
   briefingTitle: {
-    fontSize: 12,
+    flex: 1,
+    fontSize: 15,
     fontWeight: '600',
-    color: specColors.brandSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
+    color: textTokens.primary,
   },
   briefingText: {
     fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: textTokens.secondary,
     lineHeight: 24,
   },
   briefingHint: {
     marginTop: 16,
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.4)',
+    color: textTokens.tertiary,
     textAlign: 'center',
   },
 
-  // ---- Bottom Section ----
+  // ──── Bottom Section ────
   bottomSection: {
-    paddingHorizontal: 24,
-    paddingBottom: 20,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
   },
-  quickActionsRow: {
+  quickActionsScroll: {
+    marginBottom: 16,
+  },
+  quickActionsContent: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
     gap: 10,
-    marginBottom: 24,
+    paddingHorizontal: 8,
   },
   quickActionPill: {
-    borderRadius: 24,
-    overflow: 'hidden',
-  },
-  pillBlur: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    backgroundColor: 'rgba(124, 58, 237, 0.12)',
+    gap: 6,
+    height: 36,
+    paddingHorizontal: 16,
+    borderRadius: 9999,
+    backgroundColor: bg.card,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
+    borderColor: borderTokens.primary,
+    ...shadows.sm,
+  },
+  pillLocked: {
+    opacity: 0.5,
   },
   pillText: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: 'rgba(255, 255, 255, 0.85)',
+    fontSize: 14,
+    fontWeight: '600',
+    color: textTokens.secondary,
+  },
+  pillTextLocked: {
+    color: textTokens.disabled,
   },
   statsContainer: {
     alignItems: 'center',
+    paddingBottom: 4,
+  },
+  statsDivider: {
+    width: 60,
+    height: 1,
+    backgroundColor: borderTokens.secondary,
+    marginBottom: 10,
   },
   statsRow: {
     flexDirection: 'row',
@@ -1051,33 +1138,33 @@ const styles = StyleSheet.create({
   statItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 4,
   },
   statsText: {
     fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.4)',
+    color: textTokens.tertiary,
   },
 
-  // ---- Text Input Bar ----
+  // ──── Text Input Bar ────
   textInputContainer: {
     paddingHorizontal: 16,
     paddingBottom: 8,
   },
-  textInputBlur: {
+  textInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: 24,
     paddingHorizontal: 16,
     paddingVertical: 4,
-    overflow: 'hidden',
-    backgroundColor: 'rgba(30, 30, 40, 0.8)',
+    backgroundColor: bg.card,
     borderWidth: 1,
-    borderColor: 'rgba(124, 58, 237, 0.25)',
+    borderColor: borderTokens.primary,
+    ...shadows.sm,
   },
   textInput: {
     flex: 1,
     fontSize: 16,
-    color: '#fff',
+    color: textTokens.primary,
     paddingVertical: 12,
   },
   textSendButton: {
@@ -1086,14 +1173,14 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(124, 58, 237, 0.15)',
+    backgroundColor: brand.muted,
     marginLeft: 8,
   },
   textSendButtonDisabled: {
     backgroundColor: 'transparent',
   },
 
-  // ---- Discreet Mode Response Card ----
+  // ──── Discreet Mode Response Card ────
   discreetResponseContainer: {
     width: '100%',
     alignItems: 'center',
@@ -1106,19 +1193,20 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   discreetThinkingText: {
-    color: 'rgba(255, 255, 255, 0.6)',
+    color: textTokens.secondary,
     fontSize: 15,
   },
   discreetCard: {
-    backgroundColor: 'rgba(30, 30, 40, 0.85)',
     borderRadius: 16,
     padding: 16,
     width: '100%',
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
     borderWidth: 1,
-    borderColor: 'rgba(124, 58, 237, 0.2)',
+    borderColor: 'rgba(255, 255, 255, 0.5)',
   },
   discreetResponseText: {
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: textTokens.primary,
     fontSize: 16,
     lineHeight: 24,
   },
