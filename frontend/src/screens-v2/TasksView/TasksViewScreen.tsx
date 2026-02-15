@@ -1,8 +1,8 @@
 /**
- * Tasks View Screen — Light Theme + AI-Powered
+ * Tasks View Screen — Polished Light Theme + AI-Powered
  *
  * This isn't a todo list. It's an AI planner that knows your tasks.
- * The AI Task Assistant strip provides contextual task management help.
+ * Uses unified design tokens for consistent light-mode styling.
  * Focus functionality lives on the dedicated Focus surface (swipe-up).
  */
 
@@ -16,6 +16,7 @@ import {
   ActivityIndicator,
   Alert,
   StatusBar,
+  StyleSheet,
   Animated as RNAnimated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -35,37 +36,18 @@ import { BrainDumpModal } from '../modals/BrainDumpModal';
 import { MiniVoiceButton } from '../../components/MiniVoiceButton';
 import { useFocusModal } from '../../navigation-v2/FocusModalContext';
 import { eventLogger } from '../../services/eventLogger';
+import { bg, brand, text as textTokens, border as borderTokens, semantic } from '../../styles/colors';
+import { shadows, radius } from '../../styles/theme';
 
 // ============================================================================
-// Light Theme Palette
+// Priority Colors
 // ============================================================================
-
-const L = {
-  // Surfaces
-  bg: '#F5F5F7',
-  card: '#FFFFFF',
-  cardBorder: '#EDEDF0',
-  // Typography
-  textPrimary: '#1C1C1E',
-  textSecondary: '#48484A',
-  textTertiary: '#8E8E93',
-  textQuaternary: '#C7C7CC',
-  // Dividers
-  divider: '#EDEDF0',
-  // Accent
-  purple: '#7C3AED',
-  purpleLight: '#F5F0FF',
-  purpleMid: '#EDE5FF',
-  // Semantic
-  overdueBg: '#FEF2F2',
-  overdueAccent: '#DC2626',
-};
 
 const PRIORITY_COLORS: Record<string, string> = {
-  low: '#34C759',
-  medium: '#FF9F0A',
+  low: semantic.success,
+  medium: semantic.warning,
   high: '#FF6B35',
-  urgent: '#FF3B30',
+  urgent: semantic.error,
 };
 
 // ============================================================================
@@ -130,11 +112,11 @@ function buildSections(
 
   if (filter === 'today') {
     const items = active.filter((t) => t.due_date && isSameDay(new Date(t.due_date), today));
-    return [{ title: 'Today', key: 'today', data: sortSectionChronologically(items), accent: L.purple, icon: 'today-outline' }];
+    return [{ title: 'Today', key: 'today', data: sortSectionChronologically(items), accent: brand.primary, icon: 'today-outline' }];
   }
   if (filter === 'tomorrow') {
     const items = active.filter((t) => t.due_date && isSameDay(new Date(t.due_date), tomorrow));
-    return [{ title: 'Tomorrow', key: 'tomorrow', data: sortSectionChronologically(items), accent: '#3B82F6', icon: 'arrow-forward-circle-outline' }];
+    return [{ title: 'Tomorrow', key: 'tomorrow', data: sortSectionChronologically(items), accent: semantic.info, icon: 'arrow-forward-circle-outline' }];
   }
   if (filter === 'custom' && customDate) {
     const items = active.filter((t) => t.due_date && isSameDay(new Date(t.due_date), customDate));
@@ -159,11 +141,11 @@ function buildSections(
   }
 
   const sections: TaskSection[] = [];
-  if (overdue.length)     sections.push({ title: 'Overdue', key: 'overdue', data: sortSectionChronologically(overdue), accent: '#DC2626', icon: 'alert-circle' });
-  if (todayArr.length)    sections.push({ title: 'Today', key: 'today', data: sortSectionChronologically(todayArr), accent: L.purple, icon: 'today-outline' });
-  if (tomorrowArr.length) sections.push({ title: 'Tomorrow', key: 'tomorrow', data: sortSectionChronologically(tomorrowArr), accent: '#3B82F6', icon: 'arrow-forward-circle-outline' });
-  if (later.length)       sections.push({ title: 'Upcoming', key: 'later', data: sortSectionChronologically(later), accent: '#8E8E93', icon: 'calendar-outline' });
-  if (noDate.length)      sections.push({ title: 'No Date', key: 'anytime', data: sortSectionChronologically(noDate), accent: '#AEAEB2', icon: 'infinite-outline' });
+  if (overdue.length)     sections.push({ title: 'Overdue', key: 'overdue', data: sortSectionChronologically(overdue), accent: semantic.error, icon: 'alert-circle' });
+  if (todayArr.length)    sections.push({ title: 'Today', key: 'today', data: sortSectionChronologically(todayArr), accent: brand.primary, icon: 'today-outline' });
+  if (tomorrowArr.length) sections.push({ title: 'Tomorrow', key: 'tomorrow', data: sortSectionChronologically(tomorrowArr), accent: semantic.info, icon: 'arrow-forward-circle-outline' });
+  if (later.length)       sections.push({ title: 'Upcoming', key: 'later', data: sortSectionChronologically(later), accent: textTokens.tertiary, icon: 'calendar-outline' });
+  if (noDate.length)      sections.push({ title: 'No Date', key: 'anytime', data: sortSectionChronologically(noDate), accent: textTokens.disabled, icon: 'infinite-outline' });
   return sections;
 }
 
@@ -551,8 +533,8 @@ export function TasksViewScreen() {
         <TouchableOpacity
           style={{
             flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-            backgroundColor: L.purple, paddingVertical: 13, borderRadius: 14, gap: 8, minHeight: 48,
-            shadowColor: L.purple, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 4,
+            backgroundColor: brand.primary, paddingVertical: 13, borderRadius: 14, gap: 8, minHeight: 48,
+            ...shadows.purple,
           }}
           onPress={handlePrioritize}
           activeOpacity={0.8}
@@ -561,18 +543,18 @@ export function TasksViewScreen() {
           accessibilityLabel="Prioritize tasks"
         >
           {isPrioritizing ? (
-            <ActivityIndicator size="small" color="#FFFFFF" />
+            <ActivityIndicator size="small" color={textTokens.inverse} />
           ) : (
             <>
-              <Ionicons name="flash" size={16} color="#FFFFFF" />
-              <Text style={{ fontSize: 15, fontWeight: '700', color: '#FFFFFF', letterSpacing: 0.1 }}>Prioritize</Text>
+              <Ionicons name="flash" size={16} color={textTokens.inverse} />
+              <Text style={{ fontSize: 15, fontWeight: '700', color: textTokens.inverse, letterSpacing: 0.1 }}>Prioritize</Text>
             </>
           )}
         </TouchableOpacity>
         <TouchableOpacity
           style={{
             flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-            backgroundColor: L.purpleLight, paddingVertical: 13, borderRadius: 14,
+            backgroundColor: brand.muted, paddingVertical: 13, borderRadius: 14,
             borderWidth: 1, borderColor: 'rgba(124,58,237,0.15)', gap: 8, minHeight: 48,
           }}
           onPress={handleOpenBrainDump}
@@ -580,8 +562,8 @@ export function TasksViewScreen() {
           accessibilityRole="button"
           accessibilityLabel="Open Brain Dump"
         >
-          <Ionicons name="bulb-outline" size={16} color={L.purple} />
-          <Text style={{ fontSize: 15, fontWeight: '700', color: L.purple, letterSpacing: 0.1 }}>Brain Dump</Text>
+          <Ionicons name="bulb-outline" size={16} color={brand.primary} />
+          <Text style={{ fontSize: 15, fontWeight: '700', color: brand.primary, letterSpacing: 0.1 }}>Brain Dump</Text>
         </TouchableOpacity>
       </View>
 
@@ -589,37 +571,37 @@ export function TasksViewScreen() {
       {timeStats.taskCount > 0 && (
         <View style={{
           marginHorizontal: 16, marginTop: 6, marginBottom: 2,
-          backgroundColor: L.card,
-          borderRadius: 14,
+          backgroundColor: bg.card,
+          borderRadius: radius.lg,
           paddingHorizontal: 16, paddingVertical: 14,
           flexDirection: 'row', alignItems: 'center',
-          shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
+          ...shadows.sm,
         }}>
           <View style={{
             width: 38, height: 38, borderRadius: 12,
-            backgroundColor: L.purpleLight,
+            backgroundColor: brand.muted,
             alignItems: 'center', justifyContent: 'center',
             marginRight: 14,
           }}>
-            <Ionicons name="timer-outline" size={18} color={L.purple} />
+            <Ionicons name="timer-outline" size={18} color={brand.primary} />
           </View>
           <View style={{ flex: 1 }}>
             <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
-              <Text style={{ fontSize: 18, fontWeight: '700', color: L.textPrimary, letterSpacing: -0.3 }}>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: textTokens.primary, letterSpacing: -0.3 }}>
                 {timeStats.withEstimate > 0 ? formatDurationReadable(timeStats.totalMinutes) : '—'}
               </Text>
               {timeStats.withEstimate > 0 && (
-                <Text style={{ fontSize: 12, fontWeight: '500', color: L.textTertiary, marginLeft: 6 }}>estimated</Text>
+                <Text style={{ fontSize: 12, fontWeight: '500', color: textTokens.tertiary, marginLeft: 6 }}>estimated</Text>
               )}
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3 }}>
-              <Text style={{ fontSize: 12.5, color: L.textTertiary, fontWeight: '500' }}>
+              <Text style={{ fontSize: 12.5, color: textTokens.tertiary, fontWeight: '500' }}>
                 {timeStats.label} · {timeStats.taskCount} task{timeStats.taskCount !== 1 ? 's' : ''}
               </Text>
               {timeStats.missingEstimate > 0 && (
                 <>
-                  <View style={{ width: 3, height: 3, borderRadius: 1.5, backgroundColor: L.textQuaternary, marginHorizontal: 8 }} />
-                  <Text style={{ fontSize: 12.5, color: '#E5A100', fontWeight: '500' }}>
+                  <View style={{ width: 3, height: 3, borderRadius: 1.5, backgroundColor: textTokens.disabled, marginHorizontal: 8 }} />
+                  <Text style={{ fontSize: 12.5, color: semantic.warning, fontWeight: '500' }}>
                     {timeStats.missingEstimate} unestimated
                   </Text>
                 </>
@@ -632,28 +614,31 @@ export function TasksViewScreen() {
   );
 
   // ── Swipe Action Panels ──
+  // Swipe LEFT → Delete (red)
   const renderRightActions = useCallback((task: Task | SortedTask) => (
     _progress: RNAnimated.AnimatedInterpolation<number>,
     dragX: RNAnimated.AnimatedInterpolation<number>,
   ) => {
+    if (task.status === 'completed') return null;
     const scale = dragX.interpolate({ inputRange: [-80, 0], outputRange: [1, 0.5], extrapolate: 'clamp' });
     return (
       <RectButton
         style={{
-          backgroundColor: '#FF3B30', justifyContent: 'center', alignItems: 'center',
-          width: 80, borderTopRightRadius: 14, borderBottomRightRadius: 14,
+          backgroundColor: semantic.info, justifyContent: 'center', alignItems: 'center',
+          width: 80, borderTopRightRadius: radius.lg, borderBottomRightRadius: radius.lg,
           marginBottom: 10, marginRight: 16,
         }}
-        onPress={() => handleDelete(task)}
+        onPress={() => handleSwipeDefer(task)}
       >
         <RNAnimated.View style={{ transform: [{ scale }], alignItems: 'center' }}>
-          <Ionicons name="trash-outline" size={20} color="#fff" />
-          <Text style={{ fontSize: 11, fontWeight: '600', color: '#fff', marginTop: 3 }}>Delete</Text>
+          <Ionicons name="calendar-outline" size={20} color={textTokens.inverse} />
+          <Text style={{ fontSize: 11, fontWeight: '600', color: textTokens.inverse, marginTop: 3 }}>Defer</Text>
         </RNAnimated.View>
       </RectButton>
     );
-  }, [handleDelete]);
+  }, [handleSwipeDefer]);
 
+  // Swipe RIGHT → Complete (green)
   const renderLeftActions = useCallback((task: Task | SortedTask) => (
     _progress: RNAnimated.AnimatedInterpolation<number>,
     dragX: RNAnimated.AnimatedInterpolation<number>,
@@ -663,19 +648,19 @@ export function TasksViewScreen() {
     return (
       <RectButton
         style={{
-          backgroundColor: '#3B82F6', justifyContent: 'center', alignItems: 'center',
-          width: 80, borderTopLeftRadius: 14, borderBottomLeftRadius: 14,
+          backgroundColor: semantic.success, justifyContent: 'center', alignItems: 'center',
+          width: 80, borderTopLeftRadius: radius.lg, borderBottomLeftRadius: radius.lg,
           marginBottom: 10, marginLeft: 16,
         }}
-        onPress={() => handleSwipeDefer(task)}
+        onPress={() => handleComplete(task)}
       >
         <RNAnimated.View style={{ transform: [{ scale }], alignItems: 'center' }}>
-          <Ionicons name="arrow-forward-outline" size={20} color="#fff" />
-          <Text style={{ fontSize: 11, fontWeight: '600', color: '#fff', marginTop: 3 }}>Tomorrow</Text>
+          <Ionicons name="checkmark" size={20} color={textTokens.inverse} />
+          <Text style={{ fontSize: 11, fontWeight: '600', color: textTokens.inverse, marginTop: 3 }}>Done</Text>
         </RNAnimated.View>
       </RectButton>
     );
-  }, [handleSwipeDefer]);
+  }, [handleComplete]);
 
   // ── Task Card ──
   const swipeableRefs = useRef<Map<string, Swipeable>>(new Map());
@@ -702,8 +687,8 @@ export function TasksViewScreen() {
         rightThreshold={40}
         leftThreshold={40}
         onSwipeableOpen={(direction) => {
-          if (direction === 'right') handleDelete(task);
-          else if (direction === 'left') handleSwipeDefer(task);
+          if (direction === 'right') handleSwipeDefer(task);
+          else if (direction === 'left') handleComplete(task);
           // Close after action
           setTimeout(() => swipeableRefs.current.get(task.id)?.close(), 300);
         }}
@@ -713,21 +698,17 @@ export function TasksViewScreen() {
           onPress={() => { setSelectedTask(task); setShowTaskDetail(true); }}
           style={{
             marginHorizontal: 16, marginBottom: 10,
-            backgroundColor: isOverdue ? L.overdueBg : L.card,
-            borderRadius: 14,
+            backgroundColor: isOverdue ? '#FEF2F2' : bg.card,
+            borderRadius: radius.lg,
             flexDirection: 'row',
             overflow: 'hidden',
-            borderWidth: 0.5,
-            borderColor: isOverdue ? 'rgba(220,38,38,0.12)' : L.cardBorder,
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.07,
-            shadowRadius: 8,
-            elevation: 2,
+            borderWidth: isOverdue ? 0.5 : 0,
+            borderColor: isOverdue ? 'rgba(220,38,38,0.12)' : 'transparent',
+            ...shadows.sm,
           }}
         >
-          {/* Priority accent */}
-          <View style={{ width: 3, backgroundColor: pColor, borderTopLeftRadius: 14, borderBottomLeftRadius: 14 }} />
+          {/* Priority accent — 4px left border */}
+          <View style={{ width: 4, backgroundColor: pColor, borderTopLeftRadius: radius.lg, borderBottomLeftRadius: radius.lg }} />
 
           <View style={{ flex: 1, flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 14, paddingHorizontal: 14 }}>
             {/* Checkbox */}
@@ -741,12 +722,12 @@ export function TasksViewScreen() {
               <View style={{
                 width: 24, height: 24, borderRadius: 12,
                 borderWidth: task.status === 'completed' ? 0 : 2,
-                borderColor: task.status === 'completed' ? 'transparent' : pColor,
-                backgroundColor: task.status === 'completed' ? L.purple : 'transparent',
+                borderColor: task.status === 'completed' ? 'transparent' : borderTokens.primary,
+                backgroundColor: task.status === 'completed' ? brand.primary : 'transparent',
                 alignItems: 'center', justifyContent: 'center',
               }}>
                 {task.status === 'completed' && (
-                  <Ionicons name="checkmark" size={14} color="#FFFFFF" />
+                  <Ionicons name="checkmark" size={14} color={textTokens.inverse} />
                 )}
               </View>
             </TouchableOpacity>
@@ -757,7 +738,7 @@ export function TasksViewScreen() {
                 numberOfLines={2}
                 style={{
                   fontSize: 15.5, lineHeight: 21, fontWeight: '500',
-                  color: task.status === 'completed' ? L.textTertiary : L.textPrimary,
+                  color: task.status === 'completed' ? textTokens.tertiary : textTokens.primary,
                   textDecorationLine: task.status === 'completed' ? 'line-through' : 'none',
                 }}
               >
@@ -771,51 +752,51 @@ export function TasksViewScreen() {
                     flexDirection: 'row', alignItems: 'center',
                     backgroundColor: 'rgba(220,38,38,0.10)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8,
                   }}>
-                    <Ionicons name="alert-circle" size={12} color={L.overdueAccent} />
-                    <Text style={{ fontSize: 12, fontWeight: '600', color: L.overdueAccent, marginLeft: 4 }}>
+                    <Ionicons name="alert-circle" size={12} color={semantic.error} />
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: semantic.error, marginLeft: 4 }}>
                       {formatOverdueLabel(task.due_date)}
                     </Text>
                   </View>
                 )}
                 {dateLabel ? (
                   <View style={{
-                    backgroundColor: '#F2F2F7', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8,
+                    backgroundColor: bg.secondary, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8,
                   }}>
-                    <Text style={{ fontSize: 12, fontWeight: '500', color: L.textSecondary }}>{dateLabel}</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '500', color: textTokens.secondary }}>{dateLabel}</Text>
                   </View>
                 ) : null}
                 {time && (
                   <View style={{
                     flexDirection: 'row', alignItems: 'center',
-                    backgroundColor: '#F2F2F7', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8,
+                    backgroundColor: bg.secondary, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8,
                   }}>
-                    <Ionicons name="time-outline" size={12} color={L.textSecondary} />
-                    <Text style={{ fontSize: 12, fontWeight: '500', color: L.textSecondary, marginLeft: 4 }}>{time}</Text>
+                    <Ionicons name="time-outline" size={12} color={textTokens.secondary} />
+                    <Text style={{ fontSize: 12, fontWeight: '500', color: textTokens.secondary, marginLeft: 4 }}>{time}</Text>
                   </View>
                 )}
                 {dur && (
                   <View style={{
                     flexDirection: 'row', alignItems: 'center',
-                    backgroundColor: '#F2F2F7', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8,
+                    backgroundColor: bg.secondary, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8,
                   }}>
-                    <Ionicons name="hourglass-outline" size={12} color={L.textSecondary} />
-                    <Text style={{ fontSize: 12, fontWeight: '500', color: L.textSecondary, marginLeft: 4 }}>{dur}</Text>
+                    <Ionicons name="hourglass-outline" size={12} color={textTokens.secondary} />
+                    <Text style={{ fontSize: 12, fontWeight: '500', color: textTokens.secondary, marginLeft: 4 }}>{dur}</Text>
                   </View>
                 )}
                 {hasNotes && (
                   <View style={{
-                    backgroundColor: '#F2F2F7', paddingHorizontal: 6, paddingVertical: 4, borderRadius: 8,
+                    backgroundColor: bg.secondary, paddingHorizontal: 6, paddingVertical: 4, borderRadius: 8,
                   }}>
-                    <Ionicons name="document-text-outline" size={12} color={L.textTertiary} />
+                    <Ionicons name="document-text-outline" size={12} color={textTokens.tertiary} />
                   </View>
                 )}
                 {aiReason && (
                   <View style={{
                     flexDirection: 'row', alignItems: 'center',
-                    backgroundColor: L.purpleLight, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8,
+                    backgroundColor: brand.muted, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8,
                   }}>
-                    <Ionicons name="sparkles" size={10} color={L.purple} />
-                    <Text style={{ fontSize: 11, color: L.purple, fontWeight: '600', marginLeft: 3 }}>{aiReason}</Text>
+                    <Ionicons name="sparkles" size={10} color={brand.primary} />
+                    <Text style={{ fontSize: 11, color: brand.primary, fontWeight: '600', marginLeft: 3 }}>{aiReason}</Text>
                   </View>
                 )}
               </View>
@@ -829,16 +810,16 @@ export function TasksViewScreen() {
   // ── Section Header ──
   const renderSectionHeader = useCallback(({ section }: { section: TaskSection }) => (
     <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingTop: 22, paddingBottom: 10 }}>
-      {section.icon && <Ionicons name={section.icon as any} size={14} color={section.accent || L.textTertiary} style={{ marginRight: 7 }} />}
-      <Text style={{ fontSize: 13, fontWeight: '700', color: section.accent || L.textSecondary, letterSpacing: 0.6 }}>
-        {section.title.toUpperCase()}
+      {section.icon && <Ionicons name={section.icon as any} size={14} color={section.accent || textTokens.tertiary} style={{ marginRight: 7 }} />}
+      <Text style={{ fontSize: 13, fontWeight: '700', color: section.accent || textTokens.secondary, letterSpacing: 0.5, textTransform: 'uppercase' }}>
+        {section.title}
       </Text>
       <View style={{
-        marginLeft: 8, backgroundColor: `${section.accent || L.textTertiary}12`,
+        marginLeft: 8, backgroundColor: `${section.accent || textTokens.tertiary}12`,
         paddingHorizontal: 7, paddingVertical: 2, borderRadius: 7,
         minWidth: 22, alignItems: 'center',
       }}>
-        <Text style={{ fontSize: 11, fontWeight: '700', color: section.accent || L.textSecondary }}>
+        <Text style={{ fontSize: 11, fontWeight: '700', color: section.accent || textTokens.secondary }}>
           {section.data.length}
         </Text>
       </View>
@@ -852,7 +833,7 @@ export function TasksViewScreen() {
       dateFilter === 'today' ? 'Nothing due today' :
       dateFilter === 'tomorrow' ? 'Nothing due tomorrow' :
       dateFilter === 'custom' ? 'No tasks on this date' :
-      'You\'re all clear';
+      'All clear! 🎉';
     const subtitle = isFiltered
       ? 'Switch to \"All\" to see everything, or tap + to add one'
       : 'Tap + to capture your first task';
@@ -861,14 +842,14 @@ export function TasksViewScreen() {
       <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 72, paddingHorizontal: 40 }}>
         <View style={{
           width: 64, height: 64, borderRadius: 20, marginBottom: 20,
-          backgroundColor: L.purpleLight,
+          backgroundColor: brand.muted,
           alignItems: 'center', justifyContent: 'center',
-          shadowColor: L.purple, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 12,
+          ...shadows.purple,
         }}>
-          <Ionicons name={isFiltered ? 'calendar-outline' : 'checkmark-done'} size={30} color={L.purple} />
+          <Ionicons name={isFiltered ? 'calendar-outline' : 'checkmark-done'} size={30} color={brand.primary} />
         </View>
-        <Text style={{ fontSize: 19, fontWeight: '700', color: L.textPrimary, textAlign: 'center', letterSpacing: -0.2 }}>{label}</Text>
-        <Text style={{ fontSize: 14, color: L.textTertiary, marginTop: 6, textAlign: 'center', lineHeight: 20 }}>
+        <Text style={{ fontSize: 19, fontWeight: '700', color: textTokens.primary, textAlign: 'center', letterSpacing: -0.2 }}>{label}</Text>
+        <Text style={{ fontSize: 14, color: textTokens.tertiary, marginTop: 6, textAlign: 'center', lineHeight: 20 }}>
           {subtitle}
         </Text>
       </View>
@@ -885,26 +866,26 @@ export function TasksViewScreen() {
             flexDirection: 'row', alignItems: 'center',
             paddingHorizontal: 16, paddingVertical: 12,
             marginHorizontal: 16, borderRadius: 12,
-            backgroundColor: showCompleted ? L.purpleLight : 'transparent',
+            backgroundColor: showCompleted ? brand.muted : 'transparent',
           }}
           onPress={() => { Haptics.selectionAsync(); setShowCompleted((v) => !v); }}
           activeOpacity={0.7}
         >
           <View style={{
             width: 28, height: 28, borderRadius: 8,
-            backgroundColor: showCompleted ? L.purpleMid : L.divider,
+            backgroundColor: showCompleted ? brand.surface : borderTokens.secondary,
             alignItems: 'center', justifyContent: 'center', marginRight: 10,
           }}>
-            <Ionicons name={showCompleted ? 'chevron-down' : 'chevron-forward'} size={14} color={showCompleted ? L.purple : L.textTertiary} />
+            <Ionicons name={showCompleted ? 'chevron-down' : 'chevron-forward'} size={14} color={showCompleted ? brand.primary : textTokens.tertiary} />
           </View>
-          <Text style={{ fontSize: 14, fontWeight: '600', color: showCompleted ? L.purple : L.textTertiary, flex: 1 }}>
+          <Text style={{ fontSize: 14, fontWeight: '600', color: showCompleted ? brand.primary : textTokens.tertiary, flex: 1 }}>
             Completed
           </Text>
           <View style={{
-            backgroundColor: showCompleted ? L.purpleMid : L.divider,
+            backgroundColor: showCompleted ? brand.surface : borderTokens.secondary,
             paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, minWidth: 26, alignItems: 'center',
           }}>
-            <Text style={{ fontSize: 12, fontWeight: '700', color: showCompleted ? L.purple : L.textTertiary }}>
+            <Text style={{ fontSize: 12, fontWeight: '700', color: showCompleted ? brand.primary : textTokens.tertiary }}>
               {completedTasks.length}
             </Text>
           </View>
@@ -945,17 +926,17 @@ export function TasksViewScreen() {
                 >
                   <View style={{
                     width: 22, height: 22, borderRadius: 11,
-                    backgroundColor: L.purple,
+                    backgroundColor: brand.primary,
                     alignItems: 'center', justifyContent: 'center',
                   }}>
-                    <Ionicons name="checkmark" size={13} color="#FFFFFF" />
+                    <Ionicons name="checkmark" size={13} color={textTokens.inverse} />
                   </View>
                 </TouchableOpacity>
-                <Text numberOfLines={1} style={{ flex: 1, fontSize: 14, color: L.textTertiary, textDecorationLine: 'line-through' }}>
+                <Text numberOfLines={1} style={{ flex: 1, fontSize: 14, color: textTokens.tertiary, textDecorationLine: 'line-through' }}>
                   {task.title}
                 </Text>
                 {task.completed_at && (
-                  <Text style={{ fontSize: 11, color: L.textQuaternary, marginLeft: 8 }}>
+                  <Text style={{ fontSize: 11, color: textTokens.disabled, marginLeft: 8 }}>
                     {new Date(task.completed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                   </Text>
                 )}
@@ -970,15 +951,15 @@ export function TasksViewScreen() {
   // ── Error State ──
   if (error && !loading) {
     return (
-      <View style={{ flex: 1, backgroundColor: L.bg, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+      <View style={{ flex: 1, backgroundColor: bg.primary, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
         <StatusBar barStyle="dark-content" />
-        <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: '#FFF1F0', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
-          <Ionicons name="cloud-offline-outline" size={28} color="#FF3B30" />
+        <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: 'rgba(220,38,38,0.08)', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+          <Ionicons name="cloud-offline-outline" size={28} color={semantic.error} />
         </View>
-        <Text style={{ fontSize: 18, fontWeight: '600', color: L.textPrimary, textAlign: 'center' }}>Couldn't load tasks</Text>
-        <Text style={{ fontSize: 14, color: L.textSecondary, marginTop: 4, textAlign: 'center' }}>Check your connection and try again.</Text>
-        <TouchableOpacity style={{ marginTop: 20, backgroundColor: L.purple, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 }} onPress={refresh}>
-          <Text style={{ fontSize: 15, fontWeight: '600', color: '#fff' }}>Try Again</Text>
+        <Text style={{ fontSize: 18, fontWeight: '600', color: textTokens.primary, textAlign: 'center' }}>Couldn't load tasks</Text>
+        <Text style={{ fontSize: 14, color: textTokens.secondary, marginTop: 4, textAlign: 'center' }}>Check your connection and try again.</Text>
+        <TouchableOpacity style={{ marginTop: 20, backgroundColor: brand.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 }} onPress={refresh}>
+          <Text style={{ fontSize: 15, fontWeight: '600', color: textTokens.inverse }}>Try Again</Text>
         </TouchableOpacity>
       </View>
     );
@@ -986,24 +967,24 @@ export function TasksViewScreen() {
 
   // ── Main ──
   return (
-    <View style={{ flex: 1, backgroundColor: L.bg }}>
+    <View style={{ flex: 1, backgroundColor: bg.primary }}>
       <StatusBar barStyle="dark-content" />
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
         {/* Header */}
         <View style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Text style={{ fontSize: 34, fontWeight: '800', color: L.textPrimary, letterSpacing: -0.5 }}>Tasks</Text>
+            <Text style={{ fontSize: 34, fontWeight: '800', color: textTokens.primary, letterSpacing: -0.5 }}>Tasks</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               {isAISortingActive && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: L.purpleLight, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 }}>
-                  <Ionicons name="sparkles" size={13} color={L.purple} />
-                  <Text style={{ fontSize: 12, fontWeight: '600', color: L.purple, marginLeft: 4 }}>Smart Sort</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: brand.muted, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 }}>
+                  <Ionicons name="sparkles" size={13} color={brand.primary} />
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: brand.primary, marginLeft: 4 }}>Smart Sort</Text>
                 </View>
               )}
               <MiniVoiceButton position="top-right" screenContext="tasks" size={52} style={{ position: 'relative', top: 0, right: 0 }} />
             </View>
           </View>
-          <Text style={{ fontSize: 13, color: L.textTertiary, marginTop: 2, fontWeight: '500' }}>
+          <Text style={{ fontSize: 13, color: textTokens.tertiary, marginTop: 2, fontWeight: '500' }}>
             {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
           </Text>
         </View>
@@ -1014,7 +995,7 @@ export function TasksViewScreen() {
         {/* Content */}
         {loading && !refreshing ? (
           <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-            <ActivityIndicator color={L.purple} size="large" />
+            <ActivityIndicator color={brand.primary} size="large" />
           </View>
         ) : (
           <SectionList
@@ -1023,7 +1004,7 @@ export function TasksViewScreen() {
             renderItem={renderTask}
             renderSectionHeader={renderSectionHeader}
             contentContainerStyle={{ paddingBottom: 100 }}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={L.purple} />}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={brand.primary} />}
             ListHeaderComponent={renderListHeader}
             ListEmptyComponent={renderEmpty}
             ListFooterComponent={renderCompletedFooter}
@@ -1035,13 +1016,10 @@ export function TasksViewScreen() {
         <View style={{ position: 'absolute', bottom: 36, right: 20 }}>
           <TouchableOpacity
             style={{
-              width: 58, height: 58, borderRadius: 29,
-              backgroundColor: L.purple,
+              width: 56, height: 56, borderRadius: 28,
+              backgroundColor: brand.primary,
               alignItems: 'center', justifyContent: 'center',
-              shadowColor: L.purple,
-              shadowOffset: { width: 0, height: 6 },
-              shadowOpacity: 0.35,
-              shadowRadius: 14,
+              ...shadows.purple,
               elevation: 10,
             }}
             onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowQuickAdd(true); }}
