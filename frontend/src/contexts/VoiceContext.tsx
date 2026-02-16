@@ -196,6 +196,14 @@ interface VoiceContextType {
   startBrainDumpScribe: () => Promise<void>;
   /** Finish brain dump and return the full transcript */
   finishBrainDumpScribe: () => Promise<string>;
+
+  // Voice Limit Upsell (Step 11 — monetization)
+  /** Whether the voice limit upsell sheet should be shown */
+  showVoiceLimitUpsell: boolean;
+  /** Dismiss the voice limit upsell sheet */
+  dismissVoiceLimitUpsell: () => void;
+  /** Voice usage info for upsell display */
+  voiceLimitInfo: { count: number; limit: number } | null;
 }
 
 const VoiceContext = createContext<VoiceContextType | undefined>(undefined);
@@ -245,6 +253,14 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
   const [aiResponse, setAiResponse] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isConversationActive, setIsConversationActive] = useState(false);
+
+  // -- Voice Limit Upsell --------------------------------------------------
+  const [showVoiceLimitUpsell, setShowVoiceLimitUpsell] = useState(false);
+  const [voiceLimitInfo, setVoiceLimitInfo] = useState<{ count: number; limit: number } | null>(null);
+  const dismissVoiceLimitUpsell = useCallback(() => {
+    setShowVoiceLimitUpsell(false);
+    setVoiceLimitInfo(null);
+  }, []);
 
   // -- Settings ------------------------------------------------------------
   const [voiceSpeed, setVoiceSpeed] = useState(1.0);
@@ -1102,7 +1118,33 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
       );
 
       const { data, error: fnError } = await Promise.race([edgeFnPromise, timeoutPromise]);
-      if (fnError) throw fnError;
+
+      // Handle rate limit (429) responses
+      if (fnError) {
+        if (fnError instanceof FunctionsHttpError) {
+          try {
+            const errBody = await fnError.context.json();
+            if (errBody?.code === 'VOICE_LIMIT') {
+              setVoiceLimitInfo({ count: errBody.daily_count || 10, limit: errBody.limit || 10 });
+              setShowVoiceLimitUpsell(true);
+              setVoiceState('idle');
+              return;
+            }
+            if (errBody?.code === 'RATE_LIMIT') {
+              setError('Too many requests. Please wait a moment.');
+              setVoiceState('error');
+              setTimeout(() => {
+                if (voiceStateRef.current === 'error') {
+                  setVoiceState('idle');
+                  setError(null);
+                }
+              }, 3000);
+              return;
+            }
+          } catch { /* body not JSON, fall through */ }
+        }
+        throw fnError;
+      }
 
       const vcResponse = data as VoiceCommandResponse;
       const responseText = vcResponse?.response_text || '';
@@ -1527,6 +1569,10 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
     commitScribe,
     startBrainDumpScribe,
     finishBrainDumpScribe,
+
+    showVoiceLimitUpsell,
+    dismissVoiceLimitUpsell,
+    voiceLimitInfo,
   };
 
   return (

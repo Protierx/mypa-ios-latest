@@ -309,6 +309,64 @@ serve(async (req) => {
       )
     }
 
+    // ── Rate Limiting ────────────────────────────────────────────────
+    // Check if user is premium
+    const { data: userProfile } = await supabaseClient
+      .from('profiles')
+      .select('is_premium, timezone')
+      .eq('id', user.id)
+      .single()
+
+    if (!userProfile?.is_premium) {
+      // Compute today's start in user's timezone (or UTC fallback)
+      const tz = userProfile?.timezone || 'UTC'
+      const nowDate = new Date()
+      // Use a simple approach: get today at midnight in the user's perspective
+      const todayStr = nowDate.toLocaleDateString('en-CA', { timeZone: tz }) // YYYY-MM-DD
+      const todayStart = new Date(`${todayStr}T00:00:00Z`).toISOString()
+
+      // Count today's voice commands
+      const { count: dailyCount } = await supabaseClient
+        .from('event_log')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('event_type', 'voice_command')
+        .gte('created_at', todayStart)
+
+      if ((dailyCount || 0) >= 10) {
+        console.log(`[voice-command] User ${user.id} hit daily voice limit (${dailyCount}/10)`)
+        return new Response(
+          JSON.stringify({
+            error: 'Daily voice limit reached',
+            code: 'VOICE_LIMIT',
+            daily_count: dailyCount,
+            limit: 10,
+          }),
+          { status: 429, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+        )
+      }
+    }
+
+    // Burst rate limit: 60 requests per minute for all users
+    const oneMinuteAgo = new Date(Date.now() - 60000).toISOString()
+    const { count: minuteCount } = await supabaseClient
+      .from('event_log')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .eq('event_type', 'voice_command')
+      .gte('created_at', oneMinuteAgo)
+
+    if ((minuteCount || 0) >= 60) {
+      console.log(`[voice-command] User ${user.id} hit burst rate limit (${minuteCount}/min)`)
+      return new Response(
+        JSON.stringify({
+          error: 'Rate limit exceeded. Please wait a moment.',
+          code: 'RATE_LIMIT',
+        }),
+        { status: 429, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+      )
+    }
+
     // ── GPT Function Calling ─────────────────────────────────────────
     const openaiKey = Deno.env.get('OPENAI_API_KEY')!
 

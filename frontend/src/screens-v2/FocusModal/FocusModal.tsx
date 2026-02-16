@@ -41,7 +41,7 @@ interface FocusModalProps {
 }
 
 export function FocusModal({ onDismiss }: FocusModalProps = {}) {
-  const { startSession, endSession } = useFocusSessions();
+  const { startSession, pauseSession, resumeSession, endSession } = useFocusSessions();
   const { goToAIHub } = useGestureNavigation();
   
   const [state, setState] = useState<FocusState>('selecting');
@@ -114,8 +114,16 @@ export function FocusModal({ onDismiss }: FocusModalProps = {}) {
 
   const handlePause = useCallback(async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setState(state === 'paused' ? 'active' : 'paused');
-  }, [state]);
+    if (state === 'paused') {
+      // Resume: persist to Supabase then update local state
+      if (sessionId) await resumeSession(sessionId);
+      setState('active');
+    } else {
+      // Pause: persist to Supabase then update local state
+      if (sessionId) await pauseSession(sessionId);
+      setState('paused');
+    }
+  }, [state, sessionId, pauseSession, resumeSession]);
 
   const handleComplete = useCallback(async () => {
     if (timerRef.current) {

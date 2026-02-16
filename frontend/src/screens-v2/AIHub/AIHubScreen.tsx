@@ -41,6 +41,7 @@ import { useAssistantSceneState } from './useAssistantSceneState';
 import { VoiceState } from '../../components/LivingBackground';
 import { VoicePermissions, useVoicePermissions } from '../../components/VoicePermissions';
 import { NotificationsModal } from '../modals/NotificationsModal';
+import { SoftUpsellSheet } from '../modals/SoftUpsellSheet';
 import { useVoice } from '../../contexts/VoiceContext';
 import { useSupabaseAuth } from '../../contexts/SupabaseAuthContext';
 import { useUserModel } from '../../contexts/UserModelContext';
@@ -736,6 +737,22 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
       <NotificationsModal
         visible={showNotifications}
         onClose={() => setShowNotifications(false)}
+      />
+
+      {/* Voice limit soft upsell (Step 11 monetization) */}
+      <SoftUpsellSheet
+        visible={voice.showVoiceLimitUpsell}
+        onClose={voice.dismissVoiceLimitUpsell}
+        onUpgrade={() => {
+          voice.dismissVoiceLimitUpsell();
+          // TODO: navigate to paywall when RevenueCat is wired
+        }}
+        onTextFallback={() => {
+          voice.dismissVoiceLimitUpsell();
+          voice.setDiscreetMode(true);
+        }}
+        voiceCount={voice.voiceLimitInfo?.count ?? 10}
+        limit={voice.voiceLimitInfo?.limit ?? 10}
       />
     </View>
   );

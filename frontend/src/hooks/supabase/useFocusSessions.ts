@@ -13,6 +13,8 @@ interface UseFocusSessionsReturn {
   loading: boolean;
   error: Error | null;
   startSession: (durationMinutes: number, taskId?: string) => Promise<FocusSession | null>;
+  pauseSession: (sessionId: string) => Promise<boolean>;
+  resumeSession: (sessionId: string) => Promise<boolean>;
   endSession: (sessionId: string, xpEarned?: number) => Promise<boolean>;
   getTodayStats: () => { totalMinutes: number; sessionCount: number };
   refresh: () => Promise<void>;
@@ -93,6 +95,76 @@ export function useFocusSessions(): UseFocusSessionsReturn {
     }
   };
 
+  const pauseSession = async (sessionId: string): Promise<boolean> => {
+    if (!user) return false;
+
+    try {
+      const { error } = await supabase
+        .from('focus_sessions')
+        .update({ paused_at: new Date().toISOString() })
+        .eq('id', sessionId)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      // Log focus_paused event
+      eventLogger.log({
+        eventType: 'focus_paused',
+        action: 'pause_focus',
+        params: { session_id: sessionId },
+        success: true,
+        screenContext: 'focus',
+      });
+
+      fetchSessions();
+      return true;
+    } catch (err) {
+      console.error('Error pausing focus session:', err);
+      return false;
+    }
+  };
+
+  const resumeSession = async (sessionId: string): Promise<boolean> => {
+    if (!user) return false;
+
+    try {
+      // Get current session to compute pause duration
+      const session = sessions.find(s => s.id === sessionId);
+      if (!session || !session.paused_at) return false;
+
+      const pausedAt = new Date(session.paused_at).getTime();
+      const now = Date.now();
+      const pauseDurationMs = now - pausedAt;
+      const currentPausedMs = (session as any).total_paused_ms || 0;
+
+      const { error } = await supabase
+        .from('focus_sessions')
+        .update({
+          paused_at: null,
+          total_paused_ms: currentPausedMs + pauseDurationMs,
+        })
+        .eq('id', sessionId)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      // Log focus_resumed event
+      eventLogger.log({
+        eventType: 'focus_resumed',
+        action: 'resume_focus',
+        params: { session_id: sessionId, pause_duration_ms: pauseDurationMs },
+        success: true,
+        screenContext: 'focus',
+      });
+
+      fetchSessions();
+      return true;
+    } catch (err) {
+      console.error('Error resuming focus session:', err);
+      return false;
+    }
+  };
+
   const endSession = async (sessionId: string, xpEarned: number = 0): Promise<boolean> => {
     if (!user) return false;
 
@@ -103,7 +175,16 @@ export function useFocusSessions(): UseFocusSessionsReturn {
 
       const startTime = new Date(session.started_at!);
       const endTime = new Date();
-      const actualMinutes = Math.round((endTime.getTime() - startTime.getTime()) / (1000 * 60));
+      const totalElapsedMs = endTime.getTime() - startTime.getTime();
+
+      // Account for paused time: subtract total_paused_ms + any current pause
+      let totalPausedMs = (session as any).total_paused_ms || 0;
+      if (session.paused_at) {
+        // Session is currently paused — add the current pause duration
+        totalPausedMs += endTime.getTime() - new Date(session.paused_at).getTime();
+      }
+
+      const actualMinutes = Math.max(0, Math.round((totalElapsedMs - totalPausedMs) / (1000 * 60)));
 
       const { error } = await supabase
         .from('focus_sessions')
@@ -111,6 +192,8 @@ export function useFocusSessions(): UseFocusSessionsReturn {
           ended_at: endTime.toISOString(),
           duration_actual: actualMinutes,
           xp_earned: xpEarned,
+          paused_at: null,
+          total_paused_ms: totalPausedMs,
         })
         .eq('id', sessionId);
 
@@ -154,6 +237,8 @@ export function useFocusSessions(): UseFocusSessionsReturn {
     loading,
     error,
     startSession,
+    pauseSession,
+    resumeSession,
     endSession,
     getTodayStats,
     refresh: fetchSessions,
