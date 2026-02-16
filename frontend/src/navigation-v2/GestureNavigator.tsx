@@ -128,6 +128,8 @@ function GestureNavigatorContent() {
 
   // Pan gesture handler
   const panGesture = useMemo(() => Gesture.Pan()
+    .activeOffsetX([-15, 15])
+    .activeOffsetY([-15, 15])
     .onUpdate((event) => {
       if (isTransitioning.value) return;
       

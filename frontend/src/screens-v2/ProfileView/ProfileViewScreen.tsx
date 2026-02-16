@@ -8,14 +8,8 @@
  *   - Avatar, name, username
  *   - Level + XP progress
  *   - KPI summary cards (Streak, Tasks, Focus, Challenges)
- *   - "Analytics" pill → opens 75% analytics modal
- *   - "Settings" entry → opens full-screen settings
- *   - AI Feature unlocks list
+ *   - Two pill tabs: Analytics | Settings
  *   - Upgrade banner (free users)
- *
- * Does NOT contain:
- *   - Integration controls, notification toggles, voice sensitivity
- *   - Legal/privacy, theme/accent, sign out
  */
 
 import React, { useState } from 'react';
@@ -31,35 +25,16 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
 import { useSupabaseAuth } from '../../contexts/SupabaseAuthContext';
-import { useUnlocks } from '../../hooks/supabase/useUnlocks';
 import { useUserModel } from '../../contexts/UserModelContext';
 import { useFocusSessions } from '../../hooks/supabase/useFocusSessions';
-import { LockedFeature } from '../../components/LockedFeature';
 import { MiniVoiceButton } from '../../components/MiniVoiceButton';
 import { SettingsScreen } from '../settings/SettingsScreen';
 import { PaywallSheet } from '../modals/PaywallSheet';
-import { UnlockDetailsModal, FEATURE_UNLOCKS } from '../modals/UnlockDetailsModal';
 import { AnalyticsModal } from '../../components/settings/AnalyticsModal';
 import { ACCENT_COLORS, useSettingsPreferences } from '../../state/settingsPreferences';
 
-// All AI features with their required unlock levels
-const ALL_AI_FEATURES: { id: string; name: string; icon: keyof typeof Ionicons.glyphMap; level: number }[] = [
-  { id: 'personalized_greeting', name: 'Personalized Greetings', icon: 'hand-right-outline', level: 1 },
-  { id: 'task_insights', name: 'Task Insights', icon: 'bulb-outline', level: 2 },
-  { id: 'ai_task_sorting', name: 'AI Task Sorting', icon: 'swap-vertical-outline', level: 2 },
-  { id: 'focus_stats', name: 'Focus Statistics', icon: 'timer-outline', level: 2 },
-  { id: 'duration_estimation', name: 'Duration Estimation', icon: 'hourglass-outline', level: 3 },
-  { id: 'challenges', name: 'Challenges', icon: 'trophy-outline', level: 3 },
-  { id: 'custom_ai_voice', name: 'Custom AI Voice', icon: 'mic-outline', level: 3 },
-  { id: 'circle_insights', name: 'Circle Insights', icon: 'people-outline', level: 3 },
-  { id: 'overwhelm_detection', name: 'Overwhelm Detection', icon: 'alert-circle-outline', level: 4 },
-  { id: 'peak_hours', name: 'Peak Hours', icon: 'sunny-outline', level: 4 },
-  { id: 'predictive_tasks', name: 'Predictive Tasks', icon: 'sparkles-outline', level: 5 },
-];
-
 export function ProfileViewScreen() {
   const { user } = useSupabaseAuth();
-  const { unlocks } = useUnlocks();
   const { stats } = useUserModel();
   const { sessions } = useFocusSessions();
   const { prefs } = useSettingsPreferences();
@@ -71,8 +46,6 @@ export function ProfileViewScreen() {
   const [showSettings, setShowSettings] = useState(false);
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
-  const [selectedUnlockFeature, setSelectedUnlockFeature] = useState<any>(null);
-  const [showUnlockDetails, setShowUnlockDetails] = useState(false);
 
   // Calculate XP progress to next level
   const xpProgress = ((user?.xp || 0) % 100) / 100;
@@ -89,9 +62,6 @@ export function ProfileViewScreen() {
           {/* ── Header ─────────────────────────────────────── */}
           <View
             style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'space-between',
               paddingHorizontal: 20,
               paddingTop: 8,
               paddingBottom: 4,
@@ -100,27 +70,6 @@ export function ProfileViewScreen() {
             <Text style={{ fontSize: 28, fontWeight: '700', color: '#1C1C1E' }}>
               Profile
             </Text>
-            <TouchableOpacity
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setShowSettings(true);
-              }}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              accessibilityLabel="Open Settings"
-              accessibilityRole="button"
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: 18,
-                backgroundColor: '#FFFFFF',
-                alignItems: 'center',
-                justifyContent: 'center',
-                borderWidth: 1,
-                borderColor: '#E5E5EA',
-              }}
-            >
-              <Ionicons name="settings-outline" size={20} color="#1C1C1E" />
-            </TouchableOpacity>
           </View>
 
           {/* ── Profile Identity Card ──────────────────────── */}
@@ -258,8 +207,8 @@ export function ProfileViewScreen() {
             />
           </View>
 
-          {/* ── Analytics Pill ─────────────────────────────── */}
-          <View style={{ paddingHorizontal: 16, marginTop: 16 }}>
+          {/* ── Action Pill Tabs (Analytics | Settings) ────── */}
+          <View style={{ flexDirection: 'row', paddingHorizontal: 16, marginTop: 16, gap: 10 }}>
             <TouchableOpacity
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -269,6 +218,7 @@ export function ProfileViewScreen() {
               accessibilityLabel="Open Analytics"
               accessibilityRole="button"
               style={{
+                flex: 1,
                 backgroundColor: accent,
                 borderRadius: 14,
                 paddingVertical: 14,
@@ -280,6 +230,32 @@ export function ProfileViewScreen() {
               <Ionicons name="analytics-outline" size={20} color="#FFFFFF" />
               <Text style={{ fontSize: 16, fontWeight: '600', color: '#FFFFFF', marginLeft: 8 }}>
                 Analytics
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                setShowSettings(true);
+              }}
+              activeOpacity={0.7}
+              accessibilityLabel="Open Settings"
+              accessibilityRole="button"
+              style={{
+                flex: 1,
+                backgroundColor: '#FFFFFF',
+                borderRadius: 14,
+                paddingVertical: 14,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderWidth: 1,
+                borderColor: '#E5E5EA',
+              }}
+            >
+              <Ionicons name="settings-outline" size={20} color="#1C1C1E" />
+              <Text style={{ fontSize: 16, fontWeight: '600', color: '#1C1C1E', marginLeft: 8 }}>
+                Settings
               </Text>
             </TouchableOpacity>
           </View>
@@ -329,118 +305,7 @@ export function ProfileViewScreen() {
             </View>
           )}
 
-          {/* ── AI Features ────────────────────────────────── */}
-          <View style={{ paddingHorizontal: 16, marginTop: 24 }}>
-            <Text
-              style={{
-                fontSize: 13,
-                fontWeight: '600',
-                color: '#8E8E93',
-                textTransform: 'uppercase',
-                letterSpacing: 0.6,
-                marginBottom: 10,
-              }}
-              accessibilityRole="header"
-            >
-              AI Features
-            </Text>
-            <View
-              style={{
-                backgroundColor: '#FFFFFF',
-                borderRadius: 12,
-                borderWidth: 1,
-                borderColor: '#E5E5EA',
-                overflow: 'hidden',
-              }}
-            >
-              {ALL_AI_FEATURES.map((feature, idx) => {
-                const unlock = unlocks.find((u) => u.feature === feature.id);
-                const isFeatureUnlocked = !!unlock?.unlocked_at;
 
-                return (
-                  <LockedFeature
-                    key={feature.id}
-                    requiredLevel={feature.level}
-                    featureName={feature.name}
-                    onLockedPress={() => {
-                      const featureMeta = FEATURE_UNLOCKS[feature.id];
-                      if (featureMeta) {
-                        setSelectedUnlockFeature({
-                          ...featureMeta,
-                          isUnlocked: false,
-                          requirements: Object.entries(unlock?.progress || {}).map(([key, val]) => ({
-                            id: key,
-                            description: key.replace(/_/g, ' '),
-                            current: val?.current || 0,
-                            required: val?.required || 0,
-                            completed: (val?.current || 0) >= (val?.required || 0),
-                          })),
-                        });
-                        setShowUnlockDetails(true);
-                      }
-                    }}
-                  >
-                    <TouchableOpacity
-                      style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        paddingHorizontal: 16,
-                        paddingVertical: 14,
-                        borderBottomWidth: idx < ALL_AI_FEATURES.length - 1 ? 1 : 0,
-                        borderBottomColor: '#F2F2F7',
-                      }}
-                      onPress={() => {
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                        const featureMeta = FEATURE_UNLOCKS[feature.id];
-                        if (featureMeta) {
-                          setSelectedUnlockFeature({
-                            ...featureMeta,
-                            isUnlocked: isFeatureUnlocked,
-                            unlockedAt: unlock?.unlocked_at,
-                            requirements: Object.entries(unlock?.progress || {}).map(([key, val]) => ({
-                              id: key,
-                              description: key.replace(/_/g, ' '),
-                              current: val?.current || 0,
-                              required: val?.required || 0,
-                              completed: (val?.current || 0) >= (val?.required || 0),
-                            })),
-                          });
-                          setShowUnlockDetails(true);
-                        }
-                      }}
-                      activeOpacity={0.6}
-                      accessibilityLabel={`${feature.name}, Level ${feature.level}${isFeatureUnlocked ? ', Unlocked' : ''}`}
-                    >
-                      <View
-                        style={{
-                          width: 32,
-                          height: 32,
-                          borderRadius: 8,
-                          backgroundColor: isFeatureUnlocked ? '#DCFCE7' : '#F2F2F7',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          marginRight: 12,
-                        }}
-                      >
-                        <Ionicons
-                          name={isFeatureUnlocked ? 'checkmark-circle' : feature.icon}
-                          size={18}
-                          color={isFeatureUnlocked ? '#22C55E' : '#8E8E93'}
-                        />
-                      </View>
-                      <Text style={{ flex: 1, fontSize: 16, color: '#1C1C1E' }}>
-                        {feature.name}
-                      </Text>
-                      <Text style={{ fontSize: 12, color: '#C7C7CC', marginRight: 6 }}>
-                        L{feature.level}
-                      </Text>
-                      <Ionicons name="chevron-forward" size={16} color="#C7C7CC" />
-                    </TouchableOpacity>
-                  </LockedFeature>
-                );
-              })}
-            </View>
-          </View>
         </ScrollView>
 
         {/* Mini Voice Button */}
@@ -469,16 +334,6 @@ export function ProfileViewScreen() {
         visible={showPaywall}
         onClose={() => setShowPaywall(false)}
         trigger="profile"
-      />
-
-      {/* ── Unlock Details ───────────────────────────────── */}
-      <UnlockDetailsModal
-        visible={showUnlockDetails}
-        feature={selectedUnlockFeature}
-        onClose={() => {
-          setShowUnlockDetails(false);
-          setSelectedUnlockFeature(null);
-        }}
       />
     </View>
   );
