@@ -129,6 +129,16 @@ serve(async (req: Request) => {
       JSON.stringify({
         period,
         range,
+        // Core metrics (spec fields)
+        tasksCompleted: currentStats.tasksCompleted,
+        completionRate: currentStats.completionRate,
+        onTimeRate: currentStats.onTimeRate,
+        overdueRecovered: currentStats.overdueRecovered,
+        focusMinutes: currentStats.focusMinutes,
+        xpGained: currentStats.xpGained,
+        streakCurrent: gamState?.current_streak ?? 0,
+        streakLongest: gamState?.longest_streak ?? 0,
+        // Detailed breakdowns
         stats: currentStats,
         previousStats: previousStats ?? undefined,
         deltas: deltas ?? undefined,

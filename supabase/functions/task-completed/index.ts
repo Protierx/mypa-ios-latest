@@ -61,13 +61,14 @@ serve(async (req: Request) => {
     // ---------- Step 1: Idempotency check ----------
     const { data: existingEvent } = await supabase
       .from('events')
-      .select('id')
+      .select('id, payload')
       .eq('event_id', event_id)
       .maybeSingle();
 
     if (existingEvent) {
+      // Return the prior computed response stored in payload
       return new Response(
-        JSON.stringify({ ok: true, skipped: true, reason: 'duplicate event_id' }),
+        JSON.stringify({ ok: true, idempotent: true, ...(existingEvent.payload ?? {}) }),
         { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } },
       );
     }
@@ -166,6 +167,8 @@ serve(async (req: Request) => {
     // ---------- Step 8: Update gamification state ----------
     const newTotalXp = gamState.total_xp + xpResult.xpAwarded;
     const levelState = calcLevelState(newTotalXp);
+    const previousLevel = gamState.level;
+    const leveledUp = levelState.level > previousLevel;
 
     const { error: gamUpdateError } = await supabase
       .from('user_gamification_state')
@@ -210,7 +213,7 @@ serve(async (req: Request) => {
     }
 
     // ---------- Step 10: Update challenge progress ----------
-    await updateChallengeProgress(supabase, userId, todayStr, streakResult.currentStreak);
+    const challengeUpdates = await updateChallengeProgress(supabase, userId, todayStr, streakResult.currentStreak);
 
     // ---------- Step 11: Upsert daily stats ----------
     const dailyStatsPayload = {
@@ -235,7 +238,31 @@ serve(async (req: Request) => {
         .insert(dailyStatsPayload);
     }
 
-    // ---------- Step 12: Insert event ----------
+    // ---------- Step 12: Build response payload ----------
+    const analyticsDelta = {
+      tasksCompleted: 1,
+      onTimeInc: taskIsOnTime ? 1 : 0,
+      lateInc: !taskIsOnTime ? 1 : 0,
+      overdueRecoveredInc: taskWasOverdue ? 1 : 0,
+      xpGained: xpResult.xpAwarded,
+    };
+
+    const responsePayload = {
+      xpDelta: xpResult.xpAwarded,
+      totalXp: newTotalXp,
+      level: levelState.level,
+      xpIntoLevel: levelState.xpIntoLevel,
+      xpForNextLevel: levelState.xpForNextLevel,
+      leveledUp,
+      streak: {
+        current: streakResult.currentStreak,
+        longest: streakResult.longestStreak,
+      },
+      challengeUpdates,
+      analyticsDelta,
+    };
+
+    // ---------- Step 13: Insert event (store full response for idempotent replay) ----------
     const { error: eventError } = await supabase
       .from('events')
       .insert({
@@ -244,14 +271,7 @@ serve(async (req: Request) => {
         type: 'task_completed',
         task_id,
         occurred_at: completedAt.toISOString(),
-        payload: {
-          xp_awarded: xpResult.xpAwarded,
-          breakdown: xpResult.breakdown,
-          on_time: taskIsOnTime,
-          was_overdue: taskWasOverdue,
-          streak: streakResult.currentStreak,
-          level: levelState.level,
-        },
+        payload: responsePayload,
       });
 
     if (eventError) {
@@ -260,20 +280,7 @@ serve(async (req: Request) => {
 
     // ---------- Response ----------
     return new Response(
-      JSON.stringify({
-        ok: true,
-        xp: {
-          awarded: xpResult.xpAwarded,
-          breakdown: xpResult.breakdown,
-          total: newTotalXp,
-        },
-        level: levelState,
-        streak: streakResult,
-        taskTiming: {
-          onTime: taskIsOnTime,
-          wasOverdue: taskWasOverdue,
-        },
-      }),
+      JSON.stringify({ ok: true, ...responsePayload }),
       { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } },
     );
   } catch (err) {
@@ -289,8 +296,18 @@ serve(async (req: Request) => {
 // CHALLENGE PROGRESS HELPER
 // ============================================================
 
+interface ChallengeUpdate {
+  challengeId: string;
+  type: string;
+  progressValue: number;
+  target: number;
+  completed: boolean;
+}
+
 // deno-lint-ignore no-explicit-any
-async function updateChallengeProgress(supabase: any, userId: string, todayStr: string, currentStreak: number) {
+async function updateChallengeProgress(supabase: any, userId: string, todayStr: string, currentStreak: number): Promise<ChallengeUpdate[]> {
+  const updates: ChallengeUpdate[] = [];
+
   // Find active challenges the user participates in
   const { data: participations } = await supabase
     .from('challenge_participants')
@@ -298,7 +315,7 @@ async function updateChallengeProgress(supabase: any, userId: string, todayStr: 
     .eq('user_id', userId)
     .eq('challenges.status', 'active');
 
-  if (!participations?.length) return;
+  if (!participations?.length) return updates;
 
   for (const p of participations) {
     const challenge = p.challenges;
@@ -334,6 +351,14 @@ async function updateChallengeProgress(supabase: any, userId: string, todayStr: 
         .eq('challenge_id', challenge.id)
         .eq('user_id', userId);
 
+      updates.push({
+        challengeId: challenge.id,
+        type: challenge.type,
+        progressValue: newValue,
+        target: challenge.goal_value,
+        completed: newValue >= challenge.goal_value,
+      });
+
     } else if (challenge.type === 'daily_checkin') {
       // Streak-based: use current streak as progress, but dedupe by date
       const { data: progress } = await supabase
@@ -364,6 +389,16 @@ async function updateChallengeProgress(supabase: any, userId: string, todayStr: 
         .update({ progress: newValue })
         .eq('challenge_id', challenge.id)
         .eq('user_id', userId);
+
+      updates.push({
+        challengeId: challenge.id,
+        type: challenge.type,
+        progressValue: newValue,
+        target: challenge.goal_value,
+        completed: newValue >= challenge.goal_value,
+      });
     }
   }
+
+  return updates;
 }
