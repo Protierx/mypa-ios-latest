@@ -2,8 +2,12 @@
  * Onboarding Screen — 3-step first-run experience
  *
  * Step 1: Welcome — "Hi, I'm MYPA" animation + timezone auto-detect
- * Step 2: Voice intro — AI greeting via TTS
- * Step 3: First command — user taps orb → speaks → task created → confetti
+ * Step 2: Voice intro — AI greeting (text + optional TTS)
+ * Step 3: First command — tap → task created directly via Supabase → confetti
+ *
+ * NOTE: Steps 2 & 3 do NOT depend on edge functions. We create the
+ * sample task directly via Supabase insert so onboarding never fails
+ * due to undeployed / erroring cloud functions.
  *
  * Total target: ~45 seconds
  *
@@ -37,8 +41,9 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
+import * as Speech from 'expo-speech';
 import { useSupabaseAuth } from '../../contexts/SupabaseAuthContext';
-import { useVoice } from '../../contexts/VoiceContext';
+import { supabase } from '../../lib/supabase';
 import { eventLogger } from '../../services/eventLogger';
 import { brand, text as textTokens, bg, semantic, border as borderTokens } from '../../styles/colors';
 import { shadows, radius } from '../../styles/theme';
@@ -53,13 +58,13 @@ interface OnboardingScreenProps {
 
 export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
   const { user, updateProfile } = useSupabaseAuth();
-  const voice = useVoice();
 
   const [step, setStep] = useState<OnboardingStep>('welcome');
   const [timezone, setTimezone] = useState('');
   const [isGreetingPlaying, setIsGreetingPlaying] = useState(false);
   const [greetingText, setGreetingText] = useState('');
   const [firstCommandDone, setFirstCommandDone] = useState(false);
+  const [isCreatingTask, setIsCreatingTask] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
   const startTimeRef = useRef(Date.now());
 
@@ -104,28 +109,59 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
     const greeting = `Hi ${name}! I'm MYPA, your personal AI assistant. I can help you manage tasks, set focus sessions, and keep you on track — all with your voice. Let's try it out!`;
     setGreetingText(greeting);
 
+    // Use local device TTS — no edge function needed
     try {
-      await voice.speak(greeting);
+      await new Promise<void>((resolve) => {
+        Speech.speak(greeting, {
+          language: 'en-US',
+          rate: 0.95,
+          onDone: resolve,
+          onStopped: resolve,
+          onError: () => resolve(),
+        });
+      });
     } catch {
-      // TTS failed — that's fine, show text
+      // TTS failed — that's fine, text is already shown
     }
     setIsGreetingPlaying(false);
     // Auto-advance after greeting
     setTimeout(() => setStep('first_command'), 500);
-  }, [user, voice]);
+  }, [user]);
 
   const handleFirstCommand = useCallback(async () => {
+    if (isCreatingTask) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    // Submit a sample text command
+    setIsCreatingTask(true);
+
+    // Create a sample task directly via Supabase — no edge function needed
     try {
-      await voice.submitText('Add buy groceries tomorrow');
+      if (!user) throw new Error('No user');
+
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(9, 0, 0, 0);
+
+      const { error: insertError } = await supabase.from('tasks').insert({
+        user_id: user.id,
+        title: 'Buy groceries',
+        due_date: tomorrow.toISOString(),
+        priority: 'medium',
+        status: 'pending',
+        estimated_duration: 30,
+      });
+
+      if (insertError) throw insertError;
+
       setFirstCommandDone(true);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch {
+    } catch (err) {
+      console.warn('[Onboarding] Task creation failed:', err);
       // Even if it fails, let them proceed
       setFirstCommandDone(true);
+    } finally {
+      setIsCreatingTask(false);
     }
-  }, [voice]);
+  }, [user, isCreatingTask]);
 
   const handleComplete = useCallback(async () => {
     if (isCompleting) return;
@@ -249,8 +285,17 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
             {!firstCommandDone ? (
               <>
                 <Animated.View style={[styles.orbContainer, orbAnimatedStyle]}>
-                  <TouchableOpacity style={styles.orb} onPress={handleFirstCommand} activeOpacity={0.85}>
-                    <Ionicons name="mic" size={40} color="#FFFFFF" />
+                  <TouchableOpacity
+                    style={[styles.orb, isCreatingTask && styles.orbActive]}
+                    onPress={handleFirstCommand}
+                    activeOpacity={0.85}
+                    disabled={isCreatingTask}
+                  >
+                    {isCreatingTask ? (
+                      <ActivityIndicator color="#FFFFFF" size="large" />
+                    ) : (
+                      <Ionicons name="mic" size={40} color="#FFFFFF" />
+                    )}
                   </TouchableOpacity>
                 </Animated.View>
 

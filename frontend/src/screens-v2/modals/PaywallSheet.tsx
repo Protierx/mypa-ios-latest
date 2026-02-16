@@ -15,10 +15,13 @@ import {
   Modal,
   Pressable,
   ScrollView,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { eventLogger } from '@/services/eventLogger';
+import { usePurchases } from '@/contexts/PurchaseContext';
 
 type PlanType = 'monthly' | 'annual';
 
@@ -51,6 +54,7 @@ const PREMIUM_FEATURES = [
 
 export function PaywallSheet({ visible, onClose, trigger }: PaywallSheetProps) {
   const [selectedPlan, setSelectedPlan] = useState<PlanType>('annual');
+  const { currentOffering, purchasePackage, restorePurchases, isProcessing } = usePurchases();
 
   React.useEffect(() => {
     if (visible) {
@@ -61,16 +65,39 @@ export function PaywallSheet({ visible, onClose, trigger }: PaywallSheetProps) {
   const handlePurchase = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     eventLogger.log('paywall_purchase_tapped', { plan: selectedPlan, trigger });
-    // TODO: Wire RevenueCat purchase flow here
-    // For now, just close the modal
-    onClose();
+
+    // Get the right package from RevenueCat offering
+    const pkg = selectedPlan === 'annual'
+      ? currentOffering?.annual
+      : currentOffering?.monthly;
+
+    if (!pkg) {
+      Alert.alert('Unavailable', 'This plan is not available right now. Please try again later.');
+      return;
+    }
+
+    const { success, error } = await purchasePackage(pkg);
+    if (success) {
+      eventLogger.log('purchase_completed', { plan: selectedPlan });
+      onClose();
+    } else if (error && error !== 'cancelled') {
+      Alert.alert('Purchase Failed', error);
+    }
   };
 
   const handleRestore = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     eventLogger.log('paywall_restore_tapped', { trigger });
-    // TODO: Wire RevenueCat restore purchases here
-    onClose();
+
+    const { success, isPremium, error } = await restorePurchases();
+    if (success && isPremium) {
+      Alert.alert('Restored!', 'Your premium subscription has been restored.');
+      onClose();
+    } else if (success && !isPremium) {
+      Alert.alert('No Subscription Found', 'We couldn\'t find an active subscription for this account.');
+    } else if (error) {
+      Alert.alert('Restore Failed', error);
+    }
   };
 
   const handleDismiss = () => {
@@ -180,15 +207,21 @@ export function PaywallSheet({ visible, onClose, trigger }: PaywallSheetProps) {
                   className="bg-brand-purple py-4 rounded-2xl items-center"
                   onPress={handlePurchase}
                   activeOpacity={0.8}
+                  disabled={isProcessing}
                 >
-                  <Text className="text-headline font-bold text-white">
-                    {selectedPlan === 'annual' ? 'Start Annual Plan — £39.99/yr' : 'Start Monthly Plan — £4.99/mo'}
-                  </Text>
+                  {isProcessing ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <Text className="text-headline font-bold text-white">
+                      {selectedPlan === 'annual' ? 'Start Annual Plan — £39.99/yr' : 'Start Monthly Plan — £4.99/mo'}
+                    </Text>
+                  )}
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   className="py-3 items-center mt-2"
                   onPress={handleRestore}
+                  disabled={isProcessing}
                 >
                   <Text className="text-subhead text-ink-tertiary">Restore Purchases</Text>
                 </TouchableOpacity>

@@ -95,7 +95,12 @@ export type EventType =
   | 'voice_feedback'
 
   // Locked feature gating
-  | 'locked_feature_attempt';
+  | 'locked_feature_attempt'
+
+  // Subscription lifecycle (RevenueCat)
+  | 'subscription_event'
+  | 'purchase_completed'
+  | 'purchase_restored';
 
 /**
  * Event metadata varies by event type

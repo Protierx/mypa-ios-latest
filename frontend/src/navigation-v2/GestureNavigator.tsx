@@ -32,6 +32,7 @@ import { TasksViewScreen } from '../screens-v2/TasksView';
 import { SocialViewScreen } from '../screens-v2/SocialView';
 import { ProfileViewScreen } from '../screens-v2/ProfileView';
 import { FocusModal } from '../screens-v2/FocusModal/FocusModal';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 
 // Swipe thresholds
 const HORIZONTAL_THRESHOLD = 100;
@@ -224,16 +225,24 @@ function GestureNavigatorContent() {
           <View style={styles.container}>
             <Animated.View style={[styles.screenContainer, containerDynamic, animatedContainerStyle]}>
               <View style={[screenStyle, { position: 'absolute', left: -SCREEN_WIDTH, top: 0 }]}>
-                <SocialViewScreen />
+                <ErrorBoundary>
+                  <SocialViewScreen />
+                </ErrorBoundary>
               </View>
               <View style={[screenStyle, { position: 'absolute', left: 0, top: 0 }]}>
-                <AIHubScreen />
+                <ErrorBoundary>
+                  <AIHubScreen />
+                </ErrorBoundary>
               </View>
               <View style={[screenStyle, { position: 'absolute', left: SCREEN_WIDTH, top: 0 }]}>
-                <TasksViewScreen />
+                <ErrorBoundary>
+                  <TasksViewScreen />
+                </ErrorBoundary>
               </View>
               <View style={[screenStyle, { position: 'absolute', left: 0, top: SCREEN_HEIGHT }]}>
-                <ProfileViewScreen />
+                <ErrorBoundary>
+                  <ProfileViewScreen />
+                </ErrorBoundary>
               </View>
             </Animated.View>
           

@@ -42,6 +42,7 @@ import { VoiceState } from '../../components/LivingBackground';
 import { VoicePermissions, useVoicePermissions } from '../../components/VoicePermissions';
 import { NotificationsModal } from '../modals/NotificationsModal';
 import { SoftUpsellSheet } from '../modals/SoftUpsellSheet';
+import { PaywallSheet } from '../modals/PaywallSheet';
 import { VoiceFeedbackPrompt } from '../../components/VoiceFeedbackPrompt';
 import { useVoice } from '../../contexts/VoiceContext';
 import { useSupabaseAuth } from '../../contexts/SupabaseAuthContext';
@@ -100,6 +101,7 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
   const [greeting, setGreeting] = useState('');
   const [isLoadingGreeting, setIsLoadingGreeting] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showPaywall, setShowPaywall] = useState(false);
   const [textInputValue, setTextInputValue] = useState('');
   const textInputRef = useRef<TextInput>(null);
 
@@ -754,7 +756,7 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
         onClose={voice.dismissVoiceLimitUpsell}
         onUpgrade={() => {
           voice.dismissVoiceLimitUpsell();
-          // TODO: navigate to paywall when RevenueCat is wired
+          setShowPaywall(true);
         }}
         onTextFallback={() => {
           voice.dismissVoiceLimitUpsell();
@@ -762,6 +764,13 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
         }}
         voiceCount={voice.voiceLimitInfo?.count ?? 10}
         limit={voice.voiceLimitInfo?.limit ?? 10}
+      />
+
+      {/* Paywall sheet (opened from upsell or directly) */}
+      <PaywallSheet
+        visible={showPaywall}
+        onClose={() => setShowPaywall(false)}
+        trigger="voice_limit"
       />
     </View>
   );

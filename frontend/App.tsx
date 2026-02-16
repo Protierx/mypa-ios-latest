@@ -25,11 +25,23 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { SupabaseAuthProvider, useSupabaseAuth } from './src/contexts/SupabaseAuthContext';
 import { VoiceProvider } from './src/contexts/VoiceContext';
 import { UserModelProvider } from './src/contexts/UserModelContext';
+import { PurchaseProvider } from './src/contexts/PurchaseContext';
 import { ElevenLabsProvider } from '@elevenlabs/react-native';
 import { ThemeProvider } from './src/contexts/ThemeContext';
 
+// Crash Reporting
+import * as Sentry from '@sentry/react-native';
+
 // Services
 import { eventLogger } from './src/services/eventLogger';
+
+// ── Sentry Init ─────────────────────────────────────────────────────────────
+Sentry.init({
+  dsn: 'https://REPLACE_WITH_YOUR_DSN@sentry.io/REPLACE_PROJECT_ID',
+  tracesSampleRate: 0.2,
+  enableAutoSessionTracking: true,
+  enabled: !__DEV__, // Only report in production builds
+});
 
 // Components
 import { ErrorBoundary } from './src/components/ErrorBoundary';
@@ -50,11 +62,13 @@ export default function App() {
           <ThemeProvider>
             <SupabaseAuthProvider>
               <UserModelProvider>
-                <ElevenLabsProvider>
-                  <VoiceProvider>
-                    <AppContent />
-                  </VoiceProvider>
-                </ElevenLabsProvider>
+                <PurchaseProvider>
+                  <ElevenLabsProvider>
+                    <VoiceProvider>
+                      <AppContent />
+                    </VoiceProvider>
+                  </ElevenLabsProvider>
+                </PurchaseProvider>
               </UserModelProvider>
             </SupabaseAuthProvider>
           </ThemeProvider>
@@ -70,10 +84,14 @@ function AppContent() {
   // Track last-open date for "first open today" detection
   const lastOpenDateRef = useRef<string>('');
 
-  // Initialize event logging when user is authenticated
+  // Initialize event logging & Sentry user context when authenticated
   useEffect(() => {
     if (user) {
       eventLogger.initialize();
+
+      // Set Sentry user context for crash reports
+      Sentry.setUser({ id: user.id, email: user.email });
+
       const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
       const isFirstOpenToday = lastOpenDateRef.current !== today;
       lastOpenDateRef.current = today;
@@ -81,6 +99,8 @@ function AppContent() {
       if (isFirstOpenToday) {
         eventLogger.log('app_opened', { first_open_today: true });
       }
+    } else {
+      Sentry.setUser(null);
     }
   }, [user]);
 

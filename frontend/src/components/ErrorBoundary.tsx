@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { AlertCircle } from 'lucide-react-native';
+import * as Sentry from '@sentry/react-native';
 import { colors, spacing, radius, shadows } from '../styles';
 
 interface Props {
@@ -32,8 +33,12 @@ export class ErrorBoundary extends React.Component<Props, State> {
       this.props.onError(error, errorInfo);
     }
 
-    // TODO: Log to crash reporting service (Sentry)
-    // Sentry.captureException(error, { contexts: { react: errorInfo } });
+    // Log to Sentry crash reporting
+    Sentry.captureException(error, {
+      contexts: {
+        react: { componentStack: errorInfo.componentStack },
+      },
+    });
   }
 
   handleReset = () => {

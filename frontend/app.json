@@ -23,6 +23,10 @@
       "@config-plugins/react-native-webrtc",
       ["./plugins/withPorcupineKeyword", {
         "keywords": ["hey-my-low_en_ios_v4_0_0.ppn"]
+      }],
+      ["@sentry/react-native/expo", {
+        "organization": "REPLACE_WITH_SENTRY_ORG",
+        "project": "REPLACE_WITH_SENTRY_PROJECT"
       }]
     ],
     "ios": {
