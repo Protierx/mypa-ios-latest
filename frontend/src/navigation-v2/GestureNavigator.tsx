@@ -10,8 +10,8 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Dimensions, StyleSheet, Modal } from 'react-native';
-import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
+import { View, StyleSheet, Modal, useWindowDimensions } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -33,20 +33,19 @@ import { SocialViewScreen } from '../screens-v2/SocialView';
 import { ProfileViewScreen } from '../screens-v2/ProfileView';
 import { FocusModal } from '../screens-v2/FocusModal/FocusModal';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-
 // Swipe thresholds
 const HORIZONTAL_THRESHOLD = 100;
-const VERTICAL_THRESHOLD = 80;
+const VERTICAL_THRESHOLD = 50;
 
 // Spring config for smooth animations
 const SPRING_CONFIG = {
-  damping: 20,
-  stiffness: 200,
-  mass: 1,
+  damping: 22,
+  stiffness: 160,
+  mass: 0.8,
 };
 
 function GestureNavigatorContent() {
+  const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = useWindowDimensions();
   const { currentScreen, navigateTo, canSwipe } = useGestureNavigation();
   const { requestedNavigation, clearNavigationRequest } = useVoice();
   
@@ -107,7 +106,7 @@ function GestureNavigatorContent() {
     
     runOnJS(navigateTo)(screen);
     runOnJS(triggerHaptic)();
-  }, [navigateTo, triggerHaptic]);
+  }, [navigateTo, triggerHaptic, SCREEN_WIDTH, SCREEN_HEIGHT]);
 
   // Step 7b: Voice-triggered navigation — AI tool call sets requestedNavigation,
   // we animate to that screen and clear the request.
@@ -144,8 +143,8 @@ function GestureNavigatorContent() {
         // Social is on the left: base translateX = SCREEN_WIDTH, swipe left to return
         translateX.value = SCREEN_WIDTH + Math.min(0, event.translationX * 0.5);
       } else if (currentScreen === 'profile') {
-        // Can only swipe up to return
-        translateY.value = -SCREEN_HEIGHT + Math.min(0, event.translationY * 0.5);
+        // Swipe up to return — higher drag ratio for easier feel
+        translateY.value = -SCREEN_HEIGHT + event.translationY * 0.7;
       }
     })
     .onEnd((event) => {
@@ -161,11 +160,11 @@ function GestureNavigatorContent() {
         } else if (translationX > HORIZONTAL_THRESHOLD || velocityX > 500) {
           // Swipe right → Social
           animateToScreen('social');
-        } else if (translationY < -VERTICAL_THRESHOLD || velocityY < -500) {
+        } else if (translationY < -VERTICAL_THRESHOLD || velocityY < -300) {
           // Swipe up → Focus Modal (overlay)
           animateToScreen('ai_hub'); // Snap back to center
           runOnJS(openFocusModal)();
-        } else if (translationY > VERTICAL_THRESHOLD || velocityY > 500) {
+        } else if (translationY > VERTICAL_THRESHOLD || velocityY > 300) {
           // Swipe down → Profile
           animateToScreen('profile');
         } else {
@@ -189,15 +188,15 @@ function GestureNavigatorContent() {
           animateToScreen('social');
         }
       }
-      // From Profile - can only swipe up to return
+      // From Profile - swipe up to return (easier threshold)
       else if (currentScreen === 'profile') {
-        if (translationY < -VERTICAL_THRESHOLD || velocityY < -500) {
+        if (translationY < -VERTICAL_THRESHOLD || velocityY < -300) {
           animateToScreen('ai_hub');
         } else {
           animateToScreen('profile');
         }
       }
-    }), [currentScreen, animateToScreen]);
+    }), [currentScreen, animateToScreen, SCREEN_WIDTH, SCREEN_HEIGHT]);
 
   // Animated styles for the screen container
   const animatedContainerStyle = useAnimatedStyle(() => ({
@@ -207,22 +206,33 @@ function GestureNavigatorContent() {
     ],
   }));
 
+  // Dynamic screen positioning based on current window dimensions
+  const screenStyle = useMemo(() => ({
+    width: SCREEN_WIDTH,
+    height: SCREEN_HEIGHT,
+  }), [SCREEN_WIDTH, SCREEN_HEIGHT]);
+
+  const containerDynamic = useMemo(() => ({
+    width: SCREEN_WIDTH * 3,
+    height: SCREEN_HEIGHT * 2,
+  }), [SCREEN_WIDTH, SCREEN_HEIGHT]);
+
   return (
     <>
       <FocusModalProvider openFocusModal={openFocusModal}>
         <GestureDetector gesture={panGesture}>
           <View style={styles.container}>
-            <Animated.View style={[styles.screenContainer, animatedContainerStyle]}>
-              <View style={[styles.screen, styles.leftScreen]}>
+            <Animated.View style={[styles.screenContainer, containerDynamic, animatedContainerStyle]}>
+              <View style={[screenStyle, { position: 'absolute', left: -SCREEN_WIDTH, top: 0 }]}>
                 <SocialViewScreen />
               </View>
-              <View style={[styles.screen, styles.centerScreen]}>
+              <View style={[screenStyle, { position: 'absolute', left: 0, top: 0 }]}>
                 <AIHubScreen />
               </View>
-              <View style={[styles.screen, styles.rightScreen]}>
+              <View style={[screenStyle, { position: 'absolute', left: SCREEN_WIDTH, top: 0 }]}>
                 <TasksViewScreen />
               </View>
-              <View style={[styles.screen, styles.bottomScreen]}>
+              <View style={[screenStyle, { position: 'absolute', left: 0, top: SCREEN_HEIGHT }]}>
                 <ProfileViewScreen />
               </View>
             </Animated.View>
@@ -253,7 +263,7 @@ function GestureNavigatorContent() {
       <Modal
         visible={showFocusModal}
         animationType="slide"
-        presentationStyle="fullScreen"
+        presentationStyle="pageSheet"
         onRequestClose={() => setShowFocusModal(false)}
       >
         <FocusModal onDismiss={() => setShowFocusModal(false)} />
@@ -284,12 +294,12 @@ function ScreenContextBridge() {
 
 export function GestureNavigator() {
   return (
-    <GestureHandlerRootView style={styles.root}>
+    <View style={styles.root}>
       <GestureProvider>
         <ScreenContextBridge />
         <GestureNavigatorContent />
       </GestureProvider>
-    </GestureHandlerRootView>
+    </View>
   );
 }
 
@@ -303,33 +313,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   screenContainer: {
-    width: SCREEN_WIDTH * 3,
-    height: SCREEN_HEIGHT * 2,
     flexDirection: 'row',
     flexWrap: 'wrap',
-  },
-  screen: {
-    width: SCREEN_WIDTH,
-    height: SCREEN_HEIGHT,
-  },
-  leftScreen: {
-    position: 'absolute',
-    left: -SCREEN_WIDTH,
-    top: 0,
-  },
-  centerScreen: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-  },
-  rightScreen: {
-    position: 'absolute',
-    left: SCREEN_WIDTH,
-    top: 0,
-  },
-  bottomScreen: {
-    position: 'absolute',
-    left: 0,
-    top: SCREEN_HEIGHT,
   },
 });

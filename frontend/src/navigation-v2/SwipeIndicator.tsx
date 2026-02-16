@@ -6,7 +6,7 @@
  */
 
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, useWindowDimensions } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -16,8 +16,6 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
-
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 interface SwipeIndicatorProps {
   direction: 'left' | 'right' | 'up' | 'down';
@@ -33,6 +31,7 @@ const ICON_MAP = {
 } as const;
 
 export function SwipeIndicator({ direction, label, visible = true }: SwipeIndicatorProps) {
+  const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = useWindowDimensions();
   const opacity = useSharedValue(0);
   const translateOffset = useSharedValue(0);
 
@@ -77,7 +76,7 @@ export function SwipeIndicator({ direction, label, visible = true }: SwipeIndica
 
   if (!visible) return null;
 
-  const positionStyle = getPositionStyle(direction);
+  const positionStyle = getPositionStyle(direction, SCREEN_WIDTH, SCREEN_HEIGHT);
 
   return (
     <Animated.View style={[styles.container, positionStyle, animatedStyle]}>
@@ -91,7 +90,7 @@ export function SwipeIndicator({ direction, label, visible = true }: SwipeIndica
   );
 }
 
-function getPositionStyle(direction: SwipeIndicatorProps['direction']) {
+function getPositionStyle(direction: SwipeIndicatorProps['direction'], SCREEN_WIDTH: number, SCREEN_HEIGHT: number) {
   switch (direction) {
     case 'left':
       return {

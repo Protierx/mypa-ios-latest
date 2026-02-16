@@ -18,6 +18,9 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { registerGlobals } from '@livekit/react-native';
 registerGlobals();
 
+// Safe Area
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+
 // Contexts
 import { SupabaseAuthProvider, useSupabaseAuth } from './src/contexts/SupabaseAuthContext';
 import { VoiceProvider } from './src/contexts/VoiceContext';
@@ -41,19 +44,21 @@ import { colors } from './src/styles/colors';
 export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ErrorBoundary>
-        <ThemeProvider>
-          <SupabaseAuthProvider>
-            <UserModelProvider>
-              <ElevenLabsProvider>
-                <VoiceProvider>
-                  <AppContent />
-                </VoiceProvider>
-              </ElevenLabsProvider>
-            </UserModelProvider>
-          </SupabaseAuthProvider>
-        </ThemeProvider>
-      </ErrorBoundary>
+      <SafeAreaProvider>
+        <ErrorBoundary>
+          <ThemeProvider>
+            <SupabaseAuthProvider>
+              <UserModelProvider>
+                <ElevenLabsProvider>
+                  <VoiceProvider>
+                    <AppContent />
+                  </VoiceProvider>
+                </ElevenLabsProvider>
+              </UserModelProvider>
+            </SupabaseAuthProvider>
+          </ThemeProvider>
+        </ErrorBoundary>
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }
