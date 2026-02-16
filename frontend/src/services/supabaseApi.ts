@@ -248,7 +248,6 @@ class SupabaseApiService {
     }
     throw error;
   }
-}
 
   // ==========================================================================
   // Integration APIs
