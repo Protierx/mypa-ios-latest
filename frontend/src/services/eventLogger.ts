@@ -84,7 +84,18 @@ export type EventType =
   // AI category
   | 'ai_category_suggested'
   | 'ai_category_accepted'
-  | 'ai_category_overridden';
+  | 'ai_category_overridden'
+
+  // Onboarding & Account
+  | 'onboarding_completed'
+  | 'account_deleted'
+  | 'voice_history_deleted'
+
+  // Voice feedback (beta quality signals)
+  | 'voice_feedback'
+
+  // Locked feature gating
+  | 'locked_feature_attempt';
 
 /**
  * Event metadata varies by event type

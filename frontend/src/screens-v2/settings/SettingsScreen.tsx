@@ -29,6 +29,9 @@ import {
   Alert,
   Linking,
   Image,
+  Switch,
+  ActivityIndicator,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -37,6 +40,8 @@ import * as Haptics from 'expo-haptics';
 // Contexts
 import { useSupabaseAuth } from '../../contexts/SupabaseAuthContext';
 import { useVoice } from '../../contexts/VoiceContext';
+import { supabase } from '../../lib/supabase';
+import { eventLogger } from '../../services/eventLogger';
 
 // State
 import {
@@ -171,7 +176,74 @@ export function SettingsScreen({ visible, onClose, onShowPaywall }: Props) {
           text: 'Delete',
           style: 'destructive',
           onPress: () => {
-            Alert.alert('Request Sent', 'Your account deletion request has been submitted. You will receive a confirmation email.');
+            // Second confirmation: type DELETE
+            Alert.prompt(
+              'Confirm Deletion',
+              'Type DELETE to permanently remove your account.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Delete Forever',
+                  style: 'destructive',
+                  onPress: async (typed) => {
+                    if (typed?.trim().toUpperCase() !== 'DELETE') {
+                      Alert.alert('Cancelled', 'You must type DELETE to confirm.');
+                      return;
+                    }
+                    try {
+                      // Log before deletion
+                      eventLogger.log('account_deleted', {});
+                      await eventLogger.forceFlush();
+
+                      const { error } = await supabase.functions.invoke('delete-account');
+                      if (error) throw error;
+
+                      await signOut();
+                      onClose();
+                    } catch (err) {
+                      console.error('[Settings] Delete account error:', err);
+                      Alert.alert('Error', 'Failed to delete account. Please try again or contact support.');
+                    }
+                  },
+                },
+              ],
+              'plain-text',
+            );
+          },
+        },
+      ],
+    );
+  }, [signOut, onClose]);
+
+  const handleDeleteVoiceHistory = useCallback(() => {
+    Alert.alert(
+      'Delete Voice History',
+      'This will permanently delete all your voice command logs. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { data: { user: u } } = await supabase.auth.getUser();
+              if (!u) return;
+
+              const { error } = await supabase
+                .from('event_log')
+                .delete()
+                .eq('user_id', u.id)
+                .eq('event_type', 'voice_command');
+
+              if (error) throw error;
+
+              eventLogger.log('voice_history_deleted', {});
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              Alert.alert('Done', 'Voice history has been deleted.');
+            } catch (err) {
+              console.error('[Settings] Delete voice history error:', err);
+              Alert.alert('Error', 'Failed to delete voice history.');
+            }
           },
         },
       ],
@@ -587,10 +659,55 @@ export function SettingsScreen({ visible, onClose, onShowPaywall }: Props) {
               onPress={() => Linking.openURL('https://mypa.app/privacy')}
             />
             <SettingsRow
+              icon="mic-off-outline"
+              iconColor="#FF9F0A"
+              title="Delete Voice History"
+              onPress={handleDeleteVoiceHistory}
+            />
+            <SettingsRow
               icon="trash-outline"
               title="Delete Account"
               destructive
               onPress={handleDeleteAccount}
+            />
+          </SettingsSectionCard>
+
+          {/* ═══════════════════════════════════════════════════
+              5b. CIRCLE PRIVACY (PRD 4.4)
+          ═══════════════════════════════════════════════════ */}
+          <SettingsSectionCard
+            title="Circle Privacy"
+            footer="Task titles are never shared with circle members — only aggregate counts."
+          >
+            <SettingsRow
+              icon="checkbox-outline"
+              iconColor="#22C55E"
+              title="Share Task Count"
+              subtitle="Show how many tasks you complete"
+              toggle
+              toggleValue={prefs.shareTaskCount ?? true}
+              onToggle={(v) => update({ shareTaskCount: v } as any)}
+              accentColor={accent}
+            />
+            <SettingsRow
+              icon="timer-outline"
+              iconColor="#8B5CF6"
+              title="Share Focus Minutes"
+              subtitle="Show your focus session time"
+              toggle
+              toggleValue={prefs.shareFocusMinutes ?? true}
+              onToggle={(v) => update({ shareFocusMinutes: v } as any)}
+              accentColor={accent}
+            />
+            <SettingsRow
+              icon="flame-outline"
+              iconColor="#F97316"
+              title="Share Streak"
+              subtitle="Show your current streak"
+              toggle
+              toggleValue={prefs.shareStreak ?? true}
+              onToggle={(v) => update({ shareStreak: v } as any)}
+              accentColor={accent}
             />
           </SettingsSectionCard>
 

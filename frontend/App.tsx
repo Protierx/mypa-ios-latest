@@ -10,7 +10,7 @@
  */
 
 import './src/global.css';
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { StyleSheet, View, StatusBar, Image, ActivityIndicator, AppState, AppStateStatus } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
@@ -37,6 +37,7 @@ import { UnlockCelebrationModal, useUnlockCelebrations } from './src/components/
 
 // Navigation
 import { GestureNavigator } from './src/navigation-v2/GestureNavigator';
+import { OnboardingScreen } from './src/screens-v2/Onboarding';
 
 // Styles
 import { colors } from './src/styles/colors';
@@ -134,7 +135,20 @@ function AppContent() {
 }
 
 function AuthenticatedApp() {
+  const { user, refreshProfile } = useSupabaseAuth();
   const { currentUnlock, modalVisible, handleDismiss } = useUnlockCelebrations();
+  const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(user?.isOnboarded ?? false);
+
+  // If user finishes onboarding in this session, update local state + refresh profile
+  const handleOnboardingComplete = useCallback(async () => {
+    setHasCompletedOnboarding(true);
+    await refreshProfile().catch(() => {});
+  }, [refreshProfile]);
+
+  // Show onboarding if not completed
+  if (!hasCompletedOnboarding) {
+    return <OnboardingScreen onComplete={handleOnboardingComplete} />;
+  }
   
   return (
     <>

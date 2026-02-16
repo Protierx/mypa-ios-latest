@@ -86,8 +86,8 @@ function AvatarStack({ count, size = 22 }: { count: number; size?: number }) {
 /* ────────────── Component ────────────── */
 
 export function SocialViewScreen() {
-  const { circles, loading: circlesLoading, refresh: refreshCircles, joinCircleByCode } = useCircles();
-  const { challenges, loading: challengesLoading, refresh: refreshChallenges } = useChallenges();
+  const { circles, loading: circlesLoading, error: circlesError, refresh: refreshCircles, joinCircleByCode } = useCircles();
+  const { challenges, loading: challengesLoading, error: challengesError, refresh: refreshChallenges } = useChallenges();
   const { user } = useSupabaseAuth();
 
   const [refreshing, setRefreshing] = useState(false);
@@ -431,6 +431,7 @@ export function SocialViewScreen() {
    * ══════════════════════════════════════════════════════════════ */
 
   const hasContent = circles.length > 0 || activeChallenges.length > 0;
+  const hasError = (circlesError || challengesError) && !hasContent;
 
   return (
     <View style={s.root}>
@@ -464,6 +465,20 @@ export function SocialViewScreen() {
         {loading && !refreshing ? (
           <View style={s.loadingContainer}>
             <ActivityIndicator color={brand.primary} size="large" />
+          </View>
+        ) : hasError ? (
+          <View style={s.errorContainer}>
+            <Ionicons name="cloud-offline-outline" size={48} color={textTokens.disabled} />
+            <Text style={s.errorTitle}>Couldn't load circles</Text>
+            <Text style={s.errorSubtitle}>Check your connection and try again.</Text>
+            <TouchableOpacity
+              style={s.retryBtn}
+              onPress={handleRefresh}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="refresh" size={18} color={brand.primary} />
+              <Text style={s.retryBtnText}>Retry</Text>
+            </TouchableOpacity>
           </View>
         ) : !hasContent ? (
           <ScrollView
@@ -809,6 +824,25 @@ const s = StyleSheet.create({
 
   /* Loading */
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+
+  /* Error State */
+  errorContainer: {
+    flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40,
+  },
+  errorTitle: {
+    fontSize: 18, fontWeight: '700', color: textTokens.primary, marginTop: 16,
+  },
+  errorSubtitle: {
+    fontSize: 14, color: textTokens.tertiary, textAlign: 'center', marginTop: 6, lineHeight: 20,
+  },
+  retryBtn: {
+    flexDirection: 'row', alignItems: 'center', marginTop: 20,
+    paddingHorizontal: 24, paddingVertical: 12, borderRadius: 9999,
+    backgroundColor: brand.muted,
+  },
+  retryBtnText: {
+    fontSize: 15, fontWeight: '600', color: brand.primary, marginLeft: 6,
+  },
 
   /* Content Scroll */
   contentScrollContainer: { paddingTop: 8, paddingBottom: 100 },

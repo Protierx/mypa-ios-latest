@@ -42,6 +42,7 @@ import { VoiceState } from '../../components/LivingBackground';
 import { VoicePermissions, useVoicePermissions } from '../../components/VoicePermissions';
 import { NotificationsModal } from '../modals/NotificationsModal';
 import { SoftUpsellSheet } from '../modals/SoftUpsellSheet';
+import { VoiceFeedbackPrompt } from '../../components/VoiceFeedbackPrompt';
 import { useVoice } from '../../contexts/VoiceContext';
 import { useSupabaseAuth } from '../../contexts/SupabaseAuthContext';
 import { useUserModel } from '../../contexts/UserModelContext';
@@ -737,6 +738,14 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
       <NotificationsModal
         visible={showNotifications}
         onClose={() => setShowNotifications(false)}
+      />
+
+      {/* Voice feedback prompt (beta quality signal) */}
+      <VoiceFeedbackPrompt
+        visible={voice.showVoiceFeedback}
+        action={voice.lastVoiceAction.action}
+        confidence={voice.lastVoiceAction.confidence}
+        onDismiss={voice.dismissVoiceFeedback}
       />
 
       {/* Voice limit soft upsell (Step 11 monetization) */}

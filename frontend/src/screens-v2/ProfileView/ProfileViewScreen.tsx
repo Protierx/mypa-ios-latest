@@ -23,6 +23,7 @@ import {
   Pressable,
   StatusBar,
   StyleSheet,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -42,9 +43,12 @@ import { shadows, radius, spacing } from '../../styles/theme';
 
 export function ProfileViewScreen() {
   const { user, signOut } = useSupabaseAuth();
-  const { stats } = useUserModel();
-  const { sessions } = useFocusSessions();
+  const { stats, isLoading: statsLoading, error: statsError, refresh: refreshStats } = useUserModel();
+  const { sessions, loading: sessionsLoading } = useFocusSessions();
   const { prefs } = useSettingsPreferences();
+
+  const isLoading = statsLoading || sessionsLoading;
+  const hasError = !!statsError;
 
   // Compute real stats from data
   const tasksCompleted = stats?.tasksCompleted ?? 0;
@@ -119,6 +123,31 @@ export function ProfileViewScreen() {
           </View>
 
           {/* ── Stats Grid (2×2) ── */}
+          {hasError ? (
+            <View style={s.errorCard}>
+              <Ionicons name="cloud-offline-outline" size={32} color={semantic.error} />
+              <Text style={s.errorTitle}>Couldn't load stats</Text>
+              <Text style={s.errorSubtitle}>Check your connection and try again.</Text>
+              <TouchableOpacity
+                style={s.retryBtn}
+                onPress={() => refreshStats()}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="refresh" size={18} color={brand.primary} />
+                <Text style={s.retryText}>Retry</Text>
+              </TouchableOpacity>
+            </View>
+          ) : isLoading ? (
+            <View style={s.statsGrid}>
+              {[1, 2, 3, 4].map((i) => (
+                <View key={i} style={[s.statCard, s.shimmerCard]}>
+                  <View style={s.shimmerLine} />
+                  <View style={[s.shimmerLine, { width: '50%', marginTop: 12 }]} />
+                  <View style={[s.shimmerLine, { width: '35%', marginTop: 8 }]} />
+                </View>
+              ))}
+            </View>
+          ) : (
           <View style={s.statsGrid}>
             {[
               { icon: 'flame' as const, iconColor: '#F97316', label: 'Streak', value: `${user?.currentStreak || 0} days`, sub: `Longest: ${user?.longestStreak || 0} days` },
@@ -141,6 +170,7 @@ export function ProfileViewScreen() {
               </View>
             ))}
           </View>
+          )}
 
           {/* ── Action Pill Tabs (Analytics | Settings) ── */}
           <View style={s.actionPills}>
@@ -484,6 +514,53 @@ const s = StyleSheet.create({
     fontWeight: '600',
     color: semantic.error,
     marginLeft: 8,
+  },
+
+  // ── Error & Loading States ──
+  errorCard: {
+    backgroundColor: bg.card,
+    borderRadius: radius.lg,
+    padding: 24,
+    alignItems: 'center',
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: borderTokens.primary,
+  },
+  errorTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: textTokens.primary,
+    marginTop: 12,
+  },
+  errorSubtitle: {
+    fontSize: 13,
+    color: textTokens.tertiary,
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  retryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 9999,
+    backgroundColor: brand.muted,
+  },
+  retryText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: brand.primary,
+    marginLeft: 6,
+  },
+  shimmerCard: {
+    opacity: 0.6,
+  },
+  shimmerLine: {
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: bg.secondary,
+    width: '70%',
   },
 
   // ── Help Modal ──

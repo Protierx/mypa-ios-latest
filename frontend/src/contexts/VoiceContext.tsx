@@ -204,6 +204,14 @@ interface VoiceContextType {
   dismissVoiceLimitUpsell: () => void;
   /** Voice usage info for upsell display */
   voiceLimitInfo: { count: number; limit: number } | null;
+
+  // Voice Feedback (Beta quality signal)
+  /** Whether the "Was that right?" feedback prompt should be shown */
+  showVoiceFeedback: boolean;
+  /** Dismiss the voice feedback prompt */
+  dismissVoiceFeedback: () => void;
+  /** Last action details for feedback logging */
+  lastVoiceAction: { action: string; confidence: number };
 }
 
 const VoiceContext = createContext<VoiceContextType | undefined>(undefined);
@@ -261,6 +269,12 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
     setShowVoiceLimitUpsell(false);
     setVoiceLimitInfo(null);
   }, []);
+
+  // -- Voice Feedback ("Was that right?") ---------------------------------
+  const voiceCommandCountRef = useRef(0);
+  const [showVoiceFeedback, setShowVoiceFeedback] = useState(false);
+  const [lastVoiceAction, setLastVoiceAction] = useState({ action: '', confidence: 0 });
+  const dismissVoiceFeedback = useCallback(() => setShowVoiceFeedback(false), []);
 
   // -- Settings ------------------------------------------------------------
   const [voiceSpeed, setVoiceSpeed] = useState(1.0);
@@ -1159,6 +1173,15 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
         tokens_used: vcResponse?.tokens_used,
       });
 
+      // Voice feedback prompt — every 5th successful command (beta quality signal)
+      if (action && action.action !== 'unknown') {
+        voiceCommandCountRef.current += 1;
+        if (voiceCommandCountRef.current % 5 === 0) {
+          setLastVoiceAction({ action: action.action, confidence: action.confidence || 0 });
+          setShowVoiceFeedback(true);
+        }
+      }
+
       // Execute action if mutation
       if (
         action &&
@@ -1167,7 +1190,7 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
       ) {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          const result = await executeAction(action, user.id, responseText);
+          const result = await executeAction(action, user.id, responseText, userModelData?.stats?.daysActive);
           const spokenText = result.success ? (responseText || result.message) : result.message;
           setAiResponse(spokenText);
 
@@ -1573,6 +1596,10 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
     showVoiceLimitUpsell,
     dismissVoiceLimitUpsell,
     voiceLimitInfo,
+
+    showVoiceFeedback,
+    dismissVoiceFeedback,
+    lastVoiceAction,
   };
 
   return (

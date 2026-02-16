@@ -63,6 +63,42 @@ const QUERY_ACTIONS = new Set([
 ]);
 
 // ============================================================================
+// Voice Gating — Level Requirements (PRD 4.3 Progressive Unlocks)
+// ============================================================================
+
+import { getLevelFromDays } from '../components/LockedFeature';
+
+/**
+ * Map of action names → required unlock level.
+ * Actions not listed here are available at Level 1 (all users).
+ */
+const ACTION_LEVEL_REQUIREMENTS: Record<string, { level: number; featureName: string }> = {
+  'smart_schedule':       { level: 2, featureName: 'AI Sorting' },
+  'set_preference':       { level: 3, featureName: 'Preference Learning' },
+  'proactive_reminder':   { level: 4, featureName: 'Proactive Alerts' },
+  'predictive_planning':  { level: 5, featureName: 'Predictive Tasks' },
+  'create_circle':        { level: 3, featureName: 'Circles' },
+  'create_challenge':     { level: 3, featureName: 'Challenges' },
+};
+
+const LEVEL_DAYS: Record<number, number> = { 1: 1, 2: 3, 3: 7, 4: 14, 5: 30 };
+
+/**
+ * Check if an action is gated behind a level the user hasn't reached.
+ * Returns a friendly message if locked, or null if available.
+ */
+function getLockedMessage(action: string, daysActive: number): string | null {
+  const req = ACTION_LEVEL_REQUIREMENTS[action];
+  if (!req) return null;
+
+  const currentLevel = getLevelFromDays(daysActive);
+  if (currentLevel >= req.level) return null;
+
+  const daysNeeded = Math.max(0, (LEVEL_DAYS[req.level] || 1) - daysActive);
+  return `I'll be able to help with ${req.featureName} after about ${daysNeeded} more day${daysNeeded !== 1 ? 's' : ''} of use together. Keep going!`;
+}
+
+// ============================================================================
 // Action Handlers (one per mutation action)
 // ============================================================================
 
@@ -755,6 +791,7 @@ export async function executeAction(
   actionJson: ActionJSON,
   userId: string,
   responseText?: string,
+  daysActive?: number,
 ): Promise<ActionResult> {
   const { action, params, confirmation_required, confidence } = actionJson;
 
@@ -771,6 +808,20 @@ export async function executeAction(
     return {
       success: true,
       message: responseText || "I'm here! What can I help with?",
+    };
+  }
+
+  // ── Voice gating — check level requirement (PRD 4.3) ──────────
+  const lockedMsg = getLockedMessage(action, daysActive ?? 0);
+  if (lockedMsg) {
+    eventLogger.log('locked_feature_attempt', {
+      action,
+      required_level: ACTION_LEVEL_REQUIREMENTS[action]?.level,
+      current_level: getLevelFromDays(daysActive ?? 0),
+    });
+    return {
+      success: false,
+      message: lockedMsg,
     };
   }
 
