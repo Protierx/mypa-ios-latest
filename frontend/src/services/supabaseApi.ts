@@ -250,6 +250,323 @@ class SupabaseApiService {
   }
 }
 
+  // ==========================================================================
+  // Integration APIs
+  // ==========================================================================
+
+  /** Sync subscription status with RevenueCat */
+  async syncSubscription(action: 'verify' | 'status' | 'restore' = 'verify'): Promise<SubscriptionSyncResponse> {
+    return invokeWithRetry<SubscriptionSyncResponse>('revenucat-sync', {
+      body: { action },
+    });
+  }
+
+  /** Request a data export */
+  async requestDataExport(options?: {
+    format?: 'json' | 'csv';
+    sections?: string[];
+  }): Promise<DataExportResponse> {
+    return invokeWithRetry<DataExportResponse>('data-export', {
+      body: { action: 'request', ...options },
+    });
+  }
+
+  /** Get data export status */
+  async getDataExportStatus(exportId: string): Promise<DataExportStatusResponse> {
+    return invokeWithRetry<DataExportStatusResponse>('data-export', {
+      body: { action: 'status', export_id: exportId },
+    });
+  }
+
+  /** Download a completed data export */
+  async downloadDataExport(exportId: string): Promise<DataExportDownloadResponse> {
+    return invokeWithRetry<DataExportDownloadResponse>('data-export', {
+      body: { action: 'download', export_id: exportId },
+    });
+  }
+
+  /** List all data exports */
+  async listDataExports(): Promise<DataExportListResponse> {
+    return invokeWithRetry<DataExportListResponse>('data-export', {
+      body: { action: 'list' },
+    });
+  }
+
+  /** Connect a calendar provider */
+  async connectCalendar(params: {
+    provider: 'apple_calendar' | 'google_calendar' | 'outlook_calendar';
+    access_token?: string;
+    refresh_token?: string;
+    token_expires_at?: string;
+    scopes?: string[];
+    metadata?: Record<string, unknown>;
+  }): Promise<CalendarConnectResponse> {
+    return invokeWithRetry<CalendarConnectResponse>('calendar-sync', {
+      body: { action: 'connect', ...params },
+    });
+  }
+
+  /** Disconnect a calendar provider */
+  async disconnectCalendar(provider: string): Promise<{ disconnected: boolean; provider: string }> {
+    return invokeWithRetry<{ disconnected: boolean; provider: string }>('calendar-sync', {
+      body: { action: 'disconnect', provider },
+    });
+  }
+
+  /** Trigger calendar sync */
+  async syncCalendar(provider?: string): Promise<CalendarSyncResponse> {
+    return invokeWithRetry<CalendarSyncResponse>('calendar-sync', {
+      body: { action: 'sync', provider },
+    });
+  }
+
+  /** Import calendar events as tasks */
+  async importCalendarEvents(events: CalendarEventImport[]): Promise<CalendarImportResponse> {
+    return invokeWithRetry<CalendarImportResponse>('calendar-sync', {
+      body: { action: 'import_events', events },
+    });
+  }
+
+  /** Get calendar connection status */
+  async getCalendarStatus(): Promise<CalendarStatusResponse> {
+    return invokeWithRetry<CalendarStatusResponse>('calendar-sync', {
+      body: { action: 'status' },
+    });
+  }
+
+  /** Get system health check */
+  async getHealthCheck(): Promise<HealthCheckResponse> {
+    return invokeWithRetry<HealthCheckResponse>('health-check');
+  }
+
+  /** Quick health ping (no auth required) */
+  async healthPing(): Promise<{ status: string; timestamp: string }> {
+    const { data, error } = await supabase.functions.invoke('health-check', {
+      body: {},
+    });
+    if (error) throw error;
+    return data;
+  }
+
+  /** Get full integration dashboard */
+  async getIntegrationDashboard(): Promise<IntegrationDashboardResponse> {
+    return invokeWithRetry<IntegrationDashboardResponse>('integration-status', {
+      body: { action: 'dashboard' },
+    });
+  }
+
+  /** Get rate limit status for all resources */
+  async getRateLimits(): Promise<RateLimitsResponse> {
+    return invokeWithRetry<RateLimitsResponse>('integration-status', {
+      body: { action: 'rate_limits' },
+    });
+  }
+
+  /** Get connected integrations */
+  async getConnections(): Promise<ConnectionsResponse> {
+    return invokeWithRetry<ConnectionsResponse>('integration-status', {
+      body: { action: 'connections' },
+    });
+  }
+
+  /** Manage an integration connection */
+  async manageIntegration(
+    provider: string,
+    operation: 'toggle_sync' | 'clear_error' | 'update_metadata',
+    metadata?: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    return invokeWithRetry<Record<string, unknown>>('integration-status', {
+      body: { action: 'manage', provider, operation, metadata },
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Integration API Types
+// ---------------------------------------------------------------------------
+
+interface SubscriptionSyncResponse {
+  is_premium: boolean;
+  expires_at: string | null;
+  product_id: string | null;
+  source: 'cache' | 'revenucat' | 'cache_fallback';
+  entitlements?: string[];
+  active_subscriptions?: string[];
+  warning?: string;
+}
+
+interface DataExportResponse {
+  export_id: string;
+  status: string;
+  file_size_bytes: number;
+  sections: string[];
+  message: string;
+}
+
+interface DataExportStatusResponse {
+  export: {
+    id: string;
+    status: string;
+    format: string;
+    file_size_bytes: number | null;
+    sections: string[];
+    requested_at: string;
+    completed_at: string | null;
+    expires_at: string;
+  };
+}
+
+interface DataExportDownloadResponse {
+  download_url: string;
+  expires_in_seconds: number;
+  file_size_bytes: number;
+}
+
+interface DataExportListResponse {
+  exports: Array<{
+    id: string;
+    status: string;
+    format: string;
+    file_size_bytes: number | null;
+    sections: string[];
+    requested_at: string;
+    completed_at: string | null;
+    expires_at: string;
+    download_count: number;
+  }>;
+}
+
+interface CalendarConnectResponse {
+  connected: boolean;
+  provider: string;
+  connection_id: string;
+}
+
+interface CalendarSyncResponse {
+  synced: boolean;
+  results?: Array<{
+    provider: string;
+    success: boolean;
+    events_found?: number;
+    synced_at?: string;
+    error?: string;
+    message?: string;
+  }>;
+  message?: string;
+}
+
+interface CalendarEventImport {
+  title: string;
+  start_date: string;
+  end_date?: string;
+  all_day?: boolean;
+  location?: string;
+  notes?: string;
+  source_provider?: string;
+  source_event_id?: string;
+}
+
+interface CalendarImportResponse {
+  imported: number;
+  total_received: number;
+  tasks: Array<{ id: string; title: string }>;
+}
+
+interface CalendarStatusResponse {
+  connections: Array<{
+    provider: string;
+    status: string;
+    last_sync_at: string | null;
+    sync_error: string | null;
+    metadata: Record<string, unknown>;
+    connected_at: string;
+  }>;
+  supported_providers: string[];
+}
+
+interface HealthCheckResponse {
+  status: 'healthy' | 'degraded' | 'error';
+  timestamp: string;
+  version: string;
+  environment: string;
+  services: Array<{
+    name: string;
+    status: 'healthy' | 'degraded' | 'down' | 'unknown';
+    latency_ms: number | null;
+    message?: string;
+    checked_at: string;
+  }>;
+  summary: {
+    total: number;
+    healthy: number;
+    degraded: number;
+    down: number;
+  };
+}
+
+interface RateLimitInfo {
+  allowed: boolean;
+  current: number;
+  limit: number;
+  remaining: number;
+  resets_at: string;
+  resource: string;
+}
+
+interface RateLimitsResponse {
+  is_premium: boolean;
+  rate_limits: RateLimitInfo[];
+}
+
+interface ConnectionsResponse {
+  connections: Array<{
+    id: string;
+    provider: string;
+    status: string;
+    last_sync_at: string | null;
+    sync_error: string | null;
+    metadata: Record<string, unknown>;
+    scopes: string[];
+    connected_at: string;
+    updated_at: string;
+  }>;
+  available_providers: Array<{
+    id: string;
+    name: string;
+    icon: string;
+    premium_only: boolean;
+  }>;
+}
+
+interface IntegrationDashboardResponse {
+  user_id: string;
+  is_premium: boolean;
+  subscription: {
+    is_premium: boolean;
+    expires_at: string | null;
+    product_id: string | null;
+  };
+  connections: Array<{
+    id: string;
+    provider: string;
+    status: string;
+    last_sync_at: string | null;
+    sync_error: string | null;
+    connected_at: string;
+  }>;
+  rate_limits: RateLimitInfo[];
+  recent_exports: Array<{
+    id: string;
+    status: string;
+    format: string;
+    file_size_bytes: number | null;
+    requested_at: string;
+    completed_at: string | null;
+    expires_at: string;
+  }>;
+  capabilities: Record<string, boolean>;
+}
+
 // Import gamification types
 import type { TaskCompletedResponse, FocusCompletedResponse, CheckinResponse, ApproveResponse } from '@/types/gamification';
 import type { AnalyticsSummaryResponse } from '@/types/analytics';
@@ -272,5 +589,21 @@ export const challengeCheckIn = (eventId: string, challengeId: string, note?: st
 export const approveCheckIn = (checkinId: string, decision: 'accepted' | 'rejected') => api.approveCheckIn(checkinId, decision);
 export const createChallenge = (payload: CreateChallengeRequest) => api.createChallenge(payload);
 export const getAnalyticsSummary = (period?: string) => api.getAnalyticsSummary(period);
+
+// Integration API convenience exports
+export const syncSubscription = (action?: 'verify' | 'status' | 'restore') => api.syncSubscription(action);
+export const requestDataExport = (options?: { format?: 'json' | 'csv'; sections?: string[] }) => api.requestDataExport(options);
+export const getDataExportStatus = (exportId: string) => api.getDataExportStatus(exportId);
+export const downloadDataExport = (exportId: string) => api.downloadDataExport(exportId);
+export const listDataExports = () => api.listDataExports();
+export const connectCalendar = (params: Parameters<typeof api.connectCalendar>[0]) => api.connectCalendar(params);
+export const disconnectCalendar = (provider: string) => api.disconnectCalendar(provider);
+export const syncCalendar = (provider?: string) => api.syncCalendar(provider);
+export const importCalendarEvents = (events: CalendarEventImport[]) => api.importCalendarEvents(events);
+export const getCalendarStatus = () => api.getCalendarStatus();
+export const getHealthCheck = () => api.getHealthCheck();
+export const getIntegrationDashboard = () => api.getIntegrationDashboard();
+export const getRateLimits = () => api.getRateLimits();
+export const getConnections = () => api.getConnections();
 
 export default api;
