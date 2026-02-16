@@ -1,3 +1,4 @@
+// @ts-nocheck — Deno edge function; not type-checked by Node/TS
 // ============================================================
 // Shared gamification helpers — pure functions, no DB access
 // Used by task-completed and analytics-summary edge functions

@@ -1,3 +1,4 @@
+// @ts-nocheck — Deno edge function; not type-checked by Node/TS
 /**
  * Text-to-Speech Edge Function — ElevenLabs TTS
  *

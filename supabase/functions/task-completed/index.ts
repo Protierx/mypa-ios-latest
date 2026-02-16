@@ -1,3 +1,4 @@
+// @ts-nocheck — Deno edge function; not type-checked by Node/TS
 // =================================================================
 // POST /task-completed
 // Event-driven task-completion processor
