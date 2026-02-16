@@ -46,6 +46,8 @@ Sentry.init({
 // Components
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { UnlockCelebrationModal, useUnlockCelebrations } from './src/components/UnlockCelebrationModal';
+import { GamificationProvider } from './src/contexts/GamificationContext';
+import { GamificationToastOverlay } from './src/components/GamificationToastOverlay';
 
 // Navigation
 import { GestureNavigator } from './src/navigation-v2/GestureNavigator';
@@ -187,20 +189,23 @@ function AuthenticatedApp() {
   }
   
   return (
-    <>
+    <GamificationProvider>
       <StatusBar barStyle="light-content" />
       <GestureNavigator />
       
       {/* App Tour Walkthrough — shown once after onboarding */}
       {showTour && <AppTour onComplete={handleTourComplete} />}
 
+      {/* Gamification Feedback Overlays */}
+      <GamificationToastOverlay />
+      
       {/* Unlock Celebration Modal */}
       <UnlockCelebrationModal
         visible={modalVisible}
         feature={currentUnlock || ''}
         onDismiss={handleDismiss}
       />
-    </>
+    </GamificationProvider>
   );
 }
 

@@ -1,11 +1,13 @@
 /**
  * Supabase Focus Sessions Hook
  * Focus session management for deep work tracking
+ * Now integrates with gamification pipeline via focus-completed edge function
  */
 import { useEffect, useState, useCallback } from 'react';
 import { supabase, FocusSession } from '@/lib/supabase';
 import { useSupabaseAuth } from '@/contexts/SupabaseAuthContext';
 import { eventLogger } from '@/services/eventLogger';
+import { useGamification } from '@/contexts/GamificationContext';
 
 interface UseFocusSessionsReturn {
   sessions: FocusSession[];
@@ -22,6 +24,7 @@ interface UseFocusSessionsReturn {
 
 export function useFocusSessions(): UseFocusSessionsReturn {
   const { user } = useSupabaseAuth();
+  const { recordFocusCompletion } = useGamification();
   const [sessions, setSessions] = useState<FocusSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -201,6 +204,9 @@ export function useFocusSessions(): UseFocusSessionsReturn {
       
       // Log event for AI learning (actual, then planned)
       eventLogger.logFocusCompleted(sessionId, actualMinutes, session.duration_planned!);
+
+      // Fire gamification pipeline (XP + challenge progress + analytics update)
+      recordFocusCompletion(sessionId, actualMinutes);
       
       // Refresh sessions
       fetchSessions();

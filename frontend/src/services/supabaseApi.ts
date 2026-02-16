@@ -189,7 +189,63 @@ class SupabaseApiService {
       body: { check_cache: options?.check_cache ?? false },
     });
   }
+
+  /** Fire task-completed gamification event */
+  async taskCompleted(eventId: string, taskId: string): Promise<TaskCompletedResponse> {
+    return invokeWithRetry<TaskCompletedResponse>('task-completed', {
+      body: { event_id: eventId, task_id: taskId },
+    });
+  }
+
+  /** Fire focus-completed gamification event */
+  async focusCompleted(eventId: string, sessionId: string, actualMinutes: number): Promise<FocusCompletedResponse> {
+    return invokeWithRetry<FocusCompletedResponse>('focus-completed', {
+      body: { event_id: eventId, session_id: sessionId, actual_minutes: actualMinutes },
+    });
+  }
+
+  /** Submit a manual challenge check-in */
+  async challengeCheckIn(eventId: string, challengeId: string, note?: string, proofUrl?: string): Promise<CheckinResponse> {
+    return invokeWithRetry<CheckinResponse>('challenge-checkin', {
+      body: { event_id: eventId, challenge_id: challengeId, note, proof_url: proofUrl },
+    });
+  }
+
+  /** Approve or reject a pending check-in (challenge creator only) */
+  async approveCheckIn(checkinId: string, decision: 'accepted' | 'rejected'): Promise<ApproveResponse> {
+    return invokeWithRetry<ApproveResponse>('challenge-approve', {
+      body: { checkin_id: checkinId, decision },
+    });
+  }
+
+  /** Fetch analytics summary from the edge function. */
+  async getAnalyticsSummary(period: string = '7d'): Promise<AnalyticsSummaryResponse> {
+    // Use POST with period in the body — method:'GET' on invoke() causes
+    // "Failed to send a request to the Edge Function" in some SDK versions.
+    const { data, error } = await supabase.functions.invoke('analytics-summary', {
+      body: { period },
+    });
+
+    if (!error) return data as AnalyticsSummaryResponse;
+
+    // 401 retry
+    if (error instanceof FunctionsHttpError && error.context?.status === 401) {
+      const refreshed = await tryRefreshSession();
+      if (refreshed) {
+        const retry = await supabase.functions.invoke('analytics-summary', {
+          body: { period },
+        });
+        if (!retry.error) return retry.data as AnalyticsSummaryResponse;
+        throw retry.error;
+      }
+    }
+    throw error;
+  }
 }
+
+// Import gamification types
+import type { TaskCompletedResponse, FocusCompletedResponse, CheckinResponse, ApproveResponse } from '@/types/gamification';
+import type { AnalyticsSummaryResponse } from '@/types/analytics';
 
 // Export singleton instance
 export const api = new SupabaseApiService();
@@ -202,5 +258,10 @@ export const processVoiceCommand = (
 ) => api.processVoiceCommand(transcript, context);
 export const checkUnlocks = () => api.checkUnlocks();
 export const getDailyBrief = (options?: { check_cache?: boolean }) => api.getDailyBrief(options);
+export const taskCompleted = (eventId: string, taskId: string) => api.taskCompleted(eventId, taskId);
+export const focusCompleted = (eventId: string, sessionId: string, actualMinutes: number) => api.focusCompleted(eventId, sessionId, actualMinutes);
+export const challengeCheckIn = (eventId: string, challengeId: string, note?: string, proofUrl?: string) => api.challengeCheckIn(eventId, challengeId, note, proofUrl);
+export const approveCheckIn = (checkinId: string, decision: 'accepted' | 'rejected') => api.approveCheckIn(checkinId, decision);
+export const getAnalyticsSummary = (period?: string) => api.getAnalyticsSummary(period);
 
 export default api;

@@ -1,27 +1,33 @@
 /**
- * Analytics Modal — v2 (Production-Ready)
+ * Analytics Modal — v3 (Pass 3: Server-Driven)
  *
  * Full-featured analytics screen shown as a 78% bottom sheet from Profile.
- * Designed for retention with actionable insights and clear hierarchy.
+ * All data is pulled from GET /analytics-summary via the useAnalytics hook.
  *
  * Layout (top → bottom):
- *   1. Header + Period filter (Today / 7D / 30D / All)
- *   2. Hero summary — Productivity Score + delta + insight
+ *   1. Header + Period filter (Today / 7D / 30D / All) — default 7D
+ *   2. Hero summary — Productivity Score (0-100) + delta + insight
  *   3. Core outcomes 2×2 grid — Completion Rate, Tasks Done, On-Time %, Focus Time
+ *      ∟ each with current value, previous-period value, up/down trend
  *   4. Trend chart — Daily completed tasks bar chart
  *   5. Time Saved — total + task/focus breakdown + period comparison
  *   6. Streak — current + longest + 7-day heatmap + at-risk warning
- *   7. Level & XP — progress bar + milestone
+ *   7. Level & XP — progress bar + XP earned this period
  *   8. Execution Summary — completed, avg time, overdue recovered
- *   9. AI Insights — up to 3 contextual tips with CTAs
+ *   9. AI Insights — up to 3 contextual tips with CTAs (server-generated)
  *
- * Data sources:
- *   - useTasks()       → task completion, timing, priority
- *   - useFocusSessions → focus minutes
- *   - useSupabaseAuth  → user level, XP, streak
+ * Color semantics:
+ *   Blue   — productivity
+ *   Green  — success
+ *   Orange — streak
+ *   Purple — XP
+ *   Amber  — warnings
+ *   Red    — critical
+ *
+ * Data source: useAnalytics() hook → GET /analytics-summary?period=…
  */
 
-import React, { useState, useMemo } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -35,25 +41,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
-import { useSupabaseAuth } from '../../contexts/SupabaseAuthContext';
-import { useFocusSessions } from '../../hooks/supabase/useFocusSessions';
-import { useTasks } from '../../hooks/supabase/useTasks';
 import { ACCENT_COLORS, AccentPreset } from '../../state/settingsPreferences';
-
-import {
-  AnalyticsRange,
-  isInRange,
-  isInDateRange,
-  previousPeriodStart,
-  completionRate,
-  onTimeRate,
-  productivityScore,
-  periodDelta,
-  heroInsight,
-  dailyCompletedSeries,
-  formatMinutes,
-  generateInsights,
-} from './analyticsHelpers';
+import { useAnalytics } from '../../hooks/useAnalytics';
 
 import {
   PeriodFilter,
@@ -68,7 +57,8 @@ import {
   ExecutionCard,
   InsightCardRow,
   AnalyticsEmptyState,
-} from './AnalyticsComponents';
+  AnalyticsErrorState,
+} from './AnalyticsComponentsV3';
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -81,346 +71,191 @@ interface Props {
 // ── Main Component ───────────────────────────────────────────
 
 export function AnalyticsModal({ visible, onClose, accentPreset = 'purple' }: Props) {
-  const [range, setRange] = useState<AnalyticsRange>('7d');
-  const { user } = useSupabaseAuth();
-  const { sessions, loading: sessionsLoading } = useFocusSessions();
-  const { tasks, loading: tasksLoading } = useTasks();
-
   const accent = ACCENT_COLORS[accentPreset].primary;
-  const loading = sessionsLoading || tasksLoading;
 
-  // ── Current-period stats ────────────────────────────────────
-
-  const stats = useMemo(() => {
-    const allRangeTasks = tasks.filter((t) =>
-      isInRange(t.completed_at || t.updated_at, range) || isInRange(t.created_at, range),
-    );
-    const completedTasks = tasks.filter(
-      (t) => t.status === 'completed' && isInRange(t.completed_at || t.updated_at, range),
-    );
-    const totalTasks = allRangeTasks.filter((t) => t.status === 'completed' || t.status === 'pending');
-    const rangeSessions = sessions.filter((s) => isInRange(s.started_at, range));
-
-    // Core metrics
-    const completedCount = completedTasks.length;
-    const totalCount = totalTasks.length;
-    const compRate = completionRate(completedCount, totalCount);
-    const onTime = onTimeRate(completedTasks);
-
-    // Time
-    const taskMinutes = completedTasks.reduce((s, t) => s + (t.estimated_duration || 0), 0);
-    const focusMinutes = rangeSessions.reduce((s, sess) => s + (sess.duration_actual || 0), 0);
-    const totalSaved = taskMinutes + focusMinutes;
-
-    // Execution
-    const avgCompletion = completedCount > 0
-      ? Math.round(taskMinutes / completedCount)
-      : 0;
-    const overdueRecovered = completedTasks.filter((t) => {
-      if (!t.due_date || !t.completed_at) return false;
-      return new Date(t.completed_at) > new Date(t.due_date);
-    }).length;
-
-    return {
-      completedCount,
-      totalCount,
-      compRate,
-      onTime,
-      taskMinutes,
-      focusMinutes,
-      totalSaved,
-      avgCompletion,
-      overdueRecovered,
-    };
-  }, [tasks, sessions, range]);
-
-  // ── Previous-period stats for deltas ────────────────────────
-
-  const prevStats = useMemo(() => {
-    const prev = previousPeriodStart(range);
-    if (!prev) return null;
-
-    const completedTasks = tasks.filter(
-      (t) =>
-        t.status === 'completed' &&
-        isInDateRange(t.completed_at || t.updated_at, prev.start, prev.end),
-    );
-    const allPrevTasks = tasks.filter(
-      (t) =>
-        (isInDateRange(t.completed_at || t.updated_at, prev.start, prev.end) ||
-          isInDateRange(t.created_at, prev.start, prev.end)) &&
-        (t.status === 'completed' || t.status === 'pending'),
-    );
-    const rangeSessions = sessions.filter((s) =>
-      isInDateRange(s.started_at, prev.start, prev.end),
-    );
-
-    const completedCount = completedTasks.length;
-    const compRate = completionRate(completedCount, allPrevTasks.length);
-    const onTime = onTimeRate(completedTasks);
-    const taskMinutes = completedTasks.reduce((s, t) => s + (t.estimated_duration || 0), 0);
-    const focusMinutes = rangeSessions.reduce((s, sess) => s + (sess.duration_actual || 0), 0);
-    const totalSaved = taskMinutes + focusMinutes;
-
-    return { completedCount, compRate, onTime, focusMinutes, totalSaved };
-  }, [tasks, sessions, range]);
-
-  // ── Productivity score ──────────────────────────────────────
-
-  const currentStreak = user?.currentStreak ?? 0;
-  const longestStreak = user?.longestStreak ?? 0;
-
-  const score = useMemo(
-    () =>
-      productivityScore({
-        completionRate: stats.compRate,
-        onTimeRate: stats.onTime,
-        focusMinutes: stats.focusMinutes,
-        streakDays: currentStreak,
-      }),
-    [stats, currentStreak],
-  );
-
-  const prevScore = useMemo(() => {
-    if (!prevStats) return score;
-    return productivityScore({
-      completionRate: prevStats.compRate,
-      onTimeRate: prevStats.onTime,
-      focusMinutes: prevStats.focusMinutes,
-      streakDays: Math.max(currentStreak - 1, 0),
-    });
-  }, [prevStats, currentStreak, score]);
-
-  const scoreDelta = periodDelta(score, prevScore);
-
-  // ── Insight text ────────────────────────────────────────────
-
-  const insight = heroInsight({
-    completionRate: stats.compRate,
-    onTimeRate: stats.onTime,
-    streakDays: currentStreak,
-    completedCount: stats.completedCount,
-  });
-
-  // ── Chart data ──────────────────────────────────────────────
-
-  const chartData = useMemo(
-    () => dailyCompletedSeries(tasks, range),
-    [tasks, range],
-  );
-
-  // ── 7-day streak heatmap ────────────────────────────────────
-
-  const { weeklyHeat, dayLabels } = useMemo(() => {
-    const heat: boolean[] = [];
-    const labels: string[] = [];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const dayStr = d.toISOString().split('T')[0];
-      heat.push(
-        tasks.some(
-          (t) => t.status === 'completed' && t.completed_at?.startsWith(dayStr),
-        ),
-      );
-      labels.push(['S', 'M', 'T', 'W', 'T', 'F', 'S'][d.getDay()]);
-    }
-    return { weeklyHeat: heat, dayLabels: labels };
-  }, [tasks]);
-
-  // ── XP ──────────────────────────────────────────────────────
-
-  const xp = user?.xp ?? 0;
-  const level = user?.level ?? 1;
-  const xpForNext = level * 100;
-
-  // ── AI Insights ─────────────────────────────────────────────
-
-  const insights = useMemo(
-    () =>
-      generateInsights({
-        completionRate: stats.compRate,
-        onTimeRate: stats.onTime,
-        completedCount: stats.completedCount,
-        overdueCount: stats.overdueRecovered,
-        streakDays: currentStreak,
-        focusMinutes: stats.focusMinutes,
-        range,
-      }),
-    [stats, currentStreak, range],
-  );
-
-  // ── Deltas ──────────────────────────────────────────────────
-
-  const compRateDelta = prevStats ? periodDelta(stats.compRate, prevStats.compRate) : undefined;
-  const tasksDelta = prevStats ? periodDelta(stats.completedCount, prevStats.completedCount) : undefined;
-  const onTimeDelta = prevStats ? periodDelta(stats.onTime, prevStats.onTime) : undefined;
-  const focusDelta = prevStats ? periodDelta(stats.focusMinutes, prevStats.focusMinutes) : undefined;
-
-  const hasData = stats.completedCount > 0 || sessions.length > 0;
+  const {
+    data,
+    loading,
+    error,
+    period,
+    setPeriod,
+    refresh,
+    hasData,
+  } = useAnalytics('7d');
 
   // ── Render ──────────────────────────────────────────────────
 
   return (
     <Modal visible={visible} transparent animationType="slide">
       <View style={styles.overlay}>
-        {/* Tapping the dark area above the sheet closes it */}
         <Pressable style={styles.overlayTap} onPress={onClose} />
 
-        {/* Sheet — plain View so it never steals scroll gestures */}
         <View style={styles.sheet}>
-            {/* Handle */}
-            <View style={styles.handleRow}>
-              <View style={styles.handle} />
+          {/* Handle */}
+          <View style={styles.handleRow}>
+            <View style={styles.handle} />
+          </View>
+
+          {/* Header */}
+          <View style={styles.header}>
+            <View style={styles.headerLeft}>
+              <Text style={styles.headerTitle}>Analytics</Text>
             </View>
-
-            {/* Header */}
-            <View style={styles.header}>
-              <View style={styles.headerLeft}>
-                <Text style={styles.headerTitle}>Analytics</Text>
-              </View>
-              <TouchableOpacity
-                onPress={onClose}
-                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                accessibilityLabel="Close analytics"
-                accessibilityRole="button"
-              >
-                <View style={styles.closeBtn}>
-                  <Ionicons name="close" size={18} color="#8E8E93" />
-                </View>
-              </TouchableOpacity>
-            </View>
-
-            {/* Period Filter */}
-            <PeriodFilter value={range} onChange={setRange} accent={accent} />
-
-            {/* Content */}
-            <ScrollView
-              style={styles.scroll}
-              contentContainerStyle={styles.scrollContent}
-              showsVerticalScrollIndicator={false}
-              nestedScrollEnabled
+            <TouchableOpacity
+              onPress={onClose}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              accessibilityLabel="Close analytics"
+              accessibilityRole="button"
             >
-              {loading ? (
-                <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="large" color={accent} />
-                  <Text style={styles.loadingText}>Loading analytics…</Text>
-                </View>
-              ) : !hasData ? (
-                <AnalyticsEmptyState />
-              ) : (
-                <>
-                  {/* 1. Hero Card */}
-                  <HeroCard
-                    score={score}
-                    delta={scoreDelta}
-                    insight={insight}
-                    accent={accent}
+              <View style={styles.closeBtn}>
+                <Ionicons name="close" size={18} color="#8E8E93" />
+              </View>
+            </TouchableOpacity>
+          </View>
+
+          {/* Period Filter */}
+          <PeriodFilter value={period} onChange={setPeriod} accent={accent} />
+
+          {/* Content */}
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            nestedScrollEnabled
+          >
+            {loading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={accent} />
+                <Text style={styles.loadingText}>Loading analytics…</Text>
+              </View>
+            ) : error ? (
+              <AnalyticsErrorState message={error} onRetry={refresh} />
+            ) : !hasData || !data ? (
+              <AnalyticsEmptyState />
+            ) : (
+              <>
+                {/* 1. Hero Card */}
+                <HeroCard
+                  score={data.productivityScore}
+                  delta={data.productivityScoreDelta}
+                  insight={data.insight}
+                  accent={accent}
+                />
+
+                {/* 2. Core Outcomes Grid */}
+                <SectionLabel title="Core Metrics" />
+                <MetricGrid>
+                  <MetricCard
+                    label="Completion Rate"
+                    value={`${data.completionRate}`}
+                    unit="%"
+                    delta={data.deltas?.completionRate}
+                    deltaLabel="pts"
+                    prevValue={data.previousStats ? `${data.previousStats.completionRate}%` : undefined}
+                    iconName="checkmark-circle-outline"
+                    iconColor="#22C55E"
+                    iconBg="#F0FDF4"
                   />
-
-                  {/* 2. Core Outcomes Grid */}
-                  <SectionLabel title="Core Metrics" />
-                  <MetricGrid>
-                    <MetricCard
-                      label="Completion Rate"
-                      value={`${stats.compRate}`}
-                      unit="%"
-                      delta={compRateDelta}
-                      deltaLabel="pts"
-                      iconName="checkmark-circle-outline"
-                      iconColor="#22C55E"
-                      iconBg="#F0FDF4"
-                    />
-                    <MetricCard
-                      label="Tasks Completed"
-                      value={`${stats.completedCount}`}
-                      delta={tasksDelta}
-                      deltaLabel="tasks"
-                      iconName="list-outline"
-                      iconColor="#3B82F6"
-                      iconBg="#EFF6FF"
-                    />
-                    <MetricCard
-                      label="On-Time Rate"
-                      value={`${stats.onTime}`}
-                      unit="%"
-                      delta={onTimeDelta}
-                      deltaLabel="pts"
-                      iconName="alarm-outline"
-                      iconColor="#F59E0B"
-                      iconBg="#FFFBEB"
-                    />
-                    <MetricCard
-                      label="Focus Time"
-                      value={formatMinutes(stats.focusMinutes)}
-                      delta={focusDelta}
-                      deltaLabel="min"
-                      iconName="timer-outline"
-                      iconColor="#8B5CF6"
-                      iconBg="#F5F3FF"
-                    />
-                  </MetricGrid>
-
-                  {/* 3. Trend Chart (only for 7D/30D/All) */}
-                  {range !== 'today' && chartData.length > 1 && (
-                    <MiniBarChart
-                      data={chartData}
-                      accent={accent}
-                      height={range === '30d' || range === 'all' ? 80 : 100}
-                    />
-                  )}
-
-                  {/* 4. Time Saved */}
-                  <SectionLabel title="Progress" />
-                  <TimeSavedCard
-                    totalMinutes={stats.totalSaved}
-                    taskMinutes={stats.taskMinutes}
-                    focusMinutes={stats.focusMinutes}
-                    prevTotalMinutes={prevStats?.totalSaved ?? 0}
+                  <MetricCard
+                    label="Tasks Completed"
+                    value={`${data.tasksCompleted}`}
+                    delta={data.deltas?.tasksCompleted}
+                    deltaLabel="tasks"
+                    prevValue={data.previousStats ? `${data.previousStats.tasksCompleted}` : undefined}
+                    iconName="list-outline"
+                    iconColor="#3B82F6"
+                    iconBg="#EFF6FF"
                   />
-
-                  {/* 5. Streak */}
-                  <StreakCard
-                    currentStreak={currentStreak}
-                    longestStreak={longestStreak}
-                    weeklyHeat={weeklyHeat}
-                    dayLabels={dayLabels}
+                  <MetricCard
+                    label="On-Time Rate"
+                    value={`${data.onTimeRate}`}
+                    unit="%"
+                    delta={data.deltas?.onTimeRate}
+                    deltaLabel="pts"
+                    prevValue={data.previousStats ? `${data.previousStats.onTimeRate}%` : undefined}
+                    iconName="alarm-outline"
+                    iconColor="#F59E0B"
+                    iconBg="#FFFBEB"
                   />
+                  <MetricCard
+                    label="Focus Time"
+                    value={fmtMinutes(data.focusMinutes)}
+                    delta={data.deltas?.focusMinutes}
+                    deltaLabel="min"
+                    prevValue={data.previousStats ? fmtMinutes(data.previousStats.focusMinutes) : undefined}
+                    iconName="timer-outline"
+                    iconColor="#8B5CF6"
+                    iconBg="#F5F3FF"
+                  />
+                </MetricGrid>
 
-                  {/* 6. Level & XP */}
+                {/* 3. Trend Chart (skip for today) */}
+                {period !== 'today' && data.daily.length > 1 && (
+                  <MiniBarChart data={data.daily} accent={accent} period={period} />
+                )}
+
+                {/* 4. Time Saved */}
+                <SectionLabel title="Progress" />
+                <TimeSavedCard
+                  totalMinutes={data.timeSaved?.totalMinutes ?? 0}
+                  taskMinutes={data.timeSaved?.taskMinutes ?? 0}
+                  focusMinutes={data.timeSaved?.focusMinutes ?? 0}
+                  prevTotalMinutes={data.timeSaved?.prevTotalMinutes ?? 0}
+                />
+
+                {/* 5. Streak */}
+                <StreakCard
+                  currentStreak={data.streakCurrent}
+                  longestStreak={data.streakLongest}
+                  weeklyHeat={data.streakHeatmap}
+                  dayLabels={data.streakHeatLabels}
+                />
+
+                {/* 6. Level & XP */}
+                {data.gamification && (
                   <XPCard
-                    level={level}
-                    xp={xp}
-                    xpForNext={xpForNext}
+                    level={data.gamification.level}
+                    xpIntoLevel={data.gamification.xpIntoLevel}
+                    xpForNextLevel={data.gamification.xpForNextLevel}
+                    totalXp={data.gamification.totalXp}
+                    xpGainedThisPeriod={data.xpGained}
                     accent={accent}
                   />
+                )}
 
-                  {/* 7. Execution Summary */}
-                  <ExecutionCard
-                    completed={stats.completedCount}
-                    avgMinutes={stats.avgCompletion}
-                    overdueRecovered={stats.overdueRecovered}
-                  />
+                {/* 7. Execution Summary */}
+                <ExecutionCard
+                  completed={data.execution.completed}
+                  avgMinutes={data.execution.avgMinutes}
+                  overdueRecovered={data.execution.overdueRecovered}
+                />
 
-                  {/* 8. AI Insights */}
-                  {insights.length > 0 && (
-                    <>
-                      <SectionLabel title="Insights" />
-                      <InsightCardRow
-                        insights={insights}
-                        accent={accent}
-                      />
-                    </>
-                  )}
-                </>
-              )}
-            </ScrollView>
+                {/* 8. AI Insights */}
+                {data.aiInsights.length > 0 && (
+                  <>
+                    <SectionLabel title="Insights" />
+                    <InsightCardRow insights={data.aiInsights} accent={accent} />
+                  </>
+                )}
+              </>
+            )}
+          </ScrollView>
 
-            <SafeAreaView edges={['bottom']} />
+          <SafeAreaView edges={['bottom']} />
         </View>
       </View>
     </Modal>
   );
+}
+
+// ── Helpers ──────────────────────────────────────────────────
+
+function fmtMinutes(mins: number): string {
+  if (mins === 0) return '0m';
+  if (mins < 60) return `${Math.round(mins)}m`;
+  const h = Math.floor(mins / 60);
+  const m = Math.round(mins % 60);
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
 }
 
 // ── Styles ───────────────────────────────────────────────────

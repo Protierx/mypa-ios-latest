@@ -25,6 +25,7 @@ import * as Haptics from 'expo-haptics';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 import { useTasks } from '../../hooks/supabase/useTasks';
+import { useGamification } from '../../contexts/GamificationContext';
 import { Task } from '../../lib/supabase';
 import { bg, brand, text as textTokens, border as borderTokens, semantic } from '../../styles/colors';
 import { shadows, radius } from '../../styles/theme';
@@ -117,6 +118,7 @@ const PRIORITIES: { value: Task['priority']; label: string; color: string }[] = 
 
 export function TaskDetailModal({ visible, task, onClose, onStartFocus, taskActions }: TaskDetailModalProps) {
   const fallback = useTasks();
+  const { recordTaskCompletion } = useGamification();
   const updateTask = taskActions?.updateTask ?? fallback.updateTask;
   const deleteTask = taskActions?.deleteTask ?? fallback.deleteTask;
   const deferTask = taskActions?.deferTask ?? fallback.deferTask;
@@ -172,7 +174,11 @@ export function TaskDetailModal({ visible, task, onClose, onStartFocus, taskActi
         if (ok) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } else {
         const ok = await completeTask(task.id);
-        if (ok) { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); onClose(); }
+        if (ok) {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          recordTaskCompletion(task.id, task.due_date ?? null);
+          onClose();
+        }
       }
     } finally {
       setIsActioning(false);

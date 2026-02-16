@@ -1,6 +1,6 @@
 // =================================================================
-// POST /task-completed
-// Event-driven task-completion processor
+// POST /focus-completed
+// Event-driven focus-session completion processor
 // Handles: idempotency → XP → streak → challenge progress → stats
 // =================================================================
 
@@ -8,16 +8,13 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { CORS_HEADERS } from '../_shared/config.ts';
 import {
+  calcFocusXp,
   calcLevelState,
-  calcTaskXp,
   updateStreak,
-  isOnTime,
-  wasOverdue,
   toDateString,
 } from '../_shared/gamification.ts';
 
 serve(async (req: Request) => {
-  // CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: CORS_HEADERS });
   }
@@ -49,16 +46,16 @@ serve(async (req: Request) => {
 
     // ---------- Parse body ----------
     const body = await req.json();
-    const { event_id, task_id, occurred_at } = body;
+    const { event_id, session_id, actual_minutes, occurred_at } = body;
 
-    if (!event_id || !task_id) {
+    if (!event_id || !session_id || actual_minutes == null) {
       return new Response(
-        JSON.stringify({ error: 'event_id and task_id are required' }),
+        JSON.stringify({ error: 'event_id, session_id, and actual_minutes are required' }),
         { status: 400, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } },
       );
     }
 
-    // ---------- Step 1: Idempotency check ----------
+    // ---------- Idempotency ----------
     const { data: existingEvent } = await supabase
       .from('events')
       .select('id, payload')
@@ -66,48 +63,38 @@ serve(async (req: Request) => {
       .maybeSingle();
 
     if (existingEvent) {
-      // Return the prior computed response stored in payload
       return new Response(
         JSON.stringify({ ok: true, idempotent: true, ...(existingEvent.payload ?? {}) }),
         { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } },
       );
     }
 
-    // ---------- Step 2: Load task ----------
-    const { data: task, error: taskError } = await supabase
-      .from('tasks')
-      .select('id, user_id, title, due_date, status, completed_at')
-      .eq('id', task_id)
+    // ---------- Verify session ----------
+    const { data: session, error: sessionError } = await supabase
+      .from('focus_sessions')
+      .select('id, user_id, duration_planned, duration_actual, ended_at')
+      .eq('id', session_id)
       .single();
 
-    if (taskError || !task) {
+    if (sessionError || !session) {
       return new Response(
-        JSON.stringify({ error: 'Task not found' }),
+        JSON.stringify({ error: 'Focus session not found' }),
         { status: 404, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } },
       );
     }
 
-    // Verify ownership
-    if (task.user_id !== userId) {
+    if (session.user_id !== userId) {
       return new Response(
         JSON.stringify({ error: 'Forbidden' }),
         { status: 403, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } },
       );
     }
 
-    // ---------- Step 3: Compute timing ----------
     const completedAt = occurred_at ? new Date(occurred_at) : new Date();
     const todayStr = toDateString(completedAt);
+    const minutes = Math.max(0, Math.round(actual_minutes));
 
-    let taskIsOnTime = true;
-    let taskWasOverdue = false;
-
-    if (task.due_date) {
-      taskIsOnTime = isOnTime(completedAt, task.due_date);
-      taskWasOverdue = wasOverdue(task.status, task.due_date);
-    }
-
-    // ---------- Step 4: Load or initialize gamification state ----------
+    // ---------- Load gamification state ----------
     let { data: gamState } = await supabase
       .from('user_gamification_state')
       .select('*')
@@ -115,7 +102,6 @@ serve(async (req: Request) => {
       .maybeSingle();
 
     if (!gamState) {
-      // First-time user — create initial state
       const { data: newState, error: insertError } = await supabase
         .from('user_gamification_state')
         .insert({
@@ -137,7 +123,7 @@ serve(async (req: Request) => {
       gamState = newState;
     }
 
-    // ---------- Step 5: Load today's daily stats for XP cap ----------
+    // ---------- Load today's daily stats ----------
     let { data: todayStats } = await supabase
       .from('daily_user_stats')
       .select('*')
@@ -147,14 +133,10 @@ serve(async (req: Request) => {
 
     const todayXpSoFar = todayStats?.xp_gained ?? 0;
 
-    // ---------- Step 6: Compute XP ----------
-    const xpResult = calcTaskXp({
-      isOnTime: taskIsOnTime,
-      wasOverdue: taskWasOverdue,
-      todayXpSoFar,
-    });
+    // ---------- Compute XP ----------
+    const xpResult = calcFocusXp(minutes, todayXpSoFar);
 
-    // ---------- Step 7: Update streak ----------
+    // ---------- Update streak ----------
     const streakResult = updateStreak({
       todayStr,
       lastActiveDate: gamState.last_active_date
@@ -164,13 +146,13 @@ serve(async (req: Request) => {
       longestStreak: gamState.longest_streak,
     });
 
-    // ---------- Step 8: Update gamification state ----------
+    // ---------- Update gamification state ----------
     const newTotalXp = gamState.total_xp + xpResult.xpAwarded;
     const levelState = calcLevelState(newTotalXp);
     const previousLevel = gamState.level;
     const leveledUp = levelState.level > previousLevel;
 
-    const { error: gamUpdateError } = await supabase
+    await supabase
       .from('user_gamification_state')
       .update({
         total_xp: newTotalXp,
@@ -184,11 +166,7 @@ serve(async (req: Request) => {
       })
       .eq('user_id', userId);
 
-    if (gamUpdateError) {
-      throw new Error(`Failed to update gamification state: ${gamUpdateError.message}`);
-    }
-
-    // Also sync XP + level back to the legacy profiles table
+    // Sync to legacy profiles
     await supabase
       .from('profiles')
       .update({
@@ -200,53 +178,36 @@ serve(async (req: Request) => {
       })
       .eq('id', userId);
 
-    // ---------- Step 9: Mark task completed (if not already) ----------
-    if (task.status !== 'completed') {
-      await supabase
-        .from('tasks')
-        .update({
-          status: 'completed',
-          completed_at: completedAt.toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', task_id);
-    }
-
-    // ---------- Step 10: Update challenge progress ----------
-    const challengeUpdates = await updateChallengeProgress(supabase, userId, todayStr, streakResult.currentStreak);
-
-    // ---------- Step 11: Upsert daily stats (atomic) ----------
+    // ---------- Update challenge progress (focus_time type) ----------
+    const challengeUpdates = await updateFocusChallengeProgress(supabase, userId, minutes, todayStr);
     const challengesCompletedInc = challengeUpdates.filter(c => c.completed).length;
+
+    // ---------- Upsert daily stats ----------
     const dailyStatsPayload = {
       user_id: userId,
       date: todayStr,
-      tasks_completed: (todayStats?.tasks_completed ?? 0) + 1,
-      tasks_completed_on_time: (todayStats?.tasks_completed_on_time ?? 0) + (taskIsOnTime ? 1 : 0),
-      tasks_completed_late: (todayStats?.tasks_completed_late ?? 0) + (!taskIsOnTime ? 1 : 0),
-      overdue_recovered: (todayStats?.overdue_recovered ?? 0) + (taskWasOverdue ? 1 : 0),
+      tasks_completed: todayStats?.tasks_completed ?? 0,
+      tasks_completed_on_time: todayStats?.tasks_completed_on_time ?? 0,
+      tasks_completed_late: todayStats?.tasks_completed_late ?? 0,
+      overdue_recovered: todayStats?.overdue_recovered ?? 0,
+      focus_minutes: (todayStats?.focus_minutes ?? 0) + minutes,
       xp_gained: todayXpSoFar + xpResult.xpAwarded,
       challenges_completed: (todayStats?.challenges_completed ?? 0) + challengesCompletedInc,
     };
 
-    const { error: statsError } = await supabase
+    await supabase
       .from('daily_user_stats')
       .upsert(dailyStatsPayload, { onConflict: 'user_id,date' });
 
-    if (statsError) {
-      console.error('daily_user_stats upsert error:', statsError.message);
-    }
-
-    // ---------- Step 12: Build response payload ----------
+    // ---------- Build response ----------
     const analyticsDelta = {
-      tasksCompleted: 1,
-      onTimeInc: taskIsOnTime ? 1 : 0,
-      lateInc: !taskIsOnTime ? 1 : 0,
-      overdueRecoveredInc: taskWasOverdue ? 1 : 0,
+      focusMinutesInc: minutes,
       xpGained: xpResult.xpAwarded,
     };
 
     const responsePayload = {
       xpDelta: xpResult.xpAwarded,
+      qualifies: xpResult.qualifies,
       totalXp: newTotalXp,
       level: levelState.level,
       xpIntoLevel: levelState.xpIntoLevel,
@@ -260,29 +221,24 @@ serve(async (req: Request) => {
       analyticsDelta,
     };
 
-    // ---------- Step 13: Insert event (store full response for idempotent replay) ----------
-    const { error: eventError } = await supabase
+    // ---------- Insert event ----------
+    await supabase
       .from('events')
       .insert({
         event_id,
         user_id: userId,
-        type: 'task_completed',
-        task_id,
+        type: 'focus_completed',
+        task_id: null,
         occurred_at: completedAt.toISOString(),
         payload: responsePayload,
       });
 
-    if (eventError) {
-      throw new Error(`Failed to insert event: ${eventError.message}`);
-    }
-
-    // ---------- Response ----------
     return new Response(
       JSON.stringify({ ok: true, ...responsePayload }),
       { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } },
     );
   } catch (err) {
-    console.error('task-completed error:', err);
+    console.error('focus-completed error:', err);
     return new Response(
       JSON.stringify({ error: err instanceof Error ? err.message : 'Internal server error' }),
       { status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } },
@@ -291,7 +247,7 @@ serve(async (req: Request) => {
 });
 
 // ============================================================
-// CHALLENGE PROGRESS HELPER
+// FOCUS CHALLENGE PROGRESS HELPER
 // ============================================================
 
 interface ChallengeUpdate {
@@ -302,11 +258,14 @@ interface ChallengeUpdate {
   completed: boolean;
 }
 
-// deno-lint-ignore no-explicit-any
-async function updateChallengeProgress(supabase: any, userId: string, todayStr: string, currentStreak: number): Promise<ChallengeUpdate[]> {
+async function updateFocusChallengeProgress(
+  supabase: any,
+  userId: string,
+  focusMinutes: number,
+  todayStr: string,
+): Promise<ChallengeUpdate[]> {
   const updates: ChallengeUpdate[] = [];
 
-  // Find active challenges the user participates in
   const { data: participations } = await supabase
     .from('challenge_participants')
     .select('challenge_id, challenges!inner(id, type, goal_value, status, ends_at)')
@@ -318,12 +277,9 @@ async function updateChallengeProgress(supabase: any, userId: string, todayStr: 
   for (const p of participations) {
     const challenge = p.challenges;
     if (!challenge) continue;
-
-    // Check if challenge has expired
     if (new Date(challenge.ends_at) < new Date()) continue;
 
-    if (challenge.type === 'tasks_completed') {
-      // Increment progress by 1 for each task completed
+    if (challenge.type === 'focus_time') {
       const { data: progress } = await supabase
         .from('challenge_progress')
         .select('progress_value')
@@ -331,7 +287,7 @@ async function updateChallengeProgress(supabase: any, userId: string, todayStr: 
         .eq('user_id', userId)
         .maybeSingle();
 
-      const newValue = (progress?.progress_value ?? 0) + 1;
+      const newValue = (progress?.progress_value ?? 0) + focusMinutes;
 
       await supabase
         .from('challenge_progress')
@@ -342,46 +298,6 @@ async function updateChallengeProgress(supabase: any, userId: string, todayStr: 
           updated_at: new Date().toISOString(),
         });
 
-      // Also update legacy challenge_participants.progress
-      await supabase
-        .from('challenge_participants')
-        .update({ progress: newValue })
-        .eq('challenge_id', challenge.id)
-        .eq('user_id', userId);
-
-      updates.push({
-        challengeId: challenge.id,
-        type: challenge.type,
-        progressValue: newValue,
-        target: challenge.goal_value,
-        completed: newValue >= challenge.goal_value,
-      });
-
-    } else if (challenge.type === 'daily_checkin') {
-      // Streak-based: use current streak as progress, but dedupe by date
-      const { data: progress } = await supabase
-        .from('challenge_progress')
-        .select('progress_value, last_counted_date')
-        .eq('challenge_id', challenge.id)
-        .eq('user_id', userId)
-        .maybeSingle();
-
-      // Only count once per day
-      if (progress?.last_counted_date === todayStr) continue;
-
-      const newValue = currentStreak;
-
-      await supabase
-        .from('challenge_progress')
-        .upsert({
-          challenge_id: challenge.id,
-          user_id: userId,
-          progress_value: newValue,
-          last_counted_date: todayStr,
-          updated_at: new Date().toISOString(),
-        });
-
-      // Also update legacy challenge_participants.progress
       await supabase
         .from('challenge_participants')
         .update({ progress: newValue })

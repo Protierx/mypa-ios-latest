@@ -16,6 +16,7 @@
 import { supabase } from '@/lib/supabase';
 import { eventLogger } from './eventLogger';
 import { suggestFromTitle } from './categorySuggestion';
+import { analyticsInvalidationBus } from './analyticsInvalidationBus';
 
 // ============================================================================
 // Types (PRD 4.7 Action System Contract)
@@ -397,6 +398,17 @@ const ACTION_HANDLERS: Record<string, ActionHandler> = {
     if (error) {
       return { success: false, message: "Couldn't mark that complete. Try again?" };
     }
+
+    // Fire gamification event (XP + daily_user_stats + analytics)
+    const eventId = `voice-${task.id}-${Date.now()}`;
+    supabase.functions
+      .invoke('task-completed', { body: { event_id: eventId, task_id: task.id } })
+      .then(() => {
+        analyticsInvalidationBus.invalidate();
+      })
+      .catch((err: unknown) => {
+        console.warn('[actionExecutor] task-completed edge function failed:', err);
+      });
 
     return {
       success: true,

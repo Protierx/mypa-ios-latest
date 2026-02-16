@@ -8,6 +8,8 @@
 export const XP_ON_TIME = 12;
 export const XP_LATE = 8;
 export const XP_OVERDUE_RECOVERED = 5;   // bonus on top of base
+export const XP_FOCUS_25 = 10;           // focus session >= 25 min
+export const XP_CHECKIN_ACCEPTED = 6;    // accepted manual check-in
 export const DAILY_XP_CAP = 120;
 
 /** XP needed to go from Level 1 → Level 2 */
@@ -95,6 +97,43 @@ export function calcTaskXp(input: CalcTaskXpInput): CalcTaskXpResult {
   return {
     xpAwarded: cappedAmount,
     breakdown: { base, overdueBonus, cappedAmount },
+  };
+}
+
+// ---------- Focus XP calculation ----------
+
+export interface CalcFocusXpResult {
+  xpAwarded: number;
+  qualifies: boolean;  // true if >= 25 min
+}
+
+/**
+ * XP for a completed focus session: +10 if >= 25 min, capped to daily limit.
+ */
+export function calcFocusXp(actualMinutes: number, todayXpSoFar: number): CalcFocusXpResult {
+  if (actualMinutes < 25) {
+    return { xpAwarded: 0, qualifies: false };
+  }
+  const headroom = Math.max(0, DAILY_XP_CAP - todayXpSoFar);
+  return {
+    xpAwarded: Math.min(XP_FOCUS_25, headroom),
+    qualifies: true,
+  };
+}
+
+// ---------- Check-in XP calculation ----------
+
+export interface CalcCheckinXpResult {
+  xpAwarded: number;
+}
+
+/**
+ * XP for an accepted manual challenge check-in: +6, capped to daily limit.
+ */
+export function calcCheckinXp(todayXpSoFar: number): CalcCheckinXpResult {
+  const headroom = Math.max(0, DAILY_XP_CAP - todayXpSoFar);
+  return {
+    xpAwarded: Math.min(XP_CHECKIN_ACCEPTED, headroom),
   };
 }
 

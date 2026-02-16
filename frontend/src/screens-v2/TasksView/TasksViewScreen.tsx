@@ -36,6 +36,8 @@ import { BrainDumpModal } from '../modals/BrainDumpModal';
 import { MiniVoiceButton } from '../../components/MiniVoiceButton';
 import { useFocusModal } from '../../navigation-v2/FocusModalContext';
 import { eventLogger } from '../../services/eventLogger';
+import { useGamification } from '../../contexts/GamificationContext';
+import { MomentumStrip } from '../../components/MomentumStrip';
 import { bg, brand, text as textTokens, border as borderTokens, semantic } from '../../styles/colors';
 import { shadows, radius, spacing } from '../../styles/theme';
 
@@ -206,6 +208,7 @@ export function TasksViewScreen() {
     updateTask, deleteTask, deferTask, completeTask, uncompleteTask, isAISortingActive,
   } = useTasks('all');
   const { convertItem: convertBrainDumpItem } = useBrainDump();
+  const { recordTaskCompletion } = useGamification();
   const [refreshing, setRefreshing] = useState(false);
   const { openFocusModal } = useFocusModal();
 
@@ -311,6 +314,8 @@ export function TasksViewScreen() {
       const ok = await completeTask(task.id);
       if (ok) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        // Fire gamification event (optimistic XP toast + edge function call)
+        recordTaskCompletion(task.id, task.due_date);
         showToast('Task completed', () => {
           // Undo: revert to pending
           uncompleteTask(task.id);
@@ -321,7 +326,7 @@ export function TasksViewScreen() {
         showToast('Couldn\'t complete task. Try again.');
       }
     }
-  }, [uncompleteTask, completeTask, showToast]);
+  }, [uncompleteTask, completeTask, showToast, recordTaskCompletion]);
 
   const handleDefer = useCallback(async (task: Task) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -528,6 +533,9 @@ export function TasksViewScreen() {
   const filterLabel = dateFilter === 'today' ? 'Today' : dateFilter === 'tomorrow' ? 'Tomorrow' : dateFilter === 'custom' ? 'Selected date' : 'All active';
   const renderListHeader = () => (
     <View style={{ paddingVertical: spacing.xs }}>
+      {/* Momentum Strip — gamification summary */}
+      <MomentumStrip />
+
       {/* Action Pills */}
       <View style={s.listHeaderPills}>
         <TouchableOpacity
