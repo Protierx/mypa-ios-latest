@@ -1,6 +1,7 @@
 import React from 'react';
 import { TouchableOpacity, View, StyleSheet, ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { bg, brand, text as textTokens, border as borderTokens } from '../../styles/colors';
 
 interface CheckboxProps {
   checked: boolean;
@@ -31,7 +32,7 @@ export function Checkbox({
       disabled={disabled}
     >
       {checked && (
-        <Ionicons name="checkmark" size={size - 4} color="#FFFFFF" />
+        <Ionicons name="checkmark" size={size - 4} color={textTokens.inverse} />
       )}
     </TouchableOpacity>
   );
@@ -40,14 +41,14 @@ export function Checkbox({
 const styles = StyleSheet.create({
   container: {
     borderWidth: 1,
-    borderColor: '#CBD5E1',
-    backgroundColor: '#FFFFFF',
+    borderColor: borderTokens.primary,
+    backgroundColor: bg.card,
     alignItems: 'center',
     justifyContent: 'center',
   },
   checked: {
-    backgroundColor: '#8B5CF6',
-    borderColor: '#8B5CF6',
+    backgroundColor: brand.primary,
+    borderColor: brand.primary,
   },
   disabled: {
     opacity: 0.5,

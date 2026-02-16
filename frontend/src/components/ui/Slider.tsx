@@ -1,5 +1,7 @@
 import React, { useRef } from 'react';
 import { View, StyleSheet, PanResponder, Animated, ViewStyle, Text } from 'react-native';
+import { bg, brand, text as textTokens, border as borderTokens } from '../../styles/colors';
+import { spacing } from '../../styles/theme';
 
 interface SliderProps {
   value: number;
@@ -23,9 +25,9 @@ export function Slider({
   step = 1,
   disabled = false,
   showValue = false,
-  trackColor = '#E2E8F0',
-  activeTrackColor = '#8B5CF6',
-  thumbColor = '#FFFFFF',
+  trackColor = borderTokens.primary,
+  activeTrackColor = brand.primary,
+  thumbColor = bg.card,
   style,
 }: SliderProps) {
   const trackWidth = useRef(0);
@@ -96,7 +98,7 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: spacing.md,
   },
   trackContainer: {
     flex: 1,
@@ -131,7 +133,7 @@ const styles = StyleSheet.create({
   valueText: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#0F172A',
+    color: textTokens.primary,
     minWidth: 32,
     textAlign: 'right',
   },

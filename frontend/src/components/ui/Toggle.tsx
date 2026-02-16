@@ -1,5 +1,7 @@
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet, ViewStyle, TextStyle } from 'react-native';
+import { bg, text as textTokens, border as borderTokens } from '../../styles/colors';
+import { radius } from '../../styles/theme';
 
 type ToggleVariant = 'default' | 'outline';
 type ToggleSize = 'default' | 'sm' | 'lg';
@@ -18,11 +20,11 @@ interface ToggleProps {
 const variantStyles: Record<ToggleVariant, { default: ViewStyle; pressed: ViewStyle }> = {
   default: {
     default: { backgroundColor: 'transparent' },
-    pressed: { backgroundColor: '#F1F5F9' },
+    pressed: { backgroundColor: bg.secondary },
   },
   outline: {
-    default: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#E2E8F0' },
-    pressed: { backgroundColor: '#F1F5F9', borderColor: '#E2E8F0' },
+    default: { backgroundColor: 'transparent', borderWidth: 1, borderColor: borderTokens.primary },
+    pressed: { backgroundColor: bg.secondary, borderColor: borderTokens.primary },
   },
 };
 
@@ -72,16 +74,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 8,
+    borderRadius: radius.sm,
     gap: 6,
   },
   text: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#64748B',
+    color: textTokens.secondary,
   },
   textPressed: {
-    color: '#0F172A',
+    color: textTokens.primary,
   },
   disabled: {
     opacity: 0.5,

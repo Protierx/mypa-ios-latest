@@ -37,7 +37,7 @@ import { MiniVoiceButton } from '../../components/MiniVoiceButton';
 import { useFocusModal } from '../../navigation-v2/FocusModalContext';
 import { eventLogger } from '../../services/eventLogger';
 import { bg, brand, text as textTokens, border as borderTokens, semantic } from '../../styles/colors';
-import { shadows, radius } from '../../styles/theme';
+import { shadows, radius, spacing } from '../../styles/theme';
 
 // ============================================================================
 // Priority Colors
@@ -527,15 +527,11 @@ export function TasksViewScreen() {
   // ── List Header: Action Pills + Time Summary ──
   const filterLabel = dateFilter === 'today' ? 'Today' : dateFilter === 'tomorrow' ? 'Tomorrow' : dateFilter === 'custom' ? 'Selected date' : 'All active';
   const renderListHeader = () => (
-    <View style={{ paddingTop: 4, paddingBottom: 4 }}>
+    <View style={{ paddingVertical: spacing.xs }}>
       {/* Action Pills */}
-      <View style={{ flexDirection: 'row', paddingHorizontal: 16, paddingTop: 6, paddingBottom: 6, gap: 10 }}>
+      <View style={s.listHeaderPills}>
         <TouchableOpacity
-          style={{
-            flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-            backgroundColor: brand.primary, paddingVertical: 13, borderRadius: 14, gap: 8, minHeight: 48,
-            ...shadows.purple,
-          }}
+          style={s.prioritizeBtn}
           onPress={handlePrioritize}
           activeOpacity={0.8}
           disabled={isPrioritizing}
@@ -547,55 +543,39 @@ export function TasksViewScreen() {
           ) : (
             <>
               <Ionicons name="flash" size={16} color={textTokens.inverse} />
-              <Text style={{ fontSize: 15, fontWeight: '700', color: textTokens.inverse, letterSpacing: 0.1 }}>Prioritize</Text>
+              <Text style={[s.pillBtnText, { color: textTokens.inverse }]}>Prioritize</Text>
             </>
           )}
         </TouchableOpacity>
         <TouchableOpacity
-          style={{
-            flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-            backgroundColor: brand.muted, paddingVertical: 13, borderRadius: 14,
-            borderWidth: 1, borderColor: 'rgba(124,58,237,0.15)', gap: 8, minHeight: 48,
-          }}
+          style={s.brainDumpBtn}
           onPress={handleOpenBrainDump}
           activeOpacity={0.8}
           accessibilityRole="button"
           accessibilityLabel="Open Brain Dump"
         >
           <Ionicons name="bulb-outline" size={16} color={brand.primary} />
-          <Text style={{ fontSize: 15, fontWeight: '700', color: brand.primary, letterSpacing: 0.1 }}>Brain Dump</Text>
+          <Text style={[s.pillBtnText, { color: brand.primary }]}>Brain Dump</Text>
         </TouchableOpacity>
       </View>
 
       {/* Time Needed Card */}
       {timeStats.taskCount > 0 && (
-        <View style={{
-          marginHorizontal: 16, marginTop: 6, marginBottom: 2,
-          backgroundColor: bg.card,
-          borderRadius: radius.lg,
-          paddingHorizontal: 16, paddingVertical: 14,
-          flexDirection: 'row', alignItems: 'center',
-          ...shadows.sm,
-        }}>
-          <View style={{
-            width: 38, height: 38, borderRadius: 12,
-            backgroundColor: brand.muted,
-            alignItems: 'center', justifyContent: 'center',
-            marginRight: 14,
-          }}>
+        <View style={s.timeCard}>
+          <View style={s.timeIcon}>
             <Ionicons name="timer-outline" size={18} color={brand.primary} />
           </View>
           <View style={{ flex: 1 }}>
             <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
-              <Text style={{ fontSize: 18, fontWeight: '700', color: textTokens.primary, letterSpacing: -0.3 }}>
+              <Text style={s.timeValue}>
                 {timeStats.withEstimate > 0 ? formatDurationReadable(timeStats.totalMinutes) : '—'}
               </Text>
               {timeStats.withEstimate > 0 && (
-                <Text style={{ fontSize: 12, fontWeight: '500', color: textTokens.tertiary, marginLeft: 6 }}>estimated</Text>
+                <Text style={s.timeEstLabel}>estimated</Text>
               )}
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3 }}>
-              <Text style={{ fontSize: 12.5, color: textTokens.tertiary, fontWeight: '500' }}>
+              <Text style={s.timeMeta}>
                 {timeStats.label} · {timeStats.taskCount} task{timeStats.taskCount !== 1 ? 's' : ''}
               </Text>
               {timeStats.missingEstimate > 0 && (
@@ -623,16 +603,12 @@ export function TasksViewScreen() {
     const scale = dragX.interpolate({ inputRange: [-80, 0], outputRange: [1, 0.5], extrapolate: 'clamp' });
     return (
       <RectButton
-        style={{
-          backgroundColor: semantic.info, justifyContent: 'center', alignItems: 'center',
-          width: 80, borderTopRightRadius: radius.lg, borderBottomRightRadius: radius.lg,
-          marginBottom: 10, marginRight: 16,
-        }}
+        style={[s.swipeAction, { backgroundColor: semantic.info, borderTopRightRadius: radius.lg, borderBottomRightRadius: radius.lg, marginRight: 16 }]}
         onPress={() => handleSwipeDefer(task)}
       >
         <RNAnimated.View style={{ transform: [{ scale }], alignItems: 'center' }}>
           <Ionicons name="calendar-outline" size={20} color={textTokens.inverse} />
-          <Text style={{ fontSize: 11, fontWeight: '600', color: textTokens.inverse, marginTop: 3 }}>Defer</Text>
+          <Text style={s.swipeActionText}>Defer</Text>
         </RNAnimated.View>
       </RectButton>
     );
@@ -647,16 +623,12 @@ export function TasksViewScreen() {
     const scale = dragX.interpolate({ inputRange: [0, 80], outputRange: [0.5, 1], extrapolate: 'clamp' });
     return (
       <RectButton
-        style={{
-          backgroundColor: semantic.success, justifyContent: 'center', alignItems: 'center',
-          width: 80, borderTopLeftRadius: radius.lg, borderBottomLeftRadius: radius.lg,
-          marginBottom: 10, marginLeft: 16,
-        }}
+        style={[s.swipeAction, { backgroundColor: semantic.success, borderTopLeftRadius: radius.lg, borderBottomLeftRadius: radius.lg, marginLeft: 16 }]}
         onPress={() => handleComplete(task)}
       >
         <RNAnimated.View style={{ transform: [{ scale }], alignItems: 'center' }}>
           <Ionicons name="checkmark" size={20} color={textTokens.inverse} />
-          <Text style={{ fontSize: 11, fontWeight: '600', color: textTokens.inverse, marginTop: 3 }}>Done</Text>
+          <Text style={s.swipeActionText}>Done</Text>
         </RNAnimated.View>
       </RectButton>
     );
@@ -696,36 +668,26 @@ export function TasksViewScreen() {
         <TouchableOpacity
           activeOpacity={0.7}
           onPress={() => { setSelectedTask(task); setShowTaskDetail(true); }}
-          style={{
-            marginHorizontal: 16, marginBottom: 10,
-            backgroundColor: isOverdue ? '#FEF2F2' : bg.card,
-            borderRadius: radius.lg,
-            flexDirection: 'row',
-            overflow: 'hidden',
-            borderWidth: isOverdue ? 0.5 : 0,
-            borderColor: isOverdue ? 'rgba(220,38,38,0.12)' : 'transparent',
-            ...shadows.sm,
-          }}
+          style={[s.taskCard, isOverdue && s.taskCardOverdue]}
         >
           {/* Priority accent — 4px left border */}
-          <View style={{ width: 4, backgroundColor: pColor, borderTopLeftRadius: radius.lg, borderBottomLeftRadius: radius.lg }} />
+          <View style={[s.taskAccent, { backgroundColor: pColor }]} />
 
-          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 14, paddingHorizontal: 14 }}>
+          <View style={s.taskContent}>
             {/* Checkbox */}
             <TouchableOpacity
               onPress={() => handleComplete(task)}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-              style={{ marginTop: 1, marginRight: 12 }}
+              style={s.checkbox}
               accessibilityRole="button"
               accessibilityLabel={task.status === 'completed' ? `Mark ${task.title} incomplete` : `Mark ${task.title} complete`}
             >
-              <View style={{
-                width: 24, height: 24, borderRadius: 12,
-                borderWidth: task.status === 'completed' ? 0 : 2,
-                borderColor: task.status === 'completed' ? 'transparent' : borderTokens.primary,
-                backgroundColor: task.status === 'completed' ? brand.primary : 'transparent',
-                alignItems: 'center', justifyContent: 'center',
-              }}>
+              <View style={[
+                s.checkboxCircle,
+                task.status === 'completed'
+                  ? { borderWidth: 0, backgroundColor: brand.primary }
+                  : { borderWidth: 2, borderColor: borderTokens.primary, backgroundColor: 'transparent' },
+              ]}>
                 {task.status === 'completed' && (
                   <Ionicons name="checkmark" size={14} color={textTokens.inverse} />
                 )}
@@ -736,65 +698,48 @@ export function TasksViewScreen() {
             <View style={{ flex: 1 }}>
               <Text
                 numberOfLines={2}
-                style={{
-                  fontSize: 15.5, lineHeight: 21, fontWeight: '500',
-                  color: task.status === 'completed' ? textTokens.tertiary : textTokens.primary,
-                  textDecorationLine: task.status === 'completed' ? 'line-through' : 'none',
-                }}
+                style={[
+                  s.taskTitle,
+                  task.status === 'completed' && { color: textTokens.tertiary, textDecorationLine: 'line-through' },
+                ]}
               >
                 {task.title}
               </Text>
 
               {/* Metadata pills — iOS rounded pill design */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', marginTop: 6, gap: 6 }}>
+              <View style={s.metadataPills}>
                 {isOverdue && task.due_date && (
-                  <View style={{
-                    flexDirection: 'row', alignItems: 'center',
-                    backgroundColor: 'rgba(220,38,38,0.10)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8,
-                  }}>
+                  <View style={s.overduePill}>
                     <Ionicons name="alert-circle" size={12} color={semantic.error} />
-                    <Text style={{ fontSize: 12, fontWeight: '600', color: semantic.error, marginLeft: 4 }}>
+                    <Text style={[s.pillText, { fontWeight: '600', color: semantic.error, marginLeft: 4 }]}>
                       {formatOverdueLabel(task.due_date)}
                     </Text>
                   </View>
                 )}
                 {dateLabel ? (
-                  <View style={{
-                    backgroundColor: bg.secondary, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8,
-                  }}>
-                    <Text style={{ fontSize: 12, fontWeight: '500', color: textTokens.secondary }}>{dateLabel}</Text>
+                  <View style={s.pill}>
+                    <Text style={s.pillText}>{dateLabel}</Text>
                   </View>
                 ) : null}
                 {time && (
-                  <View style={{
-                    flexDirection: 'row', alignItems: 'center',
-                    backgroundColor: bg.secondary, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8,
-                  }}>
+                  <View style={s.pillRow}>
                     <Ionicons name="time-outline" size={12} color={textTokens.secondary} />
-                    <Text style={{ fontSize: 12, fontWeight: '500', color: textTokens.secondary, marginLeft: 4 }}>{time}</Text>
+                    <Text style={[s.pillText, { marginLeft: 4 }]}>{time}</Text>
                   </View>
                 )}
                 {dur && (
-                  <View style={{
-                    flexDirection: 'row', alignItems: 'center',
-                    backgroundColor: bg.secondary, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8,
-                  }}>
+                  <View style={s.pillRow}>
                     <Ionicons name="hourglass-outline" size={12} color={textTokens.secondary} />
-                    <Text style={{ fontSize: 12, fontWeight: '500', color: textTokens.secondary, marginLeft: 4 }}>{dur}</Text>
+                    <Text style={[s.pillText, { marginLeft: 4 }]}>{dur}</Text>
                   </View>
                 )}
                 {hasNotes && (
-                  <View style={{
-                    backgroundColor: bg.secondary, paddingHorizontal: 6, paddingVertical: 4, borderRadius: 8,
-                  }}>
+                  <View style={s.pill}>
                     <Ionicons name="document-text-outline" size={12} color={textTokens.tertiary} />
                   </View>
                 )}
                 {aiReason && (
-                  <View style={{
-                    flexDirection: 'row', alignItems: 'center',
-                    backgroundColor: brand.muted, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8,
-                  }}>
+                  <View style={s.aiPill}>
                     <Ionicons name="sparkles" size={10} color={brand.primary} />
                     <Text style={{ fontSize: 11, color: brand.primary, fontWeight: '600', marginLeft: 3 }}>{aiReason}</Text>
                   </View>
@@ -809,17 +754,13 @@ export function TasksViewScreen() {
 
   // ── Section Header ──
   const renderSectionHeader = useCallback(({ section }: { section: TaskSection }) => (
-    <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingTop: 22, paddingBottom: 10 }}>
+    <View style={s.sectionHeaderWrap}>
       {section.icon && <Ionicons name={section.icon as any} size={14} color={section.accent || textTokens.tertiary} style={{ marginRight: 7 }} />}
-      <Text style={{ fontSize: 13, fontWeight: '700', color: section.accent || textTokens.secondary, letterSpacing: 0.5, textTransform: 'uppercase' }}>
+      <Text style={[s.sectionHeaderText, { color: section.accent || textTokens.secondary }]}>
         {section.title}
       </Text>
-      <View style={{
-        marginLeft: 8, backgroundColor: `${section.accent || textTokens.tertiary}12`,
-        paddingHorizontal: 7, paddingVertical: 2, borderRadius: 7,
-        minWidth: 22, alignItems: 'center',
-      }}>
-        <Text style={{ fontSize: 11, fontWeight: '700', color: section.accent || textTokens.secondary }}>
+      <View style={[s.sectionCountBadge, { backgroundColor: `${section.accent || textTokens.tertiary}12` }]}>
+        <Text style={[s.sectionCountText, { color: section.accent || textTokens.secondary }]}>
           {section.data.length}
         </Text>
       </View>
@@ -839,17 +780,12 @@ export function TasksViewScreen() {
       : 'Tap + to capture your first task';
 
     return (
-      <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 72, paddingHorizontal: 40 }}>
-        <View style={{
-          width: 64, height: 64, borderRadius: 20, marginBottom: 20,
-          backgroundColor: brand.muted,
-          alignItems: 'center', justifyContent: 'center',
-          ...shadows.purple,
-        }}>
+      <View style={s.emptyWrap}>
+        <View style={s.emptyIcon}>
           <Ionicons name={isFiltered ? 'calendar-outline' : 'checkmark-done'} size={30} color={brand.primary} />
         </View>
-        <Text style={{ fontSize: 19, fontWeight: '700', color: textTokens.primary, textAlign: 'center', letterSpacing: -0.2 }}>{label}</Text>
-        <Text style={{ fontSize: 14, color: textTokens.tertiary, marginTop: 6, textAlign: 'center', lineHeight: 20 }}>
+        <Text style={s.emptyTitle}>{label}</Text>
+        <Text style={s.emptySubtitle}>
           {subtitle}
         </Text>
       </View>
@@ -860,32 +796,20 @@ export function TasksViewScreen() {
   const renderCompletedFooter = () => {
     if (completedTasks.length === 0 || dateFilter !== 'all') return null;
     return (
-      <View style={{ marginTop: 16, marginBottom: 24 }}>
+      <View style={s.completedWrap}>
         <TouchableOpacity
-          style={{
-            flexDirection: 'row', alignItems: 'center',
-            paddingHorizontal: 16, paddingVertical: 12,
-            marginHorizontal: 16, borderRadius: 12,
-            backgroundColor: showCompleted ? brand.muted : 'transparent',
-          }}
+          style={[s.completedToggle, showCompleted && { backgroundColor: brand.muted }]}
           onPress={() => { Haptics.selectionAsync(); setShowCompleted((v) => !v); }}
           activeOpacity={0.7}
         >
-          <View style={{
-            width: 28, height: 28, borderRadius: 8,
-            backgroundColor: showCompleted ? brand.surface : borderTokens.secondary,
-            alignItems: 'center', justifyContent: 'center', marginRight: 10,
-          }}>
+          <View style={[s.completedChevronBox, { backgroundColor: showCompleted ? brand.surface : borderTokens.secondary }]}>
             <Ionicons name={showCompleted ? 'chevron-down' : 'chevron-forward'} size={14} color={showCompleted ? brand.primary : textTokens.tertiary} />
           </View>
-          <Text style={{ fontSize: 14, fontWeight: '600', color: showCompleted ? brand.primary : textTokens.tertiary, flex: 1 }}>
+          <Text style={[s.completedLabel, { color: showCompleted ? brand.primary : textTokens.tertiary }]}>
             Completed
           </Text>
-          <View style={{
-            backgroundColor: showCompleted ? brand.surface : borderTokens.secondary,
-            paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, minWidth: 26, alignItems: 'center',
-          }}>
-            <Text style={{ fontSize: 12, fontWeight: '700', color: showCompleted ? brand.primary : textTokens.tertiary }}>
+          <View style={[s.completedCountBadge, { backgroundColor: showCompleted ? brand.surface : borderTokens.secondary }]}>
+            <Text style={[s.completedCountText, { color: showCompleted ? brand.primary : textTokens.tertiary }]}>
               {completedTasks.length}
             </Text>
           </View>
@@ -894,49 +818,39 @@ export function TasksViewScreen() {
         {showCompleted && completedTasks.length > 0 && (
           <TouchableOpacity
             onPress={handleClearCompleted}
-            style={{ alignSelf: 'flex-end', marginRight: 20, marginTop: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 }}
+            style={s.clearAllBtn}
             activeOpacity={0.7}
             accessibilityRole="button"
             accessibilityLabel="Clear all completed tasks"
           >
-            <Text style={{ fontSize: 13, fontWeight: '600', color: semantic.error }}>Clear All</Text>
+            <Text style={s.clearAllText}>Clear All</Text>
           </TouchableOpacity>
         )}
 
         {showCompleted && (
-          <View style={{ marginTop: 8 }}>
+          <View style={s.completedList}>
             {completedTasks.map((task) => (
               <TouchableOpacity
                 key={task.id}
-                style={{
-                  flexDirection: 'row', alignItems: 'center',
-                  paddingVertical: 11, paddingHorizontal: 14,
-                  marginHorizontal: 16, marginBottom: 4,
-                  borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.02)',
-                }}
+                style={s.completedItem}
                 onPress={() => { setSelectedTask(task); setShowTaskDetail(true); }}
                 activeOpacity={0.7}
               >
                 <TouchableOpacity
                   onPress={() => handleComplete(task)}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  style={{ marginRight: 10 }}
                   accessibilityRole="button"
                   accessibilityLabel={`Mark ${task.title} incomplete`}
                 >
-                  <View style={{
-                    width: 22, height: 22, borderRadius: 11,
-                    backgroundColor: brand.primary,
-                    alignItems: 'center', justifyContent: 'center',
-                  }}>
+                  <View style={s.completedCheckbox}>
                     <Ionicons name="checkmark" size={13} color={textTokens.inverse} />
                   </View>
                 </TouchableOpacity>
-                <Text numberOfLines={1} style={{ flex: 1, fontSize: 14, color: textTokens.tertiary, textDecorationLine: 'line-through' }}>
+                <Text numberOfLines={1} style={s.completedItemTitle}>
                   {task.title}
                 </Text>
                 {task.completed_at && (
-                  <Text style={{ fontSize: 11, color: textTokens.disabled, marginLeft: 8 }}>
+                  <Text style={s.completedItemDate}>
                     {new Date(task.completed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                   </Text>
                 )}
@@ -951,15 +865,15 @@ export function TasksViewScreen() {
   // ── Error State ──
   if (error && !loading) {
     return (
-      <View style={{ flex: 1, backgroundColor: bg.primary, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+      <View style={s.errorWrap}>
         <StatusBar barStyle="dark-content" />
-        <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: 'rgba(220,38,38,0.08)', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+        <View style={s.errorIcon}>
           <Ionicons name="cloud-offline-outline" size={28} color={semantic.error} />
         </View>
-        <Text style={{ fontSize: 18, fontWeight: '600', color: textTokens.primary, textAlign: 'center' }}>Couldn't load tasks</Text>
-        <Text style={{ fontSize: 14, color: textTokens.secondary, marginTop: 4, textAlign: 'center' }}>Check your connection and try again.</Text>
-        <TouchableOpacity style={{ marginTop: 20, backgroundColor: brand.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 }} onPress={refresh}>
-          <Text style={{ fontSize: 15, fontWeight: '600', color: textTokens.inverse }}>Try Again</Text>
+        <Text style={s.errorTitle}>Couldn't load tasks</Text>
+        <Text style={s.errorSubtitle}>Check your connection and try again.</Text>
+        <TouchableOpacity style={s.errorButton} onPress={refresh}>
+          <Text style={s.errorButtonText}>Try Again</Text>
         </TouchableOpacity>
       </View>
     );
@@ -967,24 +881,24 @@ export function TasksViewScreen() {
 
   // ── Main ──
   return (
-    <View style={{ flex: 1, backgroundColor: bg.primary }}>
+    <View style={s.screen}>
       <StatusBar barStyle="dark-content" />
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
         {/* Header */}
-        <View style={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Text style={{ fontSize: 34, fontWeight: '800', color: textTokens.primary, letterSpacing: -0.5 }}>Tasks</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        <View style={s.headerWrap}>
+          <View style={s.headerRow}>
+            <Text style={s.headerTitle}>Tasks</Text>
+            <View style={s.headerRight}>
               {isAISortingActive && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: brand.muted, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 }}>
+                <View style={s.smartSortBadge}>
                   <Ionicons name="sparkles" size={13} color={brand.primary} />
-                  <Text style={{ fontSize: 12, fontWeight: '600', color: brand.primary, marginLeft: 4 }}>Smart Sort</Text>
+                  <Text style={s.smartSortText}>Smart Sort</Text>
                 </View>
               )}
               <MiniVoiceButton position="top-right" screenContext="tasks" size={52} style={{ position: 'relative', top: 0, right: 0 }} />
             </View>
           </View>
-          <Text style={{ fontSize: 13, color: textTokens.tertiary, marginTop: 2, fontWeight: '500' }}>
+          <Text style={s.dateSubtitle}>
             {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
           </Text>
         </View>
@@ -1013,15 +927,9 @@ export function TasksViewScreen() {
         )}
 
         {/* FAB */}
-        <View style={{ position: 'absolute', bottom: 36, right: 20 }}>
+        <View style={s.fabWrap}>
           <TouchableOpacity
-            style={{
-              width: 56, height: 56, borderRadius: 28,
-              backgroundColor: brand.primary,
-              alignItems: 'center', justifyContent: 'center',
-              ...shadows.purple,
-              elevation: 10,
-            }}
+            style={s.fab}
             onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowQuickAdd(true); }}
             activeOpacity={0.85}
             accessibilityRole="button"
@@ -1061,42 +969,20 @@ export function TasksViewScreen() {
 
       {/* Toast / Undo Snackbar */}
       {toast.visible && (
-        <View
-          style={{
-            position: 'absolute',
-            bottom: 100,
-            left: 0,
-            right: 0,
-            alignItems: 'center',
-            zIndex: 999,
-          }}
-          pointerEvents="box-none"
-        >
-          <View
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              backgroundColor: textTokens.primary,
-              paddingLeft: 18,
-              paddingRight: toast.undoAction ? 6 : 18,
-              paddingVertical: 11,
-              borderRadius: 14,
-              ...shadows.lg,
-              maxWidth: 320,
-            }}
-          >
-            <Text style={{ color: textTokens.inverse, fontSize: 14.5, fontWeight: '600', flex: 1 }}>{toast.message}</Text>
+        <View style={s.toastWrapper} pointerEvents="box-none">
+          <View style={[s.toastContainer, shadows.lg]}>
+            <Text style={s.toastText}>{toast.message}</Text>
             {toast.undoAction && (
               <TouchableOpacity
                 onPress={() => {
                   if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
                   toast.undoAction?.();
                 }}
-                style={{ marginLeft: 12, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.15)' }}
+                style={s.toastUndoButton}
                 accessibilityRole="button"
                 accessibilityLabel="Undo task completion"
               >
-                <Text style={{ color: brand.secondary, fontSize: 13.5, fontWeight: '700' }}>Undo</Text>
+                <Text style={s.toastUndoText}>Undo</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -1105,3 +991,459 @@ export function TasksViewScreen() {
     </View>
   );
 }
+
+// ── Styles ──────────────────────────────────────────────────
+const s = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: bg.primary,
+  },
+  headerWrap: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.base,
+    paddingBottom: spacing.sm,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  headerTitle: {
+    fontSize: 34,
+    fontWeight: '800',
+    color: textTokens.primary,
+    letterSpacing: -0.5,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  smartSortBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: brand.muted,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+  },
+  smartSortText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: brand.primary,
+    marginLeft: 4,
+  },
+  dateSubtitle: {
+    fontSize: 13,
+    color: textTokens.tertiary,
+    marginTop: 2,
+    fontWeight: '500',
+  },
+  // ── Section Header ──
+  sectionHeaderWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+    paddingTop: 22,
+    paddingBottom: 10,
+  },
+  sectionHeaderText: {
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  sectionCountBadge: {
+    marginLeft: spacing.sm,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 7,
+    minWidth: 22,
+    alignItems: 'center',
+  },
+  sectionCountText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  // ── Task Card ──
+  taskCard: {
+    marginHorizontal: spacing.base,
+    marginBottom: 10,
+    backgroundColor: bg.card,
+    borderRadius: radius.lg,
+    flexDirection: 'row',
+    overflow: 'hidden',
+    ...shadows.sm,
+  },
+  taskCardOverdue: {
+    backgroundColor: semantic.errorLight,
+    borderWidth: 0.5,
+    borderColor: 'rgba(220,38,38,0.12)',
+  },
+  taskAccent: {
+    width: 4,
+    borderTopLeftRadius: radius.lg,
+    borderBottomLeftRadius: radius.lg,
+  },
+  taskContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+  },
+  checkbox: {
+    marginTop: 1,
+    marginRight: 12,
+  },
+  checkboxCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  taskTitle: {
+    fontSize: 15.5,
+    lineHeight: 21,
+    fontWeight: '500',
+  },
+  metadataPills: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    marginTop: 6,
+    gap: 6,
+  },
+  pill: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: bg.secondary,
+  },
+  pillRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: bg.secondary,
+  },
+  pillText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: textTokens.secondary,
+  },
+  overduePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(220,38,38,0.10)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  aiPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: brand.muted,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  // ── FAB ──
+  fabWrap: {
+    position: 'absolute',
+    bottom: 36,
+    right: spacing.lg,
+  },
+  fab: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: brand.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...shadows.purple,
+    elevation: 10,
+  },
+  // ── Toast ──
+  toastWrapper: {
+    position: 'absolute',
+    bottom: 100,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 999,
+  },
+  toastContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: textTokens.primary,
+    paddingLeft: 18,
+    paddingVertical: 11,
+    borderRadius: 14,
+    maxWidth: 320,
+  },
+  toastText: {
+    color: textTokens.inverse,
+    fontSize: 14.5,
+    fontWeight: '600',
+    flex: 1,
+  },
+  toastUndoButton: {
+    marginLeft: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+  },
+  toastUndoText: {
+    color: brand.secondary,
+    fontSize: 13.5,
+    fontWeight: '700',
+  },
+  // ── Swipe Actions ──
+  swipeAction: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 80,
+    marginBottom: 10,
+  },
+  swipeActionText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: textTokens.inverse,
+    marginTop: 3,
+  },
+  // ── Empty State ──
+  emptyWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 72,
+    paddingHorizontal: 40,
+  },
+  emptyIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    marginBottom: 20,
+    backgroundColor: brand.muted,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...shadows.purple,
+  },
+  emptyTitle: {
+    fontSize: 19,
+    fontWeight: '700',
+    color: textTokens.primary,
+    textAlign: 'center',
+    letterSpacing: -0.2,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: textTokens.tertiary,
+    marginTop: 6,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  // ── Error ──
+  errorWrap: {
+    flex: 1,
+    backgroundColor: bg.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+  },
+  errorIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: 'rgba(220,38,38,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  errorTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: textTokens.primary,
+    textAlign: 'center',
+  },
+  errorSubtitle: {
+    fontSize: 14,
+    color: textTokens.secondary,
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  errorButton: {
+    marginTop: 20,
+    backgroundColor: brand.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: radius.md,
+  },
+  errorButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: textTokens.inverse,
+  },
+  // ── List Header ──
+  listHeaderPills: {
+    flexDirection: 'row',
+    paddingHorizontal: spacing.base,
+    paddingTop: 6,
+    paddingBottom: 6,
+    gap: 10,
+  },
+  prioritizeBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: brand.primary,
+    paddingVertical: 13,
+    borderRadius: 14,
+    gap: 8,
+    minHeight: 48,
+    ...shadows.purple,
+  },
+  brainDumpBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: brand.muted,
+    paddingVertical: 13,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(124,58,237,0.15)',
+    gap: 8,
+    minHeight: 48,
+  },
+  pillBtnText: {
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: 0.1,
+  },
+  timeCard: {
+    marginHorizontal: spacing.base,
+    marginTop: 6,
+    marginBottom: 2,
+    backgroundColor: bg.card,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.base,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    ...shadows.sm,
+  },
+  timeIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: brand.muted,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+  },
+  timeValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: textTokens.primary,
+    letterSpacing: -0.3,
+  },
+  timeEstLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: textTokens.tertiary,
+    marginLeft: 6,
+  },
+  timeMeta: {
+    fontSize: 12.5,
+    color: textTokens.tertiary,
+    fontWeight: '500',
+  },
+  // ── Completed Footer ──
+  completedWrap: {
+    marginTop: spacing.base,
+    marginBottom: spacing.xl,
+  },
+  completedToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.sm,
+    marginHorizontal: spacing.base,
+    borderRadius: radius.sm,
+  },
+  completedChevronBox: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  completedLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    flex: 1,
+  },
+  completedCountBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    minWidth: 26,
+    alignItems: 'center',
+  },
+  completedCountText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  clearAllBtn: {
+    alignSelf: 'flex-end',
+    marginRight: 20,
+    marginTop: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  clearAllText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: semantic.error,
+  },
+  completedList: {
+    marginTop: spacing.xs,
+  },
+  completedItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 11,
+    paddingHorizontal: 14,
+    marginHorizontal: spacing.base,
+    marginBottom: 4,
+    borderRadius: radius.sm,
+    backgroundColor: bg.hover,
+  },
+  completedCheckbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: brand.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  completedItemTitle: {
+    flex: 1,
+    fontSize: 14,
+    color: textTokens.tertiary,
+    textDecorationLine: 'line-through',
+  },
+  completedItemDate: {
+    fontSize: 11,
+    color: textTokens.disabled,
+    marginLeft: 8,
+  },
+});

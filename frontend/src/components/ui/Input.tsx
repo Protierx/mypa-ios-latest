@@ -1,5 +1,7 @@
 import React from 'react';
 import { TextInput, View, Text, StyleSheet, ViewStyle, TextStyle, TextInputProps } from 'react-native';
+import { bg, text as textTokens, border as borderTokens, semantic } from '../../styles/colors';
+import { radius } from '../../styles/theme';
 
 interface InputProps extends TextInputProps {
   label?: string;
@@ -26,7 +28,7 @@ export function Input({
           error && styles.inputError,
           inputStyle,
         ]}
-        placeholderTextColor="#94A3B8"
+        placeholderTextColor={textTokens.disabled}
         {...props}
       />
       {error && <Text style={styles.error}>{error}</Text>}
@@ -41,23 +43,23 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#0F172A',
+    color: textTokens.primary,
   },
   input: {
     height: 44,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 8,
+    borderColor: borderTokens.primary,
+    borderRadius: radius.sm,
     paddingHorizontal: 12,
     fontSize: 15,
-    color: '#0F172A',
-    backgroundColor: '#FFFFFF',
+    color: textTokens.primary,
+    backgroundColor: bg.card,
   },
   inputError: {
-    borderColor: '#EF4444',
+    borderColor: semantic.error,
   },
   error: {
     fontSize: 12,
-    color: '#EF4444',
+    color: semantic.error,
   },
 });

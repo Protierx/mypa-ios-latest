@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, Modal, StyleSheet, ViewStyle, TextStyle, Dimensions } from 'react-native';
+import { text as textTokens } from '../../styles/colors';
+import { spacing } from '../../styles/theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -69,22 +71,22 @@ const styles = StyleSheet.create({
   },
   tooltip: {
     position: 'absolute',
-    backgroundColor: '#0F172A',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    backgroundColor: textTokens.primary,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
     borderRadius: 6,
     maxWidth: 200,
   },
   content: {
     fontSize: 13,
-    color: '#FFFFFF',
+    color: textTokens.inverse,
     textAlign: 'center',
   },
   arrow: {
     position: 'absolute',
     width: 10,
     height: 10,
-    backgroundColor: '#0F172A',
+    backgroundColor: textTokens.primary,
     transform: [{ rotate: '45deg' }],
     left: 20,
   },

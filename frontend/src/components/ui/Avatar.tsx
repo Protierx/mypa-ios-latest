@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Image, Text, StyleSheet, ViewStyle, TextStyle, ImageStyle } from 'react-native';
+import { bg, text as textTokens } from '../../styles/colors';
 
 interface AvatarProps {
   size?: number;
@@ -76,12 +77,12 @@ const styles = StyleSheet.create({
     left: 0,
   },
   fallback: {
-    backgroundColor: '#F1F5F9',
+    backgroundColor: bg.secondary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   fallbackText: {
     fontWeight: '500',
-    color: '#64748B',
+    color: textTokens.secondary,
   },
 });

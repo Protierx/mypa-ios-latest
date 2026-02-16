@@ -12,6 +12,8 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { bg, text as textTokens } from '../../styles/colors';
+import { radius, spacing, shadows } from '../../styles/theme';
 
 interface DialogProps {
   visible: boolean;
@@ -65,7 +67,7 @@ export function Dialog({ visible, onClose, children }: DialogProps) {
                 <View style={styles.container}>
                   {children}
                   <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-                    <Ionicons name="close" size={20} color="#64748B" />
+                    <Ionicons name="close" size={20} color={textTokens.tertiary} />
                   </TouchableOpacity>
                 </View>
               </TouchableWithoutFeedback>
@@ -100,7 +102,7 @@ export function DialogDescription({ children, style }: DialogDescriptionProps) {
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -109,44 +111,40 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   container: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
+    backgroundColor: bg.elevated,
+    borderRadius: radius.lg,
     width: '90%',
     maxWidth: 400,
-    padding: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
+    padding: spacing.xl,
+    ...shadows.lg,
   },
   closeButton: {
     position: 'absolute',
-    top: 16,
-    right: 16,
+    top: spacing.base,
+    right: spacing.base,
     padding: 4,
   },
   content: {
-    gap: 16,
+    gap: spacing.base,
   },
   header: {
-    gap: 8,
-    marginBottom: 8,
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
   },
   footer: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    gap: 8,
-    marginTop: 16,
+    gap: spacing.sm,
+    marginTop: spacing.base,
   },
   title: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#0F172A',
+    color: textTokens.primary,
   },
   description: {
     fontSize: 14,
-    color: '#64748B',
+    color: textTokens.secondary,
     lineHeight: 20,
   },
 });

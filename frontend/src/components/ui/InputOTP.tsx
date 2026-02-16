@@ -1,5 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { View, TextInput, StyleSheet, ViewStyle } from 'react-native';
+import { bg, brand, text as textTokens, border as borderTokens } from '../../styles/colors';
+import { radius, spacing } from '../../styles/theme';
 
 interface InputOTPProps {
   value: string;
@@ -66,31 +68,31 @@ export function InputOTP({
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    gap: 8,
+    gap: spacing.sm,
     justifyContent: 'center',
   },
   input: {
     width: 44,
     height: 52,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 8,
-    backgroundColor: '#FFFFFF',
+    borderColor: borderTokens.primary,
+    borderRadius: radius.sm,
+    backgroundColor: bg.card,
     fontSize: 20,
     fontWeight: '600',
-    color: '#0F172A',
+    color: textTokens.primary,
     textAlign: 'center',
   },
   inputFocused: {
-    borderColor: '#8B5CF6',
+    borderColor: brand.primary,
     borderWidth: 2,
   },
   inputFilled: {
-    borderColor: '#8B5CF6',
-    backgroundColor: '#F5F3FF',
+    borderColor: brand.primary,
+    backgroundColor: brand.muted,
   },
   disabled: {
     opacity: 0.5,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: bg.secondary,
   },
 });

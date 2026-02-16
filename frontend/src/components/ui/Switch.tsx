@@ -1,5 +1,6 @@
 import React from 'react';
 import { TouchableOpacity, View, StyleSheet, Animated, ViewStyle } from 'react-native';
+import { bg, brand, border as borderTokens } from '../../styles/colors';
 
 interface SwitchProps {
   checked: boolean;
@@ -26,7 +27,7 @@ export function Switch({ checked, onCheckedChange, disabled = false, style }: Sw
 
   const backgroundColor = animatedValue.interpolate({
     inputRange: [0, 1],
-    outputRange: ['#E2E8F0', '#8B5CF6'],
+    outputRange: [borderTokens.primary, brand.primary],
   });
 
   return (
@@ -53,7 +54,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: bg.card,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.2,

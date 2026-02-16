@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { View, StyleSheet, Animated, ViewStyle } from 'react-native';
+import { border as borderTokens } from '../../styles/colors';
 
 interface SkeletonProps {
   width?: number | string;
@@ -53,6 +54,6 @@ export function Skeleton({
 
 const styles = StyleSheet.create({
   skeleton: {
-    backgroundColor: '#E2E8F0',
+    backgroundColor: borderTokens.primary,
   },
 });

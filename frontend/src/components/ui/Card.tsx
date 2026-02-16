@@ -1,5 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, ViewStyle, TextStyle } from 'react-native';
+import { bg, text as textTokens, border as borderTokens } from '../../styles/colors';
+import { radius, spacing, shadows } from '../../styles/theme';
 
 interface CardProps {
   children: React.ReactNode;
@@ -57,31 +59,32 @@ export function CardFooter({ children, style }: CardFooterProps) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
+    backgroundColor: bg.card,
+    borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: borderTokens.primary,
     overflow: 'hidden',
+    ...shadows.sm,
   },
   header: {
-    padding: 16,
+    padding: spacing.base,
     gap: 4,
   },
   title: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#0F172A',
+    color: textTokens.primary,
   },
   description: {
     fontSize: 14,
-    color: '#64748B',
+    color: textTokens.secondary,
   },
   content: {
-    padding: 16,
+    padding: spacing.base,
     paddingTop: 0,
   },
   footer: {
-    padding: 16,
+    padding: spacing.base,
     paddingTop: 0,
     flexDirection: 'row',
     alignItems: 'center',

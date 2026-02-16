@@ -1,5 +1,6 @@
 import React from 'react';
 import { Text, StyleSheet, TextStyle } from 'react-native';
+import { text as textTokens } from '../../styles/colors';
 
 interface LabelProps {
   children: React.ReactNode;
@@ -19,7 +20,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#0F172A',
+    color: textTokens.primary,
     marginBottom: 6,
   },
   disabled: {

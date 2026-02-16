@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, StyleSheet, ViewStyle, Animated } from 'react-native';
+import { brand, border as borderTokens } from '../../styles/colors';
 
 interface ProgressProps {
   value: number;
@@ -13,8 +14,8 @@ interface ProgressProps {
 export function Progress({
   value,
   max = 100,
-  color = '#8B5CF6',
-  backgroundColor = '#E2E8F0',
+  color = brand.primary,
+  backgroundColor = borderTokens.primary,
   height = 8,
   style,
 }: ProgressProps) {

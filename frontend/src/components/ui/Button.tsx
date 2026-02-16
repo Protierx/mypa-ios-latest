@@ -1,5 +1,7 @@
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet, ViewStyle, TextStyle, ActivityIndicator } from 'react-native';
+import { bg, brand, text as textTokens, border as borderTokens, semantic } from '../../styles/colors';
+import { radius } from '../../styles/theme';
 
 type ButtonVariant = 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link';
 type ButtonSize = 'default' | 'sm' | 'lg' | 'icon';
@@ -17,28 +19,28 @@ interface ButtonProps {
 
 const variantStyles: Record<ButtonVariant, { button: ViewStyle; text: TextStyle }> = {
   default: {
-    button: { backgroundColor: '#8B5CF6' },
-    text: { color: '#FFFFFF' },
+    button: { backgroundColor: brand.primary },
+    text: { color: textTokens.inverse },
   },
   destructive: {
-    button: { backgroundColor: '#EF4444' },
-    text: { color: '#FFFFFF' },
+    button: { backgroundColor: semantic.error },
+    text: { color: textTokens.inverse },
   },
   outline: {
-    button: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#E2E8F0' },
-    text: { color: '#0F172A' },
+    button: { backgroundColor: 'transparent', borderWidth: 1, borderColor: borderTokens.primary },
+    text: { color: textTokens.primary },
   },
   secondary: {
-    button: { backgroundColor: '#F1F5F9' },
-    text: { color: '#0F172A' },
+    button: { backgroundColor: bg.secondary },
+    text: { color: textTokens.primary },
   },
   ghost: {
     button: { backgroundColor: 'transparent' },
-    text: { color: '#0F172A' },
+    text: { color: textTokens.primary },
   },
   link: {
     button: { backgroundColor: 'transparent' },
-    text: { color: '#8B5CF6', textDecorationLine: 'underline' },
+    text: { color: brand.primary, textDecorationLine: 'underline' },
   },
 };
 
@@ -105,7 +107,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 8,
+    borderRadius: radius.sm,
     gap: 8,
   },
   text: {

@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ViewStyle, TextStyle, ScrollView } from 'react-native';
+import { bg, text as textTokens } from '../../styles/colors';
+import { radius, spacing } from '../../styles/theme';
 
 interface TabsProps {
   value: string;
@@ -85,7 +87,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   list: {
-    backgroundColor: '#F1F5F9',
+    backgroundColor: bg.secondary,
     borderRadius: 10,
     padding: 4,
   },
@@ -93,12 +95,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   trigger: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
+    paddingHorizontal: spacing.base,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.sm,
   },
   triggerActive: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: bg.card,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
@@ -108,10 +110,10 @@ const styles = StyleSheet.create({
   triggerText: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#64748B',
+    color: textTokens.secondary,
   },
   triggerTextActive: {
-    color: '#0F172A',
+    color: textTokens.primary,
   },
   disabled: {
     opacity: 0.5,

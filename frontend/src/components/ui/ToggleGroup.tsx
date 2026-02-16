@@ -1,5 +1,7 @@
 import React from 'react';
 import { View, TouchableOpacity, Text, StyleSheet, ViewStyle, TextStyle } from 'react-native';
+import { bg, text as textTokens, border as borderTokens } from '../../styles/colors';
+import { radius } from '../../styles/theme';
 
 type ToggleGroupType = 'single' | 'multiple';
 type ToggleGroupVariant = 'default' | 'outline';
@@ -124,8 +126,8 @@ const styles = StyleSheet.create({
   },
   groupOutline: {
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 8,
+    borderColor: borderTokens.primary,
+    borderRadius: radius.sm,
     overflow: 'hidden',
   },
   item: {
@@ -137,18 +139,18 @@ const styles = StyleSheet.create({
   },
   itemOutline: {
     borderRightWidth: 1,
-    borderRightColor: '#E2E8F0',
+    borderRightColor: borderTokens.primary,
   },
   itemPressed: {
-    backgroundColor: '#F1F5F9',
+    backgroundColor: bg.secondary,
   },
   text: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#64748B',
+    color: textTokens.secondary,
   },
   textPressed: {
-    color: '#0F172A',
+    color: textTokens.primary,
   },
   disabled: {
     opacity: 0.5,

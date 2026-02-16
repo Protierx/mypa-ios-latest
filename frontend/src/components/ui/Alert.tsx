@@ -1,6 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet, ViewStyle, TextStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { bg, text as textTokens, semantic, border as borderTokens } from '../../styles/colors';
+import { radius, spacing } from '../../styles/theme';
 
 type AlertVariant = 'default' | 'destructive' | 'success' | 'warning';
 
@@ -23,24 +25,24 @@ interface AlertDescriptionProps {
 
 const variantStyles: Record<AlertVariant, { container: ViewStyle; icon: string; iconColor: string }> = {
   default: {
-    container: { backgroundColor: '#F8FAFC', borderColor: '#E2E8F0' },
+    container: { backgroundColor: bg.primary, borderColor: borderTokens.primary },
     icon: 'information-circle',
-    iconColor: '#64748B',
+    iconColor: textTokens.secondary,
   },
   destructive: {
-    container: { backgroundColor: '#FEF2F2', borderColor: '#FECACA' },
+    container: { backgroundColor: semantic.errorLight, borderColor: semantic.errorLight },
     icon: 'alert-circle',
-    iconColor: '#DC2626',
+    iconColor: semantic.error,
   },
   success: {
-    container: { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' },
+    container: { backgroundColor: semantic.successLight, borderColor: semantic.successSoft },
     icon: 'checkmark-circle',
-    iconColor: '#16A34A',
+    iconColor: semantic.success,
   },
   warning: {
-    container: { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' },
+    container: { backgroundColor: semantic.warningLight, borderColor: semantic.warningLight },
     icon: 'warning',
-    iconColor: '#D97706',
+    iconColor: semantic.warning,
   },
 };
 
@@ -67,10 +69,10 @@ export function AlertDescription({ children, style }: AlertDescriptionProps) {
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    padding: 16,
-    borderRadius: 8,
+    padding: spacing.base,
+    borderRadius: radius.sm,
     borderWidth: 1,
-    gap: 12,
+    gap: spacing.md,
   },
   icon: {
     marginTop: 2,
@@ -82,11 +84,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#0F172A',
+    color: textTokens.primary,
   },
   description: {
     fontSize: 14,
-    color: '#64748B',
+    color: textTokens.secondary,
     lineHeight: 20,
   },
 });

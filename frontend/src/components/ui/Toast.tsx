@@ -1,6 +1,8 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { bg, text as textTokens, semantic } from '../../styles/colors';
+import { radius, spacing } from '../../styles/theme';
 
 type ToastVariant = 'default' | 'success' | 'error' | 'warning';
 
@@ -14,10 +16,10 @@ interface ToastProps {
 }
 
 const variantConfig: Record<ToastVariant, { icon: string; color: string; bg: string }> = {
-  default: { icon: 'information-circle', color: '#64748B', bg: '#F8FAFC' },
-  success: { icon: 'checkmark-circle', color: '#16A34A', bg: '#F0FDF4' },
-  error: { icon: 'alert-circle', color: '#DC2626', bg: '#FEF2F2' },
-  warning: { icon: 'warning', color: '#D97706', bg: '#FFFBEB' },
+  default: { icon: 'information-circle', color: textTokens.secondary, bg: bg.primary },
+  success: { icon: 'checkmark-circle', color: semantic.success, bg: semantic.successLight },
+  error: { icon: 'alert-circle', color: semantic.error, bg: semantic.errorLight },
+  warning: { icon: 'warning', color: semantic.warning, bg: semantic.warningLight },
 };
 
 export function Toast({
@@ -86,7 +88,7 @@ export function Toast({
         {description && <Text style={styles.description}>{description}</Text>}
       </View>
       <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
-        <Ionicons name="close" size={18} color="#64748B" />
+        <Ionicons name="close" size={18} color={textTokens.secondary} />
       </TouchableOpacity>
     </Animated.View>
   );
@@ -96,18 +98,18 @@ const styles = StyleSheet.create({
   container: {
     position: 'absolute',
     top: 60,
-    left: 16,
-    right: 16,
+    left: spacing.base,
+    right: spacing.base,
     flexDirection: 'row',
     alignItems: 'flex-start',
-    padding: 16,
-    borderRadius: 12,
+    padding: spacing.base,
+    borderRadius: radius.md,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
-    gap: 12,
+    gap: spacing.md,
   },
   content: {
     flex: 1,
@@ -116,11 +118,11 @@ const styles = StyleSheet.create({
   message: {
     fontSize: 15,
     fontWeight: '500',
-    color: '#0F172A',
+    color: textTokens.primary,
   },
   description: {
     fontSize: 13,
-    color: '#64748B',
+    color: textTokens.secondary,
   },
   closeButton: {
     padding: 2,

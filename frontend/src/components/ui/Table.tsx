@@ -1,5 +1,7 @@
 import React from 'react';
 import { View, Text, ScrollView, StyleSheet, ViewStyle, TextStyle } from 'react-native';
+import { bg, text as textTokens, border as borderTokens } from '../../styles/colors';
+import { spacing } from '../../styles/theme';
 
 interface TableProps {
   children: React.ReactNode;
@@ -99,38 +101,38 @@ const styles = StyleSheet.create({
   },
   header: {
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: borderTokens.primary,
   },
   body: {},
   row: {
     flexDirection: 'row',
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomColor: bg.secondary,
   },
   rowSelected: {
-    backgroundColor: '#F1F5F9',
+    backgroundColor: bg.secondary,
   },
   head: {
-    padding: 12,
+    padding: spacing.md,
     minWidth: 80,
   },
   headText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#0F172A',
+    color: textTokens.primary,
   },
   cell: {
-    padding: 12,
+    padding: spacing.md,
     minWidth: 80,
   },
   cellText: {
     fontSize: 14,
-    color: '#334155',
+    color: textTokens.secondary,
   },
   caption: {
-    marginTop: 12,
+    marginTop: spacing.md,
     fontSize: 13,
-    color: '#64748B',
+    color: textTokens.secondary,
     textAlign: 'center',
   },
 });

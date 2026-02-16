@@ -1,6 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated, ViewStyle, TextStyle, LayoutAnimation, Platform, UIManager } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { text as textTokens, border as borderTokens } from '../../styles/colors';
+import { spacing } from '../../styles/theme';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -102,7 +104,7 @@ export function AccordionTrigger({ children, style, textStyle }: AccordionTrigge
         children
       )}
       <Animated.View style={{ transform: [{ rotate }] }}>
-        <Ionicons name="chevron-down" size={18} color="#64748B" />
+        <Ionicons name="chevron-down" size={18} color={textTokens.secondary} />
       </Animated.View>
     </TouchableOpacity>
   );
@@ -122,22 +124,22 @@ const styles = StyleSheet.create({
   },
   item: {
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: borderTokens.primary,
   },
   trigger: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 16,
-    gap: 16,
+    paddingVertical: spacing.base,
+    gap: spacing.base,
   },
   triggerText: {
     flex: 1,
     fontSize: 15,
     fontWeight: '500',
-    color: '#0F172A',
+    color: textTokens.primary,
   },
   content: {
-    paddingBottom: 16,
+    paddingBottom: spacing.base,
   },
 });

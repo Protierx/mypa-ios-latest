@@ -12,6 +12,8 @@ import {
   TextStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { bg, text as textTokens, border as borderTokens } from '../../styles/colors';
+import { radius, spacing, shadows } from '../../styles/theme';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -120,7 +122,7 @@ export function Sheet({ visible, onClose, children, side = 'bottom' }: SheetProp
         >
           <View style={styles.handle} />
           <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
-            <Ionicons name="close" size={20} color="#64748B" />
+            <Ionicons name="close" size={20} color={textTokens.tertiary} />
           </TouchableOpacity>
           {children}
         </Animated.View>
@@ -148,7 +150,7 @@ export function SheetDescription({ children, style }: SheetDescriptionProps) {
 const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
   },
   overlayTouch: {
     flex: 1,
@@ -158,16 +160,17 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    backgroundColor: bg.elevated,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
     paddingBottom: 32,
     maxHeight: '80%',
+    ...shadows.lg,
   },
   handle: {
     width: 40,
     height: 4,
-    backgroundColor: '#E2E8F0',
+    backgroundColor: borderTokens.primary,
     borderRadius: 2,
     alignSelf: 'center',
     marginTop: 12,
@@ -175,17 +178,17 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     position: 'absolute',
-    top: 16,
-    right: 16,
+    top: spacing.base,
+    right: spacing.base,
     padding: 4,
     zIndex: 1,
   },
   header: {
-    padding: 16,
+    padding: spacing.base,
     gap: 4,
   },
   footer: {
-    padding: 16,
+    padding: spacing.base,
     paddingTop: 0,
     flexDirection: 'row',
     gap: 8,
@@ -193,10 +196,10 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#0F172A',
+    color: textTokens.primary,
   },
   description: {
     fontSize: 14,
-    color: '#64748B',
+    color: textTokens.secondary,
   },
 });

@@ -10,6 +10,8 @@ import {
   TextStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { bg, brand, text as textTokens, border as borderTokens } from '../../styles/colors';
+import { radius, spacing } from '../../styles/theme';
 
 interface SelectOption {
   label: string;
@@ -47,7 +49,7 @@ export function Select({
         <Text style={[styles.triggerText, !selectedOption && styles.placeholder]}>
           {selectedOption?.label || placeholder}
         </Text>
-        <Ionicons name="chevron-down" size={18} color="#64748B" />
+        <Ionicons name="chevron-down" size={18} color={textTokens.tertiary} />
       </TouchableOpacity>
 
       <Modal
@@ -65,7 +67,7 @@ export function Select({
             <View style={styles.header}>
               <Text style={styles.headerTitle}>Select</Text>
               <TouchableOpacity onPress={() => setIsOpen(false)}>
-                <Ionicons name="close" size={24} color="#64748B" />
+                <Ionicons name="close" size={24} color={textTokens.tertiary} />
               </TouchableOpacity>
             </View>
             <FlatList
@@ -83,7 +85,7 @@ export function Select({
                     {item.label}
                   </Text>
                   {item.value === value && (
-                    <Ionicons name="checkmark" size={20} color="#8B5CF6" />
+                    <Ionicons name="checkmark" size={20} color={brand.primary} />
                   )}
                 </TouchableOpacity>
               )}
@@ -103,61 +105,61 @@ const styles = StyleSheet.create({
     height: 44,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 8,
-    backgroundColor: '#FFFFFF',
+    borderColor: borderTokens.primary,
+    borderRadius: radius.sm,
+    backgroundColor: bg.card,
   },
   triggerText: {
     fontSize: 15,
-    color: '#0F172A',
+    color: textTokens.primary,
   },
   placeholder: {
-    color: '#94A3B8',
+    color: textTokens.disabled,
   },
   disabled: {
     opacity: 0.5,
   },
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
     justifyContent: 'flex-end',
   },
   content: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    backgroundColor: bg.elevated,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
     maxHeight: '60%',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 16,
+    padding: spacing.base,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: borderTokens.primary,
   },
   headerTitle: {
     fontSize: 17,
     fontWeight: '600',
-    color: '#0F172A',
+    color: textTokens.primary,
   },
   option: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 16,
+    padding: spacing.base,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomColor: borderTokens.secondary,
   },
   optionSelected: {
-    backgroundColor: '#F5F3FF',
+    backgroundColor: brand.muted,
   },
   optionText: {
     fontSize: 15,
-    color: '#0F172A',
+    color: textTokens.primary,
   },
   optionTextSelected: {
-    color: '#8B5CF6',
+    color: brand.primary,
     fontWeight: '500',
   },
 });

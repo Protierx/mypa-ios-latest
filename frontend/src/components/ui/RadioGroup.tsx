@@ -1,5 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ViewStyle, TextStyle } from 'react-native';
+import { bg, brand, text as textTokens, border as borderTokens } from '../../styles/colors';
+import { spacing } from '../../styles/theme';
 
 interface RadioGroupProps {
   value: string;
@@ -51,7 +53,7 @@ export function RadioGroupItem({ value, children, disabled, style }: RadioGroupI
 
 const styles = StyleSheet.create({
   group: {
-    gap: 12,
+    gap: spacing.md,
   },
   itemContainer: {
     flexDirection: 'row',
@@ -63,26 +65,26 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 10,
     borderWidth: 2,
-    borderColor: '#CBD5E1',
+    borderColor: borderTokens.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: bg.card,
   },
   radioSelected: {
-    borderColor: '#8B5CF6',
+    borderColor: brand.primary,
   },
   radioInner: {
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: '#8B5CF6',
+    backgroundColor: brand.primary,
   },
   disabled: {
     opacity: 0.5,
   },
   label: {
     fontSize: 15,
-    color: '#0F172A',
+    color: textTokens.primary,
   },
   labelDisabled: {
     opacity: 0.5,

@@ -1,5 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, ViewStyle, TextStyle } from 'react-native';
+import { bg, brand, text as textTokens, border as borderTokens, semantic } from '../../styles/colors';
+import { radius } from '../../styles/theme';
 
 type BadgeVariant = 'default' | 'secondary' | 'destructive' | 'outline';
 
@@ -12,20 +14,20 @@ interface BadgeProps {
 
 const variantStyles: Record<BadgeVariant, { container: ViewStyle; text: TextStyle }> = {
   default: {
-    container: { backgroundColor: '#8B5CF6' },
-    text: { color: '#FFFFFF' },
+    container: { backgroundColor: brand.primary },
+    text: { color: textTokens.inverse },
   },
   secondary: {
-    container: { backgroundColor: '#F1F5F9' },
-    text: { color: '#0F172A' },
+    container: { backgroundColor: bg.secondary },
+    text: { color: textTokens.primary },
   },
   destructive: {
-    container: { backgroundColor: '#FEE2E2' },
-    text: { color: '#DC2626' },
+    container: { backgroundColor: semantic.errorLight },
+    text: { color: semantic.error },
   },
   outline: {
-    container: { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#E2E8F0' },
-    text: { color: '#0F172A' },
+    container: { backgroundColor: 'transparent', borderWidth: 1, borderColor: borderTokens.primary },
+    text: { color: textTokens.primary },
   },
 };
 
@@ -47,7 +49,7 @@ const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 6,
+    borderRadius: radius.sm,
     alignSelf: 'flex-start',
   },
   text: {

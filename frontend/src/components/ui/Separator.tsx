@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, StyleSheet, ViewStyle } from 'react-native';
+import { border as borderTokens } from '../../styles/colors';
 
 interface SeparatorProps {
   orientation?: 'horizontal' | 'vertical';
@@ -20,7 +21,7 @@ export function Separator({ orientation = 'horizontal', style }: SeparatorProps)
 
 const styles = StyleSheet.create({
   base: {
-    backgroundColor: '#E2E8F0',
+    backgroundColor: borderTokens.primary,
   },
   horizontal: {
     height: 1,
