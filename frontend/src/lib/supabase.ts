@@ -117,12 +117,15 @@ export type Tables = {
   notifications: {
     id: string;
     user_id: string;
+    category: string;
     type: string;
     title: string;
     body: string | null;
     data: Record<string, any>;
     read: boolean;
+    read_at: string | null;
     created_at: string;
+    deleted_at: string | null;
   };
   user_events: {
     id: string;

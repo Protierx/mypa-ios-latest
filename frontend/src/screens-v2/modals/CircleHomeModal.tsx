@@ -75,7 +75,7 @@ const TABS: { key: TabType; label: string }[] = [
 export function CircleHomeModal({ visible, circleId, onClose, onOpenChallenge, onCreateChallenge, initialTab }: CircleHomeModalProps) {
   const { user } = useSupabaseAuth();
   const { getCircle, getCircleMembers, getUserRole, updateMemberRole, removeMember, leaveCircle, transferOwnership } = useCircles();
-  const { challenges: allChallenges } = useChallenges();
+  const { challenges: allChallenges, refresh: refreshChallenges } = useChallenges();
   const accountability = useCircleAccountability(visible ? circleId : null);
 
   const [circle, setCircle] = useState<CircleWithMembers | null>(null);
@@ -110,14 +110,14 @@ export function CircleHomeModal({ visible, circleId, onClose, onOpenChallenge, o
   }, [circleId, getCircle, getCircleMembers, getUserRole]);
 
   useEffect(() => {
-    if (visible && circleId) { setIsLoading(true); setActiveTab(initialTab || 'feed'); loadCircleData(); }
+    if (visible && circleId) { setIsLoading(true); setActiveTab(initialTab || 'feed'); loadCircleData(); refreshChallenges(); }
   }, [visible, circleId]);
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    await Promise.all([loadCircleData(), accountability.refresh()]);
+    await Promise.all([loadCircleData(), accountability.refresh(), refreshChallenges()]);
     setIsRefreshing(false);
-  }, [loadCircleData, accountability]);
+  }, [loadCircleData, accountability, refreshChallenges]);
 
   /* Actions */
   const handleCopyCode = useCallback(async () => {

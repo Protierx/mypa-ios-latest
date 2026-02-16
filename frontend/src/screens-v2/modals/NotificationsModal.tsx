@@ -1,11 +1,19 @@
 /**
- * Notifications Modal
- * 
- * Notifications center showing all app notifications.
- * Supports filtering by type and mark as read.
+ * Notifications Modal (v2)
+ *
+ * Full-featured notification center with:
+ *  • Tabbed filtering: All / Social / Tasks / System
+ *  • Unread dot indicators + per-tab unread counts
+ *  • Tap = mark read + deep-link
+ *  • Long-press = delete (soft)
+ *  • "Mark all read" scoped to active tab
+ *  • Cursor-based pagination (infinite scroll)
+ *  • Tab-specific empty states
+ *  • Footer hint
+ *  • Toast on failures
  */
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -14,6 +22,8 @@ import {
   FlatList,
   ActivityIndicator,
   RefreshControl,
+  StyleSheet,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,8 +31,18 @@ import * as Haptics from 'expo-haptics';
 
 import { useNotifications } from '../../hooks/supabase';
 import { Notification } from '../../lib/supabase';
+import { useGestureNavigation } from '../../navigation-v2/useGestureNavigation';
+import {
+  type NotificationTab,
+  TAB_LABELS,
+  TAB_EMPTY_STATES,
+  getNotificationIcon,
+  resolveDeepLink,
+} from '../../types/notifications';
 import { bg, brand, text as textTokens, border as borderTokens, semantic } from '../../styles/colors';
-import { shadows, radius } from '../../styles/theme';
+import { shadows, radius, spacing } from '../../styles/theme';
+
+// ── Props ───────────────────────────────────────────────────────────
 
 interface NotificationsModalProps {
   visible: boolean;
@@ -30,41 +50,42 @@ interface NotificationsModalProps {
   onNotificationPress?: (notification: Notification) => void;
 }
 
-type FilterType = 'all' | 'social' | 'tasks' | 'system';
+// ── Tabs ────────────────────────────────────────────────────────────
 
-const NOTIFICATION_ICONS: Record<string, { icon: string; color: string }> = {
-  circle_invite: { icon: 'people-outline', color: semantic.info },
-  challenge_update: { icon: 'trophy-outline', color: semantic.warning },
-  task_reminder: { icon: 'alarm-outline', color: semantic.error },
-  streak_warning: { icon: 'flame-outline', color: '#F97316' },
-  achievement: { icon: 'star-outline', color: semantic.warning },
-  system: { icon: 'information-circle-outline', color: textTokens.tertiary },
-  default: { icon: 'notifications-outline', color: brand.primary },
-};
+const TABS: NotificationTab[] = ['all', 'social', 'tasks', 'system'];
 
-const getNotificationIcon = (type: string) => {
-  return NOTIFICATION_ICONS[type] || NOTIFICATION_ICONS.default;
-};
-
-const getFilterForType = (type: string): FilterType => {
-  if (['circle_invite', 'challenge_update'].includes(type)) return 'social';
-  if (['task_reminder'].includes(type)) return 'tasks';
-  if (['system'].includes(type)) return 'system';
-  return 'all';
-};
+// ── Component ───────────────────────────────────────────────────────
 
 export function NotificationsModal({ visible, onClose, onNotificationPress }: NotificationsModalProps) {
-  const { notifications, loading: isLoading, refresh, markAsRead, markAllAsRead, deleteNotification } = useNotifications();
-  
-  const [filter, setFilter] = useState<FilterType>('all');
+  const {
+    notifications,
+    unreadCounts,
+    loading,
+    loadingMore,
+    hasMore,
+    activeTab,
+    setActiveTab,
+    markAsRead,
+    markAllAsRead,
+    deleteNotification,
+    loadMore,
+    refresh,
+  } = useNotifications();
+
+  const { navigateTo } = useGestureNavigation();
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const filteredNotifications = notifications.filter((n: Notification) => {
-    if (filter === 'all') return true;
-    return getFilterForType(n.type) === filter;
-  });
+  // Toast state
+  const [toast, setToast] = useState<{ message: string; visible: boolean }>({ message: '', visible: false });
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const unreadCount = notifications.filter((n: Notification) => !n.read).length;
+  const showToast = useCallback((message: string) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast({ message, visible: true });
+    toastTimer.current = setTimeout(() => setToast({ message: '', visible: false }), 2500);
+  }, []);
+
+  // ── Handlers ──────────────────────────────────────────────────────
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
@@ -72,86 +93,134 @@ export function NotificationsModal({ visible, onClose, onNotificationPress }: No
     setIsRefreshing(false);
   }, [refresh]);
 
+  const handleTabChange = useCallback((tab: NotificationTab) => {
+    Haptics.selectionAsync();
+    setActiveTab(tab);
+  }, [setActiveTab]);
+
   const handleMarkAllRead = useCallback(async () => {
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    await markAllAsRead();
-  }, [markAllAsRead]);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const success = await markAllAsRead();
+    if (!success) showToast('Failed to mark all as read');
+  }, [markAllAsRead, showToast]);
 
-  const handleNotificationPress = useCallback(async (notification: Notification) => {
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    
-    if (!notification.read) {
-      await markAsRead(notification.id);
+  const handlePress = useCallback(async (notification: Notification) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    // Mark as read
+    if (!notification.read_at) {
+      const ok = await markAsRead(notification.id);
+      if (!ok) showToast('Failed to mark as read');
     }
-    
-    onNotificationPress?.(notification);
-  }, [markAsRead, onNotificationPress]);
 
-  const handleDelete = useCallback(async (id: string) => {
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    await deleteNotification(id);
-  }, [deleteNotification]);
+    // Custom handler takes precedence
+    if (onNotificationPress) {
+      onNotificationPress(notification);
+      return;
+    }
+
+    // Deep-link
+    const target = resolveDeepLink(notification.type, notification.data);
+    if (target) {
+      onClose();
+      // Small delay to let modal dismiss
+      setTimeout(() => {
+        navigateTo(target.screen as any);
+        // TODO: open target.modal with target.params when modal routing is available
+      }, 350);
+    }
+  }, [markAsRead, onNotificationPress, onClose, navigateTo, showToast]);
+
+  const handleLongPress = useCallback((notification: Notification) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Alert.alert(
+      'Delete Notification',
+      'Remove this notification?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            const ok = await deleteNotification(notification.id);
+            if (!ok) showToast('Failed to delete notification');
+          },
+        },
+      ]
+    );
+  }, [deleteNotification, showToast]);
+
+  const handleEndReached = useCallback(() => {
+    if (hasMore && !loadingMore) loadMore();
+  }, [hasMore, loadingMore, loadMore]);
+
+  // ── Formatters ────────────────────────────────────────────────────
 
   const formatTimeAgo = (dateString: string): string => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-
+    const seconds = Math.floor((Date.now() - new Date(dateString).getTime()) / 1000);
     if (seconds < 60) return 'just now';
     if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
     if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
     if (seconds < 604800) return `${Math.floor(seconds / 86400)}d`;
-    return date.toLocaleDateString();
+    return new Date(dateString).toLocaleDateString();
   };
+
+  // ── Unread count for current tab ──────────────────────────────────
+
+  const currentTabUnread = unreadCounts[activeTab];
+
+  // ── Renders ───────────────────────────────────────────────────────
 
   const renderNotification = ({ item }: { item: Notification }) => {
     const { icon, color } = getNotificationIcon(item.type);
-    
+    const isUnread = !item.read_at;
+
     return (
       <TouchableOpacity
-        style={{
-          flexDirection: 'row', alignItems: 'flex-start', padding: 16,
-          borderBottomWidth: 0.5, borderBottomColor: borderTokens.primary,
-          backgroundColor: !item.read ? `${brand.primary}08` : 'transparent',
-        }}
-        onPress={() => handleNotificationPress(item)}
-        onLongPress={() => handleDelete(item.id)}
+        style={[s.notifRow, isUnread && s.notifRowUnread]}
+        onPress={() => handlePress(item)}
+        onLongPress={() => handleLongPress(item)}
+        activeOpacity={0.7}
       >
         {/* Icon */}
-        <View 
-          style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginRight: 12, backgroundColor: `${color}20` }}
-        >
+        <View style={[s.notifIcon, { backgroundColor: `${color}18` }]}>
           <Ionicons name={icon as any} size={20} color={color} />
         </View>
-        
+
         {/* Content */}
-        <View style={{ flex: 1 }}>
-          <Text style={{ color: textTokens.primary, fontWeight: '500', fontSize: 15 }}>{item.title}</Text>
-          {item.body && (
-            <Text style={{ color: textTokens.secondary, fontSize: 13, marginTop: 2 }} numberOfLines={2}>
-              {item.body}
-            </Text>
-          )}
-          <Text style={{ color: textTokens.tertiary, fontSize: 11, marginTop: 4 }}>
-            {formatTimeAgo(item.created_at)}
-          </Text>
+        <View style={s.notifContent}>
+          <Text style={[s.notifTitle, isUnread && s.notifTitleUnread]}>{item.title}</Text>
+          {item.body ? (
+            <Text style={s.notifBody} numberOfLines={2}>{item.body}</Text>
+          ) : null}
+          <Text style={s.notifTime}>{formatTimeAgo(item.created_at)}</Text>
         </View>
-        
-        {/* Unread Indicator */}
-        {!item.read && (
-          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: brand.primary, marginTop: 8 }} />
-        )}
+
+        {/* Unread dot */}
+        {isUnread && <View style={s.unreadDot} />}
       </TouchableOpacity>
     );
   };
 
-  const renderEmpty = () => (
-    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 80 }}>
-      <Ionicons name="notifications-off-outline" size={64} color={textTokens.disabled} />
-      <Text style={{ color: textTokens.secondary, fontSize: 18, marginTop: 16 }}>You're all caught up!</Text>
-      <Text style={{ color: textTokens.tertiary, marginTop: 4, fontSize: 14 }}>No new notifications</Text>
-    </View>
-  );
+  const renderEmpty = () => {
+    const emptyState = TAB_EMPTY_STATES[activeTab];
+    return (
+      <View style={s.emptyWrap}>
+        <Ionicons name={emptyState.icon as any} size={56} color={textTokens.disabled} />
+        <Text style={s.emptyTitle}>{emptyState.title}</Text>
+        <Text style={s.emptySubtitle}>{emptyState.subtitle}</Text>
+      </View>
+    );
+  };
+
+  const renderFooter = () => {
+    if (!loadingMore) return null;
+    return (
+      <View style={{ paddingVertical: 16, alignItems: 'center' }}>
+        <ActivityIndicator size="small" color={brand.primary} />
+      </View>
+    );
+  };
 
   if (!visible) return null;
 
@@ -162,75 +231,288 @@ export function NotificationsModal({ visible, onClose, onNotificationPress }: No
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <SafeAreaView style={{ flex: 1, backgroundColor: bg.primary }} edges={['top', 'bottom']}>
-        {/* Header */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 0.5, borderBottomColor: borderTokens.primary }}>
-          <TouchableOpacity onPress={onClose} style={{ padding: 8, marginLeft: -8 }}>
+      <SafeAreaView style={s.safeArea} edges={['top', 'bottom']}>
+        {/* ── Header ───────────────────────────────────────────── */}
+        <View style={s.header}>
+          <TouchableOpacity onPress={onClose} style={s.closeBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
             <Ionicons name="close" size={24} color={textTokens.primary} />
           </TouchableOpacity>
-          
-          <Text style={{ color: textTokens.primary, fontSize: 17, fontWeight: '600' }}>Notifications</Text>
-          
-          <TouchableOpacity 
+
+          <Text style={s.headerTitle}>Notifications</Text>
+
+          <TouchableOpacity
             onPress={handleMarkAllRead}
-            style={{ padding: 8, marginRight: -8 }}
-            disabled={unreadCount === 0}
+            style={s.markAllBtn}
+            disabled={currentTabUnread === 0}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Text style={{ fontSize: 13, color: unreadCount > 0 ? brand.primary : textTokens.disabled }}>
+            <Text style={[s.markAllText, currentTabUnread === 0 && { color: textTokens.disabled }]}>
               Mark all read
             </Text>
           </TouchableOpacity>
         </View>
 
-        {/* Filter Tabs */}
-        <View style={{ flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 0.5, borderBottomColor: borderTokens.primary }}>
-          {(['all', 'social', 'tasks', 'system'] as FilterType[]).map((f) => (
-            <TouchableOpacity
-              key={f}
-              style={{
-                flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 8, marginHorizontal: 4,
-                backgroundColor: filter === f ? brand.primary : 'transparent',
-              }}
-              onPress={() => {
-                Haptics.selectionAsync();
-                setFilter(f);
-              }}
-            >
-              <Text style={{ fontSize: 13, textTransform: 'capitalize', fontWeight: filter === f ? '600' : '500', color: filter === f ? '#fff' : textTokens.tertiary }}>
-                {f}
-              </Text>
-            </TouchableOpacity>
-          ))}
+        {/* ── Tabs ─────────────────────────────────────────────── */}
+        <View style={s.tabBar}>
+          {TABS.map((tab) => {
+            const isActive = activeTab === tab;
+            const count = unreadCounts[tab];
+            return (
+              <TouchableOpacity
+                key={tab}
+                style={[s.tab, isActive && s.tabActive]}
+                onPress={() => handleTabChange(tab)}
+                activeOpacity={0.7}
+              >
+                <Text style={[s.tabText, isActive && s.tabTextActive]}>
+                  {TAB_LABELS[tab]}
+                </Text>
+                {count > 0 && (
+                  <View style={[s.tabBadge, isActive && s.tabBadgeActive]}>
+                    <Text style={[s.tabBadgeText, isActive && s.tabBadgeTextActive]}>
+                      {count > 99 ? '99+' : count}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
-        {/* Notifications List */}
-        {isLoading ? (
-          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        {/* ── List ─────────────────────────────────────────────── */}
+        {loading ? (
+          <View style={s.loadingWrap}>
             <ActivityIndicator size="large" color={brand.primary} />
           </View>
         ) : (
           <FlatList
-            data={filteredNotifications}
+            data={notifications}
             renderItem={renderNotification}
             keyExtractor={(item) => item.id}
             ListEmptyComponent={renderEmpty}
+            ListFooterComponent={renderFooter}
+            onEndReached={handleEndReached}
+            onEndReachedThreshold={0.3}
             refreshControl={
-              <RefreshControl
-                refreshing={isRefreshing}
-                onRefresh={handleRefresh}
-                tintColor={brand.primary}
-              />
+              <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor={brand.primary} />
             }
+            contentContainerStyle={notifications.length === 0 ? { flex: 1 } : undefined}
           />
         )}
 
-        {/* Hint */}
-        <View style={{ paddingHorizontal: 20, paddingVertical: 12, borderTopWidth: 0.5, borderTopColor: borderTokens.primary }}>
-          <Text style={{ color: textTokens.tertiary, fontSize: 11, textAlign: 'center' }}>
-            Long press a notification to delete it
-          </Text>
+        {/* ── Footer hint ──────────────────────────────────────── */}
+        <View style={s.footerHint}>
+          <Text style={s.footerHintText}>Long press a notification to delete it</Text>
         </View>
+
+        {/* ── Toast ────────────────────────────────────────────── */}
+        {toast.visible && (
+          <View style={s.toast}>
+            <Text style={s.toastText}>{toast.message}</Text>
+          </View>
+        )}
       </SafeAreaView>
     </Modal>
   );
 }
+
+// ── Styles ──────────────────────────────────────────────────────────
+
+const s = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: bg.primary,
+  },
+
+  // Header
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 0.5,
+    borderBottomColor: borderTokens.primary,
+  },
+  closeBtn: {
+    padding: 4,
+  },
+  headerTitle: {
+    color: textTokens.primary,
+    fontSize: 17,
+    fontWeight: '600',
+  },
+  markAllBtn: {
+    padding: 4,
+  },
+  markAllText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: brand.primary,
+  },
+
+  // Tabs
+  tabBar: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 10,
+    borderBottomWidth: 0.5,
+    borderBottomColor: borderTokens.primary,
+    gap: 6,
+  },
+  tab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    borderRadius: radius.md,
+    backgroundColor: 'transparent',
+    gap: 4,
+  },
+  tabActive: {
+    backgroundColor: brand.primary,
+  },
+  tabText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: textTokens.tertiary,
+  },
+  tabTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  tabBadge: {
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: `${brand.primary}20`,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 5,
+  },
+  tabBadgeActive: {
+    backgroundColor: 'rgba(255,255,255,0.25)',
+  },
+  tabBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: brand.primary,
+  },
+  tabBadgeTextActive: {
+    color: '#FFFFFF',
+  },
+
+  // Notification row
+  notifRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 0.5,
+    borderBottomColor: borderTokens.primary,
+    backgroundColor: 'transparent',
+  },
+  notifRowUnread: {
+    backgroundColor: `${brand.primary}06`,
+  },
+  notifIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  notifContent: {
+    flex: 1,
+  },
+  notifTitle: {
+    color: textTokens.primary,
+    fontSize: 15,
+    fontWeight: '400',
+  },
+  notifTitleUnread: {
+    fontWeight: '600',
+  },
+  notifBody: {
+    color: textTokens.secondary,
+    fontSize: 13,
+    marginTop: 2,
+    lineHeight: 18,
+  },
+  notifTime: {
+    color: textTokens.tertiary,
+    fontSize: 11,
+    marginTop: 4,
+  },
+  unreadDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: brand.primary,
+    marginTop: 8,
+    marginLeft: 8,
+  },
+
+  // Empty state
+  emptyWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 40,
+  },
+  emptyTitle: {
+    color: textTokens.secondary,
+    fontSize: 18,
+    fontWeight: '600',
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    color: textTokens.tertiary,
+    fontSize: 14,
+    marginTop: 6,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+
+  // Loading
+  loadingWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Footer hint
+  footerHint: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderTopWidth: 0.5,
+    borderTopColor: borderTokens.primary,
+  },
+  footerHintText: {
+    color: textTokens.tertiary,
+    fontSize: 11,
+    textAlign: 'center',
+  },
+
+  // Toast
+  toast: {
+    position: 'absolute',
+    bottom: 60,
+    left: 24,
+    right: 24,
+    backgroundColor: 'rgba(0,0,0,0.8)',
+    borderRadius: radius.md,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  toastText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+});

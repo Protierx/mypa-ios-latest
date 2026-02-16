@@ -41,6 +41,7 @@ import { useAssistantSceneState } from './useAssistantSceneState';
 import { VoiceState } from '../../components/LivingBackground';
 import { VoicePermissions, useVoicePermissions } from '../../components/VoicePermissions';
 import { NotificationsModal } from '../modals/NotificationsModal';
+import { useNotifications } from '../../hooks/supabase/useNotifications';
 import { SoftUpsellSheet } from '../modals/SoftUpsellSheet';
 import { PaywallSheet } from '../modals/PaywallSheet';
 import { VoiceFeedbackPrompt } from '../../components/VoiceFeedbackPrompt';
@@ -101,6 +102,7 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
   const [greeting, setGreeting] = useState('');
   const [isLoadingGreeting, setIsLoadingGreeting] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const { unreadCounts } = useNotifications();
   const [showPaywall, setShowPaywall] = useState(false);
   const [textInputValue, setTextInputValue] = useState('');
   const textInputRef = useRef<TextInput>(null);
@@ -464,6 +466,13 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
               >
                 <View style={styles.notificationCircle}>
                   <Ionicons name="notifications-outline" size={20} color="rgba(255,255,255,0.6)" />
+                  {unreadCounts.all > 0 && (
+                    <View style={styles.notificationBadge}>
+                      <Text style={styles.notificationBadgeText}>
+                        {unreadCounts.all > 9 ? '9+' : unreadCounts.all}
+                      </Text>
+                    </View>
+                  )}
                 </View>
               </Pressable>
             </View>
@@ -825,6 +834,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#FF453A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 2,
+    borderColor: '#000',
+  },
+  notificationBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
   },
 
   // ── Briefing Pill (collapsed state) ──

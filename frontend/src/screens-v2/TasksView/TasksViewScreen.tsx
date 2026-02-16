@@ -38,7 +38,6 @@ import { useFocusModal } from '../../navigation-v2/FocusModalContext';
 import { eventLogger } from '../../services/eventLogger';
 import { useGamification } from '../../contexts/GamificationContext';
 import { analyticsInvalidationBus } from '../../services/analyticsInvalidationBus';
-import { MomentumStrip } from '../../components/MomentumStrip';
 import { bg, brand, text as textTokens, border as borderTokens, semantic } from '../../styles/colors';
 import { shadows, radius, spacing } from '../../styles/theme';
 
@@ -191,14 +190,6 @@ function formatDurationReadable(minutes: number): string {
   return `${h}h ${m.toString().padStart(2, '0')}m`;
 }
 
-interface TimeStats {
-  totalMinutes: number;
-  taskCount: number;
-  withEstimate: number;
-  missingEstimate: number;
-  label: string;
-}
-
 // ============================================================================
 // Main Component
 // ============================================================================
@@ -250,46 +241,6 @@ export function TasksViewScreen() {
   const activeTasks = useMemo(() => sortedTasks.filter((t) => t.status !== 'completed'), [sortedTasks]);
   const completedTasks = useMemo(() => sortedTasks.filter((t) => t.status === 'completed'), [sortedTasks]);
   const sections = useMemo(() => buildSections(sortedTasks, dateFilter, customDate), [sortedTasks, dateFilter, customDate]);
-
-  // Time stats — derived from the currently viewed day's tasks
-  const timeStats = useMemo(() => {
-    let relevantTasks: (Task | SortedTask)[] = [];
-    let label = 'Today';
-
-    if (dateFilter === 'today') {
-      const s = sections.find((sec) => sec.key === 'today');
-      relevantTasks = s ? s.data : [];
-      label = 'Today';
-    } else if (dateFilter === 'tomorrow') {
-      const s = sections.find((sec) => sec.key === 'tomorrow');
-      relevantTasks = s ? s.data : [];
-      label = 'Tomorrow';
-    } else if (dateFilter === 'custom' && customDate) {
-      const s = sections.find((sec) => sec.key === 'custom');
-      relevantTasks = s ? s.data : [];
-      label = customDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    } else {
-      // "All" filter — show stats for today's section
-      const s = sections.find((sec) => sec.key === 'today');
-      relevantTasks = s ? s.data : [];
-      label = 'Today';
-    }
-
-    let total = 0;
-    let withEst = 0;
-    let missing = 0;
-    for (const t of relevantTasks) {
-      if (t.estimated_duration && t.estimated_duration > 0) {
-        total += t.estimated_duration;
-        withEst++;
-      } else {
-        missing++;
-      }
-    }
-    return { totalMinutes: total, taskCount: relevantTasks.length, withEstimate: withEst, missingEstimate: missing, label };
-  }, [sections, dateFilter, customDate]);
-
-
 
   // Handlers
   const handleFilterChange = useCallback((filter: DateFilter, date?: Date) => {
@@ -538,9 +489,6 @@ export function TasksViewScreen() {
   const filterLabel = dateFilter === 'today' ? 'Today' : dateFilter === 'tomorrow' ? 'Tomorrow' : dateFilter === 'custom' ? 'Selected date' : 'All active';
   const renderListHeader = () => (
     <View style={{ paddingVertical: spacing.xs }}>
-      {/* Momentum Strip — gamification summary */}
-      <MomentumStrip />
-
       {/* Action Pills */}
       <View style={s.listHeaderPills}>
         <TouchableOpacity
@@ -571,38 +519,6 @@ export function TasksViewScreen() {
           <Text style={[s.pillBtnText, { color: brand.primary }]}>Brain Dump</Text>
         </TouchableOpacity>
       </View>
-
-      {/* Time Needed Card */}
-      {timeStats.taskCount > 0 && (
-        <View style={s.timeCard}>
-          <View style={s.timeIcon}>
-            <Ionicons name="timer-outline" size={18} color={brand.primary} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
-              <Text style={s.timeValue}>
-                {timeStats.withEstimate > 0 ? formatDurationReadable(timeStats.totalMinutes) : '—'}
-              </Text>
-              {timeStats.withEstimate > 0 && (
-                <Text style={s.timeEstLabel}>estimated</Text>
-              )}
-            </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 3 }}>
-              <Text style={s.timeMeta}>
-                {timeStats.label} · {timeStats.taskCount} task{timeStats.taskCount !== 1 ? 's' : ''}
-              </Text>
-              {timeStats.missingEstimate > 0 && (
-                <>
-                  <View style={{ width: 3, height: 3, borderRadius: 1.5, backgroundColor: textTokens.disabled, marginHorizontal: 8 }} />
-                  <Text style={{ fontSize: 12.5, color: semantic.warning, fontWeight: '500' }}>
-                    {timeStats.missingEstimate} unestimated
-                  </Text>
-                </>
-              )}
-            </View>
-          </View>
-        </View>
-      )}
     </View>
   );
 
@@ -1337,44 +1253,6 @@ const s = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     letterSpacing: 0.1,
-  },
-  timeCard: {
-    marginHorizontal: spacing.base,
-    marginTop: 6,
-    marginBottom: 2,
-    backgroundColor: bg.card,
-    borderRadius: radius.lg,
-    paddingHorizontal: spacing.base,
-    paddingVertical: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    ...shadows.sm,
-  },
-  timeIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: brand.muted,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 14,
-  },
-  timeValue: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: textTokens.primary,
-    letterSpacing: -0.3,
-  },
-  timeEstLabel: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: textTokens.tertiary,
-    marginLeft: 6,
-  },
-  timeMeta: {
-    fontSize: 12.5,
-    color: textTokens.tertiary,
-    fontWeight: '500',
   },
   // ── Completed Footer ──
   completedWrap: {

@@ -60,12 +60,21 @@ serve(async (req) => {
     const pushResult = await pushResponse.json()
 
     // Log notification in database
+    // Derive category from the notification type
+    const notifType = data?.type || 'general'
+    const SOCIAL_TYPES = ['CHALLENGE_CREATED', 'CHALLENGE_ENDING_SOON', 'CHALLENGE_CHECKIN_APPROVED']
+    const TASK_TYPES = ['TASK_DUE_SOON', 'TASK_OVERDUE_SUMMARY', 'DAILY_PLANNING_REMINDER']
+    const notifCategory = SOCIAL_TYPES.includes(notifType) ? 'social'
+      : TASK_TYPES.includes(notifType) ? 'tasks'
+      : 'system'
+
     await supabaseAdmin.from('notifications').insert({
       user_id: userId,
-      type: data?.type || 'general',
+      type: notifType,
       title,
       body,
       data: data || {},
+      category: notifCategory,
     })
 
     return new Response(

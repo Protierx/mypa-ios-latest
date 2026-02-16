@@ -338,42 +338,14 @@ export function SocialViewScreen() {
             </Text>
           ) : null}
 
-          {/* Inline active challenges for this circle */}
+          {/* Active challenges pill */}
           {challenges.length > 0 && (
-            <View style={s.inlineChallengesWrapper}>
-              <View style={s.inlineChallengesBox}>
-                {challenges.slice(0, 2).map((ch: any, idx: number) => {
-                  const progress = ch.userProgress || 0;
-                  const goal = ch.goal_value || 1;
-                  const pct = Math.min((progress / goal) * 100, 100);
-                  return (
-                    <TouchableOpacity
-                      key={ch.id}
-                      style={[
-                        s.inlineChallengeRow,
-                        idx > 0 && { marginTop: 10 },
-                      ]}
-                      onPress={() => { openChallenge(ch.id); }}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={s.challengeEmoji}>{ch.emoji || '🏆'}</Text>
-                      <View style={s.flex1}>
-                        <Text numberOfLines={1} style={s.challengeTitle}>{ch.title}</Text>
-                        <View style={s.progressBarTrack}>
-                          <View style={[s.progressBarFill, { width: `${pct}%`, backgroundColor: pct >= 100 ? semantic.success : brand.primary }]} />
-                        </View>
-                      </View>
-                      <Text style={s.challengePct}>
-                        {Math.round(pct)}%
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-                {challenges.length > 2 && (
-                  <Text style={s.moreChallengesText}>
-                    +{challenges.length - 2} more challenge{challenges.length - 2 !== 1 ? 's' : ''}
-                  </Text>
-                )}
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, marginLeft: 64 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: `${semantic.warning}14`, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, gap: 4 }}>
+                <Ionicons name="trophy" size={12} color={semantic.warning} />
+                <Text style={{ fontSize: 11.5, fontWeight: '600', color: semantic.warning }}>
+                  {challenges.length} active challenge{challenges.length !== 1 ? 's' : ''}
+                </Text>
               </View>
             </View>
           )}
@@ -799,16 +771,9 @@ const s = StyleSheet.create({
   circleMemberText: { fontSize: 12.5, color: textTokens.tertiary, fontWeight: '500' },
   circleDescription: { fontSize: 13.5, color: textTokens.tertiary, lineHeight: 19, marginTop: 12, marginLeft: 64 },
 
-  /* Inline Challenges */
-  inlineChallengesWrapper: { marginTop: 14, marginLeft: 64 },
-  inlineChallengesBox: { backgroundColor: bg.secondary, borderRadius: radius.md, padding: 12 },
-  inlineChallengeRow: { flexDirection: 'row', alignItems: 'center' },
-  challengeEmoji: { fontSize: 16, marginRight: 8 },
-  challengeTitle: { fontSize: 13, fontWeight: '600', color: textTokens.primary },
+  /* Inline Challenges (pill only — detailed view inside CircleHomeModal) */
   progressBarTrack: { height: 4, backgroundColor: borderTokens.primary, borderRadius: 2, marginTop: 5, overflow: 'hidden' },
   progressBarFill: { height: '100%', borderRadius: 2 },
-  challengePct: { fontSize: 11, fontWeight: '600', color: textTokens.tertiary, marginLeft: 10 },
-  moreChallengesText: { fontSize: 11.5, color: brand.primary, fontWeight: '600', marginTop: 8 },
 
   /* Empty State */
   emptyStateContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 40, paddingBottom: 60 },
