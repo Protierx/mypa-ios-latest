@@ -36,6 +36,87 @@ export interface ActionResult {
   confirmationPrompt?: string;
 }
 
+// ============================================================================
+// Param Normalization
+// ============================================================================
+
+function firstDefined<T>(...values: Array<T | undefined | null>): T | undefined {
+  for (const v of values) {
+    if (v !== undefined && v !== null) return v as T;
+  }
+  return undefined;
+}
+
+function normalizeActionParams(action: string, params: Record<string, unknown>): Record<string, unknown> {
+  const p = { ...params };
+
+  switch (action) {
+    case 'create_task':
+      p.title = firstDefined(p.title as string, p.task_name as string, p.task as string, p.name as string);
+      p.date = firstDefined(p.date as string, p.due_date as string, p.when as string);
+      p.priority = firstDefined(p.priority as string, p.importance as string);
+      p.duration_min = firstDefined(
+        p.duration_min as number,
+        p.duration as number,
+        p.minutes as number,
+        p.estimated_duration as number,
+      );
+      break;
+
+    case 'update_task':
+      p.task_name = firstDefined(p.task_name as string, p.task as string, p.name as string, p.title as string);
+      p.date = firstDefined(p.date as string, p.due_date as string, p.new_date as string, p.when as string);
+      p.duration_min = firstDefined(p.duration_min as number, p.duration as number, p.minutes as number);
+      break;
+
+    case 'complete_task':
+    case 'delete_task':
+      p.task_name = firstDefined(p.task_name as string, p.task as string, p.name as string, p.title as string);
+      break;
+
+    case 'reschedule_task':
+      p.task_name = firstDefined(p.task_name as string, p.task as string, p.name as string, p.title as string);
+      p.new_date = firstDefined(p.new_date as string, p.date as string, p.due_date as string, p.when as string);
+      break;
+
+    case 'start_focus_session':
+      p.duration_min = firstDefined(p.duration_min as number, p.duration as number, p.minutes as number);
+      p.task_name = firstDefined(p.task_name as string, p.task as string, p.name as string, p.title as string);
+      break;
+
+    case 'create_circle':
+      p.name = firstDefined(p.name as string, p.circle_name as string, p.title as string);
+      break;
+
+    case 'invite_to_circle':
+      p.circle_name = firstDefined(p.circle_name as string, p.circle as string, p.name as string);
+      p.username = firstDefined(p.username as string, p.user as string, p.user_name as string, p.handle as string);
+      break;
+
+    case 'create_challenge':
+      p.circle_name = firstDefined(p.circle_name as string, p.circle as string, p.name as string);
+      p.target_value = firstDefined(p.target_value as number, p.goal as number, p.goal_value as number, p.target as number);
+      p.duration_days = firstDefined(p.duration_days as number, p.days as number, p.duration as number);
+      break;
+
+    case 'post_to_circle':
+      p.circle_name = firstDefined(p.circle_name as string, p.circle as string, p.name as string);
+      p.content = firstDefined(p.content as string, p.message as string, p.text as string);
+      break;
+
+    case 'brain_dump':
+      p.content = firstDefined(p.content as string, p.text as string, p.message as string);
+      break;
+
+    case 'set_preference':
+      p.key = firstDefined(p.key as string, p.preference as string, p.name as string);
+      p.value = firstDefined(p.value as string, p.setting as string);
+      break;
+  }
+
+  return p;
+}
+
 /** Full response from voice-command Edge Function */
 export interface VoiceCommandResponse {
   success: boolean;
@@ -794,6 +875,7 @@ export async function executeAction(
   daysActive?: number,
 ): Promise<ActionResult> {
   const { action, params, confirmation_required, confidence } = actionJson;
+  const normalizedParams = normalizeActionParams(action, params || {});
 
   // ── Skip queries (handled server-side) ─────────────────────────
   if (QUERY_ACTIONS.has(action)) {
@@ -838,7 +920,7 @@ export async function executeAction(
 
   // ── Confirmation required (e.g. delete_task) ──────────────────
   if (confirmation_required) {
-    const taskName = (params.task_name as string) || 'that';
+    const taskName = (normalizedParams.task_name as string) || (normalizedParams.title as string) || 'that';
     return {
       success: false,
       message: '',
@@ -857,7 +939,7 @@ export async function executeAction(
   }
 
   try {
-    const result = await handler(params, userId);
+    const result = await handler(normalizedParams, userId);
     return result;
   } catch (error) {
     console.error(`[ActionExecutor] Error executing ${action}:`, error);

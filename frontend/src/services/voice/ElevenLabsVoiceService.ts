@@ -62,8 +62,8 @@ export const DEFAULT_ELEVENLABS_VOICE_ID = 'agent-default';
 /** Fallback voice ID for REST TTS calls (which have no agent config) */
 export const FALLBACK_TTS_VOICE_ID = 'cjVigY5qzO86Huf0OWal';
 
-/** Inactivity timeout — auto-end session after 30s silence (matches agent config) */
-export const SESSION_INACTIVITY_TIMEOUT_MS = 30_000;
+/** Inactivity timeout — auto-end session after sustained silence */
+export const SESSION_INACTIVITY_TIMEOUT_MS = 90_000;
 
 // ============================================================================
 // Types

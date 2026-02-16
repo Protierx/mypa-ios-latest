@@ -179,14 +179,33 @@ export function useCircles(): UseCirclesReturn {
 
     try {
       const code = inviteCode.trim().toLowerCase();
+      let circle: { id: string; name: string } | null = null;
 
-      const { data: circle, error: lookupErr } = await supabase
+      // Primary path: legacy/newer schemas that still have circles.invite_code
+      const { data: byInviteCode, error: inviteLookupErr } = await supabase
         .from('circles')
         .select('id, name')
         .eq('invite_code', code)
         .maybeSingle();
 
-      if (lookupErr) throw lookupErr;
+      if (inviteLookupErr && (inviteLookupErr as any).code !== '42703') throw inviteLookupErr;
+      circle = byInviteCode || null;
+
+      // Fallback path: schemas where invite_code was removed.
+      // The UI already shares circle.id.substring(0, 8) as code fallback.
+      if (!circle && inviteLookupErr && (inviteLookupErr as any).code === '42703') {
+        const { data: allCircles, error: fallbackErr } = await supabase
+          .from('circles')
+          .select('id, name');
+        if (fallbackErr) throw fallbackErr;
+
+        const normalized = code.replace(/[^a-z0-9]/g, '');
+        circle = (allCircles || []).find((c: any) => {
+          const idNorm = String(c.id || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+          return idNorm === normalized || idNorm.startsWith(normalized);
+        }) || null;
+      }
+
       if (!circle) return { success: false, error: 'Invalid invite code. Please check and try again.' };
 
       const { count } = await supabase

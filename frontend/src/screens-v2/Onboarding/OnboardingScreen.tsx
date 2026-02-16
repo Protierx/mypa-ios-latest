@@ -46,7 +46,6 @@ import Animated, {
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
-import * as Speech from 'expo-speech';
 import * as Notifications from 'expo-notifications';
 
 // Safe imports for native modules that may not be available in Expo Go
@@ -64,6 +63,7 @@ try {
   console.warn('[Onboarding] expo-tracking-transparency not available (Expo Go?)');
 }
 import { useSupabaseAuth } from '../../contexts/SupabaseAuthContext';
+import { useVoice } from '../../contexts/VoiceContext';
 import { supabase } from '../../lib/supabase';
 import { eventLogger } from '../../services/eventLogger';
 import { brand, text as textTokens, bg, semantic, border as borderTokens } from '../../styles/colors';
@@ -113,6 +113,17 @@ interface PermissionItem {
 
 export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
   const { user, updateProfile } = useSupabaseAuth();
+  const {
+    speak: voiceSpeak,
+    voiceState,
+    startListening,
+    endConversation,
+    isConversationActive,
+    aiResponse,
+    transcript,
+    audioLevel,
+    setPreferredLanguage,
+  } = useVoice();
 
   const [step, setStep] = useState<OnboardingStep>('welcome');
   const [timezone, setTimezone] = useState('');
@@ -288,59 +299,85 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
   const handleVoiceIntro = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsGreetingPlaying(true);
+
+    // Sync language preference with VoiceContext before speaking
+    setPreferredLanguage(selectedLanguage.code);
+
     const name = user?.name || 'there';
     const greeting = `Hi ${name}! I'm MYPA, your personal AI assistant. I can help you manage tasks, set focus sessions, and keep you on track — all with your voice. Let's try it out!`;
     setGreetingText(greeting);
 
     try {
-      await new Promise<void>((resolve) => {
-        Speech.speak(greeting, {
-          language: selectedLanguage.ttsCode,
-          rate: 0.95,
-          onDone: resolve,
-          onStopped: resolve,
-          onError: () => resolve(),
-        });
-      });
+      // Use ElevenLabs TTS via VoiceContext (falls back to device speech if edge function unavailable)
+      await voiceSpeak(greeting);
     } catch {
       // TTS failed — fine, text is shown
     }
     setIsGreetingPlaying(false);
     setTimeout(() => setStep('first_command'), 500);
-  }, [user, selectedLanguage]);
+  }, [user, selectedLanguage, voiceSpeak, setPreferredLanguage]);
 
   const handleFirstCommand = useCallback(async () => {
-    if (isCreatingTask) return;
+    if (isCreatingTask || isConversationActive) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsCreatingTask(true);
 
     try {
-      if (!user) throw new Error('No user');
-
-      const tomorrow = new Date();
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      tomorrow.setHours(9, 0, 0, 0);
-
-      const { error: insertError } = await supabase.from('tasks').insert({
-        user_id: user.id,
-        title: 'Buy groceries',
-        due_date: tomorrow.toISOString(),
-        priority: 'medium',
-        status: 'pending',
-        estimated_duration: 30,
-      });
-
-      if (insertError) throw insertError;
-
-      setFirstCommandDone(true);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      // Start a real ElevenLabs conversational session —
+      // the user can speak naturally (e.g. "Add buy groceries tomorrow")
+      // and the agent will process it.
+      await startListening();
     } catch (err) {
-      console.warn('[Onboarding] Task creation failed:', err);
-      setFirstCommandDone(true);
+      console.warn('[Onboarding] Voice session failed, creating sample task:', err);
+      // Fallback: create task directly via Supabase if voice session fails
+      try {
+        if (user) {
+          const tomorrow = new Date();
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          tomorrow.setHours(9, 0, 0, 0);
+
+          await supabase.from('tasks').insert({
+            user_id: user.id,
+            title: 'Buy groceries',
+            due_date: tomorrow.toISOString(),
+            priority: 'medium',
+            status: 'pending',
+            estimated_duration: 30,
+          });
+        }
+        setFirstCommandDone(true);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      } catch {
+        setFirstCommandDone(true);
+      }
     } finally {
       setIsCreatingTask(false);
     }
-  }, [user, isCreatingTask]);
+  }, [user, isCreatingTask, isConversationActive, startListening]);
+
+  // Watch for the agent completing a voice command (task created by AI)
+  const prevAiResponseRef = useRef('');
+  useEffect(() => {
+    if (step !== 'first_command') return;
+    if (!aiResponse || aiResponse === prevAiResponseRef.current) return;
+    prevAiResponseRef.current = aiResponse;
+    // The agent responded — mark command as done
+    setFirstCommandDone(true);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    // End the conversation session after a short delay
+    setTimeout(() => {
+      endConversation();
+    }, 2000);
+  }, [aiResponse, step, endConversation]);
+
+  // End conversation when leaving onboarding
+  useEffect(() => {
+    return () => {
+      if (isConversationActive) {
+        endConversation();
+      }
+    };
+  }, [isConversationActive, endConversation]);
 
   const handleComplete = useCallback(async () => {
     if (isCompleting) return;
@@ -633,18 +670,24 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
           <Animated.View entering={SlideInRight.duration(400)} style={styles.stepContainer}>
             <Animated.View style={[styles.orbContainer, orbAnimatedStyle]}>
               <LinearGradient
-                colors={isGreetingPlaying ? ['#34D399', '#10B981'] : ['#7C3AED', '#6366F1', '#8B5CF6']}
+                colors={isGreetingPlaying || voiceState === 'speaking'
+                  ? ['#34D399', '#10B981']
+                  : ['#7C3AED', '#6366F1', '#8B5CF6']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
-                style={styles.orb}
+                style={[styles.orb, isGreetingPlaying && { transform: [{ scale: 1 + audioLevel * 0.3 }] }]}
               >
-                <Ionicons name={isGreetingPlaying ? 'volume-high' : 'mic'} size={40} color="#FFFFFF" />
+                <Ionicons
+                  name={isGreetingPlaying || voiceState === 'speaking' ? 'volume-high' : 'mic'}
+                  size={40}
+                  color="#FFFFFF"
+                />
               </LinearGradient>
             </Animated.View>
 
             <Text style={styles.title}>Meet Your Assistant</Text>
             <Text style={styles.subtitle}>
-              MYPA understands natural language.{'\n'}Tap below to hear your first greeting.
+              MYPA uses AI to understand you naturally.{'\n'}Tap below to hear your first greeting.
             </Text>
 
             {greetingText ? (
@@ -692,18 +735,39 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
               <>
                 <Animated.View style={[styles.orbContainer, orbAnimatedStyle]}>
                   <TouchableOpacity
-                    onPress={handleFirstCommand}
+                    onPress={isConversationActive ? endConversation : handleFirstCommand}
                     activeOpacity={0.85}
                     disabled={isCreatingTask}
                   >
                     <LinearGradient
-                      colors={isCreatingTask ? ['#34D399', '#10B981'] : ['#7C3AED', '#6366F1', '#8B5CF6']}
+                      colors={
+                        isConversationActive
+                          ? voiceState === 'listening'
+                            ? ['#34D399', '#10B981']
+                            : voiceState === 'speaking'
+                            ? ['#6366F1', '#818CF8']
+                            : ['#F59E0B', '#D97706']
+                          : isCreatingTask
+                          ? ['#F59E0B', '#D97706']
+                          : ['#7C3AED', '#6366F1', '#8B5CF6']
+                      }
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
-                      style={styles.orb}
+                      style={[
+                        styles.orb,
+                        isConversationActive && {
+                          transform: [{ scale: 1 + audioLevel * 0.3 }],
+                        },
+                      ]}
                     >
-                      {isCreatingTask ? (
+                      {isCreatingTask && !isConversationActive ? (
                         <ActivityIndicator color="#FFFFFF" size="large" />
+                      ) : isConversationActive ? (
+                        <Ionicons
+                          name={voiceState === 'listening' ? 'mic' : voiceState === 'speaking' ? 'volume-high' : 'radio'}
+                          size={40}
+                          color="#FFFFFF"
+                        />
                       ) : (
                         <Ionicons name="mic" size={40} color="#FFFFFF" />
                       )}
@@ -711,19 +775,42 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
                   </TouchableOpacity>
                 </Animated.View>
 
-                <Text style={styles.title}>Try Your First Command</Text>
+                <Text style={styles.title}>
+                  {isConversationActive ? 'Listening...' : 'Try Your First Command'}
+                </Text>
                 <Text style={styles.subtitle}>
-                  Tap the orb above and we'll add a sample task for you.
+                  {isConversationActive
+                    ? 'Say something like "Add buy groceries tomorrow"'
+                    : 'Tap the orb to start talking to MYPA.'}
                 </Text>
 
-                <View style={styles.exampleCard}>
-                  <Ionicons name="chatbubble-outline" size={18} color="#A78BFA" />
-                  <Text style={styles.exampleText}>"Add buy groceries tomorrow"</Text>
-                </View>
+                {/* Live transcript */}
+                {isConversationActive && transcript ? (
+                  <Animated.View entering={FadeIn.duration(300)} style={styles.transcriptCard}>
+                    <Text style={styles.transcriptLabel}>You said:</Text>
+                    <Text style={styles.transcriptText}>{transcript}</Text>
+                  </Animated.View>
+                ) : null}
+
+                {/* AI response */}
+                {isConversationActive && aiResponse ? (
+                  <Animated.View entering={FadeIn.duration(300)} style={styles.transcriptCard}>
+                    <Text style={[styles.transcriptLabel, { color: '#34D399' }]}>MYPA:</Text>
+                    <Text style={styles.transcriptText}>{aiResponse}</Text>
+                  </Animated.View>
+                ) : null}
+
+                {!isConversationActive && (
+                  <View style={styles.exampleCard}>
+                    <Ionicons name="chatbubble-outline" size={18} color="#A78BFA" />
+                    <Text style={styles.exampleText}>"Add buy groceries tomorrow"</Text>
+                  </View>
+                )}
 
                 <TouchableOpacity
                   style={styles.secondaryBtn}
                   onPress={() => {
+                    if (isConversationActive) endConversation();
                     setFirstCommandDone(true);
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   }}
@@ -1057,6 +1144,15 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.75)',
     lineHeight: 24,
     textAlign: 'center',
+  },
+  transcriptLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#A78BFA',
+    marginBottom: 6,
+    textAlign: 'center',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
 
   // Example card

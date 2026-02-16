@@ -561,9 +561,17 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
             // Wake word heard → pause wake word to release mic, then start session
             console.log('[WakeWord] Triggering startListening()');
             wakeWordService.pause().then(() => {
-              startListeningRef.current?.();
+              const start = startListeningRef.current;
+              if (!start) return;
+              start().catch((err) => {
+                console.warn('[WakeWord] startListening failed:', err);
+              });
             }).catch(() => {
-              startListeningRef.current?.();
+              const start = startListeningRef.current;
+              if (!start) return;
+              start().catch((err) => {
+                console.warn('[WakeWord] startListening failed:', err);
+              });
             });
           },
           onError: (err) => {
@@ -669,8 +677,6 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
       return;
     }
 
-    sessionStartInFlightRef.current = true;
-
     // Connection quality check (Step 20a) — use cached result if <10s old
     const cached = lastQualityCheckRef.current;
     let quality: ConnectionQuality;
@@ -702,6 +708,7 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
       inactivityTimerRef.current = null;
     }
 
+    sessionStartInFlightRef.current = true;
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
@@ -1411,10 +1418,11 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
         commitStrategy: options?.commitStrategy || 'vad',
         languageCode: options?.languageCode || preferredLanguage,
         includeTimestamps: false,
-        vadSilenceThreshold: 1.5,
+        // Lower silence threshold for snappier commit latency.
+        vadSilenceThreshold: 0.8,
         vadThreshold: 0.4,
         minSpeechDurationMs: 100,
-        minSilenceDurationMs: 100,
+        minSilenceDurationMs: 80,
         previousText: prevText,
         onPartialTranscript: (text) => {
           setScribePartialTranscript(text);

@@ -61,10 +61,11 @@ const AUDIO_FORMAT = 'pcm_16000';
 
 /**
  * Buffer N frames before sending to reduce WebSocket message overhead.
- * 4 frames × 32ms = ~128ms of audio per message — within the 0.1–1s
+ * 3 frames × 32ms = ~96ms of audio per message — lower latency while staying
+ * within the 0.1–1s
  * best-practice range (21h) for smooth streaming.
  */
-const FRAMES_PER_CHUNK = 4;
+const FRAMES_PER_CHUNK = 3;
 
 /**
  * Maximum frames to buffer before force-flushing (21h safety guard).
@@ -72,6 +73,9 @@ const FRAMES_PER_CHUNK = 4;
  * trigger a `chunk_size_exceeded` error even if the WebSocket stalls briefly.
  */
 const MAX_FRAMES_PER_FLUSH = 32;
+
+/** Periodic flush to keep partial transcripts responsive during short pauses */
+const FLUSH_INTERVAL_MS = 90;
 
 /**
  * Clipping detection threshold (21h). If more than this fraction of
@@ -250,6 +254,7 @@ class ScribeServiceImpl {
 
   /** Whether a reconnection is in progress (prevents concurrent reconnects) */
   private _isReconnecting = false;
+  private flushInterval: ReturnType<typeof setInterval> | null = null;
 
   // -----------------------------------------------------------------------
   // Public getters
@@ -666,6 +671,9 @@ class ScribeServiceImpl {
       this.voiceProcessor!.addErrorListener(this.handleAudioError);
       await this.voiceProcessor!.start(FRAME_LENGTH, SAMPLE_RATE);
 
+      // Keep outbound chunks flowing even when frame cadence is bursty.
+      this.startFlushLoop();
+
       console.log('[Scribe] Audio capture started (VoiceProcessor)');
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
@@ -678,6 +686,7 @@ class ScribeServiceImpl {
     if (!this.voiceProcessor) return;
 
     try {
+      this.stopFlushLoop();
       this.voiceProcessor.removeFrameListener(this.handleAudioFrame);
       this.voiceProcessor.removeErrorListener(this.handleAudioError);
       await this.voiceProcessor.stop();
@@ -753,6 +762,20 @@ class ScribeServiceImpl {
   // -----------------------------------------------------------------------
   // Private: state management
   // -----------------------------------------------------------------------
+
+  private startFlushLoop(): void {
+    if (this.flushInterval) return;
+    this.flushInterval = setInterval(() => {
+      if (this.frameBuffer.length === 0) return;
+      this.flushFrameBuffer(false);
+    }, FLUSH_INTERVAL_MS);
+  }
+
+  private stopFlushLoop(): void {
+    if (!this.flushInterval) return;
+    clearInterval(this.flushInterval);
+    this.flushInterval = null;
+  }
 
   private setState(state: ScribeState): void {
     if (this._state === state) return;
