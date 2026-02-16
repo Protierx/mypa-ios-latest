@@ -23,6 +23,8 @@ import * as Haptics from 'expo-haptics';
 import { useChallenges } from '../../hooks/supabase/useChallenges';
 import { Challenge } from '../../lib/supabase';
 import { useSupabaseAuth } from '../../contexts/SupabaseAuthContext';
+import { api } from '../../services/supabaseApi';
+import { analyticsInvalidationBus } from '../../services/analyticsInvalidationBus';
 
 import { bg, brand, text as textTokens, border as borderTokens, semantic } from '../../styles/colors';
 import { shadows, radius, spacing } from '../../styles/theme';
@@ -105,10 +107,14 @@ export function ChallengeDetailModal({ visible, challengeId, onClose }: Challeng
     setIsSubmitting(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
-      const ok = await submitProof(challengeId, 'checkin');
-      if (ok) {
+      // Use edge function for proper gamification + analytics pipeline
+      const eventId = `checkin-${challengeId}-${Date.now()}`;
+      const response = await api.challengeCheckIn(eventId, challengeId);
+      if (response.ok) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         setMyProgress(prev => prev + 1);
+        // Invalidate analytics cache
+        analyticsInvalidationBus.invalidate();
         // Reload leaderboard
         const lb = await getChallengeLeaderboard(challengeId);
         setLeaderboard(lb || []);
@@ -117,12 +123,15 @@ export function ChallengeDetailModal({ visible, challengeId, onClose }: Challeng
       } else {
         Alert.alert('Error', 'Could not submit. Try again.');
       }
-    } catch {
-      Alert.alert('Error', 'Something went wrong.');
+    } catch (err: any) {
+      const msg = err?.message?.includes('Already checked in')
+        ? 'Already checked in today!'
+        : 'Something went wrong.';
+      Alert.alert('Error', msg);
     } finally {
       setIsSubmitting(false);
     }
-  }, [challengeId, isSubmitting, submitProof, getChallengeLeaderboard, user?.id]);
+  }, [challengeId, isSubmitting, getChallengeLeaderboard, user?.id]);
 
   const getTimeRemaining = (): string => {
     if (!challenge?.ends_at) return '';
@@ -141,10 +150,14 @@ export function ChallengeDetailModal({ visible, challengeId, onClose }: Challeng
 
   const getTypeLabel = (): string => {
     if (!challenge) return 'progress';
-    switch (challenge.type) {
-      case 'focus_time': return 'minutes focused';
+    const method = (challenge as any).tracking_method || challenge.type;
+    switch (method) {
+      case 'focus_time':
+      case 'focus_minutes': return 'minutes focused';
       case 'tasks_completed': return 'tasks completed';
-      case 'daily_checkin': return 'days checked in';
+      case 'daily_checkin':
+      case 'active_days': return 'days active';
+      case 'proof_checkin': return 'check-ins submitted';
       default: return 'progress';
     }
   };
@@ -212,7 +225,7 @@ export function ChallengeDetailModal({ visible, challengeId, onClose }: Challeng
             </View>
 
             {/* Check-in / Submit Button */}
-            {challenge.type === 'daily_checkin' && challenge.status === 'active' && (
+            {(challenge.type === 'daily_checkin' || (challenge as any).tracking_method === 'proof_checkin') && challenge.status === 'active' && (
               <View style={{ paddingHorizontal: 16, marginBottom: 16 }}>
                 <TouchableOpacity
                   style={{

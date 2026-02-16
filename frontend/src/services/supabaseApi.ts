@@ -218,6 +218,13 @@ class SupabaseApiService {
     });
   }
 
+  /** Create a new challenge via edge function */
+  async createChallenge(payload: CreateChallengeRequest): Promise<CreateChallengeResponse> {
+    return invokeWithRetry<CreateChallengeResponse>('create-challenge', {
+      body: payload as unknown as Record<string, unknown>,
+    });
+  }
+
   /** Fetch analytics summary from the edge function. */
   async getAnalyticsSummary(period: string = '7d'): Promise<AnalyticsSummaryResponse> {
     // Use POST with period in the body — method:'GET' on invoke() causes
@@ -246,6 +253,7 @@ class SupabaseApiService {
 // Import gamification types
 import type { TaskCompletedResponse, FocusCompletedResponse, CheckinResponse, ApproveResponse } from '@/types/gamification';
 import type { AnalyticsSummaryResponse } from '@/types/analytics';
+import type { CreateChallengeRequest, CreateChallengeResponse } from '@/types/challenge';
 
 // Export singleton instance
 export const api = new SupabaseApiService();
@@ -262,6 +270,7 @@ export const taskCompleted = (eventId: string, taskId: string) => api.taskComple
 export const focusCompleted = (eventId: string, sessionId: string, actualMinutes: number) => api.focusCompleted(eventId, sessionId, actualMinutes);
 export const challengeCheckIn = (eventId: string, challengeId: string, note?: string, proofUrl?: string) => api.challengeCheckIn(eventId, challengeId, note, proofUrl);
 export const approveCheckIn = (checkinId: string, decision: 'accepted' | 'rejected') => api.approveCheckIn(checkinId, decision);
+export const createChallenge = (payload: CreateChallengeRequest) => api.createChallenge(payload);
 export const getAnalyticsSummary = (period?: string) => api.getAnalyticsSummary(period);
 
 export default api;

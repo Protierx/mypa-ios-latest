@@ -138,13 +138,13 @@ export function GamificationProvider({ children }: { children: ReactNode }) {
         // Load active challenge progress
         const { data: challengeData } = await supabase
           .from('challenge_participants')
-          .select('challenge_id, progress, challenges!inner(id, title, type, goal_value, status)')
+          .select('challenge_id, progress, challenges!inner(id, title, type, tracking_method, goal_value, status)')
           .eq('user_id', user.id)
           .eq('challenges.status', 'active');
 
         const activeChallenges: ChallengeUpdate[] = (challengeData || []).map((cp: any) => ({
           challengeId: cp.challenge_id,
-          type: cp.challenges.type,
+          type: cp.challenges.tracking_method || cp.challenges.type,
           progressValue: cp.progress,
           target: cp.challenges.goal_value,
           completed: cp.progress >= cp.challenges.goal_value,
@@ -258,9 +258,10 @@ export function GamificationProvider({ children }: { children: ReactNode }) {
 
           // 4. Challenge update toasts
           for (const cu of response.challengeUpdates) {
+            const toastTitle = challengeToastTitle(cu.type);
             pushToast({
               kind: 'challenge',
-              title: cu.type === 'tasks_completed' ? 'Task Challenge' : 'Check-in Streak',
+              title: toastTitle,
               progress: cu.progressValue,
               target: cu.target,
             });
@@ -272,12 +273,16 @@ export function GamificationProvider({ children }: { children: ReactNode }) {
           }
 
           // 6. Invalidate analytics cache so AnalyticsModal shows fresh data
-          analyticsInvalidationBus.invalidate();
+          // Small delay to ensure daily_user_stats has fully committed
+          setTimeout(() => analyticsInvalidationBus.invalidate(), 600);
         })
         .catch(async (err) => {
           console.warn('[Gamification] Edge function failed, queueing:', err);
           // Queue for retry (idempotent via event_id)
           await enqueueEvent(eventId, taskId);
+          // Still invalidate analytics — the task was marked completed in the DB
+          // by useTasks.completeTask(), so the fallback query will find it
+          setTimeout(() => analyticsInvalidationBus.invalidate(), 800);
         });
     },
     [state.todayXp, pushToast, applyServerResponse],
@@ -343,11 +348,13 @@ export function GamificationProvider({ children }: { children: ReactNode }) {
             pushToast({ kind: 'levelUp', newLevel: response.level });
           }
 
-          // Invalidate analytics cache
-          analyticsInvalidationBus.invalidate();
+          // Invalidate analytics cache (delay to allow DB commit)
+          setTimeout(() => analyticsInvalidationBus.invalidate(), 600);
         })
         .catch((err) => {
           console.warn('[Gamification] focus-completed failed:', err);
+          // Still invalidate analytics in case partial data was written
+          setTimeout(() => analyticsInvalidationBus.invalidate(), 800);
         });
     },
     [state.todayXp, pushToast, applyServerResponse],
@@ -360,6 +367,22 @@ export function GamificationProvider({ children }: { children: ReactNode }) {
       {children}
     </GamificationContext.Provider>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Challenge toast label helper
+// ---------------------------------------------------------------------------
+
+function challengeToastTitle(type: string): string {
+  switch (type) {
+    case 'tasks_completed': return 'Task Challenge';
+    case 'focus_minutes':
+    case 'focus_time': return 'Focus Challenge';
+    case 'active_days': return 'Active Days';
+    case 'proof_checkin':
+    case 'daily_checkin': return 'Check-in Streak';
+    default: return 'Challenge';
+  }
 }
 
 // ---------------------------------------------------------------------------

@@ -96,10 +96,12 @@ export function SocialViewScreen() {
   // Modals
   const [selectedCircleId, setSelectedCircleId] = useState<string | null>(null);
   const [showCircleHome, setShowCircleHome] = useState(false);
+  const [circleHomeInitialTab, setCircleHomeInitialTab] = useState<'feed' | 'challenges' | 'overview' | undefined>(undefined);
   const [selectedChallengeId, setSelectedChallengeId] = useState<string | null>(null);
   const [showChallengeDetail, setShowChallengeDetail] = useState(false);
   const [showCreateCircle, setShowCreateCircle] = useState(false);
   const [showCreateChallenge, setShowCreateChallenge] = useState(false);
+  const [createChallengeCircleId, setCreateChallengeCircleId] = useState<string | null>(null);
   const [showPaywall, setShowPaywall] = useState(false);
   const [showActiveChallenges, setShowActiveChallenges] = useState(false);
 
@@ -531,9 +533,10 @@ export function SocialViewScreen() {
       <CircleHomeModal
         visible={showCircleHome}
         circleId={selectedCircleId}
-        onClose={() => { setShowCircleHome(false); setSelectedCircleId(null); refreshCircles(); }}
+        initialTab={circleHomeInitialTab}
+        onClose={() => { setShowCircleHome(false); setSelectedCircleId(null); setCircleHomeInitialTab(undefined); refreshCircles(); }}
         onOpenChallenge={(challengeId: string) => { setShowCircleHome(false); setSelectedChallengeId(challengeId); setShowChallengeDetail(true); }}
-        onCreateChallenge={() => { setShowCircleHome(false); setShowCreateChallenge(true); }}
+        onCreateChallenge={() => { setShowCircleHome(false); setCreateChallengeCircleId(selectedCircleId); setShowCreateChallenge(true); }}
       />
       <ChallengeDetailModal
         visible={showChallengeDetail}
@@ -547,8 +550,41 @@ export function SocialViewScreen() {
       />
       <CreateChallengeSheet
         visible={showCreateChallenge}
-        onClose={() => setShowCreateChallenge(false)}
-        onChallengeCreated={() => { setShowCreateChallenge(false); refreshChallenges(); }}
+        circleId={createChallengeCircleId || undefined}
+        onClose={() => {
+          const circleId = createChallengeCircleId;
+          setShowCreateChallenge(false);
+          setCreateChallengeCircleId(null);
+          // Reopen circle modal so user returns to where they came from
+          if (circleId) {
+            setTimeout(() => {
+              setSelectedCircleId(circleId);
+              setCircleHomeInitialTab('challenges');
+              setShowCircleHome(true);
+            }, 350);
+          }
+        }}
+        onChallengeCreated={(challenge) => {
+          setShowCreateChallenge(false);
+          refreshChallenges();
+          const circleId = createChallengeCircleId;
+          setCreateChallengeCircleId(null);
+          // Open Challenge Detail for the newly created challenge
+          // Use setTimeout to let the CreateChallengeSheet Modal fully dismiss first
+          if (challenge?.id) {
+            setTimeout(() => {
+              setSelectedChallengeId(challenge.id);
+              setShowChallengeDetail(true);
+            }, 350);
+          } else if (circleId) {
+            // Fallback: reopen circle modal on Challenges tab so the new challenge is visible
+            setTimeout(() => {
+              setSelectedCircleId(circleId);
+              setCircleHomeInitialTab('challenges');
+              setShowCircleHome(true);
+            }, 350);
+          }
+        }}
       />
       <PaywallSheet
         visible={showPaywall}

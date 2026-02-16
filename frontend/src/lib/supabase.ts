@@ -91,6 +91,10 @@ export type Tables = {
     creator_id: string;
     circle_id: string | null;
     type: 'focus_time' | 'tasks_completed' | 'daily_checkin' | 'custom';
+    /** New canonical tracking method — preferred over `type` */
+    tracking_method: 'tasks_completed' | 'focus_minutes' | 'active_days' | 'proof_checkin' | null;
+    /** For proof_checkin: how check-ins are verified */
+    verification_mode: 'auto_accept' | 'creator_approval' | null;
     goal_value: number;
     duration_days: number;
     starts_at: string;

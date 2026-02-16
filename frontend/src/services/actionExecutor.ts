@@ -404,10 +404,13 @@ const ACTION_HANDLERS: Record<string, ActionHandler> = {
     supabase.functions
       .invoke('task-completed', { body: { event_id: eventId, task_id: task.id } })
       .then(() => {
-        analyticsInvalidationBus.invalidate();
+        // Delay to ensure daily_user_stats has fully committed
+        setTimeout(() => analyticsInvalidationBus.invalidate(), 600);
       })
       .catch((err: unknown) => {
         console.warn('[actionExecutor] task-completed edge function failed:', err);
+        // Still invalidate — the task was marked completed in the DB
+        setTimeout(() => analyticsInvalidationBus.invalidate(), 800);
       });
 
     return {

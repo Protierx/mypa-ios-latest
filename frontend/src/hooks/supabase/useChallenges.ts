@@ -174,9 +174,11 @@ export function useChallenges(): UseChallengesReturn {
           creator_id: user.id,
           circle_id: challenge.circle_id || null,
           type: challenge.type || 'tasks_completed',
+          tracking_method: challenge.tracking_method || challenge.type || 'tasks_completed',
           goal_value: challenge.goal_value || 10,
           duration_days: challenge.duration_days || 7,
-          ends_at: endsAt.toISOString(),
+          starts_at: challenge.starts_at || new Date().toISOString(),
+          ends_at: challenge.ends_at || endsAt.toISOString(),
           status: 'active',
         })
         .select()
@@ -191,8 +193,40 @@ export function useChallenges(): UseChallengesReturn {
         progress: 0,
       });
 
+      // Post to circle feed so the challenge appears in the activity tab
+      if (data.circle_id) {
+        try {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('display_name')
+            .eq('id', user.id)
+            .single();
+
+          await supabase.from('circle_posts').insert({
+            circle_id: data.circle_id,
+            user_id: user.id,
+            type: 'challenge_created',
+            payload: {
+              challenge_id: data.id,
+              challenge_title: data.title,
+              challenge_emoji: data.emoji,
+              tracking_method: data.tracking_method,
+              duration_days: data.duration_days,
+              goal_value: data.goal_value,
+              user_name: profile?.display_name || 'Someone',
+            },
+          });
+        } catch (feedErr) {
+          // Don't fail challenge creation if feed post fails
+          console.warn('[useChallenges] Failed to post to circle feed:', feedErr);
+        }
+      }
+
       // Log event for AI learning
       eventLogger.logChallengeCreated(data.id, challenge.type || 'tasks_completed');
+
+      // Immediately refetch so the new challenge appears in any filtered lists
+      await fetchChallenges();
 
       return data;
     } catch (err) {

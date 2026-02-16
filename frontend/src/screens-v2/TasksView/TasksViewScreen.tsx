@@ -37,6 +37,7 @@ import { MiniVoiceButton } from '../../components/MiniVoiceButton';
 import { useFocusModal } from '../../navigation-v2/FocusModalContext';
 import { eventLogger } from '../../services/eventLogger';
 import { useGamification } from '../../contexts/GamificationContext';
+import { analyticsInvalidationBus } from '../../services/analyticsInvalidationBus';
 import { MomentumStrip } from '../../components/MomentumStrip';
 import { bg, brand, text as textTokens, border as borderTokens, semantic } from '../../styles/colors';
 import { shadows, radius, spacing } from '../../styles/theme';
@@ -309,6 +310,8 @@ export function TasksViewScreen() {
       // Uncomplete — instant, no undo needed
       await uncompleteTask(task.id);
       showToast('Task restored');
+      // Invalidate analytics so completed count updates
+      setTimeout(() => analyticsInvalidationBus.invalidate(), 600);
     } else {
       // Complete — with undo option
       const ok = await completeTask(task.id);
@@ -321,6 +324,8 @@ export function TasksViewScreen() {
           uncompleteTask(task.id);
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
           showToast('Task restored');
+          // Invalidate analytics so completed count updates after undo
+          setTimeout(() => analyticsInvalidationBus.invalidate(), 600);
         });
       } else {
         showToast('Couldn\'t complete task. Try again.');

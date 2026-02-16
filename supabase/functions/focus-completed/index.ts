@@ -268,7 +268,7 @@ async function updateFocusChallengeProgress(
 
   const { data: participations } = await supabase
     .from('challenge_participants')
-    .select('challenge_id, challenges!inner(id, type, goal_value, status, ends_at)')
+    .select('challenge_id, challenges!inner(id, type, tracking_method, goal_value, status, ends_at)')
     .eq('user_id', userId)
     .eq('challenges.status', 'active');
 
@@ -279,7 +279,11 @@ async function updateFocusChallengeProgress(
     if (!challenge) continue;
     if (new Date(challenge.ends_at) < new Date()) continue;
 
-    if (challenge.type === 'focus_time') {
+    // Resolve tracking method: prefer tracking_method, fall back to legacy type
+    const method = challenge.tracking_method || challenge.type;
+
+    if (method === 'focus_minutes' || method === 'focus_time') {
+      // Accumulate focus minutes
       const { data: progress } = await supabase
         .from('challenge_progress')
         .select('progress_value')
@@ -306,12 +310,50 @@ async function updateFocusChallengeProgress(
 
       updates.push({
         challengeId: challenge.id,
-        type: challenge.type,
+        type: method,
+        progressValue: newValue,
+        target: challenge.goal_value,
+        completed: newValue >= challenge.goal_value,
+      });
+
+    } else if (method === 'active_days') {
+      // Max +1 per day — dedupe by last_counted_date
+      const { data: progress } = await supabase
+        .from('challenge_progress')
+        .select('progress_value, last_counted_date')
+        .eq('challenge_id', challenge.id)
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (progress?.last_counted_date === todayStr) continue;
+
+      const newValue = (progress?.progress_value ?? 0) + 1;
+
+      await supabase
+        .from('challenge_progress')
+        .upsert({
+          challenge_id: challenge.id,
+          user_id: userId,
+          progress_value: newValue,
+          last_counted_date: todayStr,
+          updated_at: new Date().toISOString(),
+        });
+
+      await supabase
+        .from('challenge_participants')
+        .update({ progress: newValue })
+        .eq('challenge_id', challenge.id)
+        .eq('user_id', userId);
+
+      updates.push({
+        challengeId: challenge.id,
+        type: method,
         progressValue: newValue,
         target: challenge.goal_value,
         completed: newValue >= challenge.goal_value,
       });
     }
+    // Note: tasks_completed and proof_checkin are NOT updated by focus-completed
   }
 
   return updates;

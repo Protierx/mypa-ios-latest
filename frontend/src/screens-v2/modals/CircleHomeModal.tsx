@@ -49,6 +49,7 @@ interface CircleHomeModalProps {
   onClose: () => void;
   onOpenChallenge?: (challengeId: string) => void;
   onCreateChallenge?: () => void;
+  initialTab?: TabType;
 }
 type TabType = 'feed' | 'challenges' | 'overview';
 type SettingsTab = 'invite' | 'members' | 'admin';
@@ -71,7 +72,7 @@ const TABS: { key: TabType; label: string }[] = [
 ];
 
 /* ═══ Component ══════════════════════════════════════════ */
-export function CircleHomeModal({ visible, circleId, onClose, onOpenChallenge, onCreateChallenge }: CircleHomeModalProps) {
+export function CircleHomeModal({ visible, circleId, onClose, onOpenChallenge, onCreateChallenge, initialTab }: CircleHomeModalProps) {
   const { user } = useSupabaseAuth();
   const { getCircle, getCircleMembers, getUserRole, updateMemberRole, removeMember, leaveCircle, transferOwnership } = useCircles();
   const { challenges: allChallenges } = useChallenges();
@@ -109,7 +110,7 @@ export function CircleHomeModal({ visible, circleId, onClose, onOpenChallenge, o
   }, [circleId, getCircle, getCircleMembers, getUserRole]);
 
   useEffect(() => {
-    if (visible && circleId) { setIsLoading(true); setActiveTab('feed'); loadCircleData(); }
+    if (visible && circleId) { setIsLoading(true); setActiveTab(initialTab || 'feed'); loadCircleData(); }
   }, [visible, circleId]);
 
   const handleRefresh = useCallback(async () => {
@@ -428,6 +429,29 @@ export function CircleHomeModal({ visible, circleId, onClose, onOpenChallenge, o
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
                     <Ionicons name="timer" size={11} color={textTokens.tertiary} />
                     <Text style={{ fontSize: 11, color: textTokens.tertiary, fontWeight: '500' }}>{post.payload.focus_minutes} min</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          )}
+
+          {post.type === 'challenge_created' && post.payload?.challenge_title && (
+            <View style={{ marginTop: 12, backgroundColor: bg.primary, borderRadius: 12, padding: 12, borderLeftWidth: 3, borderLeftColor: semantic.warning }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+                <Text style={{ fontSize: 20, marginRight: 8 }}>{post.payload.challenge_emoji || '🏆'}</Text>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: textTokens.primary, flex: 1 }}>{post.payload.challenge_title}</Text>
+              </View>
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                {post.payload.duration_days && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                    <Ionicons name="calendar" size={11} color={textTokens.tertiary} />
+                    <Text style={{ fontSize: 11, color: textTokens.tertiary, fontWeight: '500' }}>{post.payload.duration_days} days</Text>
+                  </View>
+                )}
+                {post.payload.tracking_method && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                    <Ionicons name={post.payload.tracking_method === 'focus_minutes' ? 'timer' : post.payload.tracking_method === 'proof_checkin' ? 'camera' : 'checkbox'} size={11} color={textTokens.tertiary} />
+                    <Text style={{ fontSize: 11, color: textTokens.tertiary, fontWeight: '500' }}>{post.payload.tracking_method.replace(/_/g, ' ')}</Text>
                   </View>
                 )}
               </View>

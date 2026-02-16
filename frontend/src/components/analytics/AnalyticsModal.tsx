@@ -27,7 +27,7 @@
  * Data source: useAnalytics() hook → GET /analytics-summary?period=…
  */
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -82,6 +82,16 @@ export function AnalyticsModal({ visible, onClose, accentPreset = 'purple' }: Pr
     refresh,
     hasData,
   } = useAnalytics('7d');
+
+  // Refresh analytics data whenever the modal becomes visible
+  const prevVisibleRef = useRef(false);
+  useEffect(() => {
+    if (visible && !prevVisibleRef.current) {
+      // Modal just opened — force refresh to get latest data
+      refresh();
+    }
+    prevVisibleRef.current = visible;
+  }, [visible, refresh]);
 
   // ── Render ──────────────────────────────────────────────────
 

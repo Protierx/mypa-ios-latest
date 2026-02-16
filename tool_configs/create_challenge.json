@@ -6,11 +6,16 @@
     "type": "object",
     "properties": {
       "circleName": { "type": "string", "description": "Circle name" },
-      "title": { "type": "string", "description": "Challenge title" },
-      "type": { "type": "string", "enum": ["focus_time", "tasks_completed", "daily_checkin", "custom"], "description": "Challenge type" },
-      "targetValue": { "type": "number", "description": "Goal value to reach" },
-      "durationDays": { "type": "number", "description": "Challenge duration in days" }
+      "title": { "type": "string", "description": "Challenge title (3-60 chars)" },
+      "trackingMethod": {
+        "type": "string",
+        "enum": ["tasks_completed", "focus_minutes", "active_days", "proof_checkin"],
+        "description": "How progress is tracked"
+      },
+      "targetValue": { "type": "number", "description": "Goal value to reach (positive integer)" },
+      "durationDays": { "type": "number", "enum": [7, 14, 30], "description": "Challenge duration in days" },
+      "type": { "type": "string", "enum": ["focus_time", "tasks_completed", "daily_checkin", "custom"], "description": "Legacy challenge type (prefer trackingMethod)" }
     },
-    "required": ["circleName", "title", "type", "targetValue"]
+    "required": ["circleName", "title", "trackingMethod", "targetValue"]
   }
 }

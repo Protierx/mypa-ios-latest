@@ -26,6 +26,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 
 import { useTasks } from '../../hooks/supabase/useTasks';
 import { useGamification } from '../../contexts/GamificationContext';
+import { analyticsInvalidationBus } from '../../services/analyticsInvalidationBus';
 import { Task } from '../../lib/supabase';
 import { bg, brand, text as textTokens, border as borderTokens, semantic } from '../../styles/colors';
 import { shadows, radius } from '../../styles/theme';
@@ -171,7 +172,11 @@ export function TaskDetailModal({ visible, task, onClose, onStartFocus, taskActi
     try {
       if (task.status === 'completed') {
         const ok = await uncompleteTask(task.id);
-        if (ok) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        if (ok) {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          // Invalidate analytics so completed count updates
+          setTimeout(() => analyticsInvalidationBus.invalidate(), 600);
+        }
       } else {
         const ok = await completeTask(task.id);
         if (ok) {
