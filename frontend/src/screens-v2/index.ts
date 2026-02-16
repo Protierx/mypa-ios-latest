@@ -15,3 +15,6 @@ export * from './ProfileView';
 // Modal Screens
 export * from './FocusModal';
 export * from './modals';
+
+// Settings
+export * from './settings';
