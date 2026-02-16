@@ -25,6 +25,8 @@ import * as Haptics from 'expo-haptics';
 
 import { supabase } from '../../lib/supabase';
 import { useSupabaseAuth } from '../../contexts/SupabaseAuthContext';
+import { bg, brand, text as textTokens, border as borderTokens, semantic } from '../../styles/colors';
+import { shadows, radius } from '../../styles/theme';
 
 // ============================================================================
 // Types
@@ -51,22 +53,22 @@ interface ConversationHistoryModalProps {
 // ============================================================================
 
 const MOOD_MAP: Record<string, { emoji: string; color: string }> = {
-  calm: { emoji: '🟢', color: '#22c55e' },
-  happy: { emoji: '🟢', color: '#22c55e' },
-  focused: { emoji: '🔵', color: '#3b82f6' },
-  productive: { emoji: '🔵', color: '#3b82f6' },
-  excited: { emoji: '🔵', color: '#3b82f6' },
-  stressed: { emoji: '🟡', color: '#eab308' },
-  anxious: { emoji: '🟡', color: '#eab308' },
-  overwhelmed: { emoji: '🟡', color: '#eab308' },
-  tired: { emoji: '🟠', color: '#f97316' },
-  frustrated: { emoji: '🔴', color: '#ef4444' },
-  sad: { emoji: '🔴', color: '#ef4444' },
+  calm: { emoji: '🟢', color: semantic.success },
+  happy: { emoji: '🟢', color: semantic.success },
+  focused: { emoji: '🔵', color: semantic.info },
+  productive: { emoji: '🔵', color: semantic.info },
+  excited: { emoji: '🔵', color: semantic.info },
+  stressed: { emoji: '🟡', color: semantic.warning },
+  anxious: { emoji: '🟡', color: semantic.warning },
+  overwhelmed: { emoji: '🟡', color: semantic.warning },
+  tired: { emoji: '🟠', color: '#F97316' },
+  frustrated: { emoji: '🔴', color: semantic.error },
+  sad: { emoji: '🔴', color: semantic.error },
 };
 
 function getMoodInfo(mood: string | null): { emoji: string; color: string } {
-  if (!mood) return { emoji: '⚪', color: '#71717a' };
-  return MOOD_MAP[mood.toLowerCase()] || { emoji: '⚪', color: '#71717a' };
+  if (!mood) return { emoji: '⚪', color: textTokens.tertiary };
+  return MOOD_MAP[mood.toLowerCase()] || { emoji: '⚪', color: textTokens.tertiary };
 }
 
 function formatTimestamp(dateStr: string): string {
@@ -152,11 +154,11 @@ function SwipeableRow({
   ).current;
 
   return (
-    <View className="relative overflow-hidden">
+    <View style={{ position: 'relative', overflow: 'hidden' }}>
       {/* Delete background */}
-      <View className="absolute right-0 top-0 bottom-0 w-24 items-center justify-center bg-red-600 rounded-xl">
+      <View style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 96, alignItems: 'center', justifyContent: 'center', backgroundColor: semantic.error, borderRadius: radius.lg }}>
         <Ionicons name="trash-outline" size={22} color="#fff" />
-        <Text className="text-white text-xs mt-1">Delete</Text>
+        <Text style={{ color: '#fff', fontSize: 11, marginTop: 4 }}>Delete</Text>
       </View>
       {/* Swipeable content */}
       <RNAnimated.View style={{ transform: [{ translateX }] }} {...panResponder.panHandlers}>
@@ -185,7 +187,7 @@ function ConversationRow({
   return (
     <SwipeableRow onDelete={() => onDelete(item.id)}>
       <TouchableOpacity
-        className="bg-zinc-900/80 rounded-xl mx-4 mb-2 border border-zinc-800/50"
+        style={{ backgroundColor: bg.card, borderRadius: radius.lg, marginHorizontal: 16, marginBottom: 8, borderWidth: 0.5, borderColor: borderTokens.primary, ...shadows.sm }}
         activeOpacity={0.7}
         onPress={() => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -193,13 +195,13 @@ function ConversationRow({
           setExpanded(!expanded);
         }}
       >
-        <View className="px-4 py-3">
+        <View style={{ paddingHorizontal: 16, paddingVertical: 12 }}>
           {/* Top row: mood + summary */}
-          <View className="flex-row items-start">
-            <Text className="text-lg mr-2 mt-0.5">{moodInfo.emoji}</Text>
-            <View className="flex-1">
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+            <Text style={{ fontSize: 18, marginRight: 8, marginTop: 2 }}>{moodInfo.emoji}</Text>
+            <View style={{ flex: 1 }}>
               <Text
-                className="text-white text-base leading-5"
+                style={{ color: textTokens.primary, fontSize: 15, lineHeight: 20, fontWeight: '500' }}
                 numberOfLines={expanded ? undefined : 2}
               >
                 {item.summary}
@@ -208,36 +210,36 @@ function ConversationRow({
           </View>
 
           {/* Bottom row: meta */}
-          <View className="flex-row items-center mt-2 ml-7">
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8, marginLeft: 28 }}>
             {actionCount > 0 && (
-              <View className="flex-row items-center mr-3">
-                <Ionicons name="flash-outline" size={13} color="#a855f7" />
-                <Text className="text-zinc-500 text-xs ml-1">
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 12 }}>
+                <Ionicons name="flash-outline" size={13} color={brand.primary} />
+                <Text style={{ color: textTokens.tertiary, fontSize: 11, marginLeft: 4 }}>
                   {actionCount} action{actionCount !== 1 ? 's' : ''}
                 </Text>
               </View>
             )}
             {item.mood && (
-              <Text className="text-zinc-500 text-xs mr-3">{item.mood}</Text>
+              <Text style={{ color: textTokens.tertiary, fontSize: 11, marginRight: 12 }}>{item.mood}</Text>
             )}
-            <Text className="text-zinc-600 text-xs ml-auto">
+            <Text style={{ color: textTokens.disabled, fontSize: 11, marginLeft: 'auto' }}>
               {formatTimestamp(item.created_at)}
             </Text>
           </View>
 
           {/* Expanded details */}
           {expanded && (
-            <View className="mt-3 pt-3 border-t border-zinc-800">
+            <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 0.5, borderTopColor: borderTokens.primary }}>
               {/* Key decisions */}
               {decisions.length > 0 && (
-                <View className="mb-2">
-                  <Text className="text-zinc-400 text-xs font-semibold uppercase mb-1">
+                <View style={{ marginBottom: 8 }}>
+                  <Text style={{ color: textTokens.secondary, fontSize: 11, fontWeight: '600', textTransform: 'uppercase', marginBottom: 4 }}>
                     Key Decisions
                   </Text>
                   {decisions.map((decision, i) => (
-                    <View key={i} className="flex-row items-start ml-1 mb-1">
-                      <Text className="text-zinc-500 text-sm mr-2">•</Text>
-                      <Text className="text-zinc-300 text-sm flex-1">
+                    <View key={i} style={{ flexDirection: 'row', alignItems: 'flex-start', marginLeft: 4, marginBottom: 4 }}>
+                      <Text style={{ color: textTokens.tertiary, fontSize: 13, marginRight: 8 }}>•</Text>
+                      <Text style={{ color: textTokens.secondary, fontSize: 13, flex: 1 }}>
                         {typeof decision === 'string' ? decision : JSON.stringify(decision)}
                       </Text>
                     </View>
@@ -248,13 +250,13 @@ function ConversationRow({
               {/* Action items */}
               {actionCount > 0 && (
                 <View>
-                  <Text className="text-zinc-400 text-xs font-semibold uppercase mb-1">
+                  <Text style={{ color: textTokens.secondary, fontSize: 11, fontWeight: '600', textTransform: 'uppercase', marginBottom: 4 }}>
                     Actions Taken
                   </Text>
                   {item.action_items.map((action, i) => (
-                    <View key={i} className="flex-row items-center ml-1 mb-1">
-                      <Ionicons name="checkmark-circle" size={14} color="#22c55e" />
-                      <Text className="text-zinc-300 text-sm ml-2">
+                    <View key={i} style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 4, marginBottom: 4 }}>
+                      <Ionicons name="checkmark-circle" size={14} color={semantic.success} />
+                      <Text style={{ color: textTokens.secondary, fontSize: 13, marginLeft: 8 }}>
                         {action.tool?.replace(/_/g, ' ') || 'action'}
                       </Text>
                     </View>
@@ -360,29 +362,29 @@ export function ConversationHistoryModal({ visible, onClose }: ConversationHisto
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <SafeAreaView className="flex-1 bg-black" edges={['top', 'bottom']}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: bg.primary }} edges={['top', 'bottom']}>
         {/* Header */}
-        <View className="flex-row items-center justify-between px-5 py-4 border-b border-zinc-800">
-          <TouchableOpacity onPress={onClose} className="p-2 -ml-2">
-            <Ionicons name="arrow-back" size={24} color="#fff" />
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 0.5, borderBottomColor: borderTokens.primary }}>
+          <TouchableOpacity onPress={onClose} style={{ padding: 8, marginLeft: -8 }}>
+            <Ionicons name="arrow-back" size={24} color={textTokens.primary} />
           </TouchableOpacity>
-          <Text className="text-white text-lg font-semibold">Conversations</Text>
-          <View className="w-10" />
+          <Text style={{ color: textTokens.primary, fontSize: 17, fontWeight: '600' }}>Conversations</Text>
+          <View style={{ width: 40 }} />
         </View>
 
         {/* Content */}
         {loading ? (
-          <View className="flex-1 items-center justify-center">
-            <ActivityIndicator size="large" color="#a855f7" />
-            <Text className="text-zinc-500 mt-3">Loading conversations...</Text>
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+            <ActivityIndicator size="large" color={brand.primary} />
+            <Text style={{ color: textTokens.tertiary, marginTop: 12 }}>Loading conversations...</Text>
           </View>
         ) : conversations.length === 0 ? (
-          <View className="flex-1 items-center justify-center px-8">
-            <Ionicons name="chatbubbles-outline" size={48} color="#3f3f46" />
-            <Text className="text-zinc-500 text-base text-center mt-4">
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 }}>
+            <Ionicons name="chatbubbles-outline" size={48} color={textTokens.disabled} />
+            <Text style={{ color: textTokens.secondary, fontSize: 15, textAlign: 'center', marginTop: 16 }}>
               No conversations yet
             </Text>
-            <Text className="text-zinc-600 text-sm text-center mt-1">
+            <Text style={{ color: textTokens.tertiary, fontSize: 13, textAlign: 'center', marginTop: 4 }}>
               Your voice conversations with MYPA will appear here
             </Text>
           </View>
@@ -396,7 +398,7 @@ export function ConversationHistoryModal({ visible, onClose }: ConversationHisto
             renderItem={({ item: section }) => (
               <View>
                 {/* Section header */}
-                <Text className="text-zinc-500 text-xs font-semibold uppercase px-5 pt-5 pb-2">
+                <Text style={{ color: textTokens.tertiary, fontSize: 11, fontWeight: '600', textTransform: 'uppercase', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 8 }}>
                   {section.title}
                 </Text>
                 {/* Conversation rows */}

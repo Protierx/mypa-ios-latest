@@ -32,25 +32,8 @@ import * as Haptics from 'expo-haptics';
 import { useTasks } from '../../hooks/supabase/useTasks';
 import { useChallenges } from '../../hooks/supabase/useChallenges';
 import { CheckinPayload } from '../../hooks/supabase/useCircleAccountability';
-
-/* ────────────── Palette ────────────── */
-const L = {
-  bg:             '#F5F5F7',
-  card:           '#FFFFFF',
-  cardBorder:     '#EDEDF0',
-  textPrimary:    '#1C1C1E',
-  textSecondary:  '#48484A',
-  textTertiary:   '#8E8E93',
-  textQuaternary: '#C7C7CC',
-  divider:        '#EDEDF0',
-  purple:         '#7C3AED',
-  purpleLight:    '#F5F0FF',
-  purpleMid:      '#EDE5FF',
-  green:          '#34C759',
-  greenLight:     '#ECFDF5',
-  amber:          '#F59E0B',
-  amberLight:     '#FFFBEB',
-};
+import { bg, brand, text as textTokens, border as borderTokens, semantic } from '../../styles/colors';
+import { shadows, radius } from '../../styles/theme';
 
 const { width: SW } = Dimensions.get('window');
 const FOCUS_CHIPS = [15, 30, 60, 90, 120];
@@ -148,7 +131,7 @@ export function CheckInSheet({ visible, circleId, circleName, onClose, onSubmit 
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <SafeAreaView style={{ flex: 1, backgroundColor: L.bg }} edges={['top', 'bottom']}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: bg.primary }} edges={['top', 'bottom']}>
         <KeyboardAvoidingView
           style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -158,14 +141,14 @@ export function CheckInSheet({ visible, circleId, circleName, onClose, onSubmit 
           <View style={{
             flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
             paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12,
-            borderBottomWidth: 0.5, borderBottomColor: L.divider,
+            borderBottomWidth: 0.5, borderBottomColor: borderTokens.primary,
           }}>
             <TouchableOpacity onPress={onClose} style={{ padding: 4 }}>
-              <Text style={{ fontSize: 16, color: L.textTertiary, fontWeight: '500' }}>Cancel</Text>
+              <Text style={{ fontSize: 16, color: textTokens.tertiary, fontWeight: '500' }}>Cancel</Text>
             </TouchableOpacity>
             <View style={{ alignItems: 'center' }}>
-              <Text style={{ fontSize: 17, fontWeight: '700', color: L.textPrimary }}>Check In</Text>
-              <Text style={{ fontSize: 12, color: L.textTertiary, marginTop: 1 }}>{circleName}</Text>
+              <Text style={{ fontSize: 17, fontWeight: '700', color: textTokens.primary }}>Check In</Text>
+              <Text style={{ fontSize: 12, color: textTokens.tertiary, marginTop: 1 }}>{circleName}</Text>
             </View>
             <View style={{ width: 50 }} />
           </View>
@@ -179,12 +162,12 @@ export function CheckInSheet({ visible, circleId, circleName, onClose, onSubmit 
             {/* ── Intention (Required) ── */}
             <View style={{ marginBottom: 28 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-                <Ionicons name="flag" size={15} color={L.purple} />
-                <Text style={{ fontSize: 14, fontWeight: '700', color: L.textPrimary }}>
+                <Ionicons name="flag" size={15} color={brand.primary} />
+                <Text style={{ fontSize: 14, fontWeight: '700', color: textTokens.primary }}>
                   Your Commitment
                 </Text>
-                <View style={{ backgroundColor: `${L.purple}15`, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
-                  <Text style={{ fontSize: 9, fontWeight: '700', color: L.purple }}>REQUIRED</Text>
+                <View style={{ backgroundColor: `${brand.primary}15`, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                  <Text style={{ fontSize: 9, fontWeight: '700', color: brand.primary }}>REQUIRED</Text>
                 </View>
               </View>
               <TextInput
@@ -192,21 +175,21 @@ export function CheckInSheet({ visible, circleId, circleName, onClose, onSubmit 
                 value={intention}
                 onChangeText={setIntention}
                 placeholder="What are you committing to today?"
-                placeholderTextColor={L.textQuaternary}
+                placeholderTextColor={textTokens.disabled}
                 multiline
                 style={{
-                  backgroundColor: L.card,
+                  backgroundColor: bg.card,
                   borderRadius: 16, padding: 16, paddingTop: 14,
-                  fontSize: 16, fontWeight: '500', color: L.textPrimary,
+                  fontSize: 16, fontWeight: '500', color: textTokens.primary,
                   lineHeight: 22,
                   minHeight: 80,
-                  borderWidth: 1, borderColor: intention.trim() ? `${L.purple}30` : L.cardBorder,
+                  borderWidth: 1, borderColor: intention.trim() ? `${brand.primary}30` : borderTokens.primary,
                   shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.03, shadowRadius: 4,
                 }}
                 textAlignVertical="top"
                 maxLength={500}
               />
-              <Text style={{ fontSize: 11, color: L.textQuaternary, marginTop: 6, textAlign: 'right' }}>
+              <Text style={{ fontSize: 11, color: textTokens.disabled, marginTop: 6, textAlign: 'right' }}>
                 {intention.length}/500
               </Text>
             </View>
@@ -214,15 +197,15 @@ export function CheckInSheet({ visible, circleId, circleName, onClose, onSubmit 
             {/* ── Tasks (Optional) ── */}
             <View style={{ marginBottom: 28 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-                <Ionicons name="checkbox-outline" size={15} color={L.green} />
-                <Text style={{ fontSize: 14, fontWeight: '700', color: L.textPrimary }}>Tasks to Tackle</Text>
-                <Text style={{ fontSize: 11, color: L.textQuaternary, fontWeight: '500' }}>Optional</Text>
+                <Ionicons name="checkbox-outline" size={15} color={semantic.success} />
+                <Text style={{ fontSize: 14, fontWeight: '700', color: textTokens.primary }}>Tasks to Tackle</Text>
+                <Text style={{ fontSize: 11, color: textTokens.disabled, fontWeight: '500' }}>Optional</Text>
               </View>
 
               {pendingTasks.length > 0 ? (
                 <View style={{
-                  backgroundColor: L.card, borderRadius: 16, overflow: 'hidden',
-                  borderWidth: 1, borderColor: L.cardBorder,
+                  backgroundColor: bg.card, borderRadius: 16, overflow: 'hidden',
+                  borderWidth: 1, borderColor: borderTokens.primary,
                 }}>
                   {pendingTasks.slice(0, 6).map((task: any, idx: number) => {
                     const isSelected = selectedTaskIds.includes(task.id);
@@ -232,16 +215,16 @@ export function CheckInSheet({ visible, circleId, circleName, onClose, onSubmit 
                         style={{
                           flexDirection: 'row', alignItems: 'center', padding: 14,
                           borderBottomWidth: idx < Math.min(pendingTasks.length, 6) - 1 ? 0.5 : 0,
-                          borderBottomColor: L.divider,
-                          backgroundColor: isSelected ? `${L.purple}06` : 'transparent',
+                          borderBottomColor: borderTokens.primary,
+                          backgroundColor: isSelected ? `${brand.primary}06` : 'transparent',
                         }}
                         onPress={() => toggleTask(task.id)}
                         activeOpacity={0.7}
                       >
                         <View style={{
                           width: 24, height: 24, borderRadius: 7,
-                          borderWidth: 2, borderColor: isSelected ? L.purple : L.textQuaternary,
-                          backgroundColor: isSelected ? L.purple : 'transparent',
+                          borderWidth: 2, borderColor: isSelected ? brand.primary : textTokens.disabled,
+                          backgroundColor: isSelected ? brand.primary : 'transparent',
                           alignItems: 'center', justifyContent: 'center', marginRight: 12,
                         }}>
                           {isSelected && <Ionicons name="checkmark" size={14} color="#fff" />}
@@ -250,19 +233,19 @@ export function CheckInSheet({ visible, circleId, circleName, onClose, onSubmit 
                           numberOfLines={1}
                           style={{
                             flex: 1, fontSize: 15, fontWeight: '500',
-                            color: isSelected ? L.purple : L.textPrimary,
+                            color: isSelected ? brand.primary : textTokens.primary,
                           }}
                         >
                           {task.title}
                         </Text>
                         {task.priority === 'high' || task.priority === 'urgent' ? (
                           <View style={{
-                            backgroundColor: task.priority === 'urgent' ? '#FEF2F2' : L.amberLight,
+                            backgroundColor: task.priority === 'urgent' ? '#FEF2F2' : semantic.warningLight,
                             paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4,
                           }}>
                             <Text style={{
                               fontSize: 9, fontWeight: '700',
-                              color: task.priority === 'urgent' ? '#DC2626' : L.amber,
+                              color: task.priority === 'urgent' ? '#DC2626' : semantic.warning,
                               textTransform: 'uppercase',
                             }}>
                               {task.priority}
@@ -274,7 +257,7 @@ export function CheckInSheet({ visible, circleId, circleName, onClose, onSubmit 
                   })}
                   {pendingTasks.length > 6 && (
                     <View style={{ padding: 12, alignItems: 'center' }}>
-                      <Text style={{ fontSize: 12, color: L.textTertiary, fontWeight: '500' }}>
+                      <Text style={{ fontSize: 12, color: textTokens.tertiary, fontWeight: '500' }}>
                         +{pendingTasks.length - 6} more tasks
                       </Text>
                     </View>
@@ -282,16 +265,16 @@ export function CheckInSheet({ visible, circleId, circleName, onClose, onSubmit 
                 </View>
               ) : (
                 <View style={{
-                  backgroundColor: L.card, borderRadius: 16, padding: 20, alignItems: 'center',
-                  borderWidth: 1, borderColor: L.cardBorder,
+                  backgroundColor: bg.card, borderRadius: 16, padding: 20, alignItems: 'center',
+                  borderWidth: 1, borderColor: borderTokens.primary,
                 }}>
-                  <Ionicons name="checkbox-outline" size={20} color={L.textQuaternary} />
-                  <Text style={{ fontSize: 13, color: L.textTertiary, marginTop: 6 }}>No pending tasks for today</Text>
+                  <Ionicons name="checkbox-outline" size={20} color={textTokens.disabled} />
+                  <Text style={{ fontSize: 13, color: textTokens.tertiary, marginTop: 6 }}>No pending tasks for today</Text>
                 </View>
               )}
 
               {selectedTaskIds.length > 0 && (
-                <Text style={{ fontSize: 12, color: L.purple, fontWeight: '600', marginTop: 8 }}>
+                <Text style={{ fontSize: 12, color: brand.primary, fontWeight: '600', marginTop: 8 }}>
                   {selectedTaskIds.length} task{selectedTaskIds.length !== 1 ? 's' : ''} selected
                 </Text>
               )}
@@ -300,9 +283,9 @@ export function CheckInSheet({ visible, circleId, circleName, onClose, onSubmit 
             {/* ── Focus Minutes (Optional) ── */}
             <View style={{ marginBottom: 28 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-                <Ionicons name="timer-outline" size={15} color={L.amber} />
-                <Text style={{ fontSize: 14, fontWeight: '700', color: L.textPrimary }}>Focus Time</Text>
-                <Text style={{ fontSize: 11, color: L.textQuaternary, fontWeight: '500' }}>Optional</Text>
+                <Ionicons name="timer-outline" size={15} color={semantic.warning} />
+                <Text style={{ fontSize: 14, fontWeight: '700', color: textTokens.primary }}>Focus Time</Text>
+                <Text style={{ fontSize: 11, color: textTokens.disabled, fontWeight: '500' }}>Optional</Text>
               </View>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                 {FOCUS_CHIPS.map(mins => {
@@ -312,8 +295,8 @@ export function CheckInSheet({ visible, circleId, circleName, onClose, onSubmit 
                       key={mins}
                       style={{
                         paddingHorizontal: 18, paddingVertical: 11, borderRadius: 12,
-                        backgroundColor: isSelected ? L.purple : L.card,
-                        borderWidth: 1, borderColor: isSelected ? L.purple : L.cardBorder,
+                        backgroundColor: isSelected ? brand.primary : bg.card,
+                        borderWidth: 1, borderColor: isSelected ? brand.primary : borderTokens.primary,
                         shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: isSelected ? 0 : 0.03, shadowRadius: 3,
                       }}
                       onPress={() => selectFocus(mins)}
@@ -321,7 +304,7 @@ export function CheckInSheet({ visible, circleId, circleName, onClose, onSubmit 
                     >
                       <Text style={{
                         fontSize: 14, fontWeight: '600',
-                        color: isSelected ? '#fff' : L.textPrimary,
+                        color: isSelected ? '#fff' : textTokens.primary,
                       }}>
                         {mins >= 60 ? `${mins / 60}h` : `${mins}m`}
                       </Text>
@@ -332,19 +315,19 @@ export function CheckInSheet({ visible, circleId, circleName, onClose, onSubmit 
                 <View style={{
                   flexDirection: 'row', alignItems: 'center',
                   paddingHorizontal: 12, borderRadius: 12,
-                  backgroundColor: L.card, borderWidth: 1, borderColor: L.cardBorder,
+                  backgroundColor: bg.card, borderWidth: 1, borderColor: borderTokens.primary,
                   minWidth: 80,
                 }}>
                   <TextInput
                     value={customFocus}
                     onChangeText={(v) => { setCustomFocus(v.replace(/[^0-9]/g, '')); setFocusMinutes(null); }}
                     placeholder="Custom"
-                    placeholderTextColor={L.textQuaternary}
+                    placeholderTextColor={textTokens.disabled}
                     keyboardType="number-pad"
-                    style={{ fontSize: 14, fontWeight: '600', color: L.textPrimary, paddingVertical: 11, flex: 1 }}
+                    style={{ fontSize: 14, fontWeight: '600', color: textTokens.primary, paddingVertical: 11, flex: 1 }}
                     maxLength={3}
                   />
-                  {customFocus ? <Text style={{ fontSize: 12, color: L.textTertiary, fontWeight: '500' }}>min</Text> : null}
+                  {customFocus ? <Text style={{ fontSize: 12, color: textTokens.tertiary, fontWeight: '500' }}>min</Text> : null}
                 </View>
               </View>
             </View>
@@ -353,13 +336,13 @@ export function CheckInSheet({ visible, circleId, circleName, onClose, onSubmit 
             {circleChallenges.length > 0 && (
               <View style={{ marginBottom: 28 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-                  <Ionicons name="trophy" size={15} color={L.amber} />
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: L.textPrimary }}>For a Challenge</Text>
-                  <Text style={{ fontSize: 11, color: L.textQuaternary, fontWeight: '500' }}>Optional</Text>
+                  <Ionicons name="trophy" size={15} color={semantic.warning} />
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: textTokens.primary }}>For a Challenge</Text>
+                  <Text style={{ fontSize: 11, color: textTokens.disabled, fontWeight: '500' }}>Optional</Text>
                 </View>
                 <View style={{
-                  backgroundColor: L.card, borderRadius: 16, overflow: 'hidden',
-                  borderWidth: 1, borderColor: L.cardBorder,
+                  backgroundColor: bg.card, borderRadius: 16, overflow: 'hidden',
+                  borderWidth: 1, borderColor: borderTokens.primary,
                 }}>
                   {circleChallenges.map((ch: any, idx: number) => {
                     const isSelected = selectedChallengeId === ch.id;
@@ -369,8 +352,8 @@ export function CheckInSheet({ visible, circleId, circleName, onClose, onSubmit 
                         style={{
                           flexDirection: 'row', alignItems: 'center', padding: 14,
                           borderBottomWidth: idx < circleChallenges.length - 1 ? 0.5 : 0,
-                          borderBottomColor: L.divider,
-                          backgroundColor: isSelected ? `${L.amber}08` : 'transparent',
+                          borderBottomColor: borderTokens.primary,
+                          backgroundColor: isSelected ? `${semantic.warning}08` : 'transparent',
                         }}
                         onPress={() => {
                           Haptics.selectionAsync();
@@ -380,14 +363,14 @@ export function CheckInSheet({ visible, circleId, circleName, onClose, onSubmit 
                       >
                         <View style={{
                           width: 24, height: 24, borderRadius: 12,
-                          borderWidth: 2, borderColor: isSelected ? L.amber : L.textQuaternary,
-                          backgroundColor: isSelected ? L.amber : 'transparent',
+                          borderWidth: 2, borderColor: isSelected ? semantic.warning : textTokens.disabled,
+                          backgroundColor: isSelected ? semantic.warning : 'transparent',
                           alignItems: 'center', justifyContent: 'center', marginRight: 12,
                         }}>
                           {isSelected && <Ionicons name="checkmark" size={14} color="#fff" />}
                         </View>
                         <Text style={{ fontSize: 16, marginRight: 8 }}>{ch.emoji || '🏆'}</Text>
-                        <Text numberOfLines={1} style={{ flex: 1, fontSize: 15, fontWeight: '500', color: L.textPrimary }}>
+                        <Text numberOfLines={1} style={{ flex: 1, fontSize: 15, fontWeight: '500', color: textTokens.primary }}>
                           {ch.title}
                         </Text>
                       </TouchableOpacity>
@@ -401,16 +384,16 @@ export function CheckInSheet({ visible, circleId, circleName, onClose, onSubmit 
           {/* ── Submit Button (fixed bottom) ── */}
           <View style={{
             paddingHorizontal: 20, paddingTop: 12, paddingBottom: Platform.OS === 'ios' ? 8 : 20,
-            borderTopWidth: 0.5, borderTopColor: L.divider,
-            backgroundColor: L.bg,
+            borderTopWidth: 0.5, borderTopColor: borderTokens.primary,
+            backgroundColor: bg.primary,
           }}>
             <TouchableOpacity
               style={{
-                backgroundColor: intention.trim() ? L.purple : L.textQuaternary,
+                backgroundColor: intention.trim() ? brand.primary : textTokens.disabled,
                 paddingVertical: 17, borderRadius: 16,
                 alignItems: 'center', justifyContent: 'center',
                 flexDirection: 'row', gap: 8,
-                shadowColor: intention.trim() ? L.purple : 'transparent',
+                shadowColor: intention.trim() ? brand.primary : 'transparent',
                 shadowOffset: { width: 0, height: 6 },
                 shadowOpacity: intention.trim() ? 0.3 : 0,
                 shadowRadius: 14,

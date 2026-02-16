@@ -21,6 +21,8 @@ import Animated, {
   useSharedValue,
   withSpring,
 } from 'react-native-reanimated';
+import { bg, brand, text as textTokens, border as borderTokens, semantic } from '../../styles/colors';
+import { shadows, radius } from '../../styles/theme';
 
 interface UnlockRequirement {
   id: string;
@@ -156,46 +158,45 @@ export function UnlockDetailsModal({ visible, feature, onClose }: UnlockDetailsM
       transparent
       onRequestClose={onClose}
     >
-      <View className="flex-1 bg-black/80 items-center justify-center px-6">
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 }}>
         <Animated.View 
-          className="bg-zinc-900 rounded-3xl w-full max-w-sm overflow-hidden"
-          style={containerStyle}
+          style={[{ backgroundColor: bg.card, borderRadius: 24, width: '100%', maxWidth: 360, overflow: 'hidden', ...shadows.lg }, containerStyle]}
         >
           {/* Header with Icon */}
-          <View className="p-6 items-center border-b border-zinc-800">
-            <View className={`w-20 h-20 rounded-full items-center justify-center mb-4 ${
-              feature.isUnlocked ? 'bg-purple-900/50' : 'bg-zinc-800'
-            }`}>
+          <View style={{ padding: 24, alignItems: 'center', borderBottomWidth: 0.5, borderBottomColor: borderTokens.primary }}>
+            <View style={{
+              width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center', marginBottom: 16,
+              backgroundColor: feature.isUnlocked ? brand.muted : bg.secondary,
+            }}>
               {feature.isUnlocked ? (
-                <Ionicons name="checkmark-circle" size={48} color="#a855f7" />
+                <Ionicons name="checkmark-circle" size={48} color={brand.primary} />
               ) : (
-                <Ionicons name="lock-closed" size={40} color="#71717a" />
+                <Ionicons name="lock-closed" size={40} color={textTokens.disabled} />
               )}
             </View>
             
-            <Text className="text-white text-xl font-bold text-center">{feature.name}</Text>
-            <Text className="text-zinc-500 text-center mt-2">{feature.description}</Text>
+            <Text style={{ color: textTokens.primary, fontSize: 20, fontWeight: '700', textAlign: 'center' }}>{feature.name}</Text>
+            <Text style={{ color: textTokens.tertiary, textAlign: 'center', marginTop: 8, fontSize: 14, lineHeight: 20 }}>{feature.description}</Text>
           </View>
 
           {/* Status */}
-          <View className="px-6 py-4 border-b border-zinc-800">
+          <View style={{ paddingHorizontal: 24, paddingVertical: 16, borderBottomWidth: 0.5, borderBottomColor: borderTokens.primary }}>
             {feature.isUnlocked ? (
-              <View className="flex-row items-center justify-center">
-                <Ionicons name="checkmark-circle" size={20} color="#22c55e" />
-                <Text className="text-green-500 ml-2">
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                <Ionicons name="checkmark-circle" size={20} color={semantic.success} />
+                <Text style={{ color: semantic.success, marginLeft: 8, fontSize: 14 }}>
                   Unlocked {feature.unlockedAt ? `on ${new Date(feature.unlockedAt).toLocaleDateString()}` : ''}
                 </Text>
               </View>
             ) : (
               <>
-                <View className="flex-row justify-between mb-2">
-                  <Text className="text-zinc-400">Progress</Text>
-                  <Text className="text-white">{Math.round(progressPercent)}%</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <Text style={{ color: textTokens.secondary, fontSize: 13 }}>Progress</Text>
+                  <Text style={{ color: textTokens.primary, fontSize: 13, fontWeight: '600' }}>{Math.round(progressPercent)}%</Text>
                 </View>
-                <View className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+                <View style={{ height: 8, backgroundColor: bg.secondary, borderRadius: 4, overflow: 'hidden' }}>
                   <View 
-                    className="h-full bg-purple-500 rounded-full"
-                    style={{ width: `${progressPercent}%` }}
+                    style={{ height: '100%', backgroundColor: brand.primary, borderRadius: 4, width: `${progressPercent}%` }}
                   />
                 </View>
               </>
@@ -203,29 +204,30 @@ export function UnlockDetailsModal({ visible, feature, onClose }: UnlockDetailsM
           </View>
 
           {/* Requirements */}
-          <ScrollView className="max-h-64">
-            <View className="px-6 py-4">
-              <Text className="text-zinc-500 text-sm mb-3">
+          <ScrollView style={{ maxHeight: 256 }}>
+            <View style={{ paddingHorizontal: 24, paddingVertical: 16 }}>
+              <Text style={{ color: textTokens.tertiary, fontSize: 13, marginBottom: 12 }}>
                 {feature.isUnlocked ? 'Requirements Completed' : 'Requirements'}
               </Text>
               
               {feature.requirements.map((req) => (
-                <View key={req.id} className="flex-row items-center py-2">
-                  <View className={`w-6 h-6 rounded-full items-center justify-center mr-3 ${
-                    req.completed ? 'bg-green-600' : 'bg-zinc-700'
-                  }`}>
+                <View key={req.id} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8 }}>
+                  <View style={{
+                    width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginRight: 12,
+                    backgroundColor: req.completed ? semantic.success : bg.secondary,
+                  }}>
                     {req.completed ? (
                       <Ionicons name="checkmark" size={16} color="#fff" />
                     ) : (
-                      <Text className="text-zinc-400 text-xs">{Math.min(req.current, req.required)}</Text>
+                      <Text style={{ color: textTokens.tertiary, fontSize: 11 }}>{Math.min(req.current, req.required)}</Text>
                     )}
                   </View>
-                  <View className="flex-1">
-                    <Text className={`${req.completed ? 'text-zinc-500' : 'text-white'}`}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: req.completed ? textTokens.tertiary : textTokens.primary, fontSize: 14 }}>
                       {req.description}
                     </Text>
                     {!req.completed && (
-                      <Text className="text-zinc-600 text-xs mt-0.5">
+                      <Text style={{ color: textTokens.disabled, fontSize: 11, marginTop: 2 }}>
                         {req.current}/{req.required}
                       </Text>
                     )}
@@ -236,15 +238,15 @@ export function UnlockDetailsModal({ visible, feature, onClose }: UnlockDetailsM
           </ScrollView>
 
           {/* Close Button */}
-          <View className="p-6">
+          <View style={{ padding: 24 }}>
             <TouchableOpacity
-              className="bg-zinc-800 py-4 rounded-xl items-center"
+              style={{ backgroundColor: bg.secondary, paddingVertical: 16, borderRadius: radius.lg, alignItems: 'center' }}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 onClose();
               }}
             >
-              <Text className="text-white font-semibold">Got it</Text>
+              <Text style={{ color: textTokens.primary, fontWeight: '600', fontSize: 15 }}>Got it</Text>
             </TouchableOpacity>
           </View>
         </Animated.View>

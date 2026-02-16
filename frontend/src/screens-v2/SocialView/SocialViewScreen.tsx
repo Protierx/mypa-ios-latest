@@ -268,8 +268,8 @@ export function SocialViewScreen() {
       <View style={{ marginHorizontal: 16, marginBottom: 16 }}>
         <View style={{
           flexDirection: 'row', alignItems: 'center',
-          backgroundColor: 'rgba(142,142,147,0.12)',
-          borderRadius: 12, paddingHorizontal: 12, height: 40,
+          backgroundColor: bg.secondary,
+          borderRadius: radius.md, paddingHorizontal: 12, height: 40,
         }}>
           <Ionicons name="search" size={16} color={textTokens.tertiary} style={{ marginRight: 6 }} />
           <TextInput
@@ -629,7 +629,7 @@ export function SocialViewScreen() {
                 hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                 style={{
                   width: 30, height: 30, borderRadius: 15,
-                  backgroundColor: 'rgba(142,142,147,0.12)',
+                  backgroundColor: bg.secondary,
                   alignItems: 'center', justifyContent: 'center',
                 }}
               >

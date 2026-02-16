@@ -14,7 +14,7 @@
  */
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { View, Text, ScrollView, StyleSheet, Pressable, Dimensions, TextInput, Keyboard } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Pressable, Dimensions, TextInput, Keyboard, StatusBar } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
@@ -437,6 +437,7 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
 
   return (
     <View style={styles.container}>
+      <StatusBar barStyle="dark-content" />
       {/* Soft gradient background — time-of-day tinted */}
       <LinearGradient
         colors={gradientColors}

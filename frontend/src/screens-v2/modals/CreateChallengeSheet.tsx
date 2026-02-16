@@ -29,24 +29,8 @@ import Animated, {
 
 import { useChallenges } from '../../hooks/supabase/useChallenges';
 import { Challenge } from '../../lib/supabase';
-
-/* ────────────── Light Palette ────────────── */
-
-const L = {
-  bg:             '#F5F5F7',
-  card:           '#FFFFFF',
-  cardBorder:     '#EDEDF0',
-  textPrimary:    '#1C1C1E',
-  textSecondary:  '#48484A',
-  textTertiary:   '#8E8E93',
-  textQuaternary: '#C7C7CC',
-  divider:        '#EDEDF0',
-  purple:         '#7C3AED',
-  purpleLight:    '#F5F0FF',
-  purpleMid:      '#EDE5FF',
-  green:          '#34C759',
-  amber:          '#F59E0B',
-};
+import { bg, brand, text as textTokens, border as borderTokens, semantic } from '../../styles/colors';
+import { shadows, radius } from '../../styles/theme';
 
 /* ────────────── Types ────────────── */
 
@@ -156,21 +140,21 @@ export function CreateChallengeSheet({ visible, onClose, circleId, onChallengeCr
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={handleClose}>
       <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'flex-end' }}>
-        <Animated.View style={[{ backgroundColor: L.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '90%' }, containerStyle]}>
+        <Animated.View style={[{ backgroundColor: bg.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '90%' }, containerStyle]}>
           <SafeAreaView edges={['bottom']}>
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
               {/* Handle */}
               <View style={{ alignItems: 'center', paddingVertical: 10 }}>
-                <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: L.divider }} />
+                <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: borderTokens.primary }} />
               </View>
 
               {/* Header */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 14, borderBottomWidth: 0.5, borderBottomColor: L.divider }}>
-                <TouchableOpacity onPress={handleClose}><Text style={{ fontSize: 15, color: L.textTertiary }}>Cancel</Text></TouchableOpacity>
-                <Text style={{ fontSize: 17, fontWeight: '700', color: L.textPrimary }}>Create Challenge</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 14, borderBottomWidth: 0.5, borderBottomColor: borderTokens.primary }}>
+                <TouchableOpacity onPress={handleClose}><Text style={{ fontSize: 15, color: textTokens.tertiary }}>Cancel</Text></TouchableOpacity>
+                <Text style={{ fontSize: 17, fontWeight: '700', color: textTokens.primary }}>Create Challenge</Text>
                 <TouchableOpacity onPress={handleCreate} disabled={isCreating || !title.trim()}>
-                  {isCreating ? <ActivityIndicator size="small" color={L.purple} /> : (
-                    <Text style={{ fontSize: 15, fontWeight: '700', color: title.trim() ? L.purple : L.textQuaternary }}>Start</Text>
+                  {isCreating ? <ActivityIndicator size="small" color={brand.primary} /> : (
+                    <Text style={{ fontSize: 15, fontWeight: '700', color: title.trim() ? brand.primary : textTokens.disabled }}>Start</Text>
                   )}
                 </TouchableOpacity>
               </View>
@@ -179,17 +163,17 @@ export function CreateChallengeSheet({ visible, onClose, circleId, onChallengeCr
                 {/* Emoji Picker */}
                 <View style={{ alignItems: 'center', paddingVertical: 16 }}>
                   <TouchableOpacity
-                    style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: L.bg, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: L.cardBorder }}
+                    style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: bg.primary, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: borderTokens.primary }}
                     onPress={() => setShowEmojiPicker(!showEmojiPicker)}
                   >
                     <Text style={{ fontSize: 30 }}>{emoji}</Text>
                   </TouchableOpacity>
                   {showEmojiPicker && (
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', marginTop: 10, backgroundColor: L.bg, borderRadius: 14, padding: 10, gap: 4 }}>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', marginTop: 10, backgroundColor: bg.primary, borderRadius: 14, padding: 10, gap: 4 }}>
                       {EMOJI_OPTIONS.map((e) => (
                         <TouchableOpacity
                           key={e}
-                          style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: emoji === e ? L.purpleLight : 'transparent' }}
+                          style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: emoji === e ? brand.muted : 'transparent' }}
                           onPress={() => { Haptics.selectionAsync(); setEmoji(e); setShowEmojiPicker(false); }}
                         >
                           <Text style={{ fontSize: 20 }}>{e}</Text>
@@ -200,22 +184,22 @@ export function CreateChallengeSheet({ visible, onClose, circleId, onChallengeCr
                 </View>
 
                 {/* Title Input */}
-                <View style={{ paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: L.divider }}>
-                  <Text style={{ fontSize: 12, fontWeight: '600', color: L.textTertiary, marginBottom: 6 }}>Challenge Title *</Text>
+                <View style={{ paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: borderTokens.primary }}>
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: textTokens.tertiary, marginBottom: 6 }}>Challenge Title *</Text>
                   <TextInput
                     ref={titleInputRef}
                     value={title}
                     onChangeText={setTitle}
                     placeholder="e.g., Productivity Week, Focus Marathon"
-                    placeholderTextColor={L.textQuaternary}
-                    style={{ fontSize: 17, color: L.textPrimary, fontWeight: '500' }}
+                    placeholderTextColor={textTokens.disabled}
+                    style={{ fontSize: 17, color: textTokens.primary, fontWeight: '500' }}
                     maxLength={50}
                   />
                 </View>
 
                 {/* Challenge Type */}
-                <View style={{ paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: L.divider }}>
-                  <Text style={{ fontSize: 12, fontWeight: '600', color: L.textTertiary, marginBottom: 10 }}>Challenge Type</Text>
+                <View style={{ paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: borderTokens.primary }}>
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: textTokens.tertiary, marginBottom: 10 }}>Challenge Type</Text>
                   {CHALLENGE_TYPES.map((option) => {
                     const selected = type === option.value;
                     return (
@@ -223,27 +207,27 @@ export function CreateChallengeSheet({ visible, onClose, circleId, onChallengeCr
                         key={option.value}
                         style={{
                           flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 14, marginBottom: 8,
-                          backgroundColor: selected ? L.purpleLight : L.bg,
-                          borderWidth: 1, borderColor: selected ? `${L.purple}30` : L.cardBorder,
+                          backgroundColor: selected ? brand.muted : bg.primary,
+                          borderWidth: 1, borderColor: selected ? `${brand.primary}30` : borderTokens.primary,
                         }}
                         onPress={() => { Haptics.selectionAsync(); setType(option.value); setGoalValue(getDefaultGoal(option.value)); }}
                       >
-                        <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: selected ? L.purpleMid : L.divider, alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
-                          <Ionicons name={option.icon as any} size={18} color={selected ? L.purple : L.textTertiary} />
+                        <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: selected ? brand.surface : borderTokens.primary, alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
+                          <Ionicons name={option.icon as any} size={18} color={selected ? brand.primary : textTokens.tertiary} />
                         </View>
                         <View style={{ flex: 1 }}>
-                          <Text style={{ fontSize: 14, fontWeight: '600', color: L.textPrimary }}>{option.label}</Text>
-                          <Text style={{ fontSize: 11, color: L.textTertiary }}>{option.description}</Text>
+                          <Text style={{ fontSize: 14, fontWeight: '600', color: textTokens.primary }}>{option.label}</Text>
+                          <Text style={{ fontSize: 11, color: textTokens.tertiary }}>{option.description}</Text>
                         </View>
-                        {selected && <Ionicons name="checkmark-circle" size={20} color={L.purple} />}
+                        {selected && <Ionicons name="checkmark-circle" size={20} color={brand.primary} />}
                       </TouchableOpacity>
                     );
                   })}
                 </View>
 
                 {/* Duration */}
-                <View style={{ paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: L.divider }}>
-                  <Text style={{ fontSize: 12, fontWeight: '600', color: L.textTertiary, marginBottom: 10 }}>Duration</Text>
+                <View style={{ paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: borderTokens.primary }}>
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: textTokens.tertiary, marginBottom: 10 }}>Duration</Text>
                   <View style={{ flexDirection: 'row', gap: 8 }}>
                     {DURATION_OPTIONS.map((option) => {
                       const selected = duration === option.value;
@@ -252,12 +236,12 @@ export function CreateChallengeSheet({ visible, onClose, circleId, onChallengeCr
                           key={option.value}
                           style={{
                             flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center',
-                            backgroundColor: selected ? L.purple : L.bg,
-                            borderWidth: selected ? 0 : 1, borderColor: L.cardBorder,
+                            backgroundColor: selected ? brand.primary : bg.primary,
+                            borderWidth: selected ? 0 : 1, borderColor: borderTokens.primary,
                           }}
                           onPress={() => { Haptics.selectionAsync(); setDuration(option.value); if (type === 'daily_checkin') setGoalValue(option.value.toString()); }}
                         >
-                          <Text style={{ fontSize: 14, fontWeight: '600', color: selected ? '#fff' : L.textSecondary }}>{option.label}</Text>
+                          <Text style={{ fontSize: 14, fontWeight: '600', color: selected ? '#fff' : textTokens.secondary }}>{option.label}</Text>
                         </TouchableOpacity>
                       );
                     })}
@@ -265,41 +249,41 @@ export function CreateChallengeSheet({ visible, onClose, circleId, onChallengeCr
                 </View>
 
                 {/* Goal Value */}
-                <View style={{ paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: L.divider }}>
-                  <Text style={{ fontSize: 12, fontWeight: '600', color: L.textTertiary, marginBottom: 6 }}>Goal ({getCurrentUnit()})</Text>
+                <View style={{ paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: borderTokens.primary }}>
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: textTokens.tertiary, marginBottom: 6 }}>Goal ({getCurrentUnit()})</Text>
                   <TextInput
                     value={goalValue}
                     onChangeText={(text) => setGoalValue(text.replace(/[^0-9]/g, ''))}
                     placeholder={getDefaultGoal(type)}
-                    placeholderTextColor={L.textQuaternary}
+                    placeholderTextColor={textTokens.disabled}
                     keyboardType="number-pad"
-                    style={{ fontSize: 17, color: L.textPrimary, fontWeight: '500' }}
+                    style={{ fontSize: 17, color: textTokens.primary, fontWeight: '500' }}
                   />
                 </View>
 
                 {/* Description */}
                 <View style={{ paddingVertical: 12 }}>
-                  <Text style={{ fontSize: 12, fontWeight: '600', color: L.textTertiary, marginBottom: 6 }}>Description (optional)</Text>
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: textTokens.tertiary, marginBottom: 6 }}>Description (optional)</Text>
                   <TextInput
                     value={description}
                     onChangeText={setDescription}
                     placeholder="Add details or rules..."
-                    placeholderTextColor={L.textQuaternary}
+                    placeholderTextColor={textTokens.disabled}
                     multiline numberOfLines={2}
-                    style={{ fontSize: 15, color: L.textPrimary }}
+                    style={{ fontSize: 15, color: textTokens.primary }}
                     maxLength={200}
                   />
                 </View>
 
                 {/* Preview */}
                 <View style={{ paddingVertical: 14, marginBottom: 20 }}>
-                  <View style={{ backgroundColor: L.bg, padding: 16, borderRadius: 14, borderWidth: 0.5, borderColor: L.cardBorder }}>
-                    <Text style={{ fontSize: 11, fontWeight: '700', color: L.textTertiary, letterSpacing: 0.5, marginBottom: 8 }}>PREVIEW</Text>
+                  <View style={{ backgroundColor: bg.primary, padding: 16, borderRadius: 14, borderWidth: 0.5, borderColor: borderTokens.primary }}>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: textTokens.tertiary, letterSpacing: 0.5, marginBottom: 8 }}>PREVIEW</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                       <Text style={{ fontSize: 28, marginRight: 10 }}>{emoji}</Text>
                       <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 15, fontWeight: '700', color: L.textPrimary }}>{title || 'Challenge Title'}</Text>
-                        <Text style={{ fontSize: 12.5, color: L.textTertiary, marginTop: 2 }}>
+                        <Text style={{ fontSize: 15, fontWeight: '700', color: textTokens.primary }}>{title || 'Challenge Title'}</Text>
+                        <Text style={{ fontSize: 12.5, color: textTokens.tertiary, marginTop: 2 }}>
                           {goalValue || getDefaultGoal(type)} {getCurrentUnit()} in {duration} days
                         </Text>
                       </View>

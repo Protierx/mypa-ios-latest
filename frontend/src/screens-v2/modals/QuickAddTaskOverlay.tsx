@@ -36,23 +36,8 @@ import {
   TaskSuggestion,
 } from '../../services/categorySuggestion';
 import { eventLogger } from '../../services/eventLogger';
-
-// ============================================================================
-// Light Theme Palette
-// ============================================================================
-
-const L = {
-  bg: '#FFFFFF',
-  bgSecondary: '#F9F9FB',
-  textPrimary: '#1C1C1E',
-  textSecondary: '#636366',
-  textTertiary: '#AEAEB2',
-  border: '#E5E5EA',
-  borderLight: '#F2F2F7',
-  purple: '#7C3AED',
-  purpleLight: '#F3EEFF',
-  purpleSoft: '#EDE9FE',
-};
+import { bg, brand, text as textTokens, border as borderTokens, semantic } from '../../styles/colors';
+import { shadows, radius, spacing } from '../../styles/theme';
 
 // ============================================================================
 // Types + Constants
@@ -281,7 +266,7 @@ export function QuickAddTaskOverlay({
           {/* Sheet */}
           <View
             style={{
-              backgroundColor: L.bg,
+              backgroundColor: bg.card,
               borderTopLeftRadius: 20, borderTopRightRadius: 20,
               shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.08, shadowRadius: 16,
               elevation: 10,
@@ -296,12 +281,12 @@ export function QuickAddTaskOverlay({
               {/* Header */}
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 4, paddingBottom: 8 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Text style={{ fontSize: 22, fontWeight: '700', color: L.textPrimary }}>
+                  <Text style={{ fontSize: 22, fontWeight: '700', color: textTokens.primary }}>
                     {isConversion ? 'Move to Tasks' : 'New Task'}
                   </Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 10, backgroundColor: L.purpleSoft, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8 }}>
-                    <Ionicons name="sparkles" size={11} color={L.purple} />
-                    <Text style={{ fontSize: 11, fontWeight: '600', color: L.purple, marginLeft: 3 }}>AI Assist</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 10, backgroundColor: brand.surface, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8 }}>
+                    <Ionicons name="sparkles" size={11} color={brand.primary} />
+                    <Text style={{ fontSize: 11, fontWeight: '600', color: brand.primary, marginLeft: 3 }}>AI Assist</Text>
                   </View>
                 </View>
 
@@ -313,7 +298,7 @@ export function QuickAddTaskOverlay({
                   >
                     <Ionicons name={activeCategoryMeta.icon as any} size={13} color={activeCategoryMeta.color} />
                     <Text style={{ fontSize: 12.5, fontWeight: '600', color: activeCategoryMeta.color, marginLeft: 4 }}>{activeCategory}</Text>
-                    {isCategoryAI && <Ionicons name="sparkles" size={8} color={L.purple} style={{ marginLeft: 4 }} />}
+                    {isCategoryAI && <Ionicons name="sparkles" size={8} color={brand.primary} style={{ marginLeft: 4 }} />}
                   </TouchableOpacity>
                 )}
               </View>
@@ -335,8 +320,8 @@ export function QuickAddTaskOverlay({
                     placeholderTextColor="#C7C7CC"
                     style={{
                       fontSize: 18, lineHeight: 24, fontWeight: '500',
-                      color: L.textPrimary, paddingVertical: 8,
-                      borderBottomWidth: 1, borderBottomColor: title.length > 0 ? L.purple : L.border,
+                      color: textTokens.primary, paddingVertical: 8,
+                      borderBottomWidth: 1, borderBottomColor: title.length > 0 ? brand.primary : borderTokens.primary,
                     }}
                     returnKeyType="next"
                     autoCapitalize="sentences"
@@ -347,9 +332,9 @@ export function QuickAddTaskOverlay({
                       <Ionicons
                         name={hasExplicitSchedule ? 'calendar-outline' : 'bulb-outline'}
                         size={12}
-                        color={hasExplicitSchedule ? L.purple : '#FF9F0A'}
+                        color={hasExplicitSchedule ? brand.primary : '#FF9F0A'}
                       />
-                      <Text style={{ fontSize: 12, color: L.textTertiary, marginLeft: 4 }}>
+                      <Text style={{ fontSize: 12, color: textTokens.tertiary, marginLeft: 4 }}>
                         {hasExplicitSchedule
                           ? 'Will be saved as a scheduled task'
                           : 'No date set — will be saved to Brain Dump'}
@@ -368,22 +353,22 @@ export function QuickAddTaskOverlay({
                       flexDirection: 'row', alignItems: 'center',
                       paddingHorizontal: 14, paddingVertical: 10,
                       borderRadius: 12,
-                      backgroundColor: L.purpleLight,
+                      backgroundColor: brand.muted,
                       borderWidth: 1, borderColor: '#E4D9FC',
                     }}
                   >
-                    <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: L.purpleSoft, alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
-                      <Ionicons name="sparkles" size={14} color={L.purple} />
+                    <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: brand.surface, alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
+                      <Ionicons name="sparkles" size={14} color={brand.primary} />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 13, fontWeight: '600', color: L.purple }}>
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: brand.primary }}>
                         {aiSuggestion.category} — {aiSuggestion.priority} priority — {fmtDuration(aiSuggestion.duration)}
                       </Text>
                       <Text style={{ fontSize: 11, color: '#8B5CF6', marginTop: 1 }}>
                         AI suggestion based on your title
                       </Text>
                     </View>
-                    <Ionicons name="chevron-forward" size={14} color={L.purple} />
+                    <Ionicons name="chevron-forward" size={14} color={brand.primary} />
                   </TouchableOpacity>
                 )}
 
@@ -395,17 +380,17 @@ export function QuickAddTaskOverlay({
                     placeholder="Add notes..."
                     placeholderTextColor="#C7C7CC"
                     multiline numberOfLines={2}
-                    style={{ fontSize: 14.5, color: L.textSecondary, paddingVertical: 4, minHeight: 36 }}
+                    style={{ fontSize: 14.5, color: textTokens.secondary, paddingVertical: 4, minHeight: 36 }}
                   />
                 </View>
 
                 {/* Divider */}
-                <View style={{ height: 1, backgroundColor: L.borderLight, marginHorizontal: 20, marginTop: 10, marginBottom: 14 }} />
+                <View style={{ height: 1, backgroundColor: borderTokens.secondary, marginHorizontal: 20, marginTop: 10, marginBottom: 14 }} />
 
                 {/* Category picker */}
                 {showCategories && (
                   <View style={{ paddingHorizontal: 20, paddingBottom: 14 }}>
-                    <Text style={{ fontSize: 12, fontWeight: '600', color: L.textTertiary, marginBottom: 8, letterSpacing: 0.3 }}>CATEGORY</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: textTokens.tertiary, marginBottom: 8, letterSpacing: 0.3 }}>CATEGORY</Text>
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                       {getAllCategories().map((cat) => {
                         const isActive = activeCategory === cat.category;
@@ -415,14 +400,14 @@ export function QuickAddTaskOverlay({
                             style={{
                               flexDirection: 'row', alignItems: 'center',
                               paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10,
-                              backgroundColor: isActive ? `${cat.color}15` : L.bgSecondary,
+                              backgroundColor: isActive ? `${cat.color}15` : bg.secondary,
                               borderWidth: isActive ? 1.5 : 1,
-                              borderColor: isActive ? cat.color : L.border,
+                              borderColor: isActive ? cat.color : borderTokens.primary,
                             }}
                             onPress={() => { Haptics.selectionAsync(); setManualCategory(cat.category); setShowCategories(false); }}
                           >
-                            <Ionicons name={cat.icon as any} size={13} color={isActive ? cat.color : L.textTertiary} />
-                            <Text style={{ fontSize: 13, fontWeight: isActive ? '600' : '500', color: isActive ? cat.color : L.textSecondary, marginLeft: 5 }}>{cat.category}</Text>
+                            <Ionicons name={cat.icon as any} size={13} color={isActive ? cat.color : textTokens.tertiary} />
+                            <Text style={{ fontSize: 13, fontWeight: isActive ? '600' : '500', color: isActive ? cat.color : textTokens.secondary, marginLeft: 5 }}>{cat.category}</Text>
                           </TouchableOpacity>
                         );
                       })}
@@ -432,7 +417,7 @@ export function QuickAddTaskOverlay({
 
                 {/* Schedule label */}
                 <View style={{ paddingHorizontal: 20, marginBottom: 10 }}>
-                  <Text style={{ fontSize: 12, fontWeight: '600', color: L.textTertiary, letterSpacing: 0.3 }}>SCHEDULE</Text>
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: textTokens.tertiary, letterSpacing: 0.3 }}>SCHEDULE</Text>
                 </View>
 
                 {/* Date / Time / Duration — full-width row buttons */}
@@ -442,8 +427,8 @@ export function QuickAddTaskOverlay({
                     style={{
                       flexDirection: 'row', alignItems: 'center',
                       paddingHorizontal: 16, paddingVertical: 14, borderRadius: 12,
-                      backgroundColor: showDatePicker ? L.purpleLight : L.bgSecondary,
-                      borderWidth: 1.5, borderColor: showDatePicker ? L.purple : L.border,
+                      backgroundColor: showDatePicker ? brand.muted : bg.secondary,
+                      borderWidth: 1.5, borderColor: showDatePicker ? brand.primary : borderTokens.primary,
                     }}
                     onPress={() => {
                       const opening = !showDatePicker;
@@ -452,14 +437,14 @@ export function QuickAddTaskOverlay({
                     }}
                     activeOpacity={0.7}
                   >
-                    <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: showDatePicker ? L.purpleSoft : '#E8E8ED', alignItems: 'center', justifyContent: 'center' }}>
-                      <Ionicons name="calendar" size={17} color={showDatePicker ? L.purple : L.textSecondary} />
+                    <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: showDatePicker ? brand.surface : '#E8E8ED', alignItems: 'center', justifyContent: 'center' }}>
+                      <Ionicons name="calendar" size={17} color={showDatePicker ? brand.primary : textTokens.secondary} />
                     </View>
                     <View style={{ marginLeft: 12, flex: 1 }}>
-                      <Text style={{ fontSize: 12, color: L.textTertiary, fontWeight: '500' }}>Date</Text>
-                      <Text style={{ fontSize: 15, color: L.textPrimary, fontWeight: '600', marginTop: 1 }}>{fmtDate(dueDate)}</Text>
+                      <Text style={{ fontSize: 12, color: textTokens.tertiary, fontWeight: '500' }}>Date</Text>
+                      <Text style={{ fontSize: 15, color: textTokens.primary, fontWeight: '600', marginTop: 1 }}>{fmtDate(dueDate)}</Text>
                     </View>
-                    <Ionicons name={showDatePicker ? 'chevron-up' : 'chevron-down'} size={18} color={L.textTertiary} />
+                    <Ionicons name={showDatePicker ? 'chevron-up' : 'chevron-down'} size={18} color={textTokens.tertiary} />
                   </TouchableOpacity>
 
                   {/* Time button */}
@@ -467,8 +452,8 @@ export function QuickAddTaskOverlay({
                     style={{
                       flexDirection: 'row', alignItems: 'center',
                       paddingHorizontal: 16, paddingVertical: 14, borderRadius: 12,
-                      backgroundColor: showTimePicker ? L.purpleLight : L.bgSecondary,
-                      borderWidth: 1.5, borderColor: showTimePicker ? L.purple : L.border,
+                      backgroundColor: showTimePicker ? brand.muted : bg.secondary,
+                      borderWidth: 1.5, borderColor: showTimePicker ? brand.primary : borderTokens.primary,
                     }}
                     onPress={() => {
                       const opening = !showTimePicker;
@@ -477,16 +462,16 @@ export function QuickAddTaskOverlay({
                     }}
                     activeOpacity={0.7}
                   >
-                    <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: showTimePicker ? L.purpleSoft : '#E8E8ED', alignItems: 'center', justifyContent: 'center' }}>
-                      <Ionicons name="time" size={17} color={showTimePicker ? L.purple : L.textSecondary} />
+                    <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: showTimePicker ? brand.surface : '#E8E8ED', alignItems: 'center', justifyContent: 'center' }}>
+                      <Ionicons name="time" size={17} color={showTimePicker ? brand.primary : textTokens.secondary} />
                     </View>
                     <View style={{ marginLeft: 12, flex: 1 }}>
-                      <Text style={{ fontSize: 12, color: L.textTertiary, fontWeight: '500' }}>Time</Text>
-                      <Text style={{ fontSize: 15, color: dueTime ? L.textPrimary : L.textTertiary, fontWeight: '600', marginTop: 1 }}>
+                      <Text style={{ fontSize: 12, color: textTokens.tertiary, fontWeight: '500' }}>Time</Text>
+                      <Text style={{ fontSize: 15, color: dueTime ? textTokens.primary : textTokens.tertiary, fontWeight: '600', marginTop: 1 }}>
                         {dueTime ? fmtTime(dueTime) : 'Tap to set time'}
                       </Text>
                     </View>
-                    <Ionicons name={showTimePicker ? 'chevron-up' : 'chevron-down'} size={18} color={L.textTertiary} />
+                    <Ionicons name={showTimePicker ? 'chevron-up' : 'chevron-down'} size={18} color={textTokens.tertiary} />
                   </TouchableOpacity>
 
                   {/* Duration button */}
@@ -494,8 +479,8 @@ export function QuickAddTaskOverlay({
                     style={{
                       flexDirection: 'row', alignItems: 'center',
                       paddingHorizontal: 16, paddingVertical: 14, borderRadius: 12,
-                      backgroundColor: showDurationPicker ? L.purpleLight : L.bgSecondary,
-                      borderWidth: 1.5, borderColor: showDurationPicker ? L.purple : L.border,
+                      backgroundColor: showDurationPicker ? brand.muted : bg.secondary,
+                      borderWidth: 1.5, borderColor: showDurationPicker ? brand.primary : borderTokens.primary,
                     }}
                     onPress={() => {
                       const opening = !showDurationPicker;
@@ -504,17 +489,17 @@ export function QuickAddTaskOverlay({
                     }}
                     activeOpacity={0.7}
                   >
-                    <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: showDurationPicker ? L.purpleSoft : '#E8E8ED', alignItems: 'center', justifyContent: 'center' }}>
-                      <Ionicons name="hourglass" size={17} color={showDurationPicker ? L.purple : L.textSecondary} />
+                    <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: showDurationPicker ? brand.surface : '#E8E8ED', alignItems: 'center', justifyContent: 'center' }}>
+                      <Ionicons name="hourglass" size={17} color={showDurationPicker ? brand.primary : textTokens.secondary} />
                     </View>
                     <View style={{ marginLeft: 12, flex: 1 }}>
-                      <Text style={{ fontSize: 12, color: L.textTertiary, fontWeight: '500' }}>Duration</Text>
-                      <Text style={{ fontSize: 15, color: duration ? L.textPrimary : L.textTertiary, fontWeight: '600', marginTop: 1 }}>
+                      <Text style={{ fontSize: 12, color: textTokens.tertiary, fontWeight: '500' }}>Duration</Text>
+                      <Text style={{ fontSize: 15, color: duration ? textTokens.primary : textTokens.tertiary, fontWeight: '600', marginTop: 1 }}>
                         {duration ? fmtDuration(duration) : 'Tap to set duration'}
                       </Text>
                     </View>
-                    {isDurationAI && <Ionicons name="sparkles" size={10} color={L.purple} style={{ marginRight: 4 }} />}
-                    <Ionicons name={showDurationPicker ? 'chevron-up' : 'chevron-down'} size={18} color={L.textTertiary} />
+                    {isDurationAI && <Ionicons name="sparkles" size={10} color={brand.primary} style={{ marginRight: 4 }} />}
+                    <Ionicons name={showDurationPicker ? 'chevron-up' : 'chevron-down'} size={18} color={textTokens.tertiary} />
                   </TouchableOpacity>
                 </View>
 
@@ -525,7 +510,7 @@ export function QuickAddTaskOverlay({
                       value={dueDate} mode="date" display="spinner"
                       minimumDate={new Date()}
                       onChange={(_, date) => { if (Platform.OS !== 'ios') setShowDatePicker(false); if (date) { setDueDate(date); setDateExplicitlySet(true); } }}
-                      textColor={L.textPrimary}
+                      textColor={textTokens.primary}
                       themeVariant="light"
                       style={{ height: 200 }}
                     />
@@ -538,7 +523,7 @@ export function QuickAddTaskOverlay({
                     <DateTimePicker
                       value={dueTime || new Date()} mode="time" display="spinner"
                       onChange={(_, date) => { if (Platform.OS !== 'ios') setShowTimePicker(false); if (date) setDueTime(date); }}
-                      textColor={L.textPrimary}
+                      textColor={textTokens.primary}
                       themeVariant="light"
                       style={{ height: 200 }}
                     />
@@ -547,7 +532,7 @@ export function QuickAddTaskOverlay({
                         style={{ alignItems: 'center', paddingVertical: 8 }}
                         onPress={() => { setDueTime(null); setShowTimePicker(false); }}
                       >
-                        <Text style={{ fontSize: 14, color: L.purple, fontWeight: '600' }}>Clear time</Text>
+                        <Text style={{ fontSize: 14, color: brand.primary, fontWeight: '600' }}>Clear time</Text>
                       </TouchableOpacity>
                     )}
                   </View>
@@ -563,13 +548,13 @@ export function QuickAddTaskOverlay({
                           key={m}
                           style={{
                             paddingHorizontal: 18, paddingVertical: 12, borderRadius: 12,
-                            backgroundColor: isActive ? L.purple : L.bgSecondary,
-                            borderWidth: isActive ? 0 : 1, borderColor: L.border,
+                            backgroundColor: isActive ? brand.primary : bg.secondary,
+                            borderWidth: isActive ? 0 : 1, borderColor: borderTokens.primary,
                             minWidth: 64, alignItems: 'center',
                           }}
                           onPress={() => { Haptics.selectionAsync(); setDuration(isActive ? null : m); setManualDuration(true); setShowDurationPicker(false); }}
                         >
-                          <Text style={{ fontSize: 15, fontWeight: '600', color: isActive ? '#fff' : L.textSecondary }}>{fmtDuration(m)}</Text>
+                          <Text style={{ fontSize: 15, fontWeight: '600', color: isActive ? '#fff' : textTokens.secondary }}>{fmtDuration(m)}</Text>
                         </TouchableOpacity>
                       );
                     })}
@@ -579,11 +564,11 @@ export function QuickAddTaskOverlay({
                 {/* Priority */}
                 <View style={{ paddingHorizontal: 20, marginTop: 18, marginBottom: 8 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
-                    <Text style={{ fontSize: 12, fontWeight: '600', color: L.textTertiary, letterSpacing: 0.3 }}>PRIORITY</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: textTokens.tertiary, letterSpacing: 0.3 }}>PRIORITY</Text>
                     {isPriorityAI && (
-                      <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 8, backgroundColor: L.purpleSoft, paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5 }}>
-                        <Ionicons name="sparkles" size={9} color={L.purple} />
-                        <Text style={{ fontSize: 10, fontWeight: '600', color: L.purple, marginLeft: 2 }}>AI</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 8, backgroundColor: brand.surface, paddingHorizontal: 5, paddingVertical: 2, borderRadius: 5 }}>
+                        <Ionicons name="sparkles" size={9} color={brand.primary} />
+                        <Text style={{ fontSize: 10, fontWeight: '600', color: brand.primary, marginLeft: 2 }}>AI</Text>
                       </View>
                     )}
                   </View>
@@ -596,14 +581,14 @@ export function QuickAddTaskOverlay({
                           style={{
                             flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
                             paddingVertical: 10, borderRadius: 10,
-                            backgroundColor: isActive ? `${p.color}12` : L.bgSecondary,
+                            backgroundColor: isActive ? `${p.color}12` : bg.secondary,
                             borderWidth: isActive ? 1.5 : 1,
-                            borderColor: isActive ? p.color : L.border,
+                            borderColor: isActive ? p.color : borderTokens.primary,
                           }}
                           onPress={() => { Haptics.selectionAsync(); setPriority(p.value); setManualPriority(true); }}
                         >
                           <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: p.dot, marginRight: 5 }} />
-                          <Text style={{ fontSize: 12.5, fontWeight: isActive ? '700' : '500', color: isActive ? p.color : L.textSecondary }}>{p.label}</Text>
+                          <Text style={{ fontSize: 12.5, fontWeight: isActive ? '700' : '500', color: isActive ? p.color : textTokens.secondary }}>{p.label}</Text>
                         </TouchableOpacity>
                       );
                     })}
@@ -616,9 +601,9 @@ export function QuickAddTaskOverlay({
                 <TouchableOpacity
                   style={{
                     paddingVertical: 15, borderRadius: 14, alignItems: 'center',
-                    backgroundColor: isValid ? L.purple : L.bgSecondary,
-                    borderWidth: isValid ? 0 : 1, borderColor: L.border,
-                    shadowColor: isValid ? L.purple : 'transparent',
+                    backgroundColor: isValid ? brand.primary : bg.secondary,
+                    borderWidth: isValid ? 0 : 1, borderColor: borderTokens.primary,
+                    shadowColor: isValid ? brand.primary : 'transparent',
                     shadowOffset: { width: 0, height: 4 }, shadowOpacity: isValid ? 0.25 : 0, shadowRadius: 10,
                     opacity: creating ? 0.7 : 1,
                   }}
@@ -630,8 +615,8 @@ export function QuickAddTaskOverlay({
                     <ActivityIndicator size="small" color="#fff" />
                   ) : (
                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      {isValid && <Ionicons name={hasExplicitSchedule ? 'sparkles' : 'bulb-outline'} size={15} color={isValid ? '#fff' : L.textTertiary} style={{ marginRight: 6 }} />}
-                      <Text style={{ fontSize: 16.5, fontWeight: '700', color: isValid ? '#FFFFFF' : L.textTertiary }}>
+                      {isValid && <Ionicons name={hasExplicitSchedule ? 'sparkles' : 'bulb-outline'} size={15} color={isValid ? '#fff' : textTokens.tertiary} style={{ marginRight: 6 }} />}
+                      <Text style={{ fontSize: 16.5, fontWeight: '700', color: isValid ? '#FFFFFF' : textTokens.tertiary }}>
                         {isConversion
                           ? 'Schedule Task'
                           : hasExplicitSchedule

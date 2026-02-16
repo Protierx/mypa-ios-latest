@@ -43,10 +43,14 @@ export const border = {
 
 // ── Semantic ─────────────────────────────────────────────────
 export const semantic = {
-  success: '#34C759',
-  warning: '#FF9F0A',
-  error:   '#FF3B30',
-  info:    '#007AFF',
+  success:      '#34C759',
+  successLight: '#ECFDF5',
+  successSoft:  '#D1FAE5',
+  warning:      '#FF9F0A',
+  warningLight: '#FFFBEB',
+  error:        '#FF3B30',
+  errorLight:   '#FEF2F2',
+  info:         '#007AFF',
 } as const;
 
 // ── Category Colours ─────────────────────────────────────────

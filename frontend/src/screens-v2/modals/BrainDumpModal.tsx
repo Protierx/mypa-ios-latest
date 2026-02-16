@@ -29,41 +29,8 @@ import * as Haptics from 'expo-haptics';
 import { useBrainDump, BrainDumpStatus } from '../../hooks/supabase/useBrainDump';
 import { BrainDumpItem, Task } from '../../lib/supabase';
 import { eventLogger } from '../../services/eventLogger';
-
-// ============================================================================
-// Theme
-// ============================================================================
-
-const L = {
-  // Surfaces
-  bg: '#FFFFFF',
-  bgSecondary: '#F9F9FB',
-  bgTertiary: '#F2F2F7',
-  card: '#FFFFFF',
-  cardBorder: '#EDEDF0',
-  // Typography
-  textPrimary: '#1C1C1E',
-  textSecondary: '#48484A',
-  textTertiary: '#8E8E93',
-  textQuaternary: '#C7C7CC',
-  // Dividers
-  border: '#E5E5EA',
-  borderLight: '#EDEDF0',
-  divider: '#EDEDF0',
-  // Accent
-  purple: '#7C3AED',
-  purpleLight: '#F5F0FF',
-  purpleSoft: '#EDE9FE',
-  purpleMid: '#EDE5FF',
-  // Semantic
-  green: '#34C759',
-  greenLight: '#ECFDF5',
-  greenSoft: '#D1FAE5',
-  orange: '#FF9F0A',
-  orangeLight: '#FFF7ED',
-  danger: '#DC2626',
-  dangerLight: '#FEF2F2',
-};
+import { bg, brand, text as textTokens, border as borderTokens, semantic } from '../../styles/colors';
+import { shadows, radius } from '../../styles/theme';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 const SHEET_HEIGHT = SCREEN_HEIGHT * 0.82;
@@ -220,11 +187,11 @@ export function BrainDumpModal({ visible, onClose, onMoveToTasks, onOpenTask, ta
           paddingHorizontal: 14,
           paddingVertical: 8,
           borderRadius: 12,
-          backgroundColor: isActive ? L.purpleSoft : L.bgTertiary,
+          backgroundColor: isActive ? brand.surface : bg.input,
           borderWidth: isActive ? 1.5 : 1,
-          borderColor: isActive ? L.purple : 'transparent',
+          borderColor: isActive ? brand.primary : 'transparent',
           ...(isActive ? {
-            shadowColor: L.purple,
+            shadowColor: brand.primary,
             shadowOffset: { width: 0, height: 2 },
             shadowOpacity: 0.12,
             shadowRadius: 4,
@@ -241,7 +208,7 @@ export function BrainDumpModal({ visible, onClose, onMoveToTasks, onOpenTask, ta
           style={{
             fontSize: 13.5,
             fontWeight: isActive ? '700' : '500',
-            color: isActive ? L.purple : L.textSecondary,
+            color: isActive ? brand.primary : textTokens.secondary,
           }}
         >
           {label}
@@ -249,7 +216,7 @@ export function BrainDumpModal({ visible, onClose, onMoveToTasks, onOpenTask, ta
         <View
           style={{
             marginLeft: 6,
-            backgroundColor: isActive ? `${L.purple}20` : L.borderLight,
+            backgroundColor: isActive ? `${brand.primary}20` : borderTokens.secondary,
             paddingHorizontal: 7,
             paddingVertical: 1.5,
             borderRadius: 7,
@@ -261,7 +228,7 @@ export function BrainDumpModal({ visible, onClose, onMoveToTasks, onOpenTask, ta
             style={{
               fontSize: 11,
               fontWeight: '700',
-              color: isActive ? L.purple : L.textTertiary,
+              color: isActive ? brand.primary : textTokens.tertiary,
             }}
           >
             {count}
@@ -277,10 +244,10 @@ export function BrainDumpModal({ visible, onClose, onMoveToTasks, onOpenTask, ta
       style={{
         marginHorizontal: 16,
         marginBottom: 10,
-        backgroundColor: L.card,
+        backgroundColor: bg.card,
         borderRadius: 14,
         borderWidth: 0.5,
-        borderColor: L.cardBorder,
+        borderColor: borderTokens.primary,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.06,
@@ -294,14 +261,14 @@ export function BrainDumpModal({ visible, onClose, onMoveToTasks, onOpenTask, ta
           style={{
             fontSize: 15.5,
             fontWeight: '500',
-            color: L.textPrimary,
+            color: textTokens.primary,
             lineHeight: 22,
           }}
           numberOfLines={2}
         >
           {item.text}
         </Text>
-        <Text style={{ fontSize: 12.5, color: L.textTertiary, marginTop: 5, fontWeight: '500' }}>
+        <Text style={{ fontSize: 12.5, color: textTokens.tertiary, marginTop: 5, fontWeight: '500' }}>
           {formatAddedTime(item.created_at)}
         </Text>
       </View>
@@ -323,8 +290,8 @@ export function BrainDumpModal({ visible, onClose, onMoveToTasks, onOpenTask, ta
             paddingHorizontal: 14,
             paddingVertical: 8,
             borderRadius: 10,
-            backgroundColor: L.purple,
-            shadowColor: L.purple,
+            backgroundColor: brand.primary,
+            shadowColor: brand.primary,
             shadowOffset: { width: 0, height: 2 },
             shadowOpacity: 0.2,
             shadowRadius: 4,
@@ -347,14 +314,14 @@ export function BrainDumpModal({ visible, onClose, onMoveToTasks, onOpenTask, ta
             paddingHorizontal: 12,
             paddingVertical: 8,
             borderRadius: 10,
-            backgroundColor: L.bgTertiary,
+            backgroundColor: bg.input,
           }}
           onPress={() => handleArchive(item)}
           activeOpacity={0.7}
           accessibilityLabel="Archive"
         >
-          <Ionicons name="archive-outline" size={14} color={L.textTertiary} />
-          <Text style={{ fontSize: 12.5, fontWeight: '600', color: L.textTertiary, marginLeft: 5 }}>
+          <Ionicons name="archive-outline" size={14} color={textTokens.tertiary} />
+          <Text style={{ fontSize: 12.5, fontWeight: '600', color: textTokens.tertiary, marginLeft: 5 }}>
             Archive
           </Text>
         </TouchableOpacity>
@@ -374,7 +341,7 @@ export function BrainDumpModal({ visible, onClose, onMoveToTasks, onOpenTask, ta
         style={{
           marginHorizontal: 16,
           marginBottom: 10,
-          backgroundColor: L.greenLight,
+          backgroundColor: semantic.successLight,
           borderRadius: 14,
           borderWidth: 0.5,
           borderColor: 'rgba(52,199,89,0.15)',
@@ -388,19 +355,19 @@ export function BrainDumpModal({ visible, onClose, onMoveToTasks, onOpenTask, ta
               style={{
                 flexDirection: 'row',
                 alignItems: 'center',
-                backgroundColor: L.greenSoft,
+                backgroundColor: semantic.successSoft,
                 paddingHorizontal: 8,
                 paddingVertical: 3,
                 borderRadius: 7,
               }}
             >
-              <Ionicons name="checkmark-circle" size={12} color={L.green} />
-              <Text style={{ fontSize: 11, fontWeight: '700', color: L.green, marginLeft: 4 }}>
+              <Ionicons name="checkmark-circle" size={12} color={semantic.success} />
+              <Text style={{ fontSize: 11, fontWeight: '700', color: semantic.success, marginLeft: 4 }}>
                 Converted
               </Text>
             </View>
             {item.converted_at && (
-              <Text style={{ fontSize: 11.5, color: L.textTertiary, marginLeft: 8, fontWeight: '500' }}>
+              <Text style={{ fontSize: 11.5, color: textTokens.tertiary, marginLeft: 8, fontWeight: '500' }}>
                 {formatRelativeTime(item.converted_at)}
               </Text>
             )}
@@ -408,7 +375,7 @@ export function BrainDumpModal({ visible, onClose, onMoveToTasks, onOpenTask, ta
 
           {/* Original text */}
           <Text
-            style={{ fontSize: 14.5, color: L.textSecondary, lineHeight: 20 }}
+            style={{ fontSize: 14.5, color: textTokens.secondary, lineHeight: 20 }}
             numberOfLines={2}
           >
             {item.text}
@@ -427,15 +394,15 @@ export function BrainDumpModal({ visible, onClose, onMoveToTasks, onOpenTask, ta
               borderWidth: 0.5,
               borderColor: 'rgba(52,199,89,0.12)',
             }}>
-              <Ionicons name="document-text-outline" size={13} color={L.textTertiary} />
+              <Ionicons name="document-text-outline" size={13} color={textTokens.tertiary} />
               <Text
                 numberOfLines={1}
-                style={{ fontSize: 12.5, color: L.textPrimary, fontWeight: '500', marginLeft: 6, flex: 1 }}
+                style={{ fontSize: 12.5, color: textTokens.primary, fontWeight: '500', marginLeft: 6, flex: 1 }}
               >
                 {(linkedTask as any).title || 'Linked task'}
               </Text>
               {(linkedTask as any).due_date && (
-                <Text style={{ fontSize: 11, color: L.textTertiary, marginLeft: 6 }}>
+                <Text style={{ fontSize: 11, color: textTokens.tertiary, marginLeft: 6 }}>
                   {new Date((linkedTask as any).due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                 </Text>
               )}
@@ -460,8 +427,8 @@ export function BrainDumpModal({ visible, onClose, onMoveToTasks, onOpenTask, ta
               activeOpacity={0.7}
               accessibilityLabel="Open linked task"
             >
-              <Ionicons name="open-outline" size={13} color={L.green} />
-              <Text style={{ fontSize: 12.5, fontWeight: '600', color: L.green, marginLeft: 5 }}>
+              <Ionicons name="open-outline" size={13} color={semantic.success} />
+              <Text style={{ fontSize: 12.5, fontWeight: '600', color: semantic.success, marginLeft: 5 }}>
                 Open Task
               </Text>
             </TouchableOpacity>
@@ -477,21 +444,21 @@ export function BrainDumpModal({ visible, onClose, onMoveToTasks, onOpenTask, ta
       style={{
         marginHorizontal: 16,
         marginBottom: 10,
-        backgroundColor: L.bgTertiary,
+        backgroundColor: bg.input,
         borderRadius: 14,
         borderWidth: 0.5,
-        borderColor: L.borderLight,
+        borderColor: borderTokens.secondary,
         overflow: 'hidden',
       }}
     >
       <View style={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10 }}>
         <Text
-          style={{ fontSize: 14.5, color: L.textTertiary, lineHeight: 20 }}
+          style={{ fontSize: 14.5, color: textTokens.tertiary, lineHeight: 20 }}
           numberOfLines={2}
         >
           {item.text}
         </Text>
-        <Text style={{ fontSize: 11.5, color: L.textQuaternary, marginTop: 4, fontWeight: '500' }}>
+        <Text style={{ fontSize: 11.5, color: textTokens.disabled, marginTop: 4, fontWeight: '500' }}>
           {formatRelativeTime(item.created_at)}
         </Text>
       </View>
@@ -503,14 +470,14 @@ export function BrainDumpModal({ visible, onClose, onMoveToTasks, onOpenTask, ta
             paddingHorizontal: 12,
             paddingVertical: 7,
             borderRadius: 8,
-            backgroundColor: L.purpleLight,
+            backgroundColor: brand.muted,
           }}
           onPress={() => handleRestore(item)}
           activeOpacity={0.7}
           accessibilityLabel="Restore to Active"
         >
-          <Ionicons name="refresh-outline" size={13} color={L.purple} />
-          <Text style={{ fontSize: 12.5, fontWeight: '600', color: L.purple, marginLeft: 5 }}>
+          <Ionicons name="refresh-outline" size={13} color={brand.primary} />
+          <Text style={{ fontSize: 12.5, fontWeight: '600', color: brand.primary, marginLeft: 5 }}>
             Restore
           </Text>
         </TouchableOpacity>
@@ -521,14 +488,14 @@ export function BrainDumpModal({ visible, onClose, onMoveToTasks, onOpenTask, ta
             paddingHorizontal: 12,
             paddingVertical: 7,
             borderRadius: 8,
-            backgroundColor: L.dangerLight,
+            backgroundColor: semantic.errorLight,
           }}
           onPress={() => handleDelete(item)}
           activeOpacity={0.7}
           accessibilityLabel="Delete permanently"
         >
-          <Ionicons name="trash-outline" size={13} color={L.danger} />
-          <Text style={{ fontSize: 12.5, fontWeight: '600', color: L.danger, marginLeft: 5 }}>
+          <Ionicons name="trash-outline" size={13} color={semantic.error} />
+          <Text style={{ fontSize: 12.5, fontWeight: '600', color: semantic.error, marginLeft: 5 }}>
             Delete
           </Text>
         </TouchableOpacity>
@@ -577,22 +544,22 @@ export function BrainDumpModal({ visible, onClose, onMoveToTasks, onOpenTask, ta
             width: 56,
             height: 56,
             borderRadius: 16,
-            backgroundColor: L.purpleLight,
+            backgroundColor: brand.muted,
             alignItems: 'center',
             justifyContent: 'center',
             marginBottom: 16,
-            shadowColor: L.purple,
+            shadowColor: brand.primary,
             shadowOffset: { width: 0, height: 4 },
             shadowOpacity: 0.08,
             shadowRadius: 10,
           }}
         >
-          <Ionicons name={msg.icon as any} size={26} color={L.purple} />
+          <Ionicons name={msg.icon as any} size={26} color={brand.primary} />
         </View>
-        <Text style={{ fontSize: 17, fontWeight: '700', color: L.textPrimary, textAlign: 'center', letterSpacing: -0.2 }}>
+        <Text style={{ fontSize: 17, fontWeight: '700', color: textTokens.primary, textAlign: 'center', letterSpacing: -0.2 }}>
           {msg.title}
         </Text>
-        <Text style={{ fontSize: 13.5, color: L.textTertiary, marginTop: 6, textAlign: 'center', lineHeight: 19 }}>
+        <Text style={{ fontSize: 13.5, color: textTokens.tertiary, marginTop: 6, textAlign: 'center', lineHeight: 19 }}>
           {msg.subtitle}
         </Text>
       </View>
@@ -618,7 +585,7 @@ export function BrainDumpModal({ visible, onClose, onMoveToTasks, onOpenTask, ta
           <Pressable
             style={{
               height: SHEET_HEIGHT,
-              backgroundColor: L.bgSecondary,
+              backgroundColor: bg.secondary,
               borderTopLeftRadius: 24,
               borderTopRightRadius: 24,
               shadowColor: '#000',
@@ -641,25 +608,25 @@ export function BrainDumpModal({ visible, onClose, onMoveToTasks, onOpenTask, ta
                   <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
                     <View style={{
                       width: 32, height: 32, borderRadius: 10,
-                      backgroundColor: L.purpleLight,
+                      backgroundColor: brand.muted,
                       alignItems: 'center', justifyContent: 'center',
                       marginRight: 10,
                     }}>
-                      <Ionicons name="bulb" size={18} color={L.purple} />
+                      <Ionicons name="bulb" size={18} color={brand.primary} />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 20, fontWeight: '800', color: L.textPrimary, letterSpacing: -0.3 }}>
+                      <Text style={{ fontSize: 20, fontWeight: '800', color: textTokens.primary, letterSpacing: -0.3 }}>
                         Brain Dump
                       </Text>
                     </View>
                   </View>
                   {/* Summary counts */}
                   <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 12 }}>
-                    <Text style={{ fontSize: 12, fontWeight: '600', color: L.textTertiary }}>
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: textTokens.tertiary }}>
                       {activeItems.length} active
                     </Text>
-                    <Text style={{ fontSize: 12, color: L.textQuaternary, marginHorizontal: 4 }}>•</Text>
-                    <Text style={{ fontSize: 12, fontWeight: '600', color: L.textTertiary }}>
+                    <Text style={{ fontSize: 12, color: textTokens.disabled, marginHorizontal: 4 }}>•</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: textTokens.tertiary }}>
                       {convertedItems.length} converted
                     </Text>
                   </View>
@@ -674,17 +641,17 @@ export function BrainDumpModal({ visible, onClose, onMoveToTasks, onOpenTask, ta
                         width: 32,
                         height: 32,
                         borderRadius: 16,
-                        backgroundColor: L.bgTertiary,
+                        backgroundColor: bg.input,
                         alignItems: 'center',
                         justifyContent: 'center',
                       }}
                     >
-                      <Ionicons name="close" size={16} color={L.textSecondary} />
+                      <Ionicons name="close" size={16} color={textTokens.secondary} />
                     </View>
                   </TouchableOpacity>
                 </View>
                 {/* Helper subtitle */}
-                <Text style={{ fontSize: 12.5, color: L.textTertiary, marginTop: 4, marginLeft: 42 }}>
+                <Text style={{ fontSize: 12.5, color: textTokens.tertiary, marginTop: 4, marginLeft: 42 }}>
                   Unscheduled items from Tasks appear here automatically.
                 </Text>
               </View>
@@ -698,7 +665,7 @@ export function BrainDumpModal({ visible, onClose, onMoveToTasks, onOpenTask, ta
                   paddingBottom: 12,
                   gap: 8,
                   borderBottomWidth: 0.5,
-                  borderBottomColor: L.divider,
+                  borderBottomColor: borderTokens.primary,
                 }}
               >
                 <TabChip tab="active" label="Active" count={activeItems.length} />
@@ -713,7 +680,7 @@ export function BrainDumpModal({ visible, onClose, onMoveToTasks, onOpenTask, ta
                     marginHorizontal: 16,
                     marginTop: 8,
                     marginBottom: 4,
-                    backgroundColor: L.dangerLight,
+                    backgroundColor: semantic.errorLight,
                     borderRadius: 12,
                     paddingHorizontal: 14,
                     paddingVertical: 10,
@@ -721,12 +688,12 @@ export function BrainDumpModal({ visible, onClose, onMoveToTasks, onOpenTask, ta
                     alignItems: 'center',
                   }}
                 >
-                  <Ionicons name="alert-circle" size={16} color={L.danger} />
-                  <Text style={{ fontSize: 13, color: L.danger, marginLeft: 8, flex: 1, fontWeight: '500' }}>
+                  <Ionicons name="alert-circle" size={16} color={semantic.error} />
+                  <Text style={{ fontSize: 13, color: semantic.error, marginLeft: 8, flex: 1, fontWeight: '500' }}>
                     {error.message}
                   </Text>
                   <TouchableOpacity onPress={refresh}>
-                    <Text style={{ fontSize: 13, fontWeight: '700', color: L.purple }}>Retry</Text>
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: brand.primary }}>Retry</Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -734,7 +701,7 @@ export function BrainDumpModal({ visible, onClose, onMoveToTasks, onOpenTask, ta
               {/* Loading */}
               {loading ? (
                 <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                  <ActivityIndicator color={L.purple} size="large" />
+                  <ActivityIndicator color={brand.primary} size="large" />
                 </View>
               ) : (
                 <FlatList

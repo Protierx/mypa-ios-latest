@@ -899,7 +899,7 @@ export function TasksViewScreen() {
             accessibilityRole="button"
             accessibilityLabel="Clear all completed tasks"
           >
-            <Text style={{ fontSize: 13, fontWeight: '600', color: '#FF3B30' }}>Clear All</Text>
+            <Text style={{ fontSize: 13, fontWeight: '600', color: semantic.error }}>Clear All</Text>
           </TouchableOpacity>
         )}
 
@@ -1027,7 +1027,7 @@ export function TasksViewScreen() {
             accessibilityRole="button"
             accessibilityLabel="Add new task"
           >
-            <Ionicons name="add" size={28} color="#FFFFFF" />
+            <Ionicons name="add" size={28} color={textTokens.inverse} />
           </TouchableOpacity>
         </View>
 
@@ -1076,19 +1076,16 @@ export function TasksViewScreen() {
             style={{
               flexDirection: 'row',
               alignItems: 'center',
-              backgroundColor: 'rgba(28,28,30,0.92)',
+              backgroundColor: textTokens.primary,
               paddingLeft: 18,
               paddingRight: toast.undoAction ? 6 : 18,
               paddingVertical: 11,
               borderRadius: 14,
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.18,
-              shadowRadius: 12,
+              ...shadows.lg,
               maxWidth: 320,
             }}
           >
-            <Text style={{ color: '#fff', fontSize: 14.5, fontWeight: '600', flex: 1 }}>{toast.message}</Text>
+            <Text style={{ color: textTokens.inverse, fontSize: 14.5, fontWeight: '600', flex: 1 }}>{toast.message}</Text>
             {toast.undoAction && (
               <TouchableOpacity
                 onPress={() => {
@@ -1099,7 +1096,7 @@ export function TasksViewScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Undo task completion"
               >
-                <Text style={{ color: '#A78BFA', fontSize: 13.5, fontWeight: '700' }}>Undo</Text>
+                <Text style={{ color: brand.secondary, fontSize: 13.5, fontWeight: '700' }}>Undo</Text>
               </TouchableOpacity>
             )}
           </View>

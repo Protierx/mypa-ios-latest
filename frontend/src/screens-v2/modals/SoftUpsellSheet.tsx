@@ -17,7 +17,9 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { eventLogger } from '@/services/eventLogger';
+import { eventLogger } from '../../services/eventLogger';
+import { bg, brand, text as textTokens, border as borderTokens, semantic } from '../../styles/colors';
+import { shadows, radius } from '../../styles/theme';
 
 interface SoftUpsellSheetProps {
   visible: boolean;
@@ -60,71 +62,82 @@ export function SoftUpsellSheet({
 
   return (
     <Modal visible={visible} transparent animationType="slide">
-      <Pressable className="flex-1 bg-black/60" onPress={handleDismiss}>
-        <View className="flex-1 justify-end">
+      <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }} onPress={handleDismiss}>
+        <View style={{ flex: 1, justifyContent: 'flex-end' }}>
           <Pressable
-            className="bg-surface-1 rounded-t-3xl border-t border-surface-4 px-6 pt-4 pb-8"
+            style={{
+              backgroundColor: bg.card, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+              borderTopWidth: 0.5, borderTopColor: borderTokens.primary,
+              paddingHorizontal: 24, paddingTop: 16, paddingBottom: 32,
+              ...shadows.lg,
+            }}
             onPress={(e) => e.stopPropagation()}
           >
             {/* Handle bar */}
-            <View className="items-center mb-4">
-              <View className="w-10 h-1 bg-surface-4 rounded-full" />
+            <View style={{ alignItems: 'center', marginBottom: 16 }}>
+              <View style={{ width: 40, height: 4, backgroundColor: borderTokens.primary, borderRadius: 2 }} />
             </View>
 
             {/* Icon + Message */}
-            <View className="items-center mb-6">
-              <View className="w-14 h-14 bg-warning/20 rounded-full items-center justify-center mb-4">
-                <Ionicons name="mic-off-outline" size={28} color="#EAB308" />
+            <View style={{ alignItems: 'center', marginBottom: 24 }}>
+              <View style={{ width: 56, height: 56, backgroundColor: `${semantic.warning}20`, borderRadius: 28, alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+                <Ionicons name="mic-off-outline" size={28} color={semantic.warning} />
               </View>
-              <Text className="text-title-2 font-bold text-ink-primary text-center">
+              <Text style={{ fontSize: 22, fontWeight: '700', color: textTokens.primary, textAlign: 'center' }}>
                 Daily Voice Limit Reached
               </Text>
-              <Text className="text-body text-ink-secondary text-center mt-2 px-4">
+              <Text style={{ fontSize: 15, color: textTokens.secondary, textAlign: 'center', marginTop: 8, paddingHorizontal: 16, lineHeight: 21 }}>
                 You've used all {limit} free voice commands today. Upgrade for unlimited voice, or switch to text.
               </Text>
             </View>
 
             {/* Usage Bar */}
-            <View className="bg-surface-2 rounded-xl p-4 mb-6 border border-surface-4">
-              <View className="flex-row justify-between mb-2">
-                <Text className="text-subhead text-ink-tertiary">Today's usage</Text>
-                <Text className="text-subhead font-semibold text-ink-primary">
+            <View style={{ backgroundColor: bg.secondary, borderRadius: radius.lg, padding: 16, marginBottom: 24, borderWidth: 0.5, borderColor: borderTokens.primary }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                <Text style={{ fontSize: 13, color: textTokens.tertiary }}>Today's usage</Text>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: textTokens.primary }}>
                   {voiceCount}/{limit}
                 </Text>
               </View>
-              <View className="h-2 bg-surface-4 rounded-full overflow-hidden">
+              <View style={{ height: 8, backgroundColor: borderTokens.primary, borderRadius: 4, overflow: 'hidden' }}>
                 <View
-                  className="h-full bg-warning rounded-full"
-                  style={{ width: '100%' }}
+                  style={{ height: '100%', backgroundColor: semantic.warning, borderRadius: 4, width: '100%' }}
                 />
               </View>
             </View>
 
             {/* CTAs */}
             <TouchableOpacity
-              className="bg-brand-purple py-4 rounded-2xl items-center mb-3"
+              style={{
+                backgroundColor: brand.primary, paddingVertical: 16, borderRadius: radius.lg,
+                alignItems: 'center', marginBottom: 12,
+                ...shadows.purple,
+              }}
               onPress={handleUpgrade}
               activeOpacity={0.8}
             >
-              <View className="flex-row items-center">
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <Ionicons name="diamond" size={18} color="#FFFFFF" />
-                <Text className="text-headline font-bold text-white ml-2">
+                <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff', marginLeft: 8 }}>
                   Upgrade to Premium
                 </Text>
               </View>
-              <Text className="text-caption-1 text-white/60 mt-1">
+              <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 4 }}>
                 Unlimited voice commands + more
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              className="bg-surface-2 py-4 rounded-2xl items-center border border-surface-4"
+              style={{
+                backgroundColor: bg.secondary, paddingVertical: 16, borderRadius: radius.lg,
+                alignItems: 'center', borderWidth: 0.5, borderColor: borderTokens.primary,
+              }}
               onPress={handleTextFallback}
               activeOpacity={0.8}
             >
-              <View className="flex-row items-center">
-                <Ionicons name="chatbubble-outline" size={18} color="#A1A1AA" />
-                <Text className="text-headline font-medium text-ink-secondary ml-2">
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Ionicons name="chatbubble-outline" size={18} color={textTokens.tertiary} />
+                <Text style={{ fontSize: 16, fontWeight: '500', color: textTokens.secondary, marginLeft: 8 }}>
                   Use Text Instead
                 </Text>
               </View>

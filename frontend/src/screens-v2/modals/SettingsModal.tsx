@@ -24,6 +24,9 @@ import { useSupabaseAuth } from '../../contexts/SupabaseAuthContext';
 import { useVoice } from '../../contexts/VoiceContext';
 import { ConversationHistoryModal } from './ConversationHistoryModal';
 
+import { bg, brand, text as textTokens, border as borderTokens, semantic } from '../../styles/colors';
+import { shadows, radius } from '../../styles/theme';
+
 interface SettingsModalProps {
   visible: boolean;
   onClose: () => void;
@@ -39,24 +42,24 @@ interface SettingRowProps {
   isDestructive?: boolean;
 }
 
-function SettingRow({ icon, iconColor = '#A1A1AA', title, subtitle, value, onPress, isDestructive }: SettingRowProps) {
+function SettingRow({ icon, iconColor = textTokens.tertiary, title, subtitle, value, onPress, isDestructive }: SettingRowProps) {
   return (
     <TouchableOpacity
-      className="flex-row items-center h-14 py-4 px-5"
+      style={{ flexDirection: 'row', alignItems: 'center', height: 56, paddingVertical: 16, paddingHorizontal: 20 }}
       onPress={onPress}
       disabled={!onPress}
       activeOpacity={onPress ? 0.7 : 1}
     >
-      <View className="w-8 h-8 rounded-lg bg-surface-3 items-center justify-center mr-3">
-        <Ionicons name={icon as any} size={18} color={isDestructive ? '#EF4444' : iconColor} />
+      <View style={{ width: 32, height: 32, borderRadius: radius.sm, backgroundColor: bg.secondary, alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+        <Ionicons name={icon as any} size={18} color={isDestructive ? semantic.error : iconColor} />
       </View>
-      <View className="flex-1">
-        <Text className={`text-body ${isDestructive ? 'text-error' : 'text-ink-primary'}`}>{title}</Text>
-        {subtitle && <Text className="text-subhead text-ink-tertiary mt-0.5">{subtitle}</Text>}
+      <View style={{ flex: 1 }}>
+        <Text style={{ fontSize: 15, color: isDestructive ? semantic.error : textTokens.primary }}>{title}</Text>
+        {subtitle && <Text style={{ fontSize: 13, color: textTokens.tertiary, marginTop: 2 }}>{subtitle}</Text>}
       </View>
       {value && <View>{value}</View>}
       {onPress && !value && (
-        <Ionicons name="chevron-forward" size={20} color="#52525B" />
+        <Ionicons name="chevron-forward" size={20} color={textTokens.tertiary} />
       )}
     </TouchableOpacity>
   );
@@ -64,7 +67,7 @@ function SettingRow({ icon, iconColor = '#A1A1AA', title, subtitle, value, onPre
 
 function SectionHeader({ title }: { title: string }) {
   return (
-    <Text className="text-caption-1 font-semibold text-ink-tertiary uppercase px-5 pt-6 pb-2">
+    <Text style={{ fontSize: 12, fontWeight: '600', color: textTokens.tertiary, textTransform: 'uppercase', paddingHorizontal: 20, paddingTop: 24, paddingBottom: 8 }}>
       {title}
     </Text>
   );
@@ -167,23 +170,23 @@ export function SettingsModal({ visible, onClose, onShowPaywall }: SettingsModal
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <SafeAreaView className="flex-1 bg-black" edges={['top', 'bottom']}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: bg.primary }} edges={['top', 'bottom']}>
         {/* Header */}
-        <View className="flex-row items-center justify-between px-5 py-4 border-b border-zinc-800">
-          <TouchableOpacity onPress={onClose} className="p-2 -ml-2">
-            <Ionicons name="close" size={24} color="#fff" />
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: borderTokens.primary }}>
+          <TouchableOpacity onPress={onClose} style={{ padding: 8, marginLeft: -8 }}>
+            <Ionicons name="close" size={24} color={textTokens.primary} />
           </TouchableOpacity>
-          <Text className="text-white text-lg font-semibold">Settings</Text>
-          <View className="w-10" />
+          <Text style={{ color: textTokens.primary, fontSize: 18, fontWeight: '600' }}>Settings</Text>
+          <View style={{ width: 40 }} />
         </View>
 
-        <ScrollView className="flex-1">
+        <ScrollView style={{ flex: 1 }}>
           {/* SUBSCRIPTION */}
           <SectionHeader title="Subscription" />
-          <View className="bg-zinc-900/50 mx-4 rounded-xl">
+          <View style={{ backgroundColor: bg.card, marginHorizontal: 16, borderRadius: radius.lg, borderWidth: 1, borderColor: borderTokens.primary, ...shadows.sm }}>
             <SettingRow
               icon={user?.isPremium ? 'diamond' : 'diamond-outline'}
-              iconColor={user?.isPremium ? '#7C3AED' : '#A1A1AA'}
+              iconColor={user?.isPremium ? brand.primary : textTokens.tertiary}
               title={user?.isPremium ? 'Premium' : 'Free Plan'}
               subtitle={user?.isPremium ? 'You have unlimited access' : 'Upgrade for unlimited voice & circles'}
               onPress={user?.isPremium ? undefined : onShowPaywall}
@@ -192,10 +195,10 @@ export function SettingsModal({ visible, onClose, onShowPaywall }: SettingsModal
 
           {/* VOICE & AI */}
           <SectionHeader title="Voice & AI" />
-          <View className="bg-zinc-900/50 mx-4 rounded-xl">
+          <View style={{ backgroundColor: bg.card, marginHorizontal: 16, borderRadius: radius.lg, borderWidth: 1, borderColor: borderTokens.primary, ...shadows.sm }}>
             <SettingRow
               icon="volume-high-outline"
-              iconColor="#a855f7"
+              iconColor={brand.primary}
               title="AI Voice"
               subtitle="Enable spoken responses"
               value={
@@ -205,76 +208,78 @@ export function SettingsModal({ visible, onClose, onShowPaywall }: SettingsModal
                     Haptics.selectionAsync();
                     setAiVoiceEnabled(v);
                   }}
-                  trackColor={{ false: '#3f3f46', true: '#7c3aed' }}
-                  thumbColor="#fff"
+                  trackColor={{ false: borderTokens.primary, true: brand.primary }}
+                  thumbColor={bg.card}
                 />
               }
             />
-            <View className="h-px bg-zinc-800 mx-5" />
-            <View className="px-5 py-4">
-              <View className="flex-row justify-between mb-2">
-                <Text className="text-white">Voice Speed</Text>
-                <Text className="text-zinc-400">{voiceSpeed.toFixed(1)}x</Text>
+            <View style={{ height: 1, backgroundColor: borderTokens.primary, marginHorizontal: 20 }} />
+            <View style={{ paddingHorizontal: 20, paddingVertical: 16 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                <Text style={{ color: textTokens.primary }}>Voice Speed</Text>
+                <Text style={{ color: textTokens.tertiary }}>{voiceSpeed.toFixed(1)}x</Text>
               </View>
               {/* Voice speed slider - using touchable areas for now */}
-              <View className="flex-row items-center justify-between">
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                 <TouchableOpacity 
-                  className="p-2" 
+                  style={{ padding: 8 }} 
                   onPress={() => setVoiceSpeed(Math.max(0.5, voiceSpeed - 0.1))}
                 >
-                  <Ionicons name="remove-circle-outline" size={24} color="#a855f7" />
+                  <Ionicons name="remove-circle-outline" size={24} color={brand.primary} />
                 </TouchableOpacity>
-                <View className="flex-1 h-2 bg-zinc-700 rounded-full mx-2">
+                <View style={{ flex: 1, height: 8, backgroundColor: bg.secondary, borderRadius: 9999, marginHorizontal: 8 }}>
                   <View 
-                    className="h-2 bg-purple-500 rounded-full"
-                    style={{ width: `${((voiceSpeed - 0.5) / 1.5) * 100}%` }}
+                    style={{ height: 8, backgroundColor: brand.primary, borderRadius: 9999, width: `${((voiceSpeed - 0.5) / 1.5) * 100}%` }}
                   />
                 </View>
                 <TouchableOpacity 
-                  className="p-2" 
+                  style={{ padding: 8 }} 
                   onPress={() => setVoiceSpeed(Math.min(2.0, voiceSpeed + 0.1))}
                 >
-                  <Ionicons name="add-circle-outline" size={24} color="#a855f7" />
+                  <Ionicons name="add-circle-outline" size={24} color={brand.primary} />
                 </TouchableOpacity>
               </View>
             </View>
-            <View className="h-px bg-zinc-800 mx-5" />
+            <View style={{ height: 1, backgroundColor: borderTokens.primary, marginHorizontal: 20 }} />
             {/* Voice Selection - Step 5.12 */}
-            <View className="px-5 py-4">
-              <Text className="text-white mb-3">Voice</Text>
-              <View className="flex-row flex-wrap gap-2">
+            <View style={{ paddingHorizontal: 20, paddingVertical: 16 }}>
+              <Text style={{ color: textTokens.primary, marginBottom: 12 }}>Voice</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                 {voiceOptions.map((voice) => (
                   <TouchableOpacity
                     key={voice.id}
-                    className={`px-4 py-2 rounded-lg border ${
-                      selectedVoice === voice.id 
-                        ? 'bg-purple-500/20 border-purple-500' 
-                        : 'bg-zinc-800 border-zinc-700'
-                    }`}
+                    style={{
+                      paddingHorizontal: 16,
+                      paddingVertical: 8,
+                      borderRadius: radius.sm,
+                      borderWidth: 1,
+                      backgroundColor: selectedVoice === voice.id ? brand.muted : bg.secondary,
+                      borderColor: selectedVoice === voice.id ? brand.primary : borderTokens.primary,
+                    }}
                     onPress={() => {
                       Haptics.selectionAsync();
                       setSelectedVoice(voice.id);
                     }}
                   >
-                    <Text className={selectedVoice === voice.id ? 'text-purple-400 font-semibold' : 'text-white'}>
+                    <Text style={{ color: selectedVoice === voice.id ? brand.primary : textTokens.primary, fontWeight: selectedVoice === voice.id ? '600' : '400' }}>
                       {voice.name}
                     </Text>
-                    <Text className="text-zinc-500 text-xs">{voice.description}</Text>
+                    <Text style={{ color: textTokens.tertiary, fontSize: 12 }}>{voice.description}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
               <TouchableOpacity 
-                className="mt-4 bg-zinc-800 py-3 rounded-lg items-center"
+                style={{ marginTop: 16, backgroundColor: bg.secondary, paddingVertical: 12, borderRadius: radius.sm, alignItems: 'center' }}
                 onPress={handleTestVoice}
               >
-                <Text className="text-purple-400 font-medium">Test Voice</Text>
+                <Text style={{ color: brand.primary, fontWeight: '500' }}>Test Voice</Text>
               </TouchableOpacity>
             </View>
-            <View className="h-px bg-zinc-800 mx-5" />
+            <View style={{ height: 1, backgroundColor: borderTokens.primary, marginHorizontal: 20 }} />
             {/* Discreet Mode (PRD 4.1) */}
             <SettingRow
               icon="text-outline"
-              iconColor="#22d3ee"
+              iconColor={semantic.info}
               title="Discreet Mode"
               subtitle="Text-only, no voice audio"
               value={
@@ -284,16 +289,16 @@ export function SettingsModal({ visible, onClose, onShowPaywall }: SettingsModal
                     Haptics.selectionAsync();
                     setDiscreetMode(v);
                   }}
-                  trackColor={{ false: '#3f3f46', true: '#7c3aed' }}
-                  thumbColor="#fff"
+                  trackColor={{ false: borderTokens.primary, true: brand.primary }}
+                  thumbColor={bg.card}
                 />
               }
             />
-            <View className="h-px bg-zinc-800 mx-5" />
+            <View style={{ height: 1, backgroundColor: borderTokens.primary, marginHorizontal: 20 }} />
             {/* Live Captions (Step 21f) */}
             <SettingRow
               icon="chatbubble-ellipses-outline"
-              iconColor="#34d399"
+              iconColor={semantic.success}
               title="Live Captions"
               subtitle="Show what you're saying on screen"
               value={
@@ -303,16 +308,16 @@ export function SettingsModal({ visible, onClose, onShowPaywall }: SettingsModal
                     Haptics.selectionAsync();
                     setLiveCaptionsEnabled(v);
                   }}
-                  trackColor={{ false: '#3f3f46', true: '#7c3aed' }}
-                  thumbColor="#fff"
+                  trackColor={{ false: borderTokens.primary, true: brand.primary }}
+                  thumbColor={bg.card}
                 />
               }
             />
-            <View className="h-px bg-zinc-800 mx-5" />
+            <View style={{ height: 1, backgroundColor: borderTokens.primary, marginHorizontal: 20 }} />
             {/* Language Selection (Step 5) */}
-            <View className="px-5 py-4">
-              <Text className="text-white mb-3">Language</Text>
-              <View className="flex-row flex-wrap gap-2">
+            <View style={{ paddingHorizontal: 20, paddingVertical: 16 }}>
+              <Text style={{ color: textTokens.primary, marginBottom: 12 }}>Language</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                 {[
                   { code: 'en', name: 'English', flag: '🇺🇸' },
                   { code: 'es', name: 'Español', flag: '🇪🇸' },
@@ -327,17 +332,20 @@ export function SettingsModal({ visible, onClose, onShowPaywall }: SettingsModal
                 ].map((lang) => (
                   <TouchableOpacity
                     key={lang.code}
-                    className={`px-4 py-2 rounded-lg border ${
-                      preferredLanguage === lang.code
-                        ? 'bg-purple-500/20 border-purple-500'
-                        : 'bg-zinc-800 border-zinc-700'
-                    }`}
+                    style={{
+                      paddingHorizontal: 16,
+                      paddingVertical: 8,
+                      borderRadius: radius.sm,
+                      borderWidth: 1,
+                      backgroundColor: preferredLanguage === lang.code ? brand.muted : bg.secondary,
+                      borderColor: preferredLanguage === lang.code ? brand.primary : borderTokens.primary,
+                    }}
                     onPress={() => {
                       Haptics.selectionAsync();
                       setPreferredLanguage(lang.code);
                     }}
                   >
-                    <Text className={preferredLanguage === lang.code ? 'text-purple-400 font-semibold' : 'text-white'}>
+                    <Text style={{ color: preferredLanguage === lang.code ? brand.primary : textTokens.primary, fontWeight: preferredLanguage === lang.code ? '600' : '400' }}>
                       {lang.flag} {lang.name}
                     </Text>
                   </TouchableOpacity>
@@ -348,10 +356,10 @@ export function SettingsModal({ visible, onClose, onShowPaywall }: SettingsModal
 
           {/* NOISY ENVIRONMENT */}
           <SectionHeader title="Noisy Environment" />
-          <View className="bg-zinc-900/50 mx-4 rounded-xl">
+          <View style={{ backgroundColor: bg.card, marginHorizontal: 16, borderRadius: radius.lg, borderWidth: 1, borderColor: borderTokens.primary, ...shadows.sm }}>
             <SettingRow
               icon="headset-outline"
-              iconColor="#06b6d4"
+              iconColor={semantic.info}
               title="Voice Isolation"
               subtitle="Clean audio in noisy places"
               value={
@@ -361,14 +369,14 @@ export function SettingsModal({ visible, onClose, onShowPaywall }: SettingsModal
                     Haptics.selectionAsync();
                     setNoiseIsolationEnabled(v);
                   }}
-                  trackColor={{ false: '#3f3f46', true: '#7c3aed' }}
-                  thumbColor="#fff"
+                  trackColor={{ false: borderTokens.primary, true: brand.primary }}
+                  thumbColor={bg.card}
                 />
               }
             />
-            <View className="h-px bg-zinc-800 mx-5" />
-            <View className="px-5 py-3">
-              <Text className="text-zinc-500 text-xs">
+            <View style={{ height: 1, backgroundColor: borderTokens.primary, marginHorizontal: 20 }} />
+            <View style={{ paddingHorizontal: 20, paddingVertical: 12 }}>
+              <Text style={{ color: textTokens.tertiary, fontSize: 12 }}>
                 Uses ElevenLabs Audio Isolation to filter background noise before processing your voice.
                 Best for coffee shops, commutes, and gyms. The built-in noise handling works well
                 for moderate noise — enable this for extreme environments.
@@ -378,10 +386,10 @@ export function SettingsModal({ visible, onClose, onShowPaywall }: SettingsModal
 
           {/* HANDS-FREE ACTIVATION */}
           <SectionHeader title="Hands-Free Activation" />
-          <View className="bg-zinc-900/50 mx-4 rounded-xl">
+          <View style={{ backgroundColor: bg.card, marginHorizontal: 16, borderRadius: radius.lg, borderWidth: 1, borderColor: borderTokens.primary, ...shadows.sm }}>
             <SettingRow
               icon="mic-outline"
-              iconColor="#f59e0b"
+              iconColor={semantic.warning}
               title='"Hey MYPA" Wake Word'
               subtitle="Activate hands-free, on-device only"
               value={
@@ -391,45 +399,44 @@ export function SettingsModal({ visible, onClose, onShowPaywall }: SettingsModal
                     Haptics.selectionAsync();
                     setWakeWordEnabled(v);
                   }}
-                  trackColor={{ false: '#3f3f46', true: '#7c3aed' }}
-                  thumbColor="#fff"
+                  trackColor={{ false: borderTokens.primary, true: brand.primary }}
+                  thumbColor={bg.card}
                 />
               }
             />
             {isWakeWordEnabled && (
               <>
-                <View className="h-px bg-zinc-800 mx-5" />
-                <View className="px-5 py-4">
-                  <View className="flex-row justify-between mb-2">
-                    <Text className="text-white">Sensitivity</Text>
-                    <Text className="text-zinc-400">
+                <View style={{ height: 1, backgroundColor: borderTokens.primary, marginHorizontal: 20 }} />
+                <View style={{ paddingHorizontal: 20, paddingVertical: 16 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <Text style={{ color: textTokens.primary }}>Sensitivity</Text>
+                    <Text style={{ color: textTokens.tertiary }}>
                       {wakeWordSensitivity <= 0.33 ? 'Low' : wakeWordSensitivity <= 0.66 ? 'Medium' : 'High'}
                     </Text>
                   </View>
-                  <View className="flex-row items-center justify-between">
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                     <TouchableOpacity
-                      className="p-2"
+                      style={{ padding: 8 }}
                       onPress={() => setWakeWordSensitivity(Math.max(0, wakeWordSensitivity - 0.1))}
                     >
-                      <Ionicons name="remove-circle-outline" size={24} color="#f59e0b" />
+                      <Ionicons name="remove-circle-outline" size={24} color={semantic.warning} />
                     </TouchableOpacity>
-                    <View className="flex-1 h-2 bg-zinc-700 rounded-full mx-2">
+                    <View style={{ flex: 1, height: 8, backgroundColor: bg.secondary, borderRadius: 9999, marginHorizontal: 8 }}>
                       <View
-                        className="h-2 bg-amber-500 rounded-full"
-                        style={{ width: `${wakeWordSensitivity * 100}%` }}
+                        style={{ height: 8, backgroundColor: semantic.warning, borderRadius: 9999, width: `${wakeWordSensitivity * 100}%` }}
                       />
                     </View>
                     <TouchableOpacity
-                      className="p-2"
+                      style={{ padding: 8 }}
                       onPress={() => setWakeWordSensitivity(Math.min(1, wakeWordSensitivity + 0.1))}
                     >
-                      <Ionicons name="add-circle-outline" size={24} color="#f59e0b" />
+                      <Ionicons name="add-circle-outline" size={24} color={semantic.warning} />
                     </TouchableOpacity>
                   </View>
                 </View>
-                <View className="h-px bg-zinc-800 mx-5" />
-                <View className="px-5 py-3">
-                  <Text className="text-zinc-500 text-xs">
+                <View style={{ height: 1, backgroundColor: borderTokens.primary, marginHorizontal: 20 }} />
+                <View style={{ paddingHorizontal: 20, paddingVertical: 12 }}>
+                  <Text style={{ color: textTokens.tertiary, fontSize: 12 }}>
                     MYPA listens for the wake word on-device. No audio is sent to the cloud until activated.
                     {'\n'}Auto-pauses below 15% battery to save power.
                   </Text>
@@ -440,10 +447,10 @@ export function SettingsModal({ visible, onClose, onShowPaywall }: SettingsModal
 
           {/* NOTIFICATIONS */}
           <SectionHeader title="Notifications" />
-          <View className="bg-zinc-900/50 mx-4 rounded-xl">
+          <View style={{ backgroundColor: bg.card, marginHorizontal: 16, borderRadius: radius.lg, borderWidth: 1, borderColor: borderTokens.primary, ...shadows.sm }}>
             <SettingRow
               icon="notifications-outline"
-              iconColor="#3b82f6"
+              iconColor={semantic.info}
               title="Push Notifications"
               value={
                 <Switch
@@ -452,12 +459,12 @@ export function SettingsModal({ visible, onClose, onShowPaywall }: SettingsModal
                     Haptics.selectionAsync();
                     setPushEnabled(v);
                   }}
-                  trackColor={{ false: '#3f3f46', true: '#7c3aed' }}
-                  thumbColor="#fff"
+                  trackColor={{ false: borderTokens.primary, true: brand.primary }}
+                  thumbColor={bg.card}
                 />
               }
             />
-            <View className="h-px bg-zinc-800 mx-5" />
+            <View style={{ height: 1, backgroundColor: borderTokens.primary, marginHorizontal: 20 }} />
             <SettingRow
               icon="sunny-outline"
               title="Daily Summary"
@@ -469,12 +476,12 @@ export function SettingsModal({ visible, onClose, onShowPaywall }: SettingsModal
                     Haptics.selectionAsync();
                     setDailySummaryEnabled(v);
                   }}
-                  trackColor={{ false: '#3f3f46', true: '#7c3aed' }}
-                  thumbColor="#fff"
+                  trackColor={{ false: borderTokens.primary, true: brand.primary }}
+                  thumbColor={bg.card}
                 />
               }
             />
-            <View className="h-px bg-zinc-800 mx-5" />
+            <View style={{ height: 1, backgroundColor: borderTokens.primary, marginHorizontal: 20 }} />
             <SettingRow
               icon="alarm-outline"
               title="Task Reminders"
@@ -485,8 +492,8 @@ export function SettingsModal({ visible, onClose, onShowPaywall }: SettingsModal
                     Haptics.selectionAsync();
                     setTaskRemindersEnabled(v);
                   }}
-                  trackColor={{ false: '#3f3f46', true: '#7c3aed' }}
-                  thumbColor="#fff"
+                  trackColor={{ false: borderTokens.primary, true: brand.primary }}
+                  thumbColor={bg.card}
                 />
               }
             />
@@ -494,13 +501,13 @@ export function SettingsModal({ visible, onClose, onShowPaywall }: SettingsModal
 
           {/* FOCUS */}
           <SectionHeader title="Focus" />
-          <View className="bg-zinc-900/50 mx-4 rounded-xl">
+          <View style={{ backgroundColor: bg.card, marginHorizontal: 16, borderRadius: radius.lg, borderWidth: 1, borderColor: borderTokens.primary, ...shadows.sm }}>
             <SettingRow
               icon="timer-outline"
-              iconColor="#22c55e"
+              iconColor={semantic.success}
               title="Default Duration"
               value={
-                <Text className="text-zinc-400">{defaultFocusDuration} min</Text>
+                <Text style={{ color: textTokens.tertiary }}>{defaultFocusDuration} min</Text>
               }
               onPress={() => {
                 Alert.alert(
@@ -516,7 +523,7 @@ export function SettingsModal({ visible, onClose, onShowPaywall }: SettingsModal
                 );
               }}
             />
-            <View className="h-px bg-zinc-800 mx-5" />
+            <View style={{ height: 1, backgroundColor: borderTokens.primary, marginHorizontal: 20 }} />
             <SettingRow
               icon="musical-notes-outline"
               title="Focus Sounds"
@@ -528,8 +535,8 @@ export function SettingsModal({ visible, onClose, onShowPaywall }: SettingsModal
                     Haptics.selectionAsync();
                     setFocusSoundsEnabled(v);
                   }}
-                  trackColor={{ false: '#3f3f46', true: '#7c3aed' }}
-                  thumbColor="#fff"
+                  trackColor={{ false: borderTokens.primary, true: brand.primary }}
+                  thumbColor={bg.card}
                 />
               }
             />
@@ -537,13 +544,13 @@ export function SettingsModal({ visible, onClose, onShowPaywall }: SettingsModal
 
           {/* PRIVACY */}
           <SectionHeader title="Privacy" />
-          <View className="bg-zinc-900/50 mx-4 rounded-xl">
+          <View style={{ backgroundColor: bg.card, marginHorizontal: 16, borderRadius: radius.lg, borderWidth: 1, borderColor: borderTokens.primary, ...shadows.sm }}>
             <SettingRow
               icon="eye-outline"
-              iconColor="#f97316"
+              iconColor={semantic.warning}
               title="Profile Visibility"
               value={
-                <Text className="text-zinc-400 capitalize">{profileVisibility}</Text>
+                <Text style={{ color: textTokens.tertiary, textTransform: 'capitalize' }}>{profileVisibility}</Text>
               }
               onPress={() => {
                 Alert.alert(
@@ -562,10 +569,10 @@ export function SettingsModal({ visible, onClose, onShowPaywall }: SettingsModal
 
           {/* HISTORY */}
           <SectionHeader title="History" />
-          <View className="bg-zinc-900/50 mx-4 rounded-xl">
+          <View style={{ backgroundColor: bg.card, marginHorizontal: 16, borderRadius: radius.lg, borderWidth: 1, borderColor: borderTokens.primary, ...shadows.sm }}>
             <SettingRow
               icon="chatbubbles-outline"
-              iconColor="#8b5cf6"
+              iconColor={brand.primary}
               title="Conversation History"
               subtitle="Browse past voice conversations"
               onPress={() => setShowConversationHistory(true)}
@@ -574,7 +581,7 @@ export function SettingsModal({ visible, onClose, onShowPaywall }: SettingsModal
 
           {/* ACCOUNT */}
           <SectionHeader title="Account" />
-          <View className="bg-zinc-900/50 mx-4 rounded-xl">
+          <View style={{ backgroundColor: bg.card, marginHorizontal: 16, borderRadius: radius.lg, borderWidth: 1, borderColor: borderTokens.primary, ...shadows.sm }}>
             <SettingRow
               icon="person-outline"
               title="Edit Profile"
@@ -582,7 +589,7 @@ export function SettingsModal({ visible, onClose, onShowPaywall }: SettingsModal
                 // TODO: Open edit profile
               }}
             />
-            <View className="h-px bg-zinc-800 mx-5" />
+            <View style={{ height: 1, backgroundColor: borderTokens.primary, marginHorizontal: 20 }} />
             <SettingRow
               icon="download-outline"
               title="Export Data"
@@ -590,13 +597,13 @@ export function SettingsModal({ visible, onClose, onShowPaywall }: SettingsModal
                 Alert.alert('Coming Soon', 'Data export will be available soon.');
               }}
             />
-            <View className="h-px bg-zinc-800 mx-5" />
+            <View style={{ height: 1, backgroundColor: borderTokens.primary, marginHorizontal: 20 }} />
             <SettingRow
               icon="log-out-outline"
               title="Sign Out"
               onPress={handleSignOut}
             />
-            <View className="h-px bg-zinc-800 mx-5" />
+            <View style={{ height: 1, backgroundColor: borderTokens.primary, marginHorizontal: 20 }} />
             <SettingRow
               icon="trash-outline"
               title="Delete Account"
@@ -607,25 +614,25 @@ export function SettingsModal({ visible, onClose, onShowPaywall }: SettingsModal
 
           {/* ABOUT */}
           <SectionHeader title="About" />
-          <View className="bg-zinc-900/50 mx-4 rounded-xl mb-8">
+          <View style={{ backgroundColor: bg.card, marginHorizontal: 16, borderRadius: radius.lg, borderWidth: 1, borderColor: borderTokens.primary, ...shadows.sm, marginBottom: 32 }}>
             <SettingRow
               icon="information-circle-outline"
               title="App Version"
-              value={<Text className="text-zinc-500">1.0.0</Text>}
+              value={<Text style={{ color: textTokens.tertiary }}>1.0.0</Text>}
             />
-            <View className="h-px bg-zinc-800 mx-5" />
+            <View style={{ height: 1, backgroundColor: borderTokens.primary, marginHorizontal: 20 }} />
             <SettingRow
               icon="document-text-outline"
               title="Terms of Service"
               onPress={() => handleOpenURL('https://mypa.app/terms')}
             />
-            <View className="h-px bg-zinc-800 mx-5" />
+            <View style={{ height: 1, backgroundColor: borderTokens.primary, marginHorizontal: 20 }} />
             <SettingRow
               icon="shield-checkmark-outline"
               title="Privacy Policy"
               onPress={() => handleOpenURL('https://mypa.app/privacy')}
             />
-            <View className="h-px bg-zinc-800 mx-5" />
+            <View style={{ height: 1, backgroundColor: borderTokens.primary, marginHorizontal: 20 }} />
             <SettingRow
               icon="help-circle-outline"
               title="Help & Support"

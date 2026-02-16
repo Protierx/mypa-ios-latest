@@ -14,7 +14,6 @@ import {
   FlatList,
   ActivityIndicator,
   RefreshControl,
-  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,6 +21,8 @@ import * as Haptics from 'expo-haptics';
 
 import { useNotifications } from '../../hooks/supabase';
 import { Notification } from '../../lib/supabase';
+import { bg, brand, text as textTokens, border as borderTokens, semantic } from '../../styles/colors';
+import { shadows, radius } from '../../styles/theme';
 
 interface NotificationsModalProps {
   visible: boolean;
@@ -32,13 +33,13 @@ interface NotificationsModalProps {
 type FilterType = 'all' | 'social' | 'tasks' | 'system';
 
 const NOTIFICATION_ICONS: Record<string, { icon: string; color: string }> = {
-  circle_invite: { icon: 'people-outline', color: '#3b82f6' },
-  challenge_update: { icon: 'trophy-outline', color: '#f59e0b' },
-  task_reminder: { icon: 'alarm-outline', color: '#ef4444' },
-  streak_warning: { icon: 'flame-outline', color: '#f97316' },
-  achievement: { icon: 'star-outline', color: '#eab308' },
-  system: { icon: 'information-circle-outline', color: '#6b7280' },
-  default: { icon: 'notifications-outline', color: '#a855f7' },
+  circle_invite: { icon: 'people-outline', color: semantic.info },
+  challenge_update: { icon: 'trophy-outline', color: semantic.warning },
+  task_reminder: { icon: 'alarm-outline', color: semantic.error },
+  streak_warning: { icon: 'flame-outline', color: '#F97316' },
+  achievement: { icon: 'star-outline', color: semantic.warning },
+  system: { icon: 'information-circle-outline', color: textTokens.tertiary },
+  default: { icon: 'notifications-outline', color: brand.primary },
 };
 
 const getNotificationIcon = (type: string) => {
@@ -108,46 +109,47 @@ export function NotificationsModal({ visible, onClose, onNotificationPress }: No
     
     return (
       <TouchableOpacity
-        className={`flex-row items-start p-4 border-b border-zinc-800 ${
-          !item.read ? 'bg-purple-900/10' : ''
-        }`}
+        style={{
+          flexDirection: 'row', alignItems: 'flex-start', padding: 16,
+          borderBottomWidth: 0.5, borderBottomColor: borderTokens.primary,
+          backgroundColor: !item.read ? `${brand.primary}08` : 'transparent',
+        }}
         onPress={() => handleNotificationPress(item)}
         onLongPress={() => handleDelete(item.id)}
       >
         {/* Icon */}
         <View 
-          className="w-10 h-10 rounded-full items-center justify-center mr-3"
-          style={{ backgroundColor: `${color}20` }}
+          style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginRight: 12, backgroundColor: `${color}20` }}
         >
           <Ionicons name={icon as any} size={20} color={color} />
         </View>
         
         {/* Content */}
-        <View className="flex-1">
-          <Text className="text-white font-medium">{item.title}</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: textTokens.primary, fontWeight: '500', fontSize: 15 }}>{item.title}</Text>
           {item.body && (
-            <Text className="text-zinc-500 text-sm mt-0.5" numberOfLines={2}>
+            <Text style={{ color: textTokens.secondary, fontSize: 13, marginTop: 2 }} numberOfLines={2}>
               {item.body}
             </Text>
           )}
-          <Text className="text-zinc-600 text-xs mt-1">
+          <Text style={{ color: textTokens.tertiary, fontSize: 11, marginTop: 4 }}>
             {formatTimeAgo(item.created_at)}
           </Text>
         </View>
         
         {/* Unread Indicator */}
         {!item.read && (
-          <View className="w-2 h-2 rounded-full bg-purple-500 mt-2" />
+          <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: brand.primary, marginTop: 8 }} />
         )}
       </TouchableOpacity>
     );
   };
 
   const renderEmpty = () => (
-    <View className="flex-1 items-center justify-center py-20">
-      <Ionicons name="notifications-off-outline" size={64} color="#3f3f46" />
-      <Text className="text-zinc-500 text-lg mt-4">You're all caught up!</Text>
-      <Text className="text-zinc-600 mt-1">No new notifications</Text>
+    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 80 }}>
+      <Ionicons name="notifications-off-outline" size={64} color={textTokens.disabled} />
+      <Text style={{ color: textTokens.secondary, fontSize: 18, marginTop: 16 }}>You're all caught up!</Text>
+      <Text style={{ color: textTokens.tertiary, marginTop: 4, fontSize: 14 }}>No new notifications</Text>
     </View>
   );
 
@@ -160,42 +162,41 @@ export function NotificationsModal({ visible, onClose, onNotificationPress }: No
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <SafeAreaView className="flex-1 bg-black" edges={['top', 'bottom']}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: bg.primary }} edges={['top', 'bottom']}>
         {/* Header */}
-        <View className="flex-row items-center justify-between px-5 py-4 border-b border-zinc-800">
-          <TouchableOpacity onPress={onClose} className="p-2 -ml-2">
-            <Ionicons name="close" size={24} color="#fff" />
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 0.5, borderBottomColor: borderTokens.primary }}>
+          <TouchableOpacity onPress={onClose} style={{ padding: 8, marginLeft: -8 }}>
+            <Ionicons name="close" size={24} color={textTokens.primary} />
           </TouchableOpacity>
           
-          <Text className="text-white text-lg font-semibold">Notifications</Text>
+          <Text style={{ color: textTokens.primary, fontSize: 17, fontWeight: '600' }}>Notifications</Text>
           
           <TouchableOpacity 
             onPress={handleMarkAllRead}
-            className="p-2 -mr-2"
+            style={{ padding: 8, marginRight: -8 }}
             disabled={unreadCount === 0}
           >
-            <Text className={`text-sm ${unreadCount > 0 ? 'text-purple-500' : 'text-zinc-600'}`}>
+            <Text style={{ fontSize: 13, color: unreadCount > 0 ? brand.primary : textTokens.disabled }}>
               Mark all read
             </Text>
           </TouchableOpacity>
         </View>
 
         {/* Filter Tabs */}
-        <View className="flex-row px-4 py-2 border-b border-zinc-800">
+        <View style={{ flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 8, borderBottomWidth: 0.5, borderBottomColor: borderTokens.primary }}>
           {(['all', 'social', 'tasks', 'system'] as FilterType[]).map((f) => (
             <TouchableOpacity
               key={f}
-              className={`flex-1 py-2 items-center rounded-lg mx-1 ${
-                filter === f ? 'bg-purple-600' : ''
-              }`}
+              style={{
+                flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 8, marginHorizontal: 4,
+                backgroundColor: filter === f ? brand.primary : 'transparent',
+              }}
               onPress={() => {
                 Haptics.selectionAsync();
                 setFilter(f);
               }}
             >
-              <Text className={`text-sm capitalize ${
-                filter === f ? 'text-white font-medium' : 'text-zinc-500'
-              }`}>
+              <Text style={{ fontSize: 13, textTransform: 'capitalize', fontWeight: filter === f ? '600' : '500', color: filter === f ? '#fff' : textTokens.tertiary }}>
                 {f}
               </Text>
             </TouchableOpacity>
@@ -204,8 +205,8 @@ export function NotificationsModal({ visible, onClose, onNotificationPress }: No
 
         {/* Notifications List */}
         {isLoading ? (
-          <View className="flex-1 items-center justify-center">
-            <ActivityIndicator size="large" color="#a855f7" />
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+            <ActivityIndicator size="large" color={brand.primary} />
           </View>
         ) : (
           <FlatList
@@ -217,15 +218,15 @@ export function NotificationsModal({ visible, onClose, onNotificationPress }: No
               <RefreshControl
                 refreshing={isRefreshing}
                 onRefresh={handleRefresh}
-                tintColor="#a855f7"
+                tintColor={brand.primary}
               />
             }
           />
         )}
 
         {/* Hint */}
-        <View className="px-5 py-3 border-t border-zinc-800">
-          <Text className="text-zinc-600 text-xs text-center">
+        <View style={{ paddingHorizontal: 20, paddingVertical: 12, borderTopWidth: 0.5, borderTopColor: borderTokens.primary }}>
+          <Text style={{ color: textTokens.tertiary, fontSize: 11, textAlign: 'center' }}>
             Long press a notification to delete it
           </Text>
         </View>
