@@ -1,24 +1,22 @@
 /**
- * AI Hub Screen — Premium Light Glassmorphic Design
+ * AI Hub Screen — Immersive Dark "AI Data Core" Design
  *
- * Clean, minimal AI interface inspired by Apple Weather, Notion Calendar,
- * and Arc browser. Light gradient background with frosted glass cards.
- * Voice interaction zone floats in the center with smooth state transitions.
+ * The entire screen IS the AI — a dark, living environment with floating
+ * particles, ambient glow, and voice-reactive animations. Clean white text
+ * overlaid on the dark scene.
  *
  * Features:
- * - Soft animated gradient background (white → lavender → blue, time-of-day tint)
- * - Frosted glass briefing card (collapsible)
- * - Clean mic icon with breathing animation (idle) / waveform (listening)
+ * - Dark animated Skia background scene (AIHubScene)
+ * - Floating glass transcript overlay (TranscriptOverlay)
+ * - Breathing mic icon with voice-state transitions
  * - Quick action pill chips + ambient stats bar
  * - Text input fallback for offline / discreet mode
  */
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { View, Text, ScrollView, StyleSheet, Pressable, Dimensions, TextInput, Keyboard, StatusBar } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Pressable, TextInput, Keyboard, StatusBar, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
-import { LinearGradient } from 'expo-linear-gradient';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -36,6 +34,10 @@ import Animated, {
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 
+import { AIHubScene } from './AIHubScene';
+import { TranscriptOverlay } from './TranscriptOverlay';
+import { useVoiceAmplitude } from './useVoiceAmplitude';
+import { useAssistantSceneState } from './useAssistantSceneState';
 import { VoiceState } from '../../components/LivingBackground';
 import { VoicePermissions, useVoicePermissions } from '../../components/VoicePermissions';
 import { NotificationsModal } from '../modals/NotificationsModal';
@@ -46,11 +48,8 @@ import { useTasks } from '../../hooks/supabase/useTasks';
 import { useDailyBriefing } from '../../hooks/useDailyBriefing';
 import { eventLogger } from '../../services/eventLogger';
 import { getLevelFromDays } from '../../components/LockedFeature';
-import { bg, brand, text as textTokens, border as borderTokens, semantic, lightAurora } from '../../styles/colors';
-import { shadows, spacing, radius } from '../../styles/theme';
+import { brand } from '../../styles/colors';
 import supabaseApi from '../../services/supabaseApi';
-
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 interface AIHubScreenProps {
   voiceState?: VoiceState;
@@ -60,25 +59,20 @@ interface AIHubScreenProps {
 // Approximate TTS speed: ~150 chars/second
 const TTS_CHARS_PER_SEC = 150;
 
-/** Returns time-of-day gradient colours for the background */
-function getTimeOfDayGradient(): [string, string, string] {
+/** Returns time-of-day greeting */
+function getTimeGreeting(): string {
   const hour = new Date().getHours();
-  if (hour >= 5 && hour < 12) {
-    // Morning: warm peach tint
-    return [lightAurora.white, lightAurora.peach, lightAurora.lavender];
-  } else if (hour >= 12 && hour < 17) {
-    // Afternoon: neutral white
-    return [lightAurora.white, '#F8F8FA', lightAurora.blue];
-  } else {
-    // Evening / Night: soft lavender
-    return [lightAurora.white, lightAurora.lavender, lightAurora.blue];
-  }
+  if (hour < 12) return 'Good morning';
+  if (hour < 17) return 'Good afternoon';
+  if (hour < 21) return 'Good evening';
+  return 'Hey there';
 }
 
 export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: externalAudioLevel }: AIHubScreenProps) {
   const { user } = useSupabaseAuth();
   const { stats } = useUserModel();
   const { tasks } = useTasks('today');
+  useWindowDimensions(); // keep hook registered for layout reactivity
 
   // Compute current unlock level from days active
   const currentLevel = getLevelFromDays(stats?.daysActive ?? 0);
@@ -96,6 +90,10 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
   // Use voice context state if available, otherwise fallback to props/local state
   const voiceState = voice.voiceState || externalVoiceState || 'idle';
   const audioLevel = voice.audioLevel || externalAudioLevel || 0;
+
+  // ── Scene hooks (drive the dark background) ──
+  const amplitude = useVoiceAmplitude();
+  const sceneState = useAssistantSceneState(voiceState);
   
   const [greeting, setGreeting] = useState('');
   const [isLoadingGreeting, setIsLoadingGreeting] = useState(false);
@@ -132,9 +130,6 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
   const iconScale = useSharedValue(1);
   const iconOpacity = useSharedValue(0.7);
 
-  // Background gradient colours (time-of-day)
-  const gradientColors = getTimeOfDayGradient();
-
   // Get today's date
   const today = new Date();
   const dateString = today.toLocaleDateString('en-US', {
@@ -142,15 +137,6 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
     month: 'short',
     day: 'numeric',
   });
-
-  // Get time-based greeting
-  const getTimeGreeting = () => {
-    const hour = today.getHours();
-    if (hour < 12) return 'Good morning';
-    if (hour < 17) return 'Good afternoon';
-    if (hour < 21) return 'Good evening';
-    return 'Hey there';
-  };
 
   // Fetch AI greeting on mount
   useEffect(() => {
@@ -437,18 +423,13 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" />
-      {/* Soft gradient background — time-of-day tinted */}
-      <LinearGradient
-        colors={gradientColors}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={StyleSheet.absoluteFill}
-      />
+      <StatusBar barStyle="light-content" />
 
-      {/* SafeAreaView wraps everything for proper insets */}
+      {/* ── Immersive dark Skia background scene ── */}
+      <AIHubScene sceneState={sceneState} amplitude={amplitude} />
+
+      {/* SafeAreaView wraps all UI content */}
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        {/* Tap Area - entire screen */}
         <Pressable style={styles.tapArea} onPress={handleTap}>
 
           {/* ──── Top Section: Greeting & Date ──── */}
@@ -478,12 +459,12 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
                 }}
               >
                 <View style={styles.notificationCircle}>
-                  <Ionicons name="notifications-outline" size={20} color={textTokens.secondary} />
+                  <Ionicons name="notifications-outline" size={20} color="rgba(255,255,255,0.6)" />
                 </View>
               </Pressable>
             </View>
 
-            {/* ──── Smart Briefing Card (collapsed pill) ──── */}
+            {/* ──── Smart Briefing Pill (collapsed) ──── */}
             {isBriefingCollapsed && briefText && !isVoiceActive && (
               <Animated.View
                 entering={SlideInDown.duration(400).springify().damping(18)}
@@ -502,7 +483,7 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
                     {pendingTasks} task{pendingTasks !== 1 ? 's' : ''} today
                     {(user?.currentStreak ?? 0) > 0 ? ` • ${user?.currentStreak}-day streak 🔥` : ''}
                   </Text>
-                  <Ionicons name="chevron-down" size={14} color={textTokens.tertiary} />
+                  <Ionicons name="chevron-down" size={14} color="rgba(255,255,255,0.4)" />
                 </Pressable>
               </Animated.View>
             )}
@@ -510,7 +491,7 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
 
           {/* ──── Center Section: Voice Interaction Zone ──── */}
           <View style={styles.centerSection}>
-            {/* Briefing content — frosted glass card (expanded state) */}
+            {/* Briefing expanded card */}
             {(showBriefingText && !isBriefingCollapsed && briefText && !isVoiceActive) ? (
               <Animated.View 
                 entering={FadeIn.duration(400)}
@@ -522,7 +503,7 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
                   contentContainerStyle={styles.briefingScrollContent}
                   showsVerticalScrollIndicator={false}
                 >
-                  <BlurView intensity={20} tint="light" style={styles.briefingCard}>
+                  <View style={styles.briefingCard}>
                     <View style={styles.briefingHeader}>
                       <Text style={styles.briefingEmoji}>📋</Text>
                       <Text style={styles.briefingTitle}>Daily Briefing</Text>
@@ -534,38 +515,37 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
                         }}
                         hitSlop={12}
                       >
-                        <Ionicons name="chevron-up" size={18} color={textTokens.tertiary} />
+                        <Ionicons name="chevron-up" size={18} color="rgba(255,255,255,0.4)" />
                       </Pressable>
                     </View>
                     <Text style={styles.briefingText}>{briefText}</Text>
-                  </BlurView>
+                  </View>
                 </ScrollView>
                 <Text style={styles.briefingHint}>
                   {isBriefingPlaying ? 'Listening to your briefing… tap to skip' : 'Tap anywhere to start talking'}
                 </Text>
               </Animated.View>
             ) : isVoiceActive ? (
-              /* ── Voice-active: inline transcript + AI response ── */
+              /* Voice-active: icon + waveform (transcript moves to overlay) */
               <Animated.View
                 entering={FadeIn.duration(250)}
                 exiting={FadeOut.duration(200)}
                 style={styles.voiceActiveContainer}
               >
-                {/* State icon */}
                 <Animated.View style={[styles.stateIconContainer, iconAnimStyle]}>
                   <View style={[
                     styles.iconRing,
-                    voiceState === 'error' && { borderColor: semantic.error },
+                    voiceState === 'error' && { borderColor: 'rgba(255,100,100,0.6)' },
                   ]}>
                     <Ionicons
                       name={getStateIcon()}
                       size={32}
-                      color={voiceState === 'error' ? semantic.error : brand.primary}
+                      color={voiceState === 'error' ? '#FF6B6B' : '#A78BFA'}
                     />
                   </View>
                 </Animated.View>
 
-                {/* Listening waveform bars */}
+                {/* Listening waveform */}
                 {voiceState === 'listening' && (
                   <Animated.View entering={FadeIn.duration(200)} style={styles.waveformRow}>
                     {Array.from({ length: 16 }).map((_, i) => {
@@ -584,62 +564,6 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
                   </Animated.View>
                 )}
 
-                {/* Processing indicator */}
-                {voiceState === 'processing' && (
-                  <Animated.View entering={FadeIn.duration(200)} style={styles.processingRow}>
-                    <Text style={styles.processingText}>Thinking…</Text>
-                  </Animated.View>
-                )}
-
-                {/* Transcript / AI response text */}
-                <View style={styles.voiceTextContainer}>
-                  {voiceState === 'listening' && voice.transcript ? (
-                    <Text style={styles.transcriptText}>{voice.transcript}</Text>
-                  ) : voiceState === 'listening' ? (
-                    <Text style={styles.listeningHint}>Listening…</Text>
-                  ) : null}
-
-                  {voiceState === 'processing' && voice.transcript ? (
-                    <Text style={styles.transcriptText}>"{voice.transcript}"</Text>
-                  ) : null}
-
-                  {voiceState === 'speaking' && voice.aiResponse ? (
-                    <BlurView intensity={15} tint="light" style={styles.aiResponseCard}>
-                      <Ionicons name="sparkles" size={16} color={brand.primary} style={{ marginBottom: 6 }} />
-                      <Text style={styles.aiResponseText}>{voice.aiResponse}</Text>
-                    </BlurView>
-                  ) : null}
-
-                  {voiceState === 'timeout' && (
-                    <Text style={styles.aiResponseTextPlain}>
-                      {voice.aiResponse || "I didn't catch that. Tap to try again."}
-                    </Text>
-                  )}
-
-                  {voiceState === 'error' && (
-                    <Text style={styles.aiResponseTextPlain}>
-                      {voice.aiResponse || "I'm having trouble. Please try again."}
-                    </Text>
-                  )}
-
-                  {voiceState === 'offline' && (
-                    <Text style={styles.aiResponseTextPlain}>
-                      No network connection. Type your request instead.
-                    </Text>
-                  )}
-                </View>
-
-                {/* Footer hint */}
-                <Text style={styles.voiceFooterHint}>
-                  {voiceState === 'listening'
-                    ? voice.isConversationActive ? 'Speak naturally • tap to end' : 'Tap anywhere to send'
-                    : voiceState === 'speaking'
-                    ? voice.isConversationActive ? 'Speak to interrupt • tap to end' : 'Speak or tap to stop'
-                    : voiceState === 'timeout' ? 'Tap to try again'
-                    : voiceState === 'error' ? 'Tap to retry'
-                    : ''}
-                </Text>
-
                 {/* Cancel button */}
                 {(voiceState === 'listening' || voiceState === 'processing') && (
                   <Pressable
@@ -647,23 +571,9 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
                     onPress={() => voice.endConversation()}
                   >
                     <View style={styles.cancelCircle}>
-                      <Ionicons name="close" size={18} color={textTokens.tertiary} />
+                      <Ionicons name="close" size={18} color="rgba(255,255,255,0.5)" />
                     </View>
                   </Pressable>
-                )}
-              </Animated.View>
-            ) : voice.isDiscreetMode && (voice.aiResponse || voiceState === 'processing') ? (
-              // Discreet mode: show AI response as text card
-              <Animated.View entering={FadeIn.duration(300)} style={styles.discreetResponseContainer}>
-                {voiceState === 'processing' ? (
-                  <View style={styles.discreetThinking}>
-                    <Ionicons name="sparkles" size={20} color={brand.primary} />
-                    <Text style={styles.discreetThinkingText}>Thinking…</Text>
-                  </View>
-                ) : (
-                  <BlurView intensity={15} tint="light" style={styles.discreetCard}>
-                    <Text style={styles.discreetResponseText}>{voice.aiResponse}</Text>
-                  </BlurView>
                 )}
               </Animated.View>
             ) : (
@@ -677,7 +587,7 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
                     <Ionicons
                       name={isBriefingLoading ? 'sparkles-outline' : getStateIcon()}
                       size={48}
-                      color={brand.primary}
+                      color="#A78BFA"
                     />
                   </View>
                 </Animated.View>
@@ -694,11 +604,8 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
 
           {/* ──── Bottom Section: Quick Actions & Stats ──── */}
           <View style={styles.bottomSection}>
-            {/* Quick Action Pills */}
             {voiceState === 'idle' && (!showBriefingText || isBriefingCollapsed) && (
-              <Animated.View 
-                entering={FadeInUp.duration(500).delay(400)}
-              >
+              <Animated.View entering={FadeInUp.duration(500).delay(400)}>
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
@@ -706,16 +613,15 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
                   style={styles.quickActionsScroll}
                 >
                   <Pressable style={styles.quickActionPill}>
-                    <Ionicons name="timer-outline" size={16} color={brand.primary} />
+                    <Ionicons name="timer-outline" size={16} color="#A78BFA" />
                     <Text style={styles.pillText}>🎯 Focus</Text>
                   </Pressable>
                   
                   <Pressable style={styles.quickActionPill}>
-                    <Ionicons name="add-circle-outline" size={16} color={brand.primary} />
+                    <Ionicons name="add-circle-outline" size={16} color="#A78BFA" />
                     <Text style={styles.pillText}>➕ Add Task</Text>
                   </Pressable>
 
-                  {/* Locked: Smart Sort — Level 2 */}
                   <Pressable
                     style={[styles.quickActionPill, currentLevel < 2 && styles.pillLocked]}
                     onPress={() => {
@@ -727,14 +633,13 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
                     <Ionicons
                       name={currentLevel >= 2 ? 'sparkles-outline' : 'lock-closed'}
                       size={14}
-                      color={currentLevel >= 2 ? brand.primary : textTokens.disabled}
+                      color={currentLevel >= 2 ? '#A78BFA' : 'rgba(255,255,255,0.25)'}
                     />
                     <Text style={[styles.pillText, currentLevel < 2 && styles.pillTextLocked]}>
                       🧠 Smart Sort
                     </Text>
                   </Pressable>
 
-                  {/* Locked: Reminders — Level 4 */}
                   <Pressable
                     style={[styles.quickActionPill, currentLevel < 4 && styles.pillLocked]}
                     onPress={() => {
@@ -746,7 +651,7 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
                     <Ionicons
                       name={currentLevel >= 4 ? 'notifications-outline' : 'lock-closed'}
                       size={14}
-                      color={currentLevel >= 4 ? brand.primary : textTokens.disabled}
+                      color={currentLevel >= 4 ? '#A78BFA' : 'rgba(255,255,255,0.25)'}
                     />
                     <Text style={[styles.pillText, currentLevel < 4 && styles.pillTextLocked]}>
                       ⏰ Reminders
@@ -756,12 +661,11 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
               </Animated.View>
             )}
             
-            {/* Ambient Stats Bar */}
+            {/* Stats */}
             <Animated.View 
               entering={FadeInUp.duration(500).delay(600)}
               style={styles.statsContainer}
             >
-              <View style={styles.statsDivider} />
               <View style={styles.statsRow}>
                 {pendingTasks > 0 && (
                   <View style={styles.statItem}>
@@ -780,7 +684,7 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
             </Animated.View>
           </View>
 
-          {/* ──── Text Input Bar (discreet mode / offline / error fallback) ──── */}
+          {/* ──── Text Input (discreet / offline fallback) ──── */}
           {showTextInput && (
             <Animated.View
               entering={FadeInUp.duration(300)}
@@ -791,7 +695,7 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
                   ref={textInputRef}
                   style={styles.textInput}
                   placeholder={voice.isDiscreetMode ? 'Type your request…' : 'Type here instead…'}
-                  placeholderTextColor={textTokens.disabled}
+                  placeholderTextColor="rgba(255,255,255,0.3)"
                   value={textInputValue}
                   onChangeText={setTextInputValue}
                   onSubmitEditing={handleTextSubmit}
@@ -809,7 +713,7 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
                   <Ionicons
                     name="send"
                     size={18}
-                    color={textInputValue.trim() ? brand.primary : textTokens.disabled}
+                    color={textInputValue.trim() ? '#A78BFA' : 'rgba(255,255,255,0.2)'}
                   />
                 </Pressable>
               </View>
@@ -817,6 +721,9 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
           )}
         </Pressable>
       </SafeAreaView>
+
+      {/* ── TranscriptOverlay — floating glass band for voice text ── */}
+      <TranscriptOverlay voiceState={voiceState} />
       
       {/* Voice Permissions Modal */}
       <VoicePermissions
@@ -838,7 +745,7 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: bg.primary,
+    backgroundColor: '#08081A',
   },
   safeArea: {
     ...StyleSheet.absoluteFillObject,
@@ -864,13 +771,13 @@ const styles = StyleSheet.create({
   greetingText: {
     fontSize: 22,
     fontWeight: '700',
-    color: textTokens.primary,
+    color: 'rgba(255,255,255,0.92)',
     letterSpacing: -0.3,
     marginBottom: 2,
   },
   dateText: {
     fontSize: 15,
-    color: textTokens.tertiary,
+    color: 'rgba(255,255,255,0.45)',
     fontWeight: '400',
   },
   notificationButton: {
@@ -882,7 +789,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: bg.secondary,
+    backgroundColor: 'rgba(255,255,255,0.08)',
   },
 
   // ── Briefing Pill (collapsed state) ──
@@ -895,15 +802,14 @@ const styles = StyleSheet.create({
     marginTop: 14,
     paddingVertical: 10,
     paddingHorizontal: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    backgroundColor: 'rgba(255,255,255,0.06)',
     borderWidth: 1,
-    borderColor: borderTokens.primary,
-    ...shadows.sm,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   briefingPillText: {
     fontSize: 14,
     fontWeight: '600',
-    color: textTokens.secondary,
+    color: 'rgba(255,255,255,0.65)',
   },
 
   // ──── Center Section ────
@@ -929,9 +835,9 @@ const styles = StyleSheet.create({
     borderRadius: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: brand.muted,
+    backgroundColor: 'rgba(124,58,237,0.12)',
     borderWidth: 2,
-    borderColor: brand.tertiary,
+    borderColor: 'rgba(124,58,237,0.3)',
   },
   iconRing: {
     width: 72,
@@ -939,18 +845,18 @@ const styles = StyleSheet.create({
     borderRadius: 36,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: brand.muted,
+    backgroundColor: 'rgba(124,58,237,0.12)',
     borderWidth: 2,
-    borderColor: brand.tertiary,
+    borderColor: 'rgba(124,58,237,0.3)',
   },
   hintText: {
     fontSize: 15,
-    color: textTokens.tertiary,
+    color: 'rgba(255,255,255,0.4)',
     fontWeight: '400',
     textAlign: 'center',
   },
 
-  // ── Voice-active state — transcript + response ──
+  // ── Voice-active state ──
   voiceActiveContainer: {
     width: '100%',
     alignItems: 'center',
@@ -967,60 +873,7 @@ const styles = StyleSheet.create({
   waveBar: {
     width: 3,
     borderRadius: 2,
-    backgroundColor: brand.secondary,
-  },
-  processingRow: {
-    marginBottom: 16,
-  },
-  processingText: {
-    fontSize: 15,
-    color: brand.primary,
-    fontWeight: '500',
-  },
-  voiceTextContainer: {
-    width: '100%',
-    alignItems: 'center',
-    minHeight: 60,
-    justifyContent: 'center',
-  },
-  transcriptText: {
-    fontSize: 20,
-    fontWeight: '500',
-    color: textTokens.primary,
-    textAlign: 'center',
-    lineHeight: 28,
-  },
-  listeningHint: {
-    fontSize: 17,
-    color: textTokens.tertiary,
-    textAlign: 'center',
-  },
-  aiResponseCard: {
-    borderRadius: 16,
-    padding: 16,
-    width: '100%',
-    overflow: 'hidden',
-    backgroundColor: 'rgba(255, 255, 255, 0.85)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.5)',
-  },
-  aiResponseText: {
-    fontSize: 18,
-    color: textTokens.primary,
-    textAlign: 'center',
-    lineHeight: 26,
-  },
-  aiResponseTextPlain: {
-    fontSize: 18,
-    color: textTokens.secondary,
-    textAlign: 'center',
-    lineHeight: 26,
-  },
-  voiceFooterHint: {
-    marginTop: 20,
-    fontSize: 13,
-    color: textTokens.tertiary,
-    textAlign: 'center',
+    backgroundColor: '#A78BFA',
   },
   cancelButton: {
     position: 'absolute',
@@ -1033,13 +886,13 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: bg.secondary,
+    backgroundColor: 'rgba(255,255,255,0.08)',
   },
 
   // ── Briefing card (expanded) ──
   briefingContainer: {
     width: '100%',
-    maxHeight: SCREEN_HEIGHT * 0.45,
+    maxHeight: '45%',
     alignItems: 'center',
   },
   briefingScroll: {
@@ -1054,9 +907,9 @@ const styles = StyleSheet.create({
     padding: 20,
     width: '100%',
     overflow: 'hidden',
-    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    backgroundColor: 'rgba(255,255,255,0.06)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.5)',
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   briefingHeader: {
     flexDirection: 'row',
@@ -1071,17 +924,17 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 15,
     fontWeight: '600',
-    color: textTokens.primary,
+    color: 'rgba(255,255,255,0.9)',
   },
   briefingText: {
     fontSize: 16,
-    color: textTokens.secondary,
+    color: 'rgba(255,255,255,0.6)',
     lineHeight: 24,
   },
   briefingHint: {
     marginTop: 16,
     fontSize: 14,
-    color: textTokens.tertiary,
+    color: 'rgba(255,255,255,0.35)',
     textAlign: 'center',
   },
 
@@ -1105,10 +958,9 @@ const styles = StyleSheet.create({
     height: 36,
     paddingHorizontal: 16,
     borderRadius: 9999,
-    backgroundColor: bg.card,
+    backgroundColor: 'rgba(255,255,255,0.06)',
     borderWidth: 1,
-    borderColor: borderTokens.primary,
-    ...shadows.sm,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   pillLocked: {
     opacity: 0.5,
@@ -1116,20 +968,14 @@ const styles = StyleSheet.create({
   pillText: {
     fontSize: 14,
     fontWeight: '600',
-    color: textTokens.secondary,
+    color: 'rgba(255,255,255,0.65)',
   },
   pillTextLocked: {
-    color: textTokens.disabled,
+    color: 'rgba(255,255,255,0.25)',
   },
   statsContainer: {
     alignItems: 'center',
     paddingBottom: 4,
-  },
-  statsDivider: {
-    width: 60,
-    height: 1,
-    backgroundColor: borderTokens.secondary,
-    marginBottom: 10,
   },
   statsRow: {
     flexDirection: 'row',
@@ -1143,7 +989,7 @@ const styles = StyleSheet.create({
   },
   statsText: {
     fontSize: 13,
-    color: textTokens.tertiary,
+    color: 'rgba(255,255,255,0.4)',
   },
 
   // ──── Text Input Bar ────
@@ -1157,15 +1003,14 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     paddingHorizontal: 16,
     paddingVertical: 4,
-    backgroundColor: bg.card,
+    backgroundColor: 'rgba(255,255,255,0.06)',
     borderWidth: 1,
-    borderColor: borderTokens.primary,
-    ...shadows.sm,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   textInput: {
     flex: 1,
     fontSize: 16,
-    color: textTokens.primary,
+    color: 'rgba(255,255,255,0.9)',
     paddingVertical: 12,
   },
   textSendButton: {
@@ -1174,41 +1019,10 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: brand.muted,
+    backgroundColor: 'rgba(124,58,237,0.15)',
     marginLeft: 8,
   },
   textSendButtonDisabled: {
     backgroundColor: 'transparent',
-  },
-
-  // ──── Discreet Mode Response Card ────
-  discreetResponseContainer: {
-    width: '100%',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-  },
-  discreetThinking: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    padding: 16,
-  },
-  discreetThinkingText: {
-    color: textTokens.secondary,
-    fontSize: 15,
-  },
-  discreetCard: {
-    borderRadius: 16,
-    padding: 16,
-    width: '100%',
-    overflow: 'hidden',
-    backgroundColor: 'rgba(255, 255, 255, 0.85)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.5)',
-  },
-  discreetResponseText: {
-    color: textTokens.primary,
-    fontSize: 16,
-    lineHeight: 24,
   },
 });

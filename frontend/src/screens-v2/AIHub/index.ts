@@ -19,3 +19,7 @@
  */
 
 export { AIHubScreen } from './AIHubScreen';
+export { AIHubScene } from './AIHubScene';
+export { TranscriptOverlay } from './TranscriptOverlay';
+export { useVoiceAmplitude } from './useVoiceAmplitude';
+export { useAssistantSceneState } from './useAssistantSceneState';
