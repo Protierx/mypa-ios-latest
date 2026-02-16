@@ -23,7 +23,6 @@ import * as Haptics from 'expo-haptics';
 import { useGestureNavigation, Screen } from './useGestureNavigation';
 import { GestureProvider, useGesture } from './GestureContext';
 import { FocusModalProvider } from './FocusModalContext';
-import { SwipeIndicator } from './SwipeIndicator';
 import { useVoice } from '../contexts/VoiceContext';
 
 // Import screens
@@ -246,24 +245,7 @@ function GestureNavigatorContent() {
               </View>
             </Animated.View>
           
-          {/* Swipe Indicators */}
-          {currentScreen === 'ai_hub' && (
-            <>
-              <SwipeIndicator direction="left" label="Tasks" visible />
-              <SwipeIndicator direction="right" label="Social" visible />
-              <SwipeIndicator direction="down" label="Profile" visible />
-              <SwipeIndicator direction="up" label="Focus" visible />
-            </>
-          )}
-          {currentScreen === 'tasks' && (
-            <SwipeIndicator direction="right" label="Back" visible />
-          )}
-          {currentScreen === 'social' && (
-            <SwipeIndicator direction="left" label="Back" visible />
-          )}
-          {currentScreen === 'profile' && (
-            <SwipeIndicator direction="up" label="Back" visible />
-          )}
+          {/* Swipe indicators removed — users learn gestures via AppTour */}
         </View>
       </GestureDetector>
       </FocusModalProvider>

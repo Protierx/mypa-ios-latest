@@ -1,15 +1,16 @@
 /**
- * Onboarding Screen — 3-step first-run experience
+ * Onboarding Screen — 4-step first-run experience
  *
  * Step 1: Welcome — "Hi, I'm MYPA" animation + timezone auto-detect
- * Step 2: Voice intro — AI greeting (text + optional TTS)
- * Step 3: First command — tap → task created directly via Supabase → confetti
+ * Step 2: Permissions — Request microphone, notifications, tracking transparency
+ * Step 3: Voice intro — AI greeting (text + optional TTS)
+ * Step 4: First command — tap → task created directly via Supabase → confetti
  *
- * NOTE: Steps 2 & 3 do NOT depend on edge functions. We create the
+ * NOTE: Steps 3 & 4 do NOT depend on edge functions. We create the
  * sample task directly via Supabase insert so onboarding never fails
  * due to undeployed / erroring cloud functions.
  *
- * Total target: ~45 seconds
+ * Total target: ~60 seconds
  *
  * Reference: PRD Section 2 (First-Run Experience)
  */
@@ -23,6 +24,8 @@ import {
   StatusBar,
   Dimensions,
   ActivityIndicator,
+  Platform,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -38,22 +41,74 @@ import Animated, {
   withRepeat,
   withTiming,
   withSequence,
+  withDelay,
   Easing,
 } from 'react-native-reanimated';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import * as Speech from 'expo-speech';
+import * as Notifications from 'expo-notifications';
+
+// Safe imports for native modules that may not be available in Expo Go
+let requestRecordingPermissionsAsync: (() => Promise<{ granted: boolean }>) | null = null;
+try {
+  requestRecordingPermissionsAsync = require('expo-audio').requestRecordingPermissionsAsync;
+} catch {
+  console.warn('[Onboarding] expo-audio not available (Expo Go?)');
+}
+
+let requestTrackingPermissionsAsync: (() => Promise<{ status: string }>) | null = null;
+try {
+  requestTrackingPermissionsAsync = require('expo-tracking-transparency').requestTrackingPermissionsAsync;
+} catch {
+  console.warn('[Onboarding] expo-tracking-transparency not available (Expo Go?)');
+}
 import { useSupabaseAuth } from '../../contexts/SupabaseAuthContext';
 import { supabase } from '../../lib/supabase';
 import { eventLogger } from '../../services/eventLogger';
 import { brand, text as textTokens, bg, semantic, border as borderTokens } from '../../styles/colors';
 import { shadows, radius } from '../../styles/theme';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-type OnboardingStep = 'welcome' | 'voice_intro' | 'first_command';
+type OnboardingStep = 'welcome' | 'language' | 'permissions' | 'voice_intro' | 'first_command';
+
+const ALL_STEPS: OnboardingStep[] = ['welcome', 'language', 'permissions', 'voice_intro', 'first_command'];
+
+// Supported languages
+interface LanguageOption {
+  code: string;
+  ttsCode: string;
+  name: string;
+  nativeName: string;
+  flag: string;
+}
+
+const LANGUAGES: LanguageOption[] = [
+  { code: 'en', ttsCode: 'en-US', name: 'English', nativeName: 'English', flag: '🇺🇸' },
+  { code: 'ar', ttsCode: 'ar-SA', name: 'Arabic', nativeName: 'العربية', flag: '🇸🇦' },
+  { code: 'es', ttsCode: 'es-ES', name: 'Spanish', nativeName: 'Español', flag: '🇪🇸' },
+  { code: 'fr', ttsCode: 'fr-FR', name: 'French', nativeName: 'Français', flag: '🇫🇷' },
+  { code: 'de', ttsCode: 'de-DE', name: 'German', nativeName: 'Deutsch', flag: '🇩🇪' },
+  { code: 'hi', ttsCode: 'hi-IN', name: 'Hindi', nativeName: 'हिन्दी', flag: '🇮🇳' },
+  { code: 'zh', ttsCode: 'zh-CN', name: 'Chinese', nativeName: '中文', flag: '🇨🇳' },
+  { code: 'ja', ttsCode: 'ja-JP', name: 'Japanese', nativeName: '日本語', flag: '🇯🇵' },
+  { code: 'pt', ttsCode: 'pt-BR', name: 'Portuguese', nativeName: 'Português', flag: '🇧🇷' },
+  { code: 'tr', ttsCode: 'tr-TR', name: 'Turkish', nativeName: 'Türkçe', flag: '🇹🇷' },
+  { code: 'ur', ttsCode: 'ur-PK', name: 'Urdu', nativeName: 'اردو', flag: '🇵🇰' },
+];
 
 interface OnboardingScreenProps {
   onComplete: () => void;
+}
+
+// Permission item type
+interface PermissionItem {
+  key: 'microphone' | 'notifications' | 'tracking';
+  icon: string;
+  title: string;
+  description: string;
+  granted: boolean | null; // null = not yet requested
 }
 
 export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
@@ -66,7 +121,33 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
   const [firstCommandDone, setFirstCommandDone] = useState(false);
   const [isCreatingTask, setIsCreatingTask] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
+  const [selectedLanguage, setSelectedLanguage] = useState<LanguageOption>(LANGUAGES[0]);
   const startTimeRef = useRef(Date.now());
+
+  // Permissions state
+  const [permissions, setPermissions] = useState<PermissionItem[]>([
+    {
+      key: 'microphone',
+      icon: 'mic',
+      title: 'Microphone',
+      description: 'Talk to MYPA with your voice — hands free',
+      granted: null,
+    },
+    {
+      key: 'notifications',
+      icon: 'notifications',
+      title: 'Notifications',
+      description: 'Get reminders for tasks, focus sessions & goals',
+      granted: null,
+    },
+    {
+      key: 'tracking',
+      icon: 'shield-checkmark',
+      title: 'App Tracking',
+      description: 'Helps personalize your MYPA experience',
+      granted: null,
+    },
+  ]);
 
   // Detect timezone on mount
   useEffect(() => {
@@ -91,16 +172,118 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
     transform: [{ scale: orbScale.value }],
   }));
 
+  // ── Permission handlers ──
+
+  const requestMicrophonePermission = useCallback(async () => {
+    try {
+      if (!requestRecordingPermissionsAsync) {
+        // Native module not available — mark as granted (dev/Expo Go)
+        setPermissions(prev =>
+          prev.map(p => (p.key === 'microphone' ? { ...p, granted: true } : p)),
+        );
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        return true;
+      }
+      const { granted } = await requestRecordingPermissionsAsync();
+      setPermissions(prev =>
+        prev.map(p => (p.key === 'microphone' ? { ...p, granted } : p)),
+      );
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      return granted;
+    } catch {
+      setPermissions(prev =>
+        prev.map(p => (p.key === 'microphone' ? { ...p, granted: false } : p)),
+      );
+      return false;
+    }
+  }, []);
+
+  const requestNotificationPermission = useCallback(async () => {
+    try {
+      const { status } = await Notifications.requestPermissionsAsync();
+      const granted = status === 'granted';
+      setPermissions(prev =>
+        prev.map(p => (p.key === 'notifications' ? { ...p, granted } : p)),
+      );
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      return granted;
+    } catch {
+      setPermissions(prev =>
+        prev.map(p => (p.key === 'notifications' ? { ...p, granted: false } : p)),
+      );
+      return false;
+    }
+  }, []);
+
+  const requestTrackingPermission = useCallback(async () => {
+    try {
+      if (!requestTrackingPermissionsAsync) {
+        // Native module not available — mark as granted (dev/Expo Go)
+        setPermissions(prev =>
+          prev.map(p => (p.key === 'tracking' ? { ...p, granted: true } : p)),
+        );
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        return true;
+      }
+      const { status } = await requestTrackingPermissionsAsync();
+      const granted = status === 'granted';
+      setPermissions(prev =>
+        prev.map(p => (p.key === 'tracking' ? { ...p, granted } : p)),
+      );
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      return granted;
+    } catch {
+      setPermissions(prev =>
+        prev.map(p => (p.key === 'tracking' ? { ...p, granted: false } : p)),
+      );
+      return false;
+    }
+  }, []);
+
+  const handleRequestPermission = useCallback(
+    async (key: PermissionItem['key']) => {
+      switch (key) {
+        case 'microphone':
+          return requestMicrophonePermission();
+        case 'notifications':
+          return requestNotificationPermission();
+        case 'tracking':
+          return requestTrackingPermission();
+      }
+    },
+    [requestMicrophonePermission, requestNotificationPermission, requestTrackingPermission],
+  );
+
+  const handleAllowAll = useCallback(async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    await requestMicrophonePermission();
+    await requestNotificationPermission();
+    await requestTrackingPermission();
+  }, [requestMicrophonePermission, requestNotificationPermission, requestTrackingPermission]);
+
   // ── Step handlers ──
 
   const handleWelcomeContinue = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    // Save timezone to profile
     if (timezone && user) {
       await updateProfile({ timezone } as any).catch(() => {});
     }
-    setStep('voice_intro');
+    setStep('language');
   }, [timezone, user, updateProfile]);
+
+  const handleLanguageContinue = useCallback(async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    // Save language preference to profile
+    if (user) {
+      await updateProfile({ language: selectedLanguage.code } as any).catch(() => {});
+    }
+    setStep('permissions');
+  }, [user, selectedLanguage, updateProfile]);
+
+  const handlePermissionsContinue = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setStep('voice_intro');
+  }, []);
 
   const handleVoiceIntro = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -109,11 +292,10 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
     const greeting = `Hi ${name}! I'm MYPA, your personal AI assistant. I can help you manage tasks, set focus sessions, and keep you on track — all with your voice. Let's try it out!`;
     setGreetingText(greeting);
 
-    // Use local device TTS — no edge function needed
     try {
       await new Promise<void>((resolve) => {
         Speech.speak(greeting, {
-          language: 'en-US',
+          language: selectedLanguage.ttsCode,
           rate: 0.95,
           onDone: resolve,
           onStopped: resolve,
@@ -121,19 +303,17 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
         });
       });
     } catch {
-      // TTS failed — that's fine, text is already shown
+      // TTS failed — fine, text is shown
     }
     setIsGreetingPlaying(false);
-    // Auto-advance after greeting
     setTimeout(() => setStep('first_command'), 500);
-  }, [user]);
+  }, [user, selectedLanguage]);
 
   const handleFirstCommand = useCallback(async () => {
     if (isCreatingTask) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsCreatingTask(true);
 
-    // Create a sample task directly via Supabase — no edge function needed
     try {
       if (!user) throw new Error('No user');
 
@@ -156,7 +336,6 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
       console.warn('[Onboarding] Task creation failed:', err);
-      // Even if it fails, let them proceed
       setFirstCommandDone(true);
     } finally {
       setIsCreatingTask(false);
@@ -171,7 +350,6 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
     const durationMs = Date.now() - startTimeRef.current;
     eventLogger.log('onboarding_completed', { duration_ms: durationMs });
 
-    // Mark onboarding complete in profile
     try {
       await updateProfile({ onboarding_completed: true });
     } catch (err) {
@@ -181,21 +359,37 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
     onComplete();
   }, [isCompleting, updateProfile, onComplete]);
 
+  // ── Helpers ──
+
+  const currentStepIndex = ALL_STEPS.indexOf(step);
+  const allPermissionsHandled = permissions.every(p => p.granted !== null);
+
   // ── Render ──
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
+
+      {/* Ambient glow orbs */}
+      <Animated.View
+        entering={FadeIn.duration(2000)}
+        style={[styles.ambientOrb, styles.ambientOrb1]}
+      />
+      <Animated.View
+        entering={FadeIn.duration(2000).delay(500)}
+        style={[styles.ambientOrb, styles.ambientOrb2]}
+      />
+
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         {/* Progress dots */}
         <View style={styles.progressRow}>
-          {(['welcome', 'voice_intro', 'first_command'] as OnboardingStep[]).map((s, i) => (
+          {ALL_STEPS.map((s, i) => (
             <View
               key={s}
               style={[
                 styles.progressDot,
                 step === s && styles.progressDotActive,
-                (['welcome', 'voice_intro', 'first_command'].indexOf(step) > i) && styles.progressDotDone,
+                currentStepIndex > i && styles.progressDotDone,
               ]}
             />
           ))}
@@ -204,46 +398,248 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
         {/* ── Step 1: Welcome ── */}
         {step === 'welcome' && (
           <Animated.View entering={FadeIn.duration(600)} style={styles.stepContainer}>
-            {/* Animated orb */}
             <Animated.View style={[styles.orbContainer, orbAnimatedStyle]}>
-              <View style={styles.orb}>
+              <LinearGradient
+                colors={['#7C3AED', '#6366F1', '#8B5CF6']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.orb}
+              >
                 <Ionicons name="sparkles" size={40} color="#FFFFFF" />
-              </View>
+              </LinearGradient>
             </Animated.View>
 
             <Animated.Text entering={FadeInDown.duration(600).delay(200)} style={styles.title}>
               Hi, I'm MYPA
             </Animated.Text>
             <Animated.Text entering={FadeInDown.duration(600).delay(400)} style={styles.subtitle}>
-              Your voice-first AI productivity assistant.{'\n'}Let's get you set up — it'll take 30 seconds.
+              Your voice-first AI productivity assistant.{'\n'}Let's get you set up — it'll take a minute.
             </Animated.Text>
 
-            {/* Timezone detection */}
             <Animated.View entering={FadeInUp.duration(600).delay(600)} style={styles.timezoneCard}>
-              <Ionicons name="globe-outline" size={22} color={brand.primary} />
+              <View style={styles.timezoneIconWrap}>
+                <Ionicons name="globe-outline" size={20} color="#A78BFA" />
+              </View>
               <View style={styles.timezoneTextContainer}>
                 <Text style={styles.timezoneLabel}>Your timezone</Text>
                 <Text style={styles.timezoneValue}>{timezone || 'Detecting...'}</Text>
               </View>
-              <Ionicons name="checkmark-circle" size={22} color={semantic.success} />
+              <Ionicons name="checkmark-circle" size={22} color="#34D399" />
             </Animated.View>
 
-            <Animated.View entering={FadeInUp.duration(600).delay(800)}>
-              <TouchableOpacity style={styles.primaryBtn} onPress={handleWelcomeContinue} activeOpacity={0.8}>
-                <Text style={styles.primaryBtnText}>Continue</Text>
-                <Ionicons name="arrow-forward" size={20} color="#FFFFFF" style={{ marginLeft: 8 }} />
+            <Animated.View entering={FadeInUp.duration(600).delay(800)} style={{ width: '100%' }}>
+              <TouchableOpacity onPress={handleWelcomeContinue} activeOpacity={0.85}>
+                <LinearGradient
+                  colors={['#7C3AED', '#6366F1']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.primaryBtn}
+                >
+                  <Text style={styles.primaryBtnText}>Continue</Text>
+                  <Ionicons name="arrow-forward" size={20} color="#FFFFFF" style={{ marginLeft: 8 }} />
+                </LinearGradient>
               </TouchableOpacity>
             </Animated.View>
           </Animated.View>
         )}
 
-        {/* ── Step 2: Voice Intro ── */}
+        {/* ── Step 2: Language ── */}
+        {step === 'language' && (
+          <Animated.View entering={SlideInRight.duration(400)} style={styles.stepContainer}>
+            <Animated.View entering={FadeIn.duration(400)} style={styles.permIconWrap}>
+              <LinearGradient
+                colors={['#6366F1', '#8B5CF6']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.permIconCircle}
+              >
+                <Ionicons name="language" size={32} color="#FFFFFF" />
+              </LinearGradient>
+            </Animated.View>
+
+            <Animated.Text entering={FadeInDown.duration(400).delay(100)} style={styles.title}>
+              Choose Your Language
+            </Animated.Text>
+            <Animated.Text entering={FadeInDown.duration(400).delay(200)} style={styles.subtitle}>
+              MYPA will speak and understand{"\n"}in your preferred language.
+            </Animated.Text>
+
+            <Animated.View entering={FadeInUp.duration(400).delay(300)} style={styles.langListWrap}>
+              <ScrollView
+                style={styles.langScroll}
+                contentContainerStyle={styles.langScrollContent}
+                showsVerticalScrollIndicator={false}
+              >
+                {LANGUAGES.map((lang) => {
+                  const isSelected = selectedLanguage.code === lang.code;
+                  return (
+                    <TouchableOpacity
+                      key={lang.code}
+                      style={[
+                        styles.langCard,
+                        isSelected && styles.langCardSelected,
+                      ]}
+                      onPress={() => {
+                        setSelectedLanguage(lang);
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.langFlag}>{lang.flag}</Text>
+                      <View style={styles.langTextWrap}>
+                        <Text style={[
+                          styles.langName,
+                          isSelected && styles.langNameSelected,
+                        ]}>{lang.name}</Text>
+                        <Text style={styles.langNative}>{lang.nativeName}</Text>
+                      </View>
+                      {isSelected && (
+                        <Ionicons name="checkmark-circle" size={22} color="#34D399" />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </Animated.View>
+
+            <Animated.View entering={FadeInUp.duration(400).delay(500)} style={{ width: '100%' }}>
+              <TouchableOpacity onPress={handleLanguageContinue} activeOpacity={0.85}>
+                <LinearGradient
+                  colors={['#7C3AED', '#6366F1']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.primaryBtn}
+                >
+                  <Text style={styles.primaryBtnText}>Continue</Text>
+                  <Ionicons name="arrow-forward" size={20} color="#FFFFFF" style={{ marginLeft: 8 }} />
+                </LinearGradient>
+              </TouchableOpacity>
+            </Animated.View>
+          </Animated.View>
+        )}
+
+        {/* ── Step 3: Permissions ── */}
+        {step === 'permissions' && (
+          <Animated.View entering={SlideInRight.duration(400)} style={styles.stepContainer}>
+            <Animated.View entering={FadeIn.duration(400)} style={styles.permIconWrap}>
+              <LinearGradient
+                colors={['#7C3AED', '#6366F1']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.permIconCircle}
+              >
+                <Ionicons name="lock-open" size={32} color="#FFFFFF" />
+              </LinearGradient>
+            </Animated.View>
+
+            <Animated.Text entering={FadeInDown.duration(400).delay(100)} style={styles.title}>
+              Enable Superpowers
+            </Animated.Text>
+            <Animated.Text entering={FadeInDown.duration(400).delay(200)} style={styles.subtitle}>
+              MYPA works best with these permissions.{'\n'}You can change them anytime in Settings.
+            </Animated.Text>
+
+            {/* Permission cards */}
+            <View style={styles.permList}>
+              {permissions.map((perm, idx) => (
+                <Animated.View
+                  key={perm.key}
+                  entering={FadeInUp.duration(400).delay(300 + idx * 120)}
+                >
+                  <View style={[
+                    styles.permCard,
+                    perm.granted === true && styles.permCardGranted,
+                    perm.granted === false && styles.permCardDenied,
+                  ]}>
+                    <View style={styles.permCardLeft}>
+                      <View style={[
+                        styles.permIconSmall,
+                        perm.granted === true && styles.permIconSmallGranted,
+                      ]}>
+                        <Ionicons
+                          name={perm.granted === true ? 'checkmark' : (perm.icon as any)}
+                          size={18}
+                          color={perm.granted === true ? '#34D399' : '#A78BFA'}
+                        />
+                      </View>
+                      <View style={styles.permCardTextWrap}>
+                        <Text style={styles.permCardTitle}>{perm.title}</Text>
+                        <Text style={styles.permCardDesc}>{perm.description}</Text>
+                      </View>
+                    </View>
+
+                    {perm.granted === null && (
+                      <TouchableOpacity
+                        style={styles.permAllowBtn}
+                        onPress={() => handleRequestPermission(perm.key)}
+                        activeOpacity={0.8}
+                      >
+                        <Text style={styles.permAllowBtnText}>Allow</Text>
+                      </TouchableOpacity>
+                    )}
+                    {perm.granted === true && (
+                      <Ionicons name="checkmark-circle" size={22} color="#34D399" />
+                    )}
+                    {perm.granted === false && (
+                      <Text style={styles.permDeniedText}>Skipped</Text>
+                    )}
+                  </View>
+                </Animated.View>
+              ))}
+            </View>
+
+            {/* Action buttons */}
+            <View style={styles.permActions}>
+              {!allPermissionsHandled && (
+                <Animated.View entering={FadeInUp.duration(400).delay(700)} style={{ width: '100%' }}>
+                  <TouchableOpacity onPress={handleAllowAll} activeOpacity={0.85}>
+                    <LinearGradient
+                      colors={['#7C3AED', '#6366F1']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={styles.primaryBtn}
+                    >
+                      <Ionicons name="shield-checkmark" size={20} color="#FFFFFF" />
+                      <Text style={[styles.primaryBtnText, { marginLeft: 8 }]}>Allow All</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </Animated.View>
+              )}
+
+              <TouchableOpacity
+                style={styles.permContinueBtn}
+                onPress={handlePermissionsContinue}
+                activeOpacity={0.8}
+              >
+                <Text style={[
+                  styles.primaryBtnText,
+                  { color: allPermissionsHandled ? '#FFFFFF' : 'rgba(255,255,255,0.5)' },
+                ]}>
+                  {allPermissionsHandled ? 'Continue' : 'Skip for now'}
+                </Text>
+                <Ionicons
+                  name="arrow-forward"
+                  size={18}
+                  color={allPermissionsHandled ? '#FFFFFF' : 'rgba(255,255,255,0.5)'}
+                  style={{ marginLeft: 6 }}
+                />
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        )}
+
+        {/* ── Step 3: Voice Intro ── */}
         {step === 'voice_intro' && (
           <Animated.View entering={SlideInRight.duration(400)} style={styles.stepContainer}>
             <Animated.View style={[styles.orbContainer, orbAnimatedStyle]}>
-              <View style={[styles.orb, isGreetingPlaying && styles.orbActive]}>
+              <LinearGradient
+                colors={isGreetingPlaying ? ['#34D399', '#10B981'] : ['#7C3AED', '#6366F1', '#8B5CF6']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.orb}
+              >
                 <Ionicons name={isGreetingPlaying ? 'volume-high' : 'mic'} size={40} color="#FFFFFF" />
-              </View>
+              </LinearGradient>
             </Animated.View>
 
             <Text style={styles.title}>Meet Your Assistant</Text>
@@ -258,44 +654,60 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
             ) : null}
 
             {!isGreetingPlaying && !greetingText && (
-              <TouchableOpacity style={styles.primaryBtn} onPress={handleVoiceIntro} activeOpacity={0.8}>
-                <Ionicons name="play" size={20} color="#FFFFFF" />
-                <Text style={styles.primaryBtnText}>Play Greeting</Text>
+              <TouchableOpacity onPress={handleVoiceIntro} activeOpacity={0.85}>
+                <LinearGradient
+                  colors={['#7C3AED', '#6366F1']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.primaryBtn}
+                >
+                  <Ionicons name="play" size={20} color="#FFFFFF" />
+                  <Text style={[styles.primaryBtnText, { marginLeft: 8 }]}>Play Greeting</Text>
+                </LinearGradient>
               </TouchableOpacity>
             )}
 
             {greetingText && !isGreetingPlaying && step === 'voice_intro' && (
               <Animated.View entering={FadeInUp.duration(400)}>
-                <TouchableOpacity
-                  style={styles.primaryBtn}
-                  onPress={() => setStep('first_command')}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.primaryBtnText}>Next</Text>
-                  <Ionicons name="arrow-forward" size={20} color="#FFFFFF" style={{ marginLeft: 8 }} />
+                <TouchableOpacity onPress={() => setStep('first_command')} activeOpacity={0.85}>
+                  <LinearGradient
+                    colors={['#7C3AED', '#6366F1']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.primaryBtn}
+                  >
+                    <Text style={styles.primaryBtnText}>Next</Text>
+                    <Ionicons name="arrow-forward" size={20} color="#FFFFFF" style={{ marginLeft: 8 }} />
+                  </LinearGradient>
                 </TouchableOpacity>
               </Animated.View>
             )}
           </Animated.View>
         )}
 
-        {/* ── Step 3: First Command ── */}
+        {/* ── Step 4: First Command ── */}
         {step === 'first_command' && (
           <Animated.View entering={SlideInRight.duration(400)} style={styles.stepContainer}>
             {!firstCommandDone ? (
               <>
                 <Animated.View style={[styles.orbContainer, orbAnimatedStyle]}>
                   <TouchableOpacity
-                    style={[styles.orb, isCreatingTask && styles.orbActive]}
                     onPress={handleFirstCommand}
                     activeOpacity={0.85}
                     disabled={isCreatingTask}
                   >
-                    {isCreatingTask ? (
-                      <ActivityIndicator color="#FFFFFF" size="large" />
-                    ) : (
-                      <Ionicons name="mic" size={40} color="#FFFFFF" />
-                    )}
+                    <LinearGradient
+                      colors={isCreatingTask ? ['#34D399', '#10B981'] : ['#7C3AED', '#6366F1', '#8B5CF6']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.orb}
+                    >
+                      {isCreatingTask ? (
+                        <ActivityIndicator color="#FFFFFF" size="large" />
+                      ) : (
+                        <Ionicons name="mic" size={40} color="#FFFFFF" />
+                      )}
+                    </LinearGradient>
                   </TouchableOpacity>
                 </Animated.View>
 
@@ -305,7 +717,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
                 </Text>
 
                 <View style={styles.exampleCard}>
-                  <Ionicons name="chatbubble-outline" size={18} color={brand.primary} />
+                  <Ionicons name="chatbubble-outline" size={18} color="#A78BFA" />
                   <Text style={styles.exampleText}>"Add buy groceries tomorrow"</Text>
                 </View>
 
@@ -323,32 +735,43 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
             ) : (
               <>
                 <Animated.View entering={FadeIn.duration(400)} style={styles.successContainer}>
-                  <View style={styles.successOrb}>
+                  <LinearGradient
+                    colors={['#34D399', '#10B981']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.successOrb}
+                  >
                     <Ionicons name="checkmark" size={48} color="#FFFFFF" />
-                  </View>
+                  </LinearGradient>
                   <Animated.Text entering={FadeInDown.duration(400).delay(200)} style={styles.title}>
                     You're All Set! 🎉
                   </Animated.Text>
                   <Animated.Text entering={FadeInDown.duration(400).delay(400)} style={styles.subtitle}>
-                    MYPA is ready to help. Talk, type, or swipe to explore.
+                    MYPA is ready to help you stay productive.{'\n'}Swipe around to explore.
                   </Animated.Text>
                 </Animated.View>
 
-                <Animated.View entering={FadeInUp.duration(400).delay(600)}>
+                <Animated.View entering={FadeInUp.duration(400).delay(600)} style={{ width: '100%' }}>
                   <TouchableOpacity
-                    style={styles.primaryBtn}
                     onPress={handleComplete}
-                    activeOpacity={0.8}
+                    activeOpacity={0.85}
                     disabled={isCompleting}
                   >
-                    {isCompleting ? (
-                      <ActivityIndicator color="#FFFFFF" size="small" />
-                    ) : (
-                      <>
-                        <Text style={styles.primaryBtnText}>Get Started</Text>
-                        <Ionicons name="arrow-forward" size={20} color="#FFFFFF" style={{ marginLeft: 8 }} />
-                      </>
-                    )}
+                    <LinearGradient
+                      colors={['#7C3AED', '#6366F1']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={styles.primaryBtn}
+                    >
+                      {isCompleting ? (
+                        <ActivityIndicator color="#FFFFFF" size="small" />
+                      ) : (
+                        <>
+                          <Text style={styles.primaryBtnText}>Get Started</Text>
+                          <Ionicons name="arrow-forward" size={20} color="#FFFFFF" style={{ marginLeft: 8 }} />
+                        </>
+                      )}
+                    </LinearGradient>
                   </TouchableOpacity>
                 </Animated.View>
               </>
@@ -371,6 +794,26 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
+  // Ambient glow orbs
+  ambientOrb: {
+    position: 'absolute',
+    borderRadius: 999,
+  },
+  ambientOrb1: {
+    width: 300,
+    height: 300,
+    backgroundColor: 'rgba(124, 58, 237, 0.08)',
+    top: -60,
+    right: -80,
+  },
+  ambientOrb2: {
+    width: 250,
+    height: 250,
+    backgroundColor: 'rgba(99, 102, 241, 0.06)',
+    bottom: 40,
+    left: -60,
+  },
+
   // Progress dots
   progressRow: {
     flexDirection: 'row',
@@ -383,14 +826,15 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: 'rgba(255,255,255,0.15)',
   },
   progressDotActive: {
-    width: 24,
-    backgroundColor: brand.primary,
+    width: 28,
+    borderRadius: 4,
+    backgroundColor: '#7C3AED',
   },
   progressDotDone: {
-    backgroundColor: 'rgba(255,255,255,0.5)',
+    backgroundColor: '#A78BFA',
   },
 
   // Step container
@@ -398,7 +842,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 32,
+    paddingHorizontal: 28,
   },
 
   // Orb
@@ -409,13 +853,13 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: brand.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    ...shadows.purple,
-  },
-  orbActive: {
-    backgroundColor: semantic.success,
+    shadowColor: '#7C3AED',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 20,
+    elevation: 10,
   },
 
   // Typography
@@ -429,7 +873,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 16,
-    color: 'rgba(255,255,255,0.65)',
+    color: 'rgba(255,255,255,0.6)',
     textAlign: 'center',
     lineHeight: 24,
     marginBottom: 32,
@@ -439,21 +883,32 @@ const styles = StyleSheet.create({
   timezoneCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: 'rgba(255,255,255,0.06)',
     borderRadius: 16,
     padding: 16,
     marginBottom: 32,
     width: '100%',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  timezoneIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(124,58,237,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   timezoneTextContainer: {
     flex: 1,
     marginLeft: 12,
   },
   timezoneLabel: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.5)',
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.45)',
+    fontWeight: '500',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   timezoneValue: {
     fontSize: 16,
@@ -467,12 +922,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: brand.primary,
     paddingHorizontal: 32,
     paddingVertical: 16,
     borderRadius: 16,
     minWidth: 200,
-    ...shadows.purple,
   },
   primaryBtnText: {
     fontSize: 17,
@@ -485,13 +938,113 @@ const styles = StyleSheet.create({
   },
   secondaryBtnText: {
     fontSize: 15,
-    color: 'rgba(255,255,255,0.5)',
+    color: 'rgba(255,255,255,0.4)',
     fontWeight: '500',
+  },
+
+  // Permission step
+  permIconWrap: {
+    marginBottom: 24,
+  },
+  permIconCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#7C3AED',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  permList: {
+    width: '100%',
+    gap: 12,
+    marginBottom: 24,
+  },
+  permCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  permCardGranted: {
+    borderColor: 'rgba(52, 211, 153, 0.3)',
+    backgroundColor: 'rgba(52, 211, 153, 0.06)',
+  },
+  permCardDenied: {
+    borderColor: 'rgba(255,255,255,0.06)',
+    opacity: 0.7,
+  },
+  permCardLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  permIconSmall: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(124,58,237,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  permIconSmallGranted: {
+    backgroundColor: 'rgba(52, 211, 153, 0.15)',
+  },
+  permCardTextWrap: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  permCardTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  permCardDesc: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.45)',
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  permAllowBtn: {
+    backgroundColor: 'rgba(124,58,237,0.2)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(124,58,237,0.4)',
+  },
+  permAllowBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#A78BFA',
+  },
+  permDeniedText: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.35)',
+    fontWeight: '500',
+  },
+  permActions: {
+    width: '100%',
+    alignItems: 'center',
+    gap: 12,
+  },
+  permContinueBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
   },
 
   // Transcript card
   transcriptCard: {
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: 'rgba(255,255,255,0.05)',
     borderRadius: 16,
     padding: 20,
     marginBottom: 24,
@@ -501,7 +1054,7 @@ const styles = StyleSheet.create({
   },
   transcriptText: {
     fontSize: 15,
-    color: 'rgba(255,255,255,0.8)',
+    color: 'rgba(255,255,255,0.75)',
     lineHeight: 24,
     textAlign: 'center',
   },
@@ -510,17 +1063,66 @@ const styles = StyleSheet.create({
   exampleCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(124,58,237,0.12)',
+    backgroundColor: 'rgba(124,58,237,0.1)',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
     gap: 8,
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(124,58,237,0.2)',
   },
   exampleText: {
     fontSize: 15,
-    color: brand.tertiary,
+    color: '#C4B5FD',
     fontStyle: 'italic',
+  },
+
+  // Language selection
+  langListWrap: {
+    width: '100%',
+    maxHeight: SCREEN_HEIGHT * 0.35,
+    marginBottom: 20,
+  },
+  langScroll: {
+    flex: 1,
+  },
+  langScrollContent: {
+    gap: 8,
+    paddingBottom: 4,
+  },
+  langCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  langCardSelected: {
+    borderColor: 'rgba(124, 58, 237, 0.5)',
+    backgroundColor: 'rgba(124, 58, 237, 0.1)',
+  },
+  langFlag: {
+    fontSize: 24,
+    marginRight: 12,
+  },
+  langTextWrap: {
+    flex: 1,
+  },
+  langName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  langNameSelected: {
+    color: '#C4B5FD',
+  },
+  langNative: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.4)',
+    marginTop: 1,
   },
 
   // Success
@@ -531,9 +1133,13 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: semantic.success,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 24,
+    shadowColor: '#34D399',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 20,
+    elevation: 10,
   },
 });

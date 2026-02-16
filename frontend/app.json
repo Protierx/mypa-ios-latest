@@ -21,13 +21,22 @@
     "plugins": [
       "@livekit/react-native-expo-plugin",
       "@config-plugins/react-native-webrtc",
-      ["./plugins/withPorcupineKeyword", {
-        "keywords": ["hey-my-low_en_ios_v4_0_0.ppn"]
-      }],
-      ["@sentry/react-native/expo", {
-        "organization": "REPLACE_WITH_SENTRY_ORG",
-        "project": "REPLACE_WITH_SENTRY_PROJECT"
-      }]
+      [
+        "./plugins/withPorcupineKeyword",
+        {
+          "keywords": [
+            "hey-my-low_en_ios_v4_0_0.ppn"
+          ]
+        }
+      ],
+      [
+        "@sentry/react-native/expo",
+        {
+          "organization": "REPLACE_WITH_SENTRY_ORG",
+          "project": "REPLACE_WITH_SENTRY_PROJECT"
+        }
+      ],
+      "expo-tracking-transparency"
     ],
     "ios": {
       "supportsTablet": true,
@@ -36,6 +45,7 @@
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSMicrophoneUsageDescription": "MYPA needs microphone access for voice conversations with your AI assistant.",
+        "NSUserTrackingUsageDescription": "MYPA uses this to personalize your experience and improve AI recommendations.",
         "UIBackgroundModes": [
           "fetch",
           "processing",
