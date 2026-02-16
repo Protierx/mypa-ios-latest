@@ -1,3 +1,4 @@
+// @ts-nocheck — Deno edge function; not type-checked by Node/TS
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { MODEL_CONFIG, CORS_HEADERS, OPENAI_TIMEOUT_MS, withTimeout } from '../_shared/config.ts'

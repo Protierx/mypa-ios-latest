@@ -1,3 +1,4 @@
+// @ts-nocheck — Deno edge function; not type-checked by Node/TS
 /**
  * Daily Brief Edge Function
  * 

@@ -1,3 +1,4 @@
+// @ts-nocheck — Deno edge function; not type-checked by Node/TS
 // Push Notification Edge Function
 // SECURITY NOTE: Uses service-role client. No JWT auth — intended for
 // server-side invocation (cron jobs, triggers), not direct client calls.

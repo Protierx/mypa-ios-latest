@@ -1,3 +1,4 @@
+// @ts-nocheck — Deno edge function; not type-checked by Node/TS
 // Calculate Unlocks Edge Function
 // Checks user progress and grants feature unlocks
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'

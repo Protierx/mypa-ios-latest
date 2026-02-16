@@ -1,3 +1,4 @@
+// @ts-nocheck — Deno edge function; not type-checked by Node/TS
 // =================================================================
 // GET /analytics-summary  (v2 — Pass 3)
 // Returns aggregated analytics for a user by period, including

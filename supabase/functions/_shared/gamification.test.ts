@@ -1,3 +1,4 @@
+// @ts-nocheck — Deno edge function; not type-checked by Node/TS
 // =================================================================
 // Gamification helper tests — Deno test runner
 // Run: deno test supabase/functions/_shared/gamification.test.ts
