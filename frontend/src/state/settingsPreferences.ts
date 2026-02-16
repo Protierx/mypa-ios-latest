@@ -98,8 +98,8 @@ export const DEFAULT_PREFERENCES: SettingsPreferences = {
   defaultPriority: 'medium',
   startOfWeek: 'monday',
   timeFormat: '12h',
-  noBrainDumpRoute: true,
-  aiAutoCategories: true,
+  noBrainDumpRoute: true,    // Always-on — no longer user-toggleable
+  aiAutoCategories: true,    // Always-on — no longer user-toggleable
 
   dailyPlanningReminder: true,
   overdueNudges: true,
@@ -134,7 +134,13 @@ async function loadPrefs(): Promise<SettingsPreferences> {
     const raw = await AsyncStorage.getItem(STORAGE_KEY);
     if (!raw) return { ...DEFAULT_PREFERENCES };
     const parsed = JSON.parse(raw);
-    return { ...DEFAULT_PREFERENCES, ...parsed };
+    return {
+      ...DEFAULT_PREFERENCES,
+      ...parsed,
+      // Always-on features — override any saved false values
+      noBrainDumpRoute: true,
+      aiAutoCategories: true,
+    };
   } catch {
     return { ...DEFAULT_PREFERENCES };
   }

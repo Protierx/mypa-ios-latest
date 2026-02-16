@@ -12,6 +12,7 @@
   "dependencies": {
     "@config-plugins/react-native-webrtc": "^13.0.0",
     "@elevenlabs/react-native": "^0.5.10",
+    "@expo/cli": "^54.0.23",
     "@expo/metro-runtime": "~6.1.2",
     "@livekit/react-native": "^2.9.6",
     "@livekit/react-native-expo-plugin": "^1.0.1",

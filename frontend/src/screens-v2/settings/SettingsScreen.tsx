@@ -49,7 +49,6 @@ import {
 import {
   SettingsSectionCard,
   SettingsRow,
-  ThemeAccentPicker,
   NotificationQuietHoursModal,
   IntegrationStatusModal,
 } from '../../components/settings';
@@ -177,11 +176,6 @@ export function SettingsScreen({ visible, onClose, onShowPaywall }: Props) {
         },
       ],
     );
-  }, []);
-
-  const handleClearCache = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Alert.alert('Cache Cleared', 'Local cached insights have been cleared.');
   }, []);
 
   const handleDurationChange = useCallback(() => {
@@ -332,21 +326,6 @@ export function SettingsScreen({ visible, onClose, onShowPaywall }: Props) {
               }}
             />
 
-            <SettingsRow
-              icon="location-outline"
-              iconColor="#F97316"
-              title="Location"
-              value={prefs.location || 'Not set'}
-              onPress={() => {
-                Alert.prompt(
-                  'Location',
-                  'Enter your city (optional)',
-                  (val) => update({ location: val?.trim() || '' }),
-                  'plain-text',
-                  prefs.location,
-                );
-              }}
-            />
           </SettingsSectionCard>
 
           {/* ═══════════════════════════════════════════════════
@@ -412,74 +391,62 @@ export function SettingsScreen({ visible, onClose, onShowPaywall }: Props) {
               onToggle={() => update({ interactionMode: 'hold' })}
               accentColor={accent}
             />
-            <SettingsRow
-              icon="volume-high-outline"
-              iconColor="#22C55E"
-              title="Spoken Replies"
-              subtitle="AI responds with voice audio"
-              toggle
-              toggleValue={prefs.spokenReplies}
-              onToggle={(v) => update({ spokenReplies: v })}
-              accentColor={accent}
-            />
-
-            {/* Voice sensitivity */}
-            <View style={{ paddingHorizontal: 16, paddingVertical: 12 }}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                <Text style={{ fontSize: 16, color: '#1C1C1E' }}>Voice Sensitivity</Text>
-                <Text style={{ fontSize: 14, color: '#8E8E93' }}>
-                  {prefs.voiceSensitivity <= 0.33 ? 'Low' : prefs.voiceSensitivity <= 0.66 ? 'Medium' : 'High'}
-                </Text>
-              </View>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <TouchableOpacity
-                  onPress={() => update({ voiceSensitivity: Math.max(0, prefs.voiceSensitivity - 0.1) })}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  accessibilityLabel="Decrease voice sensitivity"
-                >
-                  <Ionicons name="remove-circle-outline" size={24} color={accent} />
-                </TouchableOpacity>
-                <View
-                  style={{
-                    flex: 1,
-                    height: 6,
-                    backgroundColor: '#E5E5EA',
-                    borderRadius: 3,
-                    marginHorizontal: 10,
-                    overflow: 'hidden',
-                  }}
-                >
-                  <View
-                    style={{
-                      height: 6,
-                      borderRadius: 3,
-                      backgroundColor: accent,
-                      width: `${prefs.voiceSensitivity * 100}%`,
-                    }}
-                  />
-                </View>
-                <TouchableOpacity
-                  onPress={() => update({ voiceSensitivity: Math.min(1, prefs.voiceSensitivity + 0.1) })}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                  accessibilityLabel="Increase voice sensitivity"
-                >
-                  <Ionicons name="add-circle-outline" size={24} color={accent} />
-                </TouchableOpacity>
-              </View>
-            </View>
           </SettingsSectionCard>
 
           {/* ═══════════════════════════════════════════════════
               4. PREFERENCES
           ═══════════════════════════════════════════════════ */}
           <SettingsSectionCard title="Preferences">
-            {/* Theme & Accent */}
-            <ThemeAccentPicker
-              themeMode={prefs.themeMode}
-              accentPreset={prefs.accentPreset}
-              onThemeChange={(m) => update({ themeMode: m })}
-              onAccentChange={(a) => update({ accentPreset: a })}
-            />
+            {/* Theme */}
+            <View style={{ paddingHorizontal: 16, paddingVertical: 14 }}>
+              <Text style={{ fontSize: 13, color: '#8E8E93', marginBottom: 10, fontWeight: '500' }}>
+                Theme
+              </Text>
+              <View
+                style={{
+                  flexDirection: 'row',
+                  backgroundColor: '#F2F2F7',
+                  borderRadius: 10,
+                  padding: 3,
+                }}
+              >
+                {([{ mode: 'light' as const, label: 'Light', icon: 'sunny-outline' as const },
+                  { mode: 'dark' as const, label: 'Dark', icon: 'moon-outline' as const },
+                  { mode: 'system' as const, label: 'System', icon: 'phone-portrait-outline' as const }]).map((opt) => {
+                  const selected = prefs.themeMode === opt.mode;
+                  return (
+                    <TouchableOpacity
+                      key={opt.mode}
+                      onPress={() => {
+                        Haptics.selectionAsync();
+                        update({ themeMode: opt.mode });
+                      }}
+                      activeOpacity={0.7}
+                      accessibilityLabel={`${opt.label} theme`}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected }}
+                      style={{
+                        flex: 1,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        paddingVertical: 8,
+                        borderRadius: 8,
+                        backgroundColor: selected ? '#FFFFFF' : 'transparent',
+                        ...(selected
+                          ? { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2, elevation: 2 }
+                          : {}),
+                      }}
+                    >
+                      <Ionicons name={opt.icon} size={15} color={selected ? accent : '#8E8E93'} style={{ marginRight: 4 }} />
+                      <Text style={{ fontSize: 14, fontWeight: selected ? '600' : '400', color: selected ? '#1C1C1E' : '#8E8E93' }}>
+                        {opt.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
           </SettingsSectionCard>
 
           <SettingsSectionCard
@@ -546,26 +513,6 @@ export function SettingsScreen({ visible, onClose, onShowPaywall }: Props) {
                 Haptics.selectionAsync();
               }}
             />
-            <SettingsRow
-              icon="file-tray-outline"
-              iconColor="#F97316"
-              title="Send to Brain Dump"
-              subtitle="Tasks without date/time go to Brain Dump"
-              toggle
-              toggleValue={prefs.noBrainDumpRoute}
-              onToggle={(v) => update({ noBrainDumpRoute: v })}
-              accentColor={accent}
-            />
-            <SettingsRow
-              icon="sparkles-outline"
-              iconColor={accent}
-              title="AI Auto-Categorise"
-              subtitle="Automatically tag tasks by category"
-              toggle
-              toggleValue={prefs.aiAutoCategories}
-              onToggle={(v) => update({ aiAutoCategories: v })}
-              accentColor={accent}
-            />
           </SettingsSectionCard>
 
           <SettingsSectionCard title="Notifications">
@@ -589,31 +536,12 @@ export function SettingsScreen({ visible, onClose, onShowPaywall }: Props) {
               accentColor={accent}
             />
             <SettingsRow
-              icon="people-outline"
-              iconColor="#0D9488"
-              title="Circle Check-in Reminder"
-              toggle
-              toggleValue={prefs.circleCheckinReminder}
-              onToggle={(v) => update({ circleCheckinReminder: v })}
-              accentColor={accent}
-            />
-            <SettingsRow
               icon="trophy-outline"
               iconColor="#EAB308"
               title="Challenge Deadline Alerts"
               toggle
               toggleValue={prefs.challengeDeadlineAlerts}
               onToggle={(v) => update({ challengeDeadlineAlerts: v })}
-              accentColor={accent}
-            />
-            <SettingsRow
-              icon="bed-outline"
-              iconColor="#8E8E93"
-              title="Inactivity Nudges"
-              subtitle="Remind you after periods of inactivity"
-              toggle
-              toggleValue={prefs.inactivityNudges}
-              onToggle={(v) => update({ inactivityNudges: v })}
               accentColor={accent}
             />
             <SettingsRow
@@ -645,29 +573,6 @@ export function SettingsScreen({ visible, onClose, onShowPaywall }: Props) {
               title="Calendar Access"
               value={prefs.calendarPermission === 'granted' ? 'Granted' : prefs.calendarPermission === 'denied' ? 'Denied' : 'Not Set'}
               onPress={() => Linking.openSettings()}
-            />
-            <SettingsRow
-              icon="document-text-outline"
-              iconColor="#8E8E93"
-              title="Save Transcripts"
-              toggle
-              toggleValue={prefs.saveTranscripts}
-              onToggle={(v) => update({ saveTranscripts: v })}
-              accentColor={accent}
-            />
-            <SettingsRow
-              icon="trash-outline"
-              iconColor="#FF9F0A"
-              title="Clear Local Cached Insights"
-              onPress={handleClearCache}
-            />
-            <SettingsRow
-              icon="download-outline"
-              iconColor="#0D9488"
-              title="Export Data"
-              onPress={() => {
-                Alert.alert('Export Data', 'Your data export request has been queued. You will receive a download link via email.');
-              }}
             />
             <SettingsRow
               icon="document-text-outline"

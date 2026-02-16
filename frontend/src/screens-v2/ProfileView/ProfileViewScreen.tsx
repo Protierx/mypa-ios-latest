@@ -34,7 +34,7 @@ import { useFocusSessions } from '../../hooks/supabase/useFocusSessions';
 import { MiniVoiceButton } from '../../components/MiniVoiceButton';
 import { SettingsScreen } from '../settings/SettingsScreen';
 import { PaywallSheet } from '../modals/PaywallSheet';
-import { AnalyticsModal } from '../../components/settings/AnalyticsModal';
+import { AnalyticsModal } from '../../components/analytics/AnalyticsModal';
 import { ACCENT_COLORS, useSettingsPreferences } from '../../state/settingsPreferences';
 
 import { bg, brand, text as textTokens, border as borderTokens, semantic } from '../../styles/colors';
