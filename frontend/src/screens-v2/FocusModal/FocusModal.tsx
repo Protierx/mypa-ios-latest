@@ -130,19 +130,15 @@ function isFocusWorthy(task: { priority: string; estimated_duration: number | nu
 
 /**
  * Get the best focus duration for a task:
- * - Use estimated_duration if set
+ * - Use estimated_duration directly if set (e.g. 30 min → 30 min timer)
  * - High/urgent priority → 45 min default
  * - Medium priority → 25 min default
  * - Fallback → 25 min
  */
 function getTaskDuration(task: { priority: string; estimated_duration: number | null }): number {
   if (task.estimated_duration) {
-    // Snap to nearest duration option
-    const exact = task.estimated_duration;
-    if (exact <= 15) return 15;
-    if (exact <= 25) return 25;
-    if (exact <= 45) return 45;
-    return 60;
+    // Use exact duration — clamp to reasonable range (5–120 min)
+    return Math.max(5, Math.min(120, task.estimated_duration));
   }
   if (task.priority === 'high' || task.priority === 'urgent') return 45;
   return 25;
@@ -585,48 +581,58 @@ export function FocusModal({ onDismiss }: FocusModalProps = {}) {
                 </Animated.View>
               )}
 
-              {/* Duration pills */}
-              <View style={styles.durationRow}>
-                {DURATION_OPTIONS.map((mins, idx) => {
-                  const isSelected = selectedDuration === mins;
-                  return (
-                    <Animated.View
-                      key={mins}
-                      entering={FadeInUp.delay(idx * 60).duration(350)}
-                    >
-                      <TouchableOpacity
-                        style={[
-                          styles.durationPill,
-                          isSelected && styles.durationPillSelected,
-                        ]}
-                        onPress={() => {
-                          Haptics.selectionAsync();
-                          setSelectedDuration(mins);
-                          setTimeRemaining(mins * 60);
-                        }}
-                        activeOpacity={0.7}
-                      >
-                        <Text
-                          style={[
-                            styles.durationNumber,
-                            isSelected && styles.durationNumberSelected,
-                          ]}
+              {/* Duration pills — show custom duration if task sets a non-preset value */}
+              {(() => {
+                const isCustomDuration = !DURATION_OPTIONS.includes(selectedDuration);
+                const pillOptions = isCustomDuration
+                  ? [selectedDuration, ...DURATION_OPTIONS]
+                  : DURATION_OPTIONS;
+                return (
+                  <View style={styles.durationRow}>
+                    {pillOptions.map((mins, idx) => {
+                      const isSelected = selectedDuration === mins;
+                      const isCustom = !DURATION_OPTIONS.includes(mins);
+                      return (
+                        <Animated.View
+                          key={mins}
+                          entering={FadeInUp.delay(idx * 60).duration(350)}
                         >
-                          {mins}
-                        </Text>
-                        <Text
-                          style={[
-                            styles.durationLabel,
-                            isSelected && styles.durationLabelSelected,
-                          ]}
-                        >
-                          min
-                        </Text>
-                      </TouchableOpacity>
-                    </Animated.View>
-                  );
-                })}
-              </View>
+                          <TouchableOpacity
+                            style={[
+                              styles.durationPill,
+                              isSelected && styles.durationPillSelected,
+                              isCustom && isSelected && styles.durationPillCustom,
+                            ]}
+                            onPress={() => {
+                              Haptics.selectionAsync();
+                              setSelectedDuration(mins);
+                              setTimeRemaining(mins * 60);
+                            }}
+                            activeOpacity={0.7}
+                          >
+                            <Text
+                              style={[
+                                styles.durationNumber,
+                                isSelected && styles.durationNumberSelected,
+                              ]}
+                            >
+                              {mins}
+                            </Text>
+                            <Text
+                              style={[
+                                styles.durationLabel,
+                                isSelected && styles.durationLabelSelected,
+                              ]}
+                            >
+                              min
+                            </Text>
+                          </TouchableOpacity>
+                        </Animated.View>
+                      );
+                    })}
+                  </View>
+                );
+              })()}
 
               {/* Start CTA */}
               <Animated.View entering={FadeInUp.delay(280).duration(400)}>
@@ -973,6 +979,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.4,
     shadowRadius: 16,
     elevation: 6,
+  },
+  durationPillCustom: {
+    borderColor: OPAL.success,
+    backgroundColor: 'rgba(52, 211, 153, 0.15)',
+    shadowColor: OPAL.success,
   },
   durationNumber: {
     color: OPAL.textSecondary,
