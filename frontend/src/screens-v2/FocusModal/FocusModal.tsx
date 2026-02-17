@@ -581,17 +581,17 @@ export function FocusModal({ onDismiss }: FocusModalProps = {}) {
                 </Animated.View>
               )}
 
-              {/* Duration pills — show custom duration if task sets a non-preset value */}
+              {/* Duration pills — dynamic: task duration ±15, or defaults for free focus */}
               {(() => {
-                const isCustomDuration = !DURATION_OPTIONS.includes(selectedDuration);
-                const pillOptions = isCustomDuration
-                  ? [selectedDuration, ...DURATION_OPTIONS]
+                const baseDur = selectedTaskId ? selectedDuration : 25;
+                const pillOptions = selectedTaskId
+                  ? [Math.max(5, baseDur - 15), baseDur, baseDur + 15].filter((v, i, a) => a.indexOf(v) === i)
                   : DURATION_OPTIONS;
                 return (
                   <View style={styles.durationRow}>
                     {pillOptions.map((mins, idx) => {
                       const isSelected = selectedDuration === mins;
-                      const isCustom = !DURATION_OPTIONS.includes(mins);
+                      const isTaskDefault = selectedTaskId && mins === baseDur;
                       return (
                         <Animated.View
                           key={mins}
@@ -601,7 +601,6 @@ export function FocusModal({ onDismiss }: FocusModalProps = {}) {
                             style={[
                               styles.durationPill,
                               isSelected && styles.durationPillSelected,
-                              isCustom && isSelected && styles.durationPillCustom,
                             ]}
                             onPress={() => {
                               Haptics.selectionAsync();
@@ -624,7 +623,7 @@ export function FocusModal({ onDismiss }: FocusModalProps = {}) {
                                 isSelected && styles.durationLabelSelected,
                               ]}
                             >
-                              min
+                              {isTaskDefault ? '⏱ task' : 'min'}
                             </Text>
                           </TouchableOpacity>
                         </Animated.View>
