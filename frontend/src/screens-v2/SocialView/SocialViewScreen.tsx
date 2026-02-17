@@ -24,10 +24,12 @@ import {
   Pressable,
   FlatList,
   StyleSheet,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import Animated from 'react-native-reanimated';
 
 import { useCircles } from '../../hooks/supabase/useCircles';
 import { useChallenges } from '../../hooks/supabase/useChallenges';
@@ -41,6 +43,7 @@ import { PaywallSheet } from '../modals/PaywallSheet';
 
 import { bg, brand, text as textTokens, border as borderTokens, semantic } from '../../styles/colors';
 import { shadows, radius, spacing } from '../../styles/theme';
+import { useEnterAnimation, usePressFeedback, useStaggerIn } from '../../styles/motion';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const FREE_TIER_CIRCLE_LIMIT = 1;
@@ -65,7 +68,7 @@ function AvatarStack({ count, size = 22 }: { count: number; size?: number }) {
             },
           ]}
         >
-          <Ionicons name="person" size={size * 0.45} color="rgba(255,255,255,0.85)" />
+          <Ionicons name="person" size={size * 0.45} color={bg.primary} />
         </View>
       ))}
       {count > 4 && (
@@ -89,6 +92,11 @@ export function SocialViewScreen() {
   const { circles, loading: circlesLoading, error: circlesError, refresh: refreshCircles, joinCircleByCode } = useCircles();
   const { challenges, loading: challengesLoading, error: challengesError, refresh: refreshChallenges } = useChallenges();
   const { user } = useSupabaseAuth();
+
+  /* ── Animations ── */
+  const headerAnim = useEnterAnimation(18, 450, 0);
+  const tabsAnim = useEnterAnimation(14, 400, 100);
+  const { animatedStyle: plusPressStyle, pressHandlers: plusPressHandlers } = usePressFeedback(0.88);
 
   const [refreshing, setRefreshing] = useState(false);
   const [loadingTimeout, setLoadingTimeout] = useState(false);
@@ -237,7 +245,7 @@ export function SocialViewScreen() {
       { value: activeChallenges.length, label: 'Active', icon: 'trophy', color: semantic.warning, onPress: () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowActiveChallenges(true); } },
     ];
     return (
-      <View style={s.summaryTabsContainer}>
+      <Animated.View style={[s.summaryTabsContainer, tabsAnim]}>
         {tabs.map((tab, idx) => (
           <TouchableOpacity
             key={tab.label}
@@ -256,7 +264,7 @@ export function SocialViewScreen() {
             <Text style={s.summaryTabLabel}>{tab.label}</Text>
           </TouchableOpacity>
         ))}
-      </View>
+      </Animated.View>
     );
   };
 
@@ -291,7 +299,7 @@ export function SocialViewScreen() {
   };
 
   /* ── Circle Card (rich, immersive) ── */
-  const renderCircleCard = (circle: any) => {
+  const renderCircleCard = (circle: any, index: number) => {
     const challenges = challengesByCircle[circle.id] || [];
     const roleBadge = circle.userRole === 'owner' ? 'Owner' : circle.userRole === 'admin' ? 'Admin' : null;
     const roleColor = circle.userRole === 'owner' ? semantic.warning : brand.primary;
@@ -413,18 +421,20 @@ export function SocialViewScreen() {
       <SafeAreaView style={s.flex1} edges={['top']}>
 
         {/* ── Header ── */}
-        <View style={s.headerContainer}>
+        <Animated.View style={[s.headerContainer, headerAnim]}>
           <View style={s.headerRow}>
             <Text style={s.headerTitle}>Circles</Text>
             <View style={s.headerActions}>
               {/* + button — Create or Join */}
-              <TouchableOpacity
-                style={s.plusButton}
+              <TouchableWithoutFeedback
+                onPressIn={plusPressHandlers.onPressIn}
+                onPressOut={plusPressHandlers.onPressOut}
                 onPress={handlePlusButton}
-                activeOpacity={0.7}
               >
-                <Ionicons name="add" size={28} color={brand.primary} />
-              </TouchableOpacity>
+                <Animated.View style={[s.plusButton, plusPressStyle]}>
+                  <Ionicons name="add" size={28} color={brand.primary} />
+                </Animated.View>
+              </TouchableWithoutFeedback>
               <MiniVoiceButton position="top-right" screenContext="social" size={50} style={s.voiceButtonInline} />
             </View>
           </View>
@@ -433,7 +443,7 @@ export function SocialViewScreen() {
               ? new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
               : 'Accountability with your people'}
           </Text>
-        </View>
+        </Animated.View>
 
         {/* ── Body ── */}
         {loading && !refreshing ? (
@@ -486,7 +496,7 @@ export function SocialViewScreen() {
                   </Text>
                 </View>
                 {filteredCircles.length > 0 ? (
-                  filteredCircles.map(renderCircleCard)
+                  filteredCircles.map((c, i) => renderCircleCard(c, i))
                 ) : (
                   <View style={s.noResultsContainer}>
                     <Ionicons name="search-outline" size={28} color={textTokens.disabled} style={s.noResultsIcon} />
@@ -668,7 +678,7 @@ export function SocialViewScreen() {
                       {daysLeft !== null && (
                         <View style={[
                           s.daysLeftBadge,
-                          { backgroundColor: daysLeft <= 3 ? 'rgba(255,159,10,0.10)' : bg.secondary },
+                          { backgroundColor: daysLeft <= 3 ? semantic.warningLight : bg.secondary },
                         ]}>
                           <Text style={[s.daysLeftText, { color: daysLeft <= 3 ? semantic.warning : textTokens.tertiary }]}>{daysLeft}d</Text>
                         </View>
@@ -799,12 +809,12 @@ const s = StyleSheet.create({
   decorativeTrophyCircle: {
     position: 'absolute', bottom: 8, right: 5,
     width: 44, height: 44, borderRadius: 22,
-    backgroundColor: 'rgba(255,159,10,0.10)', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: semantic.warningLight, alignItems: 'center', justifyContent: 'center',
   },
   decorativeCheckCircle: {
     position: 'absolute', bottom: 25, left: 0,
     width: 32, height: 32, borderRadius: 16,
-    backgroundColor: 'rgba(52,199,89,0.10)', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: semantic.successLight, alignItems: 'center', justifyContent: 'center',
   },
   emptyTitle: { fontSize: 24, fontWeight: '800', color: textTokens.primary, textAlign: 'center', letterSpacing: -0.4 },
   emptySubtitle: { fontSize: 15, color: textTokens.tertiary, marginTop: 10, textAlign: 'center', lineHeight: 22 },
@@ -869,7 +879,7 @@ const s = StyleSheet.create({
 
   /* Active Challenges Modal */
   modalOverlay: { flex: 1, justifyContent: 'flex-end' },
-  modalBackdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.35)' },
+  modalBackdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0, 0, 0, 0.35)' },
   modalSheet: {
     height: SCREEN_HEIGHT * 0.75,
     backgroundColor: bg.primary,
@@ -897,7 +907,7 @@ const s = StyleSheet.create({
   emptyModalContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, paddingBottom: 40 },
   emptyModalIcon: {
     width: 56, height: 56, borderRadius: 18,
-    backgroundColor: 'rgba(255,159,10,0.10)',
+    backgroundColor: semantic.warningLight,
     alignItems: 'center', justifyContent: 'center', marginBottom: 16,
   },
   emptyModalTitle: { fontSize: 17, fontWeight: '600', color: textTokens.primary, textAlign: 'center' },
@@ -917,10 +927,10 @@ const s = StyleSheet.create({
   },
   modalChallengeEmoji: {
     width: 46, height: 46, borderRadius: 14,
-    backgroundColor: 'rgba(255,159,10,0.12)',
+    backgroundColor: semantic.warningLight,
     alignItems: 'center', justifyContent: 'center', marginRight: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255,159,10,0.20)',
+    borderColor: semantic.warning,
   },
   modalChallengeEmojiText: { fontSize: 22 },
   modalChallengeName: { fontSize: 15, fontWeight: '700', color: textTokens.primary },

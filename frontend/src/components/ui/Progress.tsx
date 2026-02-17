@@ -1,6 +1,12 @@
-import React from 'react';
-import { View, StyleSheet, ViewStyle, Animated } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, StyleSheet, ViewStyle } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+} from 'react-native-reanimated';
 import { brand, border as borderTokens } from '../../styles/colors';
+import { springs } from '../../styles/motion';
 
 interface ProgressProps {
   value: number;
@@ -20,15 +26,21 @@ export function Progress({
   style,
 }: ProgressProps) {
   const percentage = Math.min(Math.max((value / max) * 100, 0), 100);
+  const animatedWidth = useSharedValue(0);
+
+  useEffect(() => {
+    animatedWidth.value = withSpring(percentage, springs.gentle);
+  }, [percentage]);
+
+  const fillStyle = useAnimatedStyle(() => ({
+    width: `${animatedWidth.value}%` as unknown as number,
+    backgroundColor: color,
+    height,
+  }));
 
   return (
     <View style={[styles.container, { height, backgroundColor }, style]}>
-      <View
-        style={[
-          styles.fill,
-          { width: `${percentage}%`, backgroundColor: color, height },
-        ]}
-      />
+      <Animated.View style={[styles.fill, fillStyle]} />
     </View>
   );
 }

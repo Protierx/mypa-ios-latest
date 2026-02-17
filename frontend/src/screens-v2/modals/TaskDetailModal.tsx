@@ -32,10 +32,10 @@ import { bg, brand, text as textTokens, border as borderTokens, semantic } from 
 import { shadows, radius } from '../../styles/theme';
 
 const PRIORITY_COLORS: Record<string, string> = {
-  low: '#34C759',
-  medium: '#FF9F0A',
-  high: '#FF6B35',
-  urgent: '#FF3B30',
+  low: semantic.success,
+  medium: semantic.warning,
+  high: semantic.error,
+  urgent: semantic.error,
 };
 
 // ============================================================================
@@ -49,8 +49,8 @@ function getTaskInsight(task: Task): { message: string; icon: string; color: str
     const completedDate = task.completed_at ? new Date(task.completed_at) : null;
     if (completedDate) {
       const daysAgo = Math.floor((now.getTime() - completedDate.getTime()) / 86400000);
-      if (daysAgo === 0) return { message: 'Great work completing this today!', icon: 'trophy', color: '#EAB308' };
-      return { message: `Completed ${daysAgo === 1 ? 'yesterday' : `${daysAgo} days ago`}. Nice.`, icon: 'checkmark-circle', color: '#34C759' };
+      if (daysAgo === 0) return { message: 'Great work completing this today!', icon: 'trophy', color: semantic.warning };
+      return { message: `Completed ${daysAgo === 1 ? 'yesterday' : `${daysAgo} days ago`}. Nice.`, icon: 'checkmark-circle', color: semantic.success };
     }
     return null;
   }
@@ -66,23 +66,23 @@ function getTaskInsight(task: Task): { message: string; icon: string; color: str
       return {
         message: overdue === 1 ? 'This was due yesterday. Reschedule or knock it out now.' : `${overdue} days overdue. Consider breaking it into smaller steps.`,
         icon: 'alert-circle',
-        color: '#FF3B30',
+        color: semantic.error,
       };
     }
     if (daysUntil === 0) {
       if (task.priority === 'urgent' || task.priority === 'high') {
-        return { message: 'Due today and high priority. I\'d tackle this first.', icon: 'flash', color: '#FF6B35' };
+        return { message: 'Due today and high priority. I\'d tackle this first.', icon: 'flash', color: semantic.error };
       }
-      return { message: 'Due today. You\'ve got this.', icon: 'sunny', color: '#FF9F0A' };
+      return { message: 'Due today. You\'ve got this.', icon: 'sunny', color: semantic.warning };
     }
-    if (daysUntil === 1) return { message: 'Due tomorrow. Good time to prepare.', icon: 'arrow-forward-circle', color: '#3B82F6' };
-    if (daysUntil <= 3) return { message: `Due in ${daysUntil} days. On track.`, icon: 'calendar', color: '#8B5CF6' };
+    if (daysUntil === 1) return { message: 'Due tomorrow. Good time to prepare.', icon: 'arrow-forward-circle', color: brand.secondary };
+    if (daysUntil <= 3) return { message: `Due in ${daysUntil} days. On track.`, icon: 'calendar', color: brand.primary };
   }
 
-  if (task.priority === 'urgent') return { message: 'Urgent priority. Consider scheduling a focus session.', icon: 'flame', color: '#FF3B30' };
-  if (task.priority === 'high' && !task.due_date) return { message: 'High priority but no due date. Adding one helps me plan better.', icon: 'bulb', color: '#FF9F0A' };
+  if (task.priority === 'urgent') return { message: 'Urgent priority. Consider scheduling a focus session.', icon: 'flame', color: semantic.error };
+  if (task.priority === 'high' && !task.due_date) return { message: 'High priority but no due date. Adding one helps me plan better.', icon: 'bulb', color: semantic.warning };
 
-  if (!task.estimated_duration) return { message: 'Add a time estimate to help plan your day.', icon: 'time', color: '#8B5CF6' };
+  if (!task.estimated_duration) return { message: 'Add a time estimate to help plan your day.', icon: 'time', color: brand.primary };
 
   return null;
 }
@@ -107,10 +107,10 @@ interface TaskDetailModalProps {
 }
 
 const PRIORITIES: { value: Task['priority']; label: string; color: string }[] = [
-  { value: 'low', label: 'Low', color: '#34C759' },
-  { value: 'medium', label: 'Medium', color: '#FF9F0A' },
-  { value: 'high', label: 'High', color: '#FF6B35' },
-  { value: 'urgent', label: 'Urgent', color: '#FF3B30' },
+  { value: 'low', label: 'Low', color: semantic.success },
+  { value: 'medium', label: 'Medium', color: semantic.warning },
+  { value: 'high', label: 'High', color: semantic.error },
+  { value: 'urgent', label: 'Urgent', color: semantic.error },
 ];
 
 // ============================================================================
@@ -402,8 +402,8 @@ export function TaskDetailModal({ visible, task, onClose, onStartFocus, taskActi
                 onPress={handleStartFocus}
               >
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Ionicons name="timer-outline" size={18} color="#fff" />
-                  <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff', marginLeft: 8 }}>Start Focus Session</Text>
+                  <Ionicons name="timer-outline" size={18} color={textTokens.inverse} />
+                  <Text style={{ fontSize: 16, fontWeight: '700', color: textTokens.inverse, marginLeft: 8 }}>Start Focus Session</Text>
                 </View>
               </TouchableOpacity>
 

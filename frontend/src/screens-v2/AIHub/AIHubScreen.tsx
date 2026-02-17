@@ -1,16 +1,12 @@
 /**
- * AI Hub Screen — Immersive Dark "AI Data Core" Design
+ * AI Hub Screen — Immersive AI Focal Point (Light Theme)
  *
- * The entire screen IS the AI — a dark, living environment with floating
- * particles, ambient glow, and voice-reactive animations. Clean white text
- * overlaid on the dark scene.
+ * The entire screen IS the AI — centered mic icon, full-screen tap to talk,
+ * voice-reactive breathing animation. Minimal decoration.
  *
- * Features:
- * - Dark animated Skia background scene (AIHubScene)
- * - Floating glass transcript overlay (TranscriptOverlay)
- * - Breathing mic icon with voice-state transitions
- * - Quick action pill chips + ambient stats bar
- * - Text input fallback for offline / discreet mode
+ * Layout: Top greeting → Center mic + hint → Bottom stats
+ * Skia scene renders behind when voice is active.
+ * All colors from design tokens. Animations via Reanimated.
  */
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
@@ -51,7 +47,8 @@ import { useUserModel } from '../../contexts/UserModelContext';
 import { useTasks } from '../../hooks/supabase/useTasks';
 import { useDailyBriefing } from '../../hooks/useDailyBriefing';
 import { eventLogger } from '../../services/eventLogger';
-import { brand } from '../../styles/colors';
+import { bg, brand, text as textTokens, border as borderTokens, semantic } from '../../styles/colors';
+import { spacing, radius, shadows, typography, fontWeights } from '../../styles/theme';
 import supabaseApi from '../../services/supabaseApi';
 
 interface AIHubScreenProps {
@@ -428,7 +425,7 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
+      <StatusBar barStyle="dark-content" />
 
       {/* ── Immersive dark Skia background scene ── */}
       <AIHubScene sceneState={sceneState} amplitude={amplitude} />
@@ -464,7 +461,7 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
                 }}
               >
                 <View style={styles.notificationCircle}>
-                  <Ionicons name="notifications-outline" size={20} color="rgba(255,255,255,0.6)" />
+                  <Ionicons name="notifications-outline" size={20} color={textTokens.secondary} />
                   {unreadCounts.all > 0 && (
                     <View style={styles.notificationBadge}>
                       <Text style={styles.notificationBadgeText}>
@@ -495,7 +492,7 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
                     {pendingTasks} task{pendingTasks !== 1 ? 's' : ''} today
                     {(user?.currentStreak ?? 0) > 0 ? ` • ${user?.currentStreak}-day streak 🔥` : ''}
                   </Text>
-                  <Ionicons name="chevron-down" size={14} color="rgba(255,255,255,0.4)" />
+                  <Ionicons name="chevron-down" size={14} color={textTokens.tertiary} />
                 </Pressable>
               </Animated.View>
             )}
@@ -527,7 +524,7 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
                         }}
                         hitSlop={12}
                       >
-                        <Ionicons name="chevron-up" size={18} color="rgba(255,255,255,0.4)" />
+                        <Ionicons name="chevron-up" size={18} color={textTokens.tertiary} />
                       </Pressable>
                     </View>
                     <Text style={styles.briefingText}>{briefText}</Text>
@@ -547,12 +544,12 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
                 <Animated.View style={[styles.stateIconContainer, iconAnimStyle]}>
                   <View style={[
                     styles.iconRing,
-                    voiceState === 'error' && { borderColor: 'rgba(255,100,100,0.6)' },
+                    voiceState === 'error' && { borderColor: semantic.errorLight },
                   ]}>
                     <Ionicons
                       name={getStateIcon()}
                       size={32}
-                      color={voiceState === 'error' ? '#FF6B6B' : '#A78BFA'}
+                      color={voiceState === 'error' ? semantic.error : brand.primary}
                     />
                   </View>
                 </Animated.View>
@@ -583,7 +580,7 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
                     onPress={() => voice.endConversation()}
                   >
                     <View style={styles.cancelCircle}>
-                      <Ionicons name="close" size={18} color="rgba(255,255,255,0.5)" />
+                      <Ionicons name="close" size={18} color={textTokens.tertiary} />
                     </View>
                   </Pressable>
                 )}
@@ -599,7 +596,7 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
                     <Ionicons
                       name={isBriefingLoading ? 'sparkles-outline' : getStateIcon()}
                       size={48}
-                      color="#A78BFA"
+                      color={brand.primary}
                     />
                   </View>
                 </Animated.View>
@@ -650,7 +647,7 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
                   ref={textInputRef}
                   style={styles.textInput}
                   placeholder={voice.isDiscreetMode ? 'Type your request…' : 'Type here instead…'}
-                  placeholderTextColor="rgba(255,255,255,0.3)"
+                  placeholderTextColor={textTokens.disabled}
                   value={textInputValue}
                   onChangeText={setTextInputValue}
                   onSubmitEditing={handleTextSubmit}
@@ -668,7 +665,7 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
                   <Ionicons
                     name="send"
                     size={18}
-                    color={textInputValue.trim() ? '#A78BFA' : 'rgba(255,255,255,0.2)'}
+                    color={textInputValue.trim() ? brand.primary : textTokens.disabled}
                   />
                 </Pressable>
               </View>
@@ -731,7 +728,7 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#08081A',
+    backgroundColor: bg.primary,
   },
   safeArea: {
     ...StyleSheet.absoluteFillObject,
@@ -742,8 +739,8 @@ const styles = StyleSheet.create({
 
   // ──── Top Section ────
   topSection: {
-    paddingHorizontal: 24,
-    paddingTop: 8,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
   },
   headerRow: {
     flexDirection: 'row',
@@ -752,30 +749,30 @@ const styles = StyleSheet.create({
   },
   greetingContainer: {
     flex: 1,
-    paddingRight: 16,
+    paddingRight: spacing.md,
   },
   greetingText: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: 'rgba(255,255,255,0.92)',
+    fontSize: typography.textXl,
+    fontWeight: fontWeights.bold,
+    color: textTokens.primary,
     letterSpacing: -0.3,
     marginBottom: 2,
   },
   dateText: {
-    fontSize: 15,
-    color: 'rgba(255,255,255,0.45)',
-    fontWeight: '400',
+    fontSize: typography.textSm,
+    color: textTokens.tertiary,
+    fontWeight: fontWeights.normal,
   },
   notificationButton: {
-    marginTop: 4,
+    marginTop: spacing.xs,
   },
   notificationCircle: {
     width: 40,
     height: 40,
-    borderRadius: 20,
+    borderRadius: radius.full,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: bg.hover,
   },
   notificationBadge: {
     position: 'absolute',
@@ -784,17 +781,17 @@ const styles = StyleSheet.create({
     minWidth: 18,
     height: 18,
     borderRadius: 9,
-    backgroundColor: '#FF453A',
+    backgroundColor: semantic.error,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 4,
+    paddingHorizontal: spacing.xs,
     borderWidth: 2,
-    borderColor: '#000',
+    borderColor: bg.primary,
   },
   notificationBadgeText: {
-    color: '#FFFFFF',
+    color: textTokens.inverse,
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: fontWeights.bold,
   },
 
   // ── Briefing Pill (collapsed state) ──
@@ -802,19 +799,19 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    borderRadius: 20,
-    marginTop: 14,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    gap: spacing.xs,
+    borderRadius: radius.full,
+    marginTop: spacing.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    backgroundColor: bg.card,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderColor: borderTokens.primary,
   },
   briefingPillText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.65)',
+    fontSize: typography.textSm - 1,
+    fontWeight: fontWeights.semibold,
+    color: textTokens.secondary,
   },
 
   // ──── Center Section ────
@@ -822,7 +819,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: spacing.lg,
   },
 
   // ── Idle state — floating mic icon + hint ──
@@ -832,7 +829,7 @@ const styles = StyleSheet.create({
   stateIconContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 20,
+    marginBottom: spacing.lg,
   },
   idleMicRing: {
     width: 96,
@@ -840,9 +837,9 @@ const styles = StyleSheet.create({
     borderRadius: 48,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(124,58,237,0.12)',
+    backgroundColor: brand.surface,
     borderWidth: 2,
-    borderColor: 'rgba(124,58,237,0.3)',
+    borderColor: brand.muted,
   },
   iconRing: {
     width: 72,
@@ -850,14 +847,14 @@ const styles = StyleSheet.create({
     borderRadius: 36,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(124,58,237,0.12)',
+    backgroundColor: brand.surface,
     borderWidth: 2,
-    borderColor: 'rgba(124,58,237,0.3)',
+    borderColor: brand.muted,
   },
   hintText: {
-    fontSize: 15,
-    color: 'rgba(255,255,255,0.4)',
-    fontWeight: '400',
+    fontSize: typography.textSm,
+    color: textTokens.tertiary,
+    fontWeight: fontWeights.normal,
     textAlign: 'center',
   },
 
@@ -865,7 +862,7 @@ const styles = StyleSheet.create({
   voiceActiveContainer: {
     width: '100%',
     alignItems: 'center',
-    paddingHorizontal: 8,
+    paddingHorizontal: spacing.sm,
   },
   waveformRow: {
     flexDirection: 'row',
@@ -873,12 +870,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 3,
     height: 40,
-    marginBottom: 20,
+    marginBottom: spacing.lg,
   },
   waveBar: {
     width: 3,
     borderRadius: 2,
-    backgroundColor: '#A78BFA',
+    backgroundColor: brand.secondary,
   },
   cancelButton: {
     position: 'absolute',
@@ -891,7 +888,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: bg.hover,
   },
 
   // ── Briefing card (expanded) ──
@@ -905,88 +902,88 @@ const styles = StyleSheet.create({
   },
   briefingScrollContent: {
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: spacing.sm,
   },
   briefingCard: {
-    borderRadius: 20,
-    padding: 20,
+    borderRadius: radius.xl,
+    padding: spacing.lg,
     width: '100%',
     overflow: 'hidden',
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    backgroundColor: bg.card,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderColor: borderTokens.primary,
   },
   briefingHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 14,
-    gap: 8,
+    marginBottom: spacing.md,
+    gap: spacing.sm,
   },
   briefingEmoji: {
-    fontSize: 16,
+    fontSize: typography.textBase,
   },
   briefingTitle: {
     flex: 1,
-    fontSize: 15,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.9)',
+    fontSize: typography.textSm,
+    fontWeight: fontWeights.semibold,
+    color: textTokens.primary,
   },
   briefingText: {
-    fontSize: 16,
-    color: 'rgba(255,255,255,0.6)',
+    fontSize: typography.textBase,
+    color: textTokens.secondary,
     lineHeight: 24,
   },
   briefingHint: {
-    marginTop: 16,
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.35)',
+    marginTop: spacing.md,
+    fontSize: typography.textSm - 1,
+    color: textTokens.disabled,
     textAlign: 'center',
   },
 
   // ──── Bottom Section ────
   bottomSection: {
-    paddingHorizontal: 16,
-    paddingBottom: 12,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.sm,
   },
   statsContainer: {
     alignItems: 'center',
-    paddingBottom: 4,
+    paddingBottom: spacing.xs,
   },
   statsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
+    gap: spacing.md,
   },
   statItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: spacing.xs,
   },
   statsText: {
-    fontSize: 13,
-    color: 'rgba(255,255,255,0.4)',
+    fontSize: typography.textXs,
+    color: textTokens.tertiary,
   },
 
   // ──── Text Input Bar ────
   textInputContainer: {
-    paddingHorizontal: 16,
-    paddingBottom: 8,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.sm,
   },
   textInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: 24,
-    paddingHorizontal: 16,
-    paddingVertical: 4,
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: radius.full,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    backgroundColor: bg.input,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderColor: borderTokens.primary,
   },
   textInput: {
     flex: 1,
-    fontSize: 16,
-    color: 'rgba(255,255,255,0.9)',
-    paddingVertical: 12,
+    fontSize: typography.textBase,
+    color: textTokens.primary,
+    paddingVertical: spacing.sm,
   },
   textSendButton: {
     width: 36,
@@ -994,8 +991,8 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(124,58,237,0.15)',
-    marginLeft: 8,
+    backgroundColor: brand.surface,
+    marginLeft: spacing.sm,
   },
   textSendButtonDisabled: {
     backgroundColor: 'transparent',

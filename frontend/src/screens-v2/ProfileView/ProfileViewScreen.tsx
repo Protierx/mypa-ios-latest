@@ -24,10 +24,12 @@ import {
   StatusBar,
   StyleSheet,
   ActivityIndicator,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import Animated from 'react-native-reanimated';
 
 import { useSupabaseAuth } from '../../contexts/SupabaseAuthContext';
 import { useUserModel } from '../../contexts/UserModelContext';
@@ -40,12 +42,20 @@ import { ACCENT_COLORS, useSettingsPreferences } from '../../state/settingsPrefe
 
 import { bg, brand, text as textTokens, border as borderTokens, semantic } from '../../styles/colors';
 import { shadows, radius, spacing } from '../../styles/theme';
+import { useEnterAnimation, usePressFeedback, useStaggerIn } from '../../styles/motion';
 
 export function ProfileViewScreen() {
   const { user, signOut } = useSupabaseAuth();
   const { stats, isLoading: statsLoading, error: statsError, refresh: refreshStats } = useUserModel();
   const { sessions, loading: sessionsLoading } = useFocusSessions();
   const { prefs } = useSettingsPreferences();
+
+  /* ── Animations ── */
+  const headerAnim = useEnterAnimation(20, 450, 0);
+  const statsAnim = useEnterAnimation(16, 400, 120);
+  const pillsAnim = useEnterAnimation(12, 350, 200);
+  const { animatedStyle: analyticsPressStyle, pressHandlers: analyticsPressHandlers } = usePressFeedback(0.92);
+  const { animatedStyle: settingsPressStyle, pressHandlers: settingsPressHandlers } = usePressFeedback(0.92);
 
   const isLoading = statsLoading || sessionsLoading;
   const hasError = !!statsError;
@@ -78,7 +88,7 @@ export function ProfileViewScreen() {
           showsVerticalScrollIndicator={false}
         >
           {/* ── Profile Header ── */}
-          <View style={s.profileHeader}>
+          <Animated.View style={[s.profileHeader, headerAnim]}>
             {/* Avatar — 80px with purple border ring */}
             <View style={s.avatarRing}>
               {user?.avatarUrl ? (
@@ -120,7 +130,7 @@ export function ProfileViewScreen() {
             <Text style={s.xpLabel}>
               {Math.round(xpProgress * 100)}% to Level {(user?.level || 1) + 1}
             </Text>
-          </View>
+          </Animated.View>
 
           {/* ── Stats Grid (2×2) ── */}
           {hasError ? (
@@ -148,9 +158,9 @@ export function ProfileViewScreen() {
               ))}
             </View>
           ) : (
-          <View style={s.statsGrid}>
+          <Animated.View style={[s.statsGrid, statsAnim]}>
             {[
-              { icon: 'flame' as const, iconColor: '#F97316', label: 'Streak', value: `${user?.currentStreak || 0} days`, sub: `Longest: ${user?.longestStreak || 0} days` },
+              { icon: 'flame' as const, iconColor: semantic.warning, label: 'Streak', value: `${user?.currentStreak || 0} days`, sub: `Longest: ${user?.longestStreak || 0} days` },
               { icon: 'checkbox' as const, iconColor: semantic.success, label: 'Tasks', value: `${tasksCompleted}`, sub: 'Completed' },
               { icon: 'timer' as const, iconColor: brand.primary, label: 'Focus', value: `${totalFocusMinutes}m`, sub: 'Total time' },
               { icon: 'trophy' as const, iconColor: semantic.warning, label: 'Days Active', value: `${stats?.daysActive ?? 0}`, sub: 'Days active' },
@@ -169,39 +179,47 @@ export function ProfileViewScreen() {
                 <Text style={s.statSubDetail}>{stat.sub}</Text>
               </View>
             ))}
-          </View>
+          </Animated.View>
           )}
 
           {/* ── Action Pill Tabs (Analytics | Settings) ── */}
-          <View style={s.actionPills}>
-            <TouchableOpacity
+          <Animated.View style={[s.actionPills, pillsAnim]}>
+            <TouchableWithoutFeedback
+              onPressIn={analyticsPressHandlers.onPressIn}
+              onPressOut={analyticsPressHandlers.onPressOut}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                 setShowAnalytics(true);
               }}
-              activeOpacity={0.7}
-              accessibilityLabel="Open Analytics"
-              accessibilityRole="button"
-              style={[s.actionPill, { backgroundColor: accent }]}
             >
-              <Ionicons name="analytics-outline" size={20} color={textTokens.inverse} />
-              <Text style={s.actionPillTextLight}>Analytics</Text>
-            </TouchableOpacity>
+              <Animated.View
+                style={[s.actionPill, { backgroundColor: accent }, analyticsPressStyle]}
+                accessibilityLabel="Open Analytics"
+                accessibilityRole="button"
+              >
+                <Ionicons name="analytics-outline" size={20} color={textTokens.inverse} />
+                <Text style={s.actionPillTextLight}>Analytics</Text>
+              </Animated.View>
+            </TouchableWithoutFeedback>
 
-            <TouchableOpacity
+            <TouchableWithoutFeedback
+              onPressIn={settingsPressHandlers.onPressIn}
+              onPressOut={settingsPressHandlers.onPressOut}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                 setShowSettings(true);
               }}
-              activeOpacity={0.7}
-              accessibilityLabel="Open Settings"
-              accessibilityRole="button"
-              style={s.actionPillOutline}
             >
-              <Ionicons name="settings-outline" size={20} color={textTokens.primary} />
-              <Text style={s.actionPillTextDark}>Settings</Text>
-            </TouchableOpacity>
-          </View>
+              <Animated.View
+                style={[s.actionPillOutline, settingsPressStyle]}
+                accessibilityLabel="Open Settings"
+                accessibilityRole="button"
+              >
+                <Ionicons name="settings-outline" size={20} color={textTokens.primary} />
+                <Text style={s.actionPillTextDark}>Settings</Text>
+              </Animated.View>
+            </TouchableWithoutFeedback>
+          </Animated.View>
 
           {/* ── Upgrade Banner (free users only) ── */}
           {!user?.isPremium && (
@@ -566,7 +584,7 @@ const s = StyleSheet.create({
   // ── Help Modal ──
   helpOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
     justifyContent: 'center',
     paddingHorizontal: 20,
   },

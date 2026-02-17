@@ -48,7 +48,7 @@ import { shadows, radius, spacing } from '../../styles/theme';
 const PRIORITY_COLORS: Record<string, string> = {
   low: semantic.success,
   medium: semantic.warning,
-  high: '#FF6B35',
+  high: semantic.warning,
   urgent: semantic.error,
 };
 
@@ -1007,7 +1007,7 @@ const s = StyleSheet.create({
   taskCardOverdue: {
     backgroundColor: semantic.errorLight,
     borderWidth: 0.5,
-    borderColor: 'rgba(220,38,38,0.12)',
+    borderColor: semantic.error,
   },
   taskAccent: {
     width: 4,
@@ -1066,7 +1066,7 @@ const s = StyleSheet.create({
   overduePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(220,38,38,0.10)',
+    backgroundColor: semantic.errorLight,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
@@ -1124,7 +1124,7 @@ const s = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: bg.hover,
   },
   toastUndoText: {
     color: brand.secondary,
@@ -1187,7 +1187,7 @@ const s = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 16,
-    backgroundColor: 'rgba(220,38,38,0.08)',
+    backgroundColor: semantic.errorLight,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
@@ -1245,7 +1245,7 @@ const s = StyleSheet.create({
     paddingVertical: 13,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: 'rgba(124,58,237,0.15)',
+    borderColor: brand.tertiary,
     gap: 8,
     minHeight: 48,
   },

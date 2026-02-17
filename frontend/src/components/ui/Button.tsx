@@ -1,7 +1,9 @@
-import React from 'react';
-import { TouchableOpacity, Text, StyleSheet, ViewStyle, TextStyle, ActivityIndicator } from 'react-native';
+import React, { useCallback } from 'react';
+import { Text, StyleSheet, ViewStyle, TextStyle, ActivityIndicator, TouchableWithoutFeedback } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { bg, brand, text as textTokens, border as borderTokens, semantic } from '../../styles/colors';
 import { radius } from '../../styles/theme';
+import { usePressFeedback } from '../../styles/motion';
 
 type ButtonVariant = 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link';
 type ButtonSize = 'default' | 'sm' | 'lg' | 'icon';
@@ -46,20 +48,20 @@ const variantStyles: Record<ButtonVariant, { button: ViewStyle; text: TextStyle 
 
 const sizeStyles: Record<ButtonSize, { button: ViewStyle; text: TextStyle }> = {
   default: {
-    button: { height: 40, paddingHorizontal: 16 },
-    text: { fontSize: 14 },
+    button: { height: 44, paddingHorizontal: 16 },
+    text: { fontSize: 15 },
   },
   sm: {
-    button: { height: 32, paddingHorizontal: 12 },
-    text: { fontSize: 12 },
+    button: { height: 34, paddingHorizontal: 12 },
+    text: { fontSize: 13 },
   },
   lg: {
-    button: { height: 48, paddingHorizontal: 24 },
-    text: { fontSize: 16 },
+    button: { height: 50, paddingHorizontal: 24 },
+    text: { fontSize: 17 },
   },
   icon: {
-    button: { height: 40, width: 40, paddingHorizontal: 0 },
-    text: { fontSize: 14 },
+    button: { height: 44, width: 44, paddingHorizontal: 0 },
+    text: { fontSize: 15 },
   },
 };
 
@@ -75,30 +77,42 @@ export function Button({
 }: ButtonProps) {
   const variantStyle = variantStyles[variant];
   const sizeStyle = sizeStyles[size];
+  const { animatedStyle, pressHandlers } = usePressFeedback(0.97, 0.8);
+
+  const handlePress = useCallback(() => {
+    if (!disabled && !loading && onPress) {
+      onPress();
+    }
+  }, [disabled, loading, onPress]);
 
   return (
-    <TouchableOpacity
-      style={[
-        styles.base,
-        variantStyle.button,
-        sizeStyle.button,
-        disabled && styles.disabled,
-        style,
-      ]}
-      onPress={onPress}
+    <TouchableWithoutFeedback
+      onPress={handlePress}
+      onPressIn={pressHandlers.onPressIn}
+      onPressOut={pressHandlers.onPressOut}
       disabled={disabled || loading}
-      activeOpacity={0.7}
     >
-      {loading ? (
-        <ActivityIndicator color={variantStyle.text.color} size="small" />
-      ) : typeof children === 'string' ? (
-        <Text style={[styles.text, variantStyle.text, sizeStyle.text, textStyle]}>
-          {children}
-        </Text>
-      ) : (
-        children
-      )}
-    </TouchableOpacity>
+      <Animated.View
+        style={[
+          styles.base,
+          variantStyle.button,
+          sizeStyle.button,
+          disabled && styles.disabled,
+          animatedStyle,
+          style,
+        ]}
+      >
+        {loading ? (
+          <ActivityIndicator color={variantStyle.text.color} size="small" />
+        ) : typeof children === 'string' ? (
+          <Text style={[styles.text, variantStyle.text, sizeStyle.text, textStyle]}>
+            {children}
+          </Text>
+        ) : (
+          children
+        )}
+      </Animated.View>
+    </TouchableWithoutFeedback>
   );
 }
 
@@ -107,13 +121,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: radius.sm,
+    borderRadius: radius.md,
     gap: 8,
   },
   text: {
-    fontWeight: '500',
+    fontWeight: '600',
+    letterSpacing: -0.2,
   },
   disabled: {
-    opacity: 0.5,
+    opacity: 0.45,
   },
 });

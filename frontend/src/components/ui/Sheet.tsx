@@ -1,21 +1,30 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   Modal,
   TouchableOpacity,
   StyleSheet,
-  Animated,
   Dimensions,
-  PanResponder,
   ViewStyle,
   TextStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+  interpolate,
+  runOnJS,
+} from 'react-native-reanimated';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { bg, text as textTokens, border as borderTokens } from '../../styles/colors';
 import { radius, spacing, shadows } from '../../styles/theme';
+import { springs, durations, easings } from '../../styles/motion';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+const DISMISS_THRESHOLD = 120;
 
 interface SheetProps {
   visible: boolean;
@@ -47,63 +56,50 @@ interface SheetDescriptionProps {
 const SheetContext = React.createContext<{ onClose: () => void }>({ onClose: () => {} });
 
 export function Sheet({ visible, onClose, children, side = 'bottom' }: SheetProps) {
-  const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
-  const opacity = useRef(new Animated.Value(0)).current;
+  const progress = useSharedValue(0);
+  const dragY = useSharedValue(0);
 
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gestureState) => gestureState.dy > 10,
-      onPanResponderMove: (_, gestureState) => {
-        if (gestureState.dy > 0) {
-          translateY.setValue(gestureState.dy);
-        }
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        if (gestureState.dy > 100) {
-          handleClose();
-        } else {
-          Animated.spring(translateY, {
-            toValue: 0,
-            useNativeDriver: true,
-            friction: 8,
-          }).start();
-        }
-      },
-    })
-  ).current;
+  const handleClose = useCallback(() => {
+    progress.value = withTiming(0, { duration: durations.fast, easing: easings.easeIn }, (finished) => {
+      if (finished) {
+        runOnJS(onClose)();
+      }
+    });
+    dragY.value = withTiming(0, { duration: durations.fast });
+  }, [onClose, progress, dragY]);
 
   useEffect(() => {
     if (visible) {
-      Animated.parallel([
-        Animated.spring(translateY, {
-          toValue: 0,
-          useNativeDriver: true,
-          friction: 8,
-        }),
-        Animated.timing(opacity, {
-          toValue: 1,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-      ]).start();
+      dragY.value = 0;
+      progress.value = withSpring(1, springs.sheet);
     }
   }, [visible]);
 
-  const handleClose = () => {
-    Animated.parallel([
-      Animated.timing(translateY, {
-        toValue: SCREEN_HEIGHT,
-        duration: 250,
-        useNativeDriver: true,
-      }),
-      Animated.timing(opacity, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: true,
-      }),
-    ]).start(() => onClose());
-  };
+  const panGesture = Gesture.Pan()
+    .onUpdate((event) => {
+      if (event.translationY > 0) {
+        dragY.value = event.translationY;
+      }
+    })
+    .onEnd((event) => {
+      if (event.translationY > DISMISS_THRESHOLD || event.velocityY > 500) {
+        runOnJS(handleClose)();
+      } else {
+        dragY.value = withSpring(0, springs.sheet);
+      }
+    });
+
+  const overlayStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(progress.value, [0, 1], [0, 1]),
+  }));
+
+  const sheetStyle = useAnimatedStyle(() => ({
+    transform: [
+      {
+        translateY: interpolate(progress.value, [0, 1], [SCREEN_HEIGHT, 0]) + dragY.value,
+      },
+    ],
+  }));
 
   return (
     <Modal
@@ -111,21 +107,21 @@ export function Sheet({ visible, onClose, children, side = 'bottom' }: SheetProp
       transparent
       animationType="none"
       onRequestClose={handleClose}
+      statusBarTranslucent
     >
       <SheetContext.Provider value={{ onClose: handleClose }}>
-        <Animated.View style={[styles.overlay, { opacity }]}>
-          <TouchableOpacity style={styles.overlayTouch} onPress={handleClose} />
+        <Animated.View style={[styles.overlay, overlayStyle]}>
+          <TouchableOpacity style={styles.overlayTouch} onPress={handleClose} activeOpacity={1} />
         </Animated.View>
-        <Animated.View
-          style={[styles.sheet, { transform: [{ translateY }] }]}
-          {...panResponder.panHandlers}
-        >
-          <View style={styles.handle} />
-          <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
-            <Ionicons name="close" size={20} color={textTokens.tertiary} />
-          </TouchableOpacity>
-          {children}
-        </Animated.View>
+        <GestureDetector gesture={panGesture}>
+          <Animated.View style={[styles.sheet, sheetStyle]}>
+            <View style={styles.handle} />
+            <TouchableOpacity style={styles.closeButton} onPress={handleClose} hitSlop={12}>
+              <Ionicons name="close" size={20} color={textTokens.tertiary} />
+            </TouchableOpacity>
+            {children}
+          </Animated.View>
+        </GestureDetector>
       </SheetContext.Provider>
     </Modal>
   );
@@ -150,7 +146,7 @@ export function SheetDescription({ children, style }: SheetDescriptionProps) {
 const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
   },
   overlayTouch: {
     flex: 1,
@@ -163,18 +159,18 @@ const styles = StyleSheet.create({
     backgroundColor: bg.elevated,
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,
-    paddingBottom: 32,
-    maxHeight: '80%',
+    paddingBottom: 40,
+    maxHeight: '85%',
     ...shadows.lg,
   },
   handle: {
-    width: 40,
-    height: 4,
+    width: 36,
+    height: 5,
     backgroundColor: borderTokens.primary,
-    borderRadius: 2,
+    borderRadius: 3,
     alignSelf: 'center',
-    marginTop: 12,
-    marginBottom: 8,
+    marginTop: spacing.sm,
+    marginBottom: spacing.sm,
   },
   closeButton: {
     position: 'absolute',
@@ -194,12 +190,14 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   title: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 20,
+    fontWeight: '700',
     color: textTokens.primary,
+    letterSpacing: -0.4,
   },
   description: {
-    fontSize: 14,
+    fontSize: 15,
     color: textTokens.secondary,
+    lineHeight: 21,
   },
 });

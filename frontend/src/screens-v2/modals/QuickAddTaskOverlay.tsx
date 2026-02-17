@@ -58,10 +58,10 @@ interface QuickAddTaskOverlayProps {
 type PriorityOption = Task['priority'];
 
 const PRIORITIES: { value: PriorityOption; label: string; color: string; dot: string }[] = [
-  { value: 'low', label: 'Low', color: '#34C759', dot: '#34C759' },
-  { value: 'medium', label: 'Med', color: '#FF9F0A', dot: '#FF9F0A' },
-  { value: 'high', label: 'High', color: '#FF6B35', dot: '#FF6B35' },
-  { value: 'urgent', label: 'Urgent', color: '#FF3B30', dot: '#FF3B30' },
+  { value: 'low', label: 'Low', color: semantic.success, dot: semantic.success },
+  { value: 'medium', label: 'Med', color: semantic.warning, dot: semantic.warning },
+  { value: 'high', label: 'High', color: semantic.error, dot: semantic.error },
+  { value: 'urgent', label: 'Urgent', color: semantic.error, dot: semantic.error },
 ];
 
 const DURATIONS = [15, 30, 45, 60, 90, 120];
@@ -259,7 +259,7 @@ export function QuickAddTaskOverlay({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.35)' }}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.35)' }}>
           {/* Scrim — only this area dismisses */}
           <Pressable style={{ flex: 1 }} onPress={() => { Keyboard.dismiss(); onClose(); }} />
 
@@ -268,14 +268,13 @@ export function QuickAddTaskOverlay({
             style={{
               backgroundColor: bg.card,
               borderTopLeftRadius: 20, borderTopRightRadius: 20,
-              shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.08, shadowRadius: 16,
-              elevation: 10,
+              ...shadows.lg,
             }}
           >
             <SafeAreaView edges={['bottom']}>
               {/* Handle */}
               <View style={{ alignItems: 'center', paddingTop: 10, paddingBottom: 4 }}>
-                <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: '#D1D1D6' }} />
+                <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: borderTokens.secondary }} />
               </View>
 
               {/* Header */}
@@ -332,7 +331,7 @@ export function QuickAddTaskOverlay({
                       <Ionicons
                         name={hasExplicitSchedule ? 'calendar-outline' : 'bulb-outline'}
                         size={12}
-                        color={hasExplicitSchedule ? brand.primary : '#FF9F0A'}
+                        color={hasExplicitSchedule ? brand.primary : semantic.warning}
                       />
                       <Text style={{ fontSize: 12, color: textTokens.tertiary, marginLeft: 4 }}>
                         {hasExplicitSchedule
@@ -354,7 +353,7 @@ export function QuickAddTaskOverlay({
                       paddingHorizontal: 14, paddingVertical: 10,
                       borderRadius: 12,
                       backgroundColor: brand.muted,
-                      borderWidth: 1, borderColor: '#E4D9FC',
+                      borderWidth: 1, borderColor: brand.surface,
                     }}
                   >
                     <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: brand.surface, alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
@@ -364,7 +363,7 @@ export function QuickAddTaskOverlay({
                       <Text style={{ fontSize: 13, fontWeight: '600', color: brand.primary }}>
                         {aiSuggestion.category} — {aiSuggestion.priority} priority — {fmtDuration(aiSuggestion.duration)}
                       </Text>
-                      <Text style={{ fontSize: 11, color: '#8B5CF6', marginTop: 1 }}>
+                      <Text style={{ fontSize: 11, color: brand.primary, marginTop: 1 }}>
                         AI suggestion based on your title
                       </Text>
                     </View>
@@ -378,7 +377,7 @@ export function QuickAddTaskOverlay({
                     value={notes}
                     onChangeText={setNotes}
                     placeholder="Add notes..."
-                    placeholderTextColor="#C7C7CC"
+                    placeholderTextColor={textTokens.disabled}
                     multiline numberOfLines={2}
                     style={{ fontSize: 14.5, color: textTokens.secondary, paddingVertical: 4, minHeight: 36 }}
                   />
@@ -437,7 +436,7 @@ export function QuickAddTaskOverlay({
                     }}
                     activeOpacity={0.7}
                   >
-                    <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: showDatePicker ? brand.surface : '#E8E8ED', alignItems: 'center', justifyContent: 'center' }}>
+                    <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: showDatePicker ? brand.surface : bg.hover, alignItems: 'center', justifyContent: 'center' }}>
                       <Ionicons name="calendar" size={17} color={showDatePicker ? brand.primary : textTokens.secondary} />
                     </View>
                     <View style={{ marginLeft: 12, flex: 1 }}>
@@ -462,7 +461,7 @@ export function QuickAddTaskOverlay({
                     }}
                     activeOpacity={0.7}
                   >
-                    <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: showTimePicker ? brand.surface : '#E8E8ED', alignItems: 'center', justifyContent: 'center' }}>
+                    <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: showTimePicker ? brand.surface : bg.hover, alignItems: 'center', justifyContent: 'center' }}>
                       <Ionicons name="time" size={17} color={showTimePicker ? brand.primary : textTokens.secondary} />
                     </View>
                     <View style={{ marginLeft: 12, flex: 1 }}>
@@ -489,7 +488,7 @@ export function QuickAddTaskOverlay({
                     }}
                     activeOpacity={0.7}
                   >
-                    <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: showDurationPicker ? brand.surface : '#E8E8ED', alignItems: 'center', justifyContent: 'center' }}>
+                    <View style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: showDurationPicker ? brand.surface : bg.hover, alignItems: 'center', justifyContent: 'center' }}>
                       <Ionicons name="hourglass" size={17} color={showDurationPicker ? brand.primary : textTokens.secondary} />
                     </View>
                     <View style={{ marginLeft: 12, flex: 1 }}>
@@ -554,7 +553,7 @@ export function QuickAddTaskOverlay({
                           }}
                           onPress={() => { Haptics.selectionAsync(); setDuration(isActive ? null : m); setManualDuration(true); setShowDurationPicker(false); }}
                         >
-                          <Text style={{ fontSize: 15, fontWeight: '600', color: isActive ? '#fff' : textTokens.secondary }}>{fmtDuration(m)}</Text>
+                          <Text style={{ fontSize: 15, fontWeight: '600', color: isActive ? textTokens.inverse : textTokens.secondary }}>{fmtDuration(m)}</Text>
                         </TouchableOpacity>
                       );
                     })}
@@ -612,11 +611,11 @@ export function QuickAddTaskOverlay({
                   activeOpacity={0.8}
                 >
                   {creating ? (
-                    <ActivityIndicator size="small" color="#fff" />
+                    <ActivityIndicator size="small" color={textTokens.inverse} />
                   ) : (
                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      {isValid && <Ionicons name={hasExplicitSchedule ? 'sparkles' : 'bulb-outline'} size={15} color={isValid ? '#fff' : textTokens.tertiary} style={{ marginRight: 6 }} />}
-                      <Text style={{ fontSize: 16.5, fontWeight: '700', color: isValid ? '#FFFFFF' : textTokens.tertiary }}>
+                      {isValid && <Ionicons name={hasExplicitSchedule ? 'sparkles' : 'bulb-outline'} size={15} color={isValid ? textTokens.inverse : textTokens.tertiary} style={{ marginRight: 6 }} />}
+                      <Text style={{ fontSize: 16.5, fontWeight: '700', color: isValid ? textTokens.inverse : textTokens.tertiary }}>
                         {isConversion
                           ? 'Schedule Task'
                           : hasExplicitSchedule

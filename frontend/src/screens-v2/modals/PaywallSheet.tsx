@@ -22,6 +22,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { eventLogger } from '@/services/eventLogger';
 import { usePurchases } from '@/contexts/PurchaseContext';
+import { brand, semantic, text as textTokens } from '../../styles/colors';
 
 type PlanType = 'monthly' | 'annual';
 
@@ -122,7 +123,7 @@ export function PaywallSheet({ visible, onClose, trigger }: PaywallSheetProps) {
               {/* Header */}
               <View className="items-center px-6 pt-4 pb-6">
                 <View className="w-16 h-16 bg-brand-purple/20 rounded-full items-center justify-center mb-4">
-                  <Ionicons name="diamond" size={32} color="#7C3AED" />
+                  <Ionicons name="diamond" size={32} color={brand.primary} />
                 </View>
                 <Text className="text-title-1 font-bold text-ink-primary text-center">
                   Upgrade to Premium
@@ -160,7 +161,7 @@ export function PaywallSheet({ visible, onClose, trigger }: PaywallSheetProps) {
                   <Ionicons
                     name={selectedPlan === 'annual' ? 'radio-button-on' : 'radio-button-off'}
                     size={24}
-                    color={selectedPlan === 'annual' ? '#7C3AED' : '#52525B'}
+                    color={selectedPlan === 'annual' ? brand.primary : textTokens.tertiary}
                   />
                 </TouchableOpacity>
 
@@ -183,7 +184,7 @@ export function PaywallSheet({ visible, onClose, trigger }: PaywallSheetProps) {
                   <Ionicons
                     name={selectedPlan === 'monthly' ? 'radio-button-on' : 'radio-button-off'}
                     size={24}
-                    color={selectedPlan === 'monthly' ? '#7C3AED' : '#52525B'}
+                    color={selectedPlan === 'monthly' ? brand.primary : textTokens.tertiary}
                   />
                 </TouchableOpacity>
               </View>
@@ -195,7 +196,7 @@ export function PaywallSheet({ visible, onClose, trigger }: PaywallSheetProps) {
                 </Text>
                 {PREMIUM_FEATURES.map((feature, index) => (
                   <View key={index} className="flex-row items-center py-2.5">
-                    <Ionicons name="checkmark-circle" size={20} color="#22C55E" />
+                    <Ionicons name="checkmark-circle" size={20} color={semantic.success} />
                     <Text className="text-body text-ink-primary ml-3">{feature.text}</Text>
                   </View>
                 ))}
@@ -210,7 +211,7 @@ export function PaywallSheet({ visible, onClose, trigger }: PaywallSheetProps) {
                   disabled={isProcessing}
                 >
                   {isProcessing ? (
-                    <ActivityIndicator color="#FFFFFF" />
+                    <ActivityIndicator color={textTokens.inverse} />
                   ) : (
                     <Text className="text-headline font-bold text-white">
                       {selectedPlan === 'annual' ? 'Start Annual Plan — £39.99/yr' : 'Start Monthly Plan — £4.99/mo'}

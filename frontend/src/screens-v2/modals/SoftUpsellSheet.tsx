@@ -62,7 +62,7 @@ export function SoftUpsellSheet({
 
   return (
     <Modal visible={visible} transparent animationType="slide">
-      <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }} onPress={handleDismiss}>
+      <Pressable style={{ flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)' }} onPress={handleDismiss}>
         <View style={{ flex: 1, justifyContent: 'flex-end' }}>
           <Pressable
             style={{
@@ -117,12 +117,12 @@ export function SoftUpsellSheet({
               activeOpacity={0.8}
             >
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Ionicons name="diamond" size={18} color="#FFFFFF" />
-                <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff', marginLeft: 8 }}>
+                <Ionicons name="diamond" size={18} color={textTokens.inverse} />
+                <Text style={{ fontSize: 16, fontWeight: '700', color: textTokens.inverse, marginLeft: 8 }}>
                   Upgrade to Premium
                 </Text>
               </View>
-              <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 4 }}>
+              <Text style={{ fontSize: 12, color: textTokens.inverse, opacity: 0.65, marginTop: 4 }}>
                 Unlimited voice commands + more
               </Text>
             </TouchableOpacity>

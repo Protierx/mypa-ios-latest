@@ -1,11 +1,15 @@
-import React from 'react';
-import { View, Text, StyleSheet, ViewStyle, TextStyle } from 'react-native';
+import React, { useCallback } from 'react';
+import { View, Text, StyleSheet, ViewStyle, TextStyle, TouchableWithoutFeedback } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { bg, text as textTokens, border as borderTokens } from '../../styles/colors';
 import { radius, spacing, shadows } from '../../styles/theme';
+import { usePressFeedback } from '../../styles/motion';
 
 interface CardProps {
   children: React.ReactNode;
   style?: ViewStyle;
+  /** Makes the card pressable with spring feedback */
+  onPress?: () => void;
 }
 
 interface CardHeaderProps {
@@ -33,7 +37,23 @@ interface CardFooterProps {
   style?: ViewStyle;
 }
 
-export function Card({ children, style }: CardProps) {
+export function Card({ children, style, onPress }: CardProps) {
+  const { animatedStyle, pressHandlers } = usePressFeedback(0.98, 0.9);
+
+  if (onPress) {
+    return (
+      <TouchableWithoutFeedback
+        onPress={onPress}
+        onPressIn={pressHandlers.onPressIn}
+        onPressOut={pressHandlers.onPressOut}
+      >
+        <Animated.View style={[styles.card, animatedStyle, style]}>
+          {children}
+        </Animated.View>
+      </TouchableWithoutFeedback>
+    );
+  }
+
   return <View style={[styles.card, style]}>{children}</View>;
 }
 
@@ -74,10 +94,12 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: textTokens.primary,
+    letterSpacing: -0.3,
   },
   description: {
     fontSize: 14,
     color: textTokens.secondary,
+    lineHeight: 20,
   },
   content: {
     padding: spacing.base,
