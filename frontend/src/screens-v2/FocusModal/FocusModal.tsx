@@ -15,6 +15,7 @@ import {
   View,
   Text,
   TouchableOpacity,
+  ScrollView,
   StyleSheet,
   StatusBar,
   Dimensions,
@@ -44,6 +45,7 @@ import Svg, { Circle, Defs, LinearGradient as SvgLinearGradient, Stop } from 're
 import * as Haptics from 'expo-haptics';
 
 import { useFocusSessions } from '../../hooks/supabase/useFocusSessions';
+import { useTasks } from '../../hooks/supabase/useTasks';
 import { useGestureNavigation } from '../../navigation-v2/useGestureNavigation';
 import { MiniVoiceButton } from '../../components/MiniVoiceButton';
 
@@ -169,6 +171,15 @@ export function FocusModal({ onDismiss }: FocusModalProps = {}) {
   const [selectedDuration, setSelectedDuration] = useState(25);
   const [timeRemaining, setTimeRemaining] = useState(25 * 60);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [selectedTaskTitle, setSelectedTaskTitle] = useState<string | null>(null);
+
+  // Fetch today's pending tasks for the task picker
+  const { tasks: allTasks } = useTasks('today');
+  const pendingTasks = useMemo(
+    () => allTasks.filter(t => t.status === 'pending'),
+    [allTasks],
+  );
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -259,13 +270,13 @@ export function FocusModal({ onDismiss }: FocusModalProps = {}) {
   const handleStart = useCallback(async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
 
-    const session = await startSession(selectedDuration);
+    const session = await startSession(selectedDuration, selectedTaskId ?? undefined);
     if (session) setSessionId(session.id);
 
     setTimeRemaining(selectedDuration * 60);
     setState('active');
     progress.value = 0;
-  }, [selectedDuration, startSession]);
+  }, [selectedDuration, selectedTaskId, startSession]);
 
   const handlePause = useCallback(async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -300,6 +311,8 @@ export function FocusModal({ onDismiss }: FocusModalProps = {}) {
     setState('selecting');
     setTimeRemaining(selectedDuration * 60);
     setSessionId(null);
+    setSelectedTaskId(null);
+    setSelectedTaskTitle(null);
     progress.value = 0;
   }, [selectedDuration]);
 
@@ -389,8 +402,84 @@ export function FocusModal({ onDismiss }: FocusModalProps = {}) {
               {/* Hero */}
               <Text style={styles.heroTitle}>Deep Work</Text>
               <Text style={styles.heroSubtitle}>
-                Choose your session length and{'\n'}enter the zone
+                {selectedTaskTitle
+                  ? `Focusing on: ${selectedTaskTitle}`
+                  : 'Pick a task to focus on'}
               </Text>
+
+              {/* Task picker */}
+              {pendingTasks.length > 0 && (
+                <Animated.View
+                  entering={FadeInUp.delay(100).duration(350)}
+                  style={styles.taskPickerContainer}
+                >
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.taskPickerScroll}
+                  >
+                    {/* Free focus option */}
+                    <TouchableOpacity
+                      style={[
+                        styles.taskChip,
+                        !selectedTaskId && styles.taskChipSelected,
+                      ]}
+                      onPress={() => {
+                        Haptics.selectionAsync();
+                        setSelectedTaskId(null);
+                        setSelectedTaskTitle(null);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons
+                        name="flash-outline"
+                        size={14}
+                        color={!selectedTaskId ? OPAL.textPrimary : OPAL.textMuted}
+                      />
+                      <Text
+                        style={[
+                          styles.taskChipText,
+                          !selectedTaskId && styles.taskChipTextSelected,
+                        ]}
+                      >
+                        Free Focus
+                      </Text>
+                    </TouchableOpacity>
+
+                    {pendingTasks.map((task) => {
+                      const isSelected = selectedTaskId === task.id;
+                      return (
+                        <TouchableOpacity
+                          key={task.id}
+                          style={[
+                            styles.taskChip,
+                            isSelected && styles.taskChipSelected,
+                          ]}
+                          onPress={() => {
+                            Haptics.selectionAsync();
+                            setSelectedTaskId(task.id);
+                            setSelectedTaskTitle(task.title);
+                          }}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={styles.taskChipEmoji}>
+                            {task.priority === 'high' ? '🔴' : task.priority === 'medium' ? '🟡' : '🟢'}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.taskChipText,
+                              isSelected && styles.taskChipTextSelected,
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {task.title}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                </Animated.View>
+              )}
 
               {/* Duration pills */}
               <View style={styles.durationRow}>
@@ -512,7 +601,9 @@ export function FocusModal({ onDismiss }: FocusModalProps = {}) {
 
               {/* Subtle duration label */}
               <Text style={styles.sessionLabel}>
-                {selectedDuration} minute session
+                {selectedTaskTitle
+                  ? `${selectedDuration}m • ${selectedTaskTitle}`
+                  : `${selectedDuration} minute session`}
               </Text>
             </Animated.View>
           )}
@@ -763,6 +854,49 @@ const styles = StyleSheet.create({
   durationLabelSelected: {
     color: OPAL.textAccent,
   },
+  // ── Task Picker ────────────────────────────────
+  taskPickerContainer: {
+    width: '100%',
+    marginBottom: 28,
+  },
+  taskPickerScroll: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 4,
+  },
+  taskChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 16,
+    backgroundColor: OPAL.bgCard,
+    borderWidth: 1.5,
+    borderColor: OPAL.ctrlBorder,
+    maxWidth: 180,
+  },
+  taskChipSelected: {
+    backgroundColor: OPAL.ctrlActive,
+    borderColor: OPAL.ringMid,
+    shadowColor: OPAL.ringMid,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  taskChipEmoji: {
+    fontSize: 12,
+  },
+  taskChipText: {
+    color: OPAL.textSecondary,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  taskChipTextSelected: {
+    color: OPAL.textPrimary,
+  },
+
   startButton: {
     borderRadius: 28,
     overflow: 'hidden',
