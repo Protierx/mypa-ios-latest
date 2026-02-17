@@ -43,6 +43,7 @@ import Animated, {
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle, Defs, LinearGradient as SvgLinearGradient, Stop } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
+import * as Notifications from 'expo-notifications';
 
 import { useFocusSessions } from '../../hooks/supabase/useFocusSessions';
 import { useTasks } from '../../hooks/supabase/useTasks';
@@ -95,6 +96,57 @@ type FocusState = 'selecting' | 'active' | 'paused' | 'completed';
 
 const DURATION_OPTIONS = [15, 25, 45, 60];
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
+
+// ── Motivational mantras — rotate during active session ──────
+const FOCUS_MANTRAS = [
+  'You\'re in the zone ✨',
+  'Deep focus, deep progress',
+  'One thing at a time',
+  'Distractions can wait',
+  'Your future self will thank you',
+  'Flow state activated 🧠',
+  'Stay present, stay powerful',
+  'Every minute counts',
+  'You\'ve got this 💪',
+  'Breathe. Focus. Execute.',
+  'Silence is where clarity lives',
+  'Progress, not perfection',
+];
+
+/**
+ * Determine if a task is focus-worthy.
+ * Focus tasks = high/medium priority, or tasks with an estimated duration,
+ * or tasks with "deep", "write", "build", "study", "research", "design" in title.
+ */
+function isFocusWorthy(task: { priority: string; estimated_duration: number | null; title: string }): boolean {
+  if (task.priority === 'high' || task.priority === 'urgent') return true;
+  if (task.estimated_duration && task.estimated_duration >= 15) return true;
+  const deepWorkKeywords = /\b(deep|write|build|study|research|design|code|plan|draft|review|prepare|create|develop|analyze|read)\b/i;
+  if (deepWorkKeywords.test(task.title)) return true;
+  // Medium priority with duration is focus-worthy
+  if (task.priority === 'medium' && task.estimated_duration) return true;
+  return false;
+}
+
+/**
+ * Get the best focus duration for a task:
+ * - Use estimated_duration if set
+ * - High/urgent priority → 45 min default
+ * - Medium priority → 25 min default
+ * - Fallback → 25 min
+ */
+function getTaskDuration(task: { priority: string; estimated_duration: number | null }): number {
+  if (task.estimated_duration) {
+    // Snap to nearest duration option
+    const exact = task.estimated_duration;
+    if (exact <= 15) return 15;
+    if (exact <= 25) return 25;
+    if (exact <= 45) return 45;
+    return 60;
+  }
+  if (task.priority === 'high' || task.priority === 'urgent') return 45;
+  return 25;
+}
 
 // Ring geometry
 const RING_SIZE = Math.min(SCREEN_W * 0.72, 300);
@@ -174,12 +226,16 @@ export function FocusModal({ onDismiss }: FocusModalProps = {}) {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [selectedTaskTitle, setSelectedTaskTitle] = useState<string | null>(null);
 
-  // Fetch today's pending tasks for the task picker
+  // Fetch today's pending tasks, filter to focus-worthy ones
   const { tasks: allTasks } = useTasks('today');
-  const pendingTasks = useMemo(
-    () => allTasks.filter(t => t.status === 'pending'),
+  const focusTasks = useMemo(
+    () => allTasks.filter(t => t.status === 'pending' && isFocusWorthy(t)),
     [allTasks],
   );
+
+  // Rotating motivational mantra during active session
+  const [mantraIndex, setMantraIndex] = useState(0);
+  const mantraTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -263,6 +319,44 @@ export function FocusModal({ onDismiss }: FocusModalProps = {}) {
     } else {
       glowOpacity.value = withTiming(0.35, { duration: 500 });
       pulseScale.value = withTiming(1.0, { duration: 300 });
+    }
+  }, [state]);
+
+  // ── Mantra rotation — change every 12 seconds during active ──
+  useEffect(() => {
+    if (state === 'active') {
+      setMantraIndex(Math.floor(Math.random() * FOCUS_MANTRAS.length));
+      mantraTimerRef.current = setInterval(() => {
+        setMantraIndex(prev => (prev + 1) % FOCUS_MANTRAS.length);
+      }, 12000);
+    } else {
+      if (mantraTimerRef.current) clearInterval(mantraTimerRef.current);
+    }
+    return () => {
+      if (mantraTimerRef.current) clearInterval(mantraTimerRef.current);
+    };
+  }, [state]);
+
+  // ── DND: suppress notifications during active focus ──────
+  useEffect(() => {
+    if (state === 'active') {
+      // Suppress all notification presentation during focus
+      Notifications.setNotificationHandler({
+        handleNotification: async () => ({
+          shouldShowAlert: false,
+          shouldPlaySound: false,
+          shouldSetBadge: false,
+        }),
+      });
+    } else if (state === 'selecting' || state === 'completed') {
+      // Restore normal notification handling
+      Notifications.setNotificationHandler({
+        handleNotification: async () => ({
+          shouldShowAlert: true,
+          shouldPlaySound: true,
+          shouldSetBadge: true,
+        }),
+      });
     }
   }, [state]);
 
@@ -407,12 +501,13 @@ export function FocusModal({ onDismiss }: FocusModalProps = {}) {
                   : 'Pick a task to focus on'}
               </Text>
 
-              {/* Task picker */}
-              {pendingTasks.length > 0 && (
+              {/* Task picker — only focus-worthy tasks */}
+              {focusTasks.length > 0 && (
                 <Animated.View
                   entering={FadeInUp.delay(100).duration(350)}
                   style={styles.taskPickerContainer}
                 >
+                  <Text style={styles.taskPickerLabel}>What are you focusing on?</Text>
                   <ScrollView
                     horizontal
                     showsHorizontalScrollIndicator={false}
@@ -428,6 +523,8 @@ export function FocusModal({ onDismiss }: FocusModalProps = {}) {
                         Haptics.selectionAsync();
                         setSelectedTaskId(null);
                         setSelectedTaskTitle(null);
+                        setSelectedDuration(25);
+                        setTimeRemaining(25 * 60);
                       }}
                       activeOpacity={0.7}
                     >
@@ -446,8 +543,9 @@ export function FocusModal({ onDismiss }: FocusModalProps = {}) {
                       </Text>
                     </TouchableOpacity>
 
-                    {pendingTasks.map((task) => {
+                    {focusTasks.map((task) => {
                       const isSelected = selectedTaskId === task.id;
+                      const taskDur = getTaskDuration(task);
                       return (
                         <TouchableOpacity
                           key={task.id}
@@ -459,11 +557,14 @@ export function FocusModal({ onDismiss }: FocusModalProps = {}) {
                             Haptics.selectionAsync();
                             setSelectedTaskId(task.id);
                             setSelectedTaskTitle(task.title);
+                            // Auto-set duration based on task
+                            setSelectedDuration(taskDur);
+                            setTimeRemaining(taskDur * 60);
                           }}
                           activeOpacity={0.7}
                         >
                           <Text style={styles.taskChipEmoji}>
-                            {task.priority === 'high' ? '🔴' : task.priority === 'medium' ? '🟡' : '🟢'}
+                            {task.priority === 'high' || task.priority === 'urgent' ? '🔴' : task.priority === 'medium' ? '🟡' : '🟢'}
                           </Text>
                           <Text
                             style={[
@@ -474,6 +575,9 @@ export function FocusModal({ onDismiss }: FocusModalProps = {}) {
                           >
                             {task.title}
                           </Text>
+                          {task.estimated_duration && (
+                            <Text style={styles.taskChipDuration}>{task.estimated_duration}m</Text>
+                          )}
                         </TouchableOpacity>
                       );
                     })}
@@ -551,6 +655,28 @@ export function FocusModal({ onDismiss }: FocusModalProps = {}) {
               entering={FadeIn.duration(400)}
               style={styles.timerSection}
             >
+              {/* DND Badge */}
+              {state === 'active' && (
+                <Animated.View
+                  entering={FadeInDown.delay(300).duration(400)}
+                  style={styles.dndBadge}
+                >
+                  <Ionicons name="notifications-off" size={12} color={OPAL.textAccent} />
+                  <Text style={styles.dndText}>Notifications silenced</Text>
+                </Animated.View>
+              )}
+
+              {/* Task name above ring */}
+              {selectedTaskTitle && (
+                <Animated.Text
+                  entering={FadeIn.delay(100).duration(300)}
+                  style={styles.focusTaskName}
+                  numberOfLines={1}
+                >
+                  {selectedTaskTitle}
+                </Animated.Text>
+              )}
+
               {/* Ring + timer */}
               <Animated.View style={[styles.ringWrapper, timerContainerStyle]}>
                 {/* Inner ambient glow */}
@@ -563,10 +689,22 @@ export function FocusModal({ onDismiss }: FocusModalProps = {}) {
                 <View style={styles.ringCenter}>
                   <Text style={styles.timerText}>{formatTime(timeRemaining)}</Text>
                   <Text style={styles.timerSubtext}>
-                    {state === 'paused' ? 'paused' : `${completionPercent}% complete`}
+                    {state === 'paused' ? 'paused' : `${completionPercent}%`}
                   </Text>
                 </View>
               </Animated.View>
+
+              {/* Motivational mantra */}
+              {state === 'active' && (
+                <Animated.Text
+                  key={mantraIndex}
+                  entering={FadeIn.duration(600)}
+                  exiting={FadeOut.duration(400)}
+                  style={styles.mantraText}
+                >
+                  {FOCUS_MANTRAS[mantraIndex]}
+                </Animated.Text>
+              )}
 
               {/* Controls */}
               <Animated.View
@@ -859,6 +997,15 @@ const styles = StyleSheet.create({
     width: '100%',
     marginBottom: 28,
   },
+  taskPickerLabel: {
+    color: OPAL.textMuted,
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase' as const,
+    letterSpacing: 1,
+    marginBottom: 10,
+    paddingHorizontal: 4,
+  },
   taskPickerScroll: {
     flexDirection: 'row',
     gap: 8,
@@ -874,7 +1021,7 @@ const styles = StyleSheet.create({
     backgroundColor: OPAL.bgCard,
     borderWidth: 1.5,
     borderColor: OPAL.ctrlBorder,
-    maxWidth: 180,
+    maxWidth: 200,
   },
   taskChipSelected: {
     backgroundColor: OPAL.ctrlActive,
@@ -892,9 +1039,20 @@ const styles = StyleSheet.create({
     color: OPAL.textSecondary,
     fontSize: 13,
     fontWeight: '600',
+    flexShrink: 1,
   },
   taskChipTextSelected: {
     color: OPAL.textPrimary,
+  },
+  taskChipDuration: {
+    color: OPAL.textMuted,
+    fontSize: 11,
+    fontWeight: '500',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    overflow: 'hidden',
   },
 
   startButton: {
@@ -923,6 +1081,43 @@ const styles = StyleSheet.create({
   // ── Timer (active / paused) ─────────────────────
   timerSection: {
     alignItems: 'center',
+  },
+  dndBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: 'rgba(167, 139, 250, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(167, 139, 250, 0.2)',
+    marginBottom: 16,
+  },
+  dndText: {
+    color: OPAL.textAccent,
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+  focusTaskName: {
+    color: OPAL.textPrimary,
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 20,
+    textAlign: 'center',
+    paddingHorizontal: 24,
+    letterSpacing: -0.2,
+  },
+  mantraText: {
+    color: OPAL.textAccent,
+    fontSize: 15,
+    fontWeight: '500',
+    fontStyle: 'italic',
+    marginTop: 24,
+    textAlign: 'center',
+    letterSpacing: 0.3,
+    opacity: 0.8,
   },
   ringWrapper: {
     width: RING_SIZE,
