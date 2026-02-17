@@ -33,9 +33,9 @@ import { ProfileViewScreen } from '../screens-v2/ProfileView';
 import { FocusModal } from '../screens-v2/FocusModal/FocusModal';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 
-// Swipe thresholds
-const HORIZONTAL_THRESHOLD = 100;
-const VERTICAL_THRESHOLD = 50;
+// Swipe thresholds (lowered for easier gesture activation)
+const HORIZONTAL_THRESHOLD = 80;
+const VERTICAL_THRESHOLD = 30;
 
 // Spring config for smooth animations
 const SPRING_CONFIG = {
@@ -132,10 +132,10 @@ function GestureNavigatorContent() {
     .onUpdate((event) => {
       if (isTransitioning.value) return;
       
-      // Allow drag preview
+      // Allow drag preview — higher ratio for seamless peek-through
       if (currentScreen === 'ai_hub') {
-        translateX.value = event.translationX * 0.5;
-        translateY.value = event.translationY * 0.5;
+        translateX.value = event.translationX * 0.7;
+        translateY.value = event.translationY * 0.7;
       } else if (currentScreen === 'tasks') {
         // Tasks is on the right: base translateX = -SCREEN_WIDTH, swipe right to return
         translateX.value = -SCREEN_WIDTH + Math.max(0, event.translationX * 0.5);
@@ -160,11 +160,11 @@ function GestureNavigatorContent() {
         } else if (translationX > HORIZONTAL_THRESHOLD || velocityX > 500) {
           // Swipe right → Social
           animateToScreen('social');
-        } else if (translationY < -VERTICAL_THRESHOLD || velocityY < -300) {
+        } else if (translationY < -VERTICAL_THRESHOLD || velocityY < -200) {
           // Swipe up → Focus Modal (overlay)
           animateToScreen('ai_hub'); // Snap back to center
           runOnJS(openFocusModal)();
-        } else if (translationY > VERTICAL_THRESHOLD || velocityY > 300) {
+        } else if (translationY > VERTICAL_THRESHOLD || velocityY > 200) {
           // Swipe down → Profile
           animateToScreen('profile');
         } else {
@@ -190,7 +190,7 @@ function GestureNavigatorContent() {
       }
       // From Profile - swipe up to return (easier threshold)
       else if (currentScreen === 'profile') {
-        if (translationY < -VERTICAL_THRESHOLD || velocityY < -300) {
+        if (translationY < -VERTICAL_THRESHOLD || velocityY < -200) {
           animateToScreen('ai_hub');
         } else {
           animateToScreen('profile');

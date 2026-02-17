@@ -331,8 +331,11 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
     }
 
     if (voiceState === 'idle') {
-      setShowBriefingText(false);
-      setIsBriefingCollapsed(false);
+      // Keep briefing pill visible — only collapse expanded view
+      if (showBriefingText && !isBriefingCollapsed) {
+        setShowBriefingText(false);
+        setIsBriefingCollapsed(true);
+      }
       if (permissionStatus !== 'granted') {
         const hasPermission = await requestPermissionIfNeeded();
         if (!hasPermission) return;
@@ -611,51 +614,8 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
             )}
           </View>
 
-          {/* ──── Bottom Section: Quick Actions & Stats ──── */}
+          {/* ──── Bottom Section: Stats ──── */}
           <View style={styles.bottomSection}>
-            {voiceState === 'idle' && (!showBriefingText || isBriefingCollapsed) && (
-              <Animated.View entering={FadeInUp.duration(500).delay(400)}>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.quickActionsContent}
-                  style={styles.quickActionsScroll}
-                >
-                  <Pressable style={styles.quickActionPill}>
-                    <Ionicons name="timer-outline" size={16} color="#A78BFA" />
-                    <Text style={styles.pillText}>🎯 Focus</Text>
-                  </Pressable>
-                  
-                  <Pressable style={styles.quickActionPill}>
-                    <Ionicons name="add-circle-outline" size={16} color="#A78BFA" />
-                    <Text style={styles.pillText}>➕ Add Task</Text>
-                  </Pressable>
-
-                  <Pressable style={styles.quickActionPill}>
-                    <Ionicons
-                      name="sparkles-outline"
-                      size={14}
-                      color="#A78BFA"
-                    />
-                    <Text style={styles.pillText}>
-                      🧠 Smart Sort
-                    </Text>
-                  </Pressable>
-
-                  <Pressable style={styles.quickActionPill}>
-                    <Ionicons
-                      name="notifications-outline"
-                      size={14}
-                      color="#A78BFA"
-                    />
-                    <Text style={styles.pillText}>
-                      ⏰ Reminders
-                    </Text>
-                  </Pressable>
-                </ScrollView>
-              </Animated.View>
-            )}
-            
             {/* Stats */}
             <Animated.View 
               entering={FadeInUp.duration(500).delay(600)}
@@ -987,30 +947,6 @@ const styles = StyleSheet.create({
   bottomSection: {
     paddingHorizontal: 16,
     paddingBottom: 12,
-  },
-  quickActionsScroll: {
-    marginBottom: 16,
-  },
-  quickActionsContent: {
-    flexDirection: 'row',
-    gap: 10,
-    paddingHorizontal: 8,
-  },
-  quickActionPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    height: 36,
-    paddingHorizontal: 16,
-    borderRadius: 9999,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-  },
-  pillText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.65)',
   },
   statsContainer: {
     alignItems: 'center',
