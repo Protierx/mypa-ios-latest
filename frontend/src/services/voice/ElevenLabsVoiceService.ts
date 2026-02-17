@@ -331,6 +331,7 @@ export async function handleToolCall(
   toolName: string,
   params: Record<string, unknown>,
   userId: string,
+  daysActive?: number,
 ): Promise<string> {
   // Build an ActionJSON from the tool call
   const actionJson: ActionJSON = {
@@ -342,7 +343,7 @@ export async function handleToolCall(
     confirmation_required: false,
   };
 
-  const result: ActionResult = await executeAction(actionJson, userId);
+  const result: ActionResult = await executeAction(actionJson, userId, undefined, daysActive);
 
   if (result.success) {
     // Return the result message — agent will speak it

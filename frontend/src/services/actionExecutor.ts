@@ -158,13 +158,12 @@ import { getLevelFromDays } from '../components/LockedFeature';
  * Map of action names → required unlock level.
  * Actions not listed here are available at Level 1 (all users).
  */
+// NOTE: All level gates disabled for testing. Re-enable after launch.
 const ACTION_LEVEL_REQUIREMENTS: Record<string, { level: number; featureName: string }> = {
-  'smart_schedule':       { level: 2, featureName: 'AI Sorting' },
-  'set_preference':       { level: 3, featureName: 'Preference Learning' },
-  'proactive_reminder':   { level: 4, featureName: 'Proactive Alerts' },
-  'predictive_planning':  { level: 5, featureName: 'Predictive Tasks' },
-  'create_circle':        { level: 3, featureName: 'Circles' },
-  'create_challenge':     { level: 3, featureName: 'Challenges' },
+  // 'smart_schedule':       { level: 2, featureName: 'AI Sorting' },
+  // 'set_preference':       { level: 3, featureName: 'Preference Learning' },
+  // 'proactive_reminder':   { level: 4, featureName: 'Proactive Alerts' },
+  // 'predictive_planning':  { level: 5, featureName: 'Predictive Tasks' },
 };
 
 const LEVEL_DAYS: Record<number, number> = { 1: 1, 2: 3, 3: 7, 4: 14, 5: 30 };

@@ -380,7 +380,7 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
       eventLogger.log('voice_command', { action: toolName, mode: 'elevenlabs' });
       let result: string;
       try {
-        result = await handleToolCall(toolName, params, user.id);
+        result = await handleToolCall(toolName, params, user.id, userModelData?.stats?.daysActive);
       } catch (toolErr) {
         // If the action fails due to network, queue it for later (Step 20c)
         if (OfflineQueueService.canQueue(toolName)) {

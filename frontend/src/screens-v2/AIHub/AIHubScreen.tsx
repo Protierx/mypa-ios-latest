@@ -51,7 +51,6 @@ import { useUserModel } from '../../contexts/UserModelContext';
 import { useTasks } from '../../hooks/supabase/useTasks';
 import { useDailyBriefing } from '../../hooks/useDailyBriefing';
 import { eventLogger } from '../../services/eventLogger';
-import { getLevelFromDays } from '../../components/LockedFeature';
 import { brand } from '../../styles/colors';
 import supabaseApi from '../../services/supabaseApi';
 
@@ -78,9 +77,6 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
   const { tasks } = useTasks('today');
   useWindowDimensions(); // keep hook registered for layout reactivity
 
-  // Compute current unlock level from days active
-  const currentLevel = getLevelFromDays(stats?.daysActive ?? 0);
-  
   // Voice integration
   const voice = useVoice();
   const { 
@@ -635,38 +631,24 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
                     <Text style={styles.pillText}>➕ Add Task</Text>
                   </Pressable>
 
-                  <Pressable
-                    style={[styles.quickActionPill, currentLevel < 2 && styles.pillLocked]}
-                    onPress={() => {
-                      if (currentLevel < 2) {
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      }
-                    }}
-                  >
+                  <Pressable style={styles.quickActionPill}>
                     <Ionicons
-                      name={currentLevel >= 2 ? 'sparkles-outline' : 'lock-closed'}
+                      name="sparkles-outline"
                       size={14}
-                      color={currentLevel >= 2 ? '#A78BFA' : 'rgba(255,255,255,0.25)'}
+                      color="#A78BFA"
                     />
-                    <Text style={[styles.pillText, currentLevel < 2 && styles.pillTextLocked]}>
+                    <Text style={styles.pillText}>
                       🧠 Smart Sort
                     </Text>
                   </Pressable>
 
-                  <Pressable
-                    style={[styles.quickActionPill, currentLevel < 4 && styles.pillLocked]}
-                    onPress={() => {
-                      if (currentLevel < 4) {
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      }
-                    }}
-                  >
+                  <Pressable style={styles.quickActionPill}>
                     <Ionicons
-                      name={currentLevel >= 4 ? 'notifications-outline' : 'lock-closed'}
+                      name="notifications-outline"
                       size={14}
-                      color={currentLevel >= 4 ? '#A78BFA' : 'rgba(255,255,255,0.25)'}
+                      color="#A78BFA"
                     />
-                    <Text style={[styles.pillText, currentLevel < 4 && styles.pillTextLocked]}>
+                    <Text style={styles.pillText}>
                       ⏰ Reminders
                     </Text>
                   </Pressable>
@@ -1025,16 +1007,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
   },
-  pillLocked: {
-    opacity: 0.5,
-  },
   pillText: {
     fontSize: 14,
     fontWeight: '600',
     color: 'rgba(255,255,255,0.65)',
-  },
-  pillTextLocked: {
-    color: 'rgba(255,255,255,0.25)',
   },
   statsContainer: {
     alignItems: 'center',
