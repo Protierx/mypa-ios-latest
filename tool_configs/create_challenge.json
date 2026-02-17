@@ -1,20 +1,21 @@
 {
   "name": "create_challenge",
-  "description": "Create a challenge within a circle.",
+  "description": "Create a challenge within a circle. Infer tracking method, target value, duration, and rules from the user's description. Always add a description with rules.",
   "type": "client",
   "parameters": {
     "type": "object",
     "properties": {
       "circleName": { "type": "string", "description": "Circle name" },
       "title": { "type": "string", "description": "Challenge title (3-60 chars)" },
+      "description": { "type": "string", "description": "Challenge rules and details. Be specific about what counts as completion." },
       "trackingMethod": {
         "type": "string",
         "enum": ["tasks_completed", "focus_minutes", "active_days", "proof_checkin"],
-        "description": "How progress is tracked"
+        "description": "How progress is tracked: tasks_completed (count tasks done), focus_minutes (total focus time), active_days (days with activity), proof_checkin (manual daily check-in)"
       },
-      "targetValue": { "type": "number", "description": "Goal value to reach (positive integer)" },
-      "durationDays": { "type": "number", "enum": [7, 14, 30], "description": "Challenge duration in days" },
-      "type": { "type": "string", "enum": ["focus_time", "tasks_completed", "daily_checkin", "custom"], "description": "Legacy challenge type (prefer trackingMethod)" }
+      "targetValue": { "type": "number", "description": "Goal value to reach (e.g. 50 tasks, 500 minutes, 14 days). Must be a positive integer." },
+      "durationDays": { "type": "number", "description": "Challenge duration in days. Common: 7, 14, 30. Default 7." },
+      "emoji": { "type": "string", "description": "Challenge emoji matching the theme" }
     },
     "required": ["circleName", "title", "trackingMethod", "targetValue"]
   }

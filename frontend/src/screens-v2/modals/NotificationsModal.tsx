@@ -30,6 +30,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
 import { useNotifications } from '../../hooks/supabase';
+import { useCircles } from '../../hooks/supabase/useCircles';
 import { Notification } from '../../lib/supabase';
 import { useGestureNavigation } from '../../navigation-v2/useGestureNavigation';
 import {
@@ -72,6 +73,7 @@ export function NotificationsModal({ visible, onClose, onNotificationPress }: No
     refresh,
   } = useNotifications();
 
+  const { joinCircleByCode } = useCircles();
   const { navigateTo } = useGestureNavigation();
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -116,6 +118,32 @@ export function NotificationsModal({ visible, onClose, onNotificationPress }: No
     // Custom handler takes precedence
     if (onNotificationPress) {
       onNotificationPress(notification);
+      return;
+    }
+
+    // Handle circle invites with accept/join flow
+    if (notification.type === 'circle_invite' && notification.data?.circle_id) {
+      Alert.alert(
+        'Circle Invite',
+        notification.body || 'You\'ve been invited to join a circle!',
+        [
+          { text: 'Decline', style: 'cancel' },
+          {
+            text: 'Join',
+            onPress: async () => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              const circleId = notification.data?.circle_id as string;
+              const result = await joinCircleByCode(circleId);
+              if (result.success) {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                Alert.alert('Joined!', 'You\'re now a member of this circle.');
+              } else {
+                Alert.alert('Couldn\'t Join', result.error || 'Something went wrong.');
+              }
+            },
+          },
+        ]
+      );
       return;
     }
 

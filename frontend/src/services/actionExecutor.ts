@@ -89,6 +89,10 @@ function normalizeActionParams(action: string, params: Record<string, unknown>):
       p.name = firstDefined(p.name as string, p.circle_name as string, p.title as string);
       break;
 
+    case 'join_circle':
+      p.invite_code = firstDefined(p.invite_code as string, p.code as string, p.circle_code as string);
+      break;
+
     case 'invite_to_circle':
       p.circle_name = firstDefined(p.circle_name as string, p.circle as string, p.name as string);
       p.username = firstDefined(p.username as string, p.user as string, p.user_name as string, p.handle as string);
@@ -694,6 +698,67 @@ const ACTION_HANDLERS: Record<string, ActionHandler> = {
     };
   },
 
+  join_circle: async (params, userId) => {
+    const inviteCode = params.invite_code as string;
+    if (!inviteCode) {
+      return { success: false, message: "I need an invite code to join a circle. What's the code?" };
+    }
+
+    const code = inviteCode.trim().toLowerCase();
+    let circle: { id: string; name: string } | null = null;
+
+    // Try invite_code column first
+    const { data: byInviteCode, error: inviteLookupErr } = await supabase
+      .from('circles')
+      .select('id, name')
+      .eq('invite_code', code)
+      .maybeSingle();
+
+    if (!inviteLookupErr || (inviteLookupErr as any)?.code !== '42703') {
+      circle = byInviteCode || null;
+    }
+
+    // Fallback: partial ID match
+    if (!circle) {
+      const { data: allCircles } = await supabase.from('circles').select('id, name');
+      const normalized = code.replace(/[^a-z0-9]/g, '');
+      circle = (allCircles || []).find((c: any) => {
+        const idNorm = String(c.id || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        return idNorm === normalized || idNorm.startsWith(normalized);
+      }) || null;
+    }
+
+    if (!circle) {
+      return { success: false, message: "Couldn't find a circle with that code. Double-check and try again!" };
+    }
+
+    // Check if already a member
+    const { count } = await supabase
+      .from('circle_members')
+      .select('*', { count: 'exact', head: true })
+      .eq('circle_id', circle.id)
+      .eq('user_id', userId);
+
+    if ((count || 0) > 0) {
+      return { success: false, message: `You're already a member of ${circle.name}!` };
+    }
+
+    // Join
+    const { error: joinErr } = await supabase.from('circle_members').insert({
+      circle_id: circle.id, user_id: userId, role: 'member',
+    });
+
+    if (joinErr) {
+      return { success: false, message: "Couldn't join that circle. Try again?" };
+    }
+
+    return {
+      success: true,
+      message: `You're in! Welcome to ${circle.name} 🎉`,
+      data: { circleId: circle.id, circleName: circle.name },
+    };
+  },
+
   invite_to_circle: async (params, _userId) => {
     const circleName = params.circle_name as string;
     const username = params.username as string;
@@ -741,9 +806,20 @@ const ACTION_HANDLERS: Record<string, ActionHandler> = {
   create_challenge: async (params, userId) => {
     const circleName = params.circle_name as string;
     const title = params.title as string;
-    const type = (params.type as string) || 'custom';
-    const targetValue = (params.target_value as number) || 1;
+    const trackingMethod = (params.tracking_method as string) || 'proof_checkin';
+    const targetValue = (params.target_value as number) || 7;
     const durationDays = (params.duration_days as number) || 7;
+    const description = (params.description as string) || null;
+    const emoji = (params.emoji as string) || '🏆';
+
+    // Map tracking method to legacy type for DB compatibility
+    const TRACKING_TO_TYPE: Record<string, string> = {
+      tasks_completed: 'tasks_completed',
+      focus_minutes: 'focus_time',
+      active_days: 'daily_checkin',
+      proof_checkin: 'daily_checkin',
+    };
+    const legacyType = TRACKING_TO_TYPE[trackingMethod] || (params.type as string) || 'custom';
 
     const { data: circle } = await supabase
       .from('circles')
@@ -760,20 +836,25 @@ const ACTION_HANDLERS: Record<string, ActionHandler> = {
     const endsAt = new Date();
     endsAt.setDate(endsAt.getDate() + durationDays);
 
+    const insertPayload: Record<string, unknown> = {
+      title,
+      emoji,
+      description,
+      creator_id: userId,
+      circle_id: circle.id,
+      type: legacyType,
+      tracking_method: trackingMethod,
+      verification_mode: trackingMethod === 'proof_checkin' ? 'auto_accept' : null,
+      goal_value: targetValue,
+      duration_days: durationDays,
+      starts_at: startsAt.toISOString(),
+      ends_at: endsAt.toISOString(),
+      status: 'active',
+    };
+
     const { data: challenge, error } = await supabase
       .from('challenges')
-      .insert({
-        title,
-        emoji: '🏆',
-        creator_id: userId,
-        circle_id: circle.id,
-        type,
-        goal_value: targetValue,
-        duration_days: durationDays,
-        starts_at: startsAt.toISOString(),
-        ends_at: endsAt.toISOString(),
-        status: 'active',
-      })
+      .insert(insertPayload)
       .select()
       .single();
 
@@ -788,9 +869,25 @@ const ACTION_HANDLERS: Record<string, ActionHandler> = {
       progress: 0,
     });
 
+    // Post to circle feed
+    await supabase.from('circle_posts').insert({
+      circle_id: circle.id,
+      user_id: userId,
+      type: 'challenge_created',
+      payload: {
+        challenge_id: challenge.id,
+        challenge_title: title,
+        challenge_emoji: emoji,
+        tracking_method: trackingMethod,
+        target_value: targetValue,
+        duration_days: durationDays,
+      },
+    });
+
+    const methodLabel = trackingMethod === 'focus_minutes' ? 'minutes focused' : trackingMethod === 'tasks_completed' ? 'tasks' : trackingMethod === 'active_days' ? 'active days' : 'check-ins';
     return {
       success: true,
-      message: `Created challenge "${title}"! ${durationDays} days to hit ${targetValue}.`,
+      message: `${emoji} Challenge "${title}" created! ${durationDays} days to hit ${targetValue} ${methodLabel}. Let's go!`,
       data: { challenge },
     };
   },

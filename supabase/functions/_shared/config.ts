@@ -176,6 +176,7 @@ export const ACTION_MODEL_TIER: Record<string, ModelTier> = {
   resume_focus: 'fast',
   end_focus: 'fast',
   create_circle: 'fast',
+  join_circle: 'fast',
   invite_to_circle: 'fast',
   create_challenge: 'fast',
   post_to_circle: 'fast',
@@ -413,18 +414,44 @@ export const ACTION_TOOLS: Array<{
   {
     type: 'function',
     function: {
-      name: 'create_challenge',
-      description: 'Create a challenge within a circle.',
+      name: 'join_circle',
+      description: 'Join an existing circle using an invite code. Use when user says "join circle", "join with code", "enter circle code".',
       parameters: {
         type: 'object',
         properties: {
-          circle_name: { type: 'string', description: 'Circle name' },
-          title: { type: 'string', description: 'Challenge title' },
-          type: { type: 'string', enum: CHALLENGE_TYPES },
-          target_value: { type: 'number', description: 'Goal value to reach' },
-          duration_days: { type: 'number', description: 'Challenge duration in days' },
+          invite_code: { type: 'string', description: 'The invite code or circle ID to join' },
         },
-        required: ['circle_name', 'title', 'type', 'target_value'],
+        required: ['invite_code'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'create_challenge',
+      description: `Create a challenge within a circle. ALWAYS infer the best tracking method and sensible defaults from the user's description:
+- "read 30 minutes a day" → tracking_method: 'active_days', target_value: duration_days (e.g. 14), duration_days: 14
+- "complete 50 tasks this month" → tracking_method: 'tasks_completed', target_value: 50, duration_days: 30
+- "focus for 500 minutes in 2 weeks" → tracking_method: 'focus_minutes', target_value: 500, duration_days: 14
+- "workout every day for a week" → tracking_method: 'proof_checkin', target_value: 7, duration_days: 7
+- "meditate daily" → tracking_method: 'proof_checkin', target_value: 7, duration_days: 7
+Always provide a description with rules. If duration not specified, default to 7 days.`,
+      parameters: {
+        type: 'object',
+        properties: {
+          circle_name: { type: 'string', description: 'Circle name to create the challenge in' },
+          title: { type: 'string', description: 'Short, punchy challenge title (3-60 chars)' },
+          description: { type: 'string', description: 'Challenge rules and details. Be specific about what counts as completion.' },
+          tracking_method: {
+            type: 'string',
+            enum: ['tasks_completed', 'focus_minutes', 'active_days', 'proof_checkin'],
+            description: 'How progress is tracked. tasks_completed = count tasks done. focus_minutes = total focus time. active_days = days with activity. proof_checkin = manual daily check-in/proof.',
+          },
+          target_value: { type: 'number', description: 'Goal value to reach (e.g. 50 tasks, 500 minutes, 14 days). Must be a positive integer.' },
+          duration_days: { type: 'number', description: 'Challenge duration in days. Common: 7, 14, 30. Default 7 if not specified.' },
+          emoji: { type: 'string', description: 'Challenge emoji. Pick one that matches the theme: 💪🏃📚🧘💻🔥⚡🌟🎯✨🚀🏋️' },
+        },
+        required: ['circle_name', 'title', 'tracking_method', 'target_value'],
       },
     },
   },

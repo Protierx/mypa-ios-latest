@@ -15,6 +15,8 @@ export const NOTIFICATION_CATEGORIES = ['social', 'tasks', 'system'] as const;
 
 export const NotificationType = {
   // Social
+  CIRCLE_INVITE: 'circle_invite',
+  CIRCLE_JOINED: 'circle_joined',
   CHALLENGE_CREATED: 'CHALLENGE_CREATED',
   CHALLENGE_ENDING_SOON: 'CHALLENGE_ENDING_SOON',
   CHALLENGE_CHECKIN_APPROVED: 'CHALLENGE_CHECKIN_APPROVED',
@@ -35,6 +37,8 @@ export type NotificationTypeValue = typeof NotificationType[NotificationTypeKey]
 
 // Map type → category
 export const TYPE_TO_CATEGORY: Record<string, NotificationCategory> = {
+  [NotificationType.CIRCLE_INVITE]: 'social',
+  [NotificationType.CIRCLE_JOINED]: 'social',
   [NotificationType.CHALLENGE_CREATED]: 'social',
   [NotificationType.CHALLENGE_ENDING_SOON]: 'social',
   [NotificationType.CHALLENGE_CHECKIN_APPROVED]: 'social',
@@ -51,6 +55,8 @@ export const TYPE_TO_CATEGORY: Record<string, NotificationCategory> = {
 // ── Icon map ───────────────────────────────────────────────────────
 
 export const NOTIFICATION_ICON_MAP: Record<string, { icon: string; color: string }> = {
+  [NotificationType.CIRCLE_INVITE]: { icon: 'person-add-outline', color: '#7C3AED' },
+  [NotificationType.CIRCLE_JOINED]: { icon: 'people-outline', color: '#30D158' },
   [NotificationType.CHALLENGE_CREATED]: { icon: 'trophy-outline', color: '#FF9F0A' },
   [NotificationType.CHALLENGE_ENDING_SOON]: { icon: 'time-outline', color: '#FF453A' },
   [NotificationType.CHALLENGE_CHECKIN_APPROVED]: { icon: 'checkmark-circle-outline', color: '#30D158' },
@@ -92,6 +98,11 @@ export function resolveDeepLink(
   data: Record<string, any> | null | undefined
 ): DeepLinkTarget {
   switch (type) {
+    // Social → circle invite / join
+    case NotificationType.CIRCLE_INVITE:
+    case NotificationType.CIRCLE_JOINED:
+      return { screen: 'social' };
+
     // Social → challenge detail
     case NotificationType.CHALLENGE_CREATED:
     case NotificationType.CHALLENGE_ENDING_SOON:

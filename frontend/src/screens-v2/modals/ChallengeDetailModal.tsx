@@ -59,6 +59,8 @@ export function ChallengeDetailModal({ visible, challengeId, onClose }: Challeng
   const [isLoading, setIsLoading] = useState(true);
   const [showRules, setShowRules] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isParticipant, setIsParticipant] = useState(true);
+  const [isJoining, setIsJoining] = useState(false);
 
   const loadChallengeData = useCallback(async () => {
     if (!challengeId) return;
@@ -70,7 +72,8 @@ export function ChallengeDetailModal({ visible, challengeId, onClose }: Challeng
       setChallenge(challengeData);
       setLeaderboard(leaderboardData || []);
       const myEntry = leaderboardData?.find((e: LeaderboardEntry) => e.userId === user?.id);
-      if (myEntry) { setMyProgress(myEntry.progress); setMyRank(myEntry.rank); }
+      if (myEntry) { setMyProgress(myEntry.progress); setMyRank(myEntry.rank); setIsParticipant(true); }
+      else { setMyProgress(0); setMyRank(0); setIsParticipant(false); }
     } catch (error) {
       console.error('Error loading challenge data:', error);
     } finally {
@@ -132,6 +135,34 @@ export function ChallengeDetailModal({ visible, challengeId, onClose }: Challeng
       setIsSubmitting(false);
     }
   }, [challengeId, isSubmitting, getChallengeLeaderboard, user?.id]);
+
+  const handleJoinChallenge = useCallback(async () => {
+    if (!challengeId || isJoining) return;
+    setIsJoining(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      const { joinChallenge } = await import('../../hooks/supabase/useChallenges').then(m => ({ joinChallenge: null }));
+      // Direct insert since we have supabase access via the api
+      const { supabase } = await import('../../lib/supabase');
+      const { error } = await supabase.from('challenge_participants').insert({
+        challenge_id: challengeId,
+        user_id: user?.id,
+        progress: 0,
+      });
+      if (error) throw error;
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setIsParticipant(true);
+      // Reload data
+      await loadChallengeData();
+    } catch (err: any) {
+      const msg = err?.message?.includes('duplicate') || err?.message?.includes('unique')
+        ? "You're already in this challenge!"
+        : 'Something went wrong. Try again.';
+      Alert.alert('Error', msg);
+    } finally {
+      setIsJoining(false);
+    }
+  }, [challengeId, isJoining, user?.id, loadChallengeData]);
 
   const getTimeRemaining = (): string => {
     if (!challenge?.ends_at) return '';
@@ -203,6 +234,31 @@ export function ChallengeDetailModal({ visible, challengeId, onClose }: Challeng
                 <Text style={{ fontSize: 13, fontWeight: '600', color: semantic.warning, marginLeft: 5 }}>{getTimeRemaining()}</Text>
               </View>
             </View>
+
+            {/* Join Challenge CTA (for non-participants) */}
+            {!isParticipant && challenge.status === 'active' && (
+              <View style={{ paddingHorizontal: 16, marginBottom: 8 }}>
+                <TouchableOpacity
+                  style={{
+                    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+                    backgroundColor: brand.primary, paddingVertical: 16, borderRadius: 14, gap: 8,
+                    ...shadows.purple, opacity: isJoining ? 0.7 : 1,
+                  }}
+                  onPress={handleJoinChallenge}
+                  disabled={isJoining}
+                  activeOpacity={0.8}
+                >
+                  {isJoining ? (
+                    <ActivityIndicator size="small" color={textTokens.inverse} />
+                  ) : (
+                    <>
+                      <Ionicons name="enter-outline" size={20} color={textTokens.inverse} />
+                      <Text style={{ fontSize: 16, fontWeight: '700', color: textTokens.inverse }}>Join Challenge</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            )}
 
             {/* Your Progress */}
             <View style={{ margin: 16, backgroundColor: bg.card, borderRadius: radius.lg, padding: 20, borderWidth: 0.5, borderColor: borderTokens.primary, ...shadows.md }}>
