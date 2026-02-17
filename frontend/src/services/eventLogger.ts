@@ -52,6 +52,7 @@ export type EventType =
   // Social events
   | 'circle_joined'
   | 'circle_viewed'
+  | 'circle_deleted'
   | 'challenge_joined'
   | 'challenge_progress'
   | 'challenge_completed'

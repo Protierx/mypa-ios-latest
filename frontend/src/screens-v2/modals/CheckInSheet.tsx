@@ -240,12 +240,12 @@ export function CheckInSheet({ visible, circleId, circleName, onClose, onSubmit 
                         </Text>
                         {task.priority === 'high' || task.priority === 'urgent' ? (
                           <View style={{
-                            backgroundColor: task.priority === 'urgent' ? '#FEF2F2' : semantic.warningLight,
+                            backgroundColor: task.priority === 'urgent' ? semantic.errorLight : semantic.warningLight,
                             paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4,
                           }}>
                             <Text style={{
                               fontSize: 9, fontWeight: '700',
-                              color: task.priority === 'urgent' ? '#DC2626' : semantic.warning,
+                              color: task.priority === 'urgent' ? semantic.error : semantic.warning,
                               textTransform: 'uppercase',
                             }}>
                               {task.priority}

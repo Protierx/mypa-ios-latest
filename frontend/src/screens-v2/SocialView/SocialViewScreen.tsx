@@ -46,7 +46,7 @@ import { shadows, radius, spacing } from '../../styles/theme';
 import { useEnterAnimation, usePressFeedback, useStaggerIn } from '../../styles/motion';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-const FREE_TIER_CIRCLE_LIMIT = 1;
+const FREE_TIER_CIRCLE_LIMIT = 3;
 
 /* ────────────── Helpers ────────────── */
 
@@ -125,7 +125,7 @@ export function SocialViewScreen() {
   }, []);
 
   const loading = (circlesLoading || challengesLoading) && !loadingTimeout;
-  const activeChallenges = useMemo(() => challenges.filter((c: any) => c.status === 'active'), [challenges]);
+  const activeChallenges = useMemo(() => challenges.filter((c: any) => c.status === 'active' && c.circle_id), [challenges]);
 
   // Group challenges by circle
   const challengesByCircle = useMemo(() => {
@@ -432,7 +432,7 @@ export function SocialViewScreen() {
                 onPress={handlePlusButton}
               >
                 <Animated.View style={[s.plusButton, plusPressStyle]}>
-                  <Ionicons name="add" size={28} color={brand.primary} />
+                  <Ionicons name="add" size={28} color="#FFFFFF" />
                 </Animated.View>
               </TouchableWithoutFeedback>
               <MiniVoiceButton position="top-right" screenContext="social" size={50} style={s.voiceButtonInline} />
@@ -628,10 +628,7 @@ export function SocialViewScreen() {
                 contentContainerStyle={s.flatListContent}
                 showsVerticalScrollIndicator={false}
                 renderItem={({ item: ch }: { item: any }) => {
-                  const circleName = ch.circle_id ? (circleNameMap[ch.circle_id] || 'Unknown circle') : 'Unassigned';
-                  if (!ch.circle_id) {
-                    console.warn('[ActiveChallengesModal] Challenge has no circle_id:', ch.id, ch.title);
-                  }
+                  const circleName = circleNameMap[ch.circle_id] || 'Unknown circle';
                   const progress = ch.userProgress || 0;
                   const goal = ch.goal_value || 1;
                   const pct = Math.min((progress / goal) * 100, 100);
@@ -643,11 +640,7 @@ export function SocialViewScreen() {
                       onPress={() => {
                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                         setShowActiveChallenges(false);
-                        if (ch.circle_id) {
-                          setTimeout(() => openCircle(ch.circle_id), 300);
-                        } else {
-                          setTimeout(() => openChallenge(ch.id), 300);
-                        }
+                        setTimeout(() => openCircle(ch.circle_id), 300);
                       }}
                       activeOpacity={0.7}
                       accessibilityRole="button"

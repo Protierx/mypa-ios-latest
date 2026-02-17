@@ -42,6 +42,8 @@ export interface UseCirclesReturn {
   updateMemberRole: (circleId: string, userId: string, newRole: 'admin' | 'member') => Promise<boolean>;
   removeMember: (circleId: string, userId: string) => Promise<boolean>;
   transferOwnership: (circleId: string, newOwnerId: string) => Promise<boolean>;
+  deleteCircle: (circleId: string) => Promise<boolean>;
+  updateCircle: (circleId: string, updates: { name?: string; emoji?: string; description?: string }) => Promise<boolean>;
   refresh: () => Promise<void>;
 }
 
@@ -366,12 +368,53 @@ export function useCircles(): UseCirclesReturn {
       const callerRole = await getUserRole(circleId);
       if (callerRole !== 'owner') return false;
 
-      await supabase.from('circle_members').update({ role: 'admin' }).eq('circle_id', circleId).eq('user_id', user.id);
-      await supabase.from('circle_members').update({ role: 'owner' }).eq('circle_id', circleId).eq('user_id', newOwnerId);
-      await supabase.from('circles').update({ owner_id: newOwnerId }).eq('id', circleId);
+      const { error } = await supabase.rpc('transfer_circle_ownership', {
+        p_circle_id: circleId,
+        p_old_owner_id: user.id,
+        p_new_owner_id: newOwnerId,
+      });
+      if (error) throw error;
+      fetchCircles();
       return true;
     } catch (err) {
       console.error('[useCircles] transferOwnership error:', err);
+      return false;
+    }
+  };
+
+  const updateCircle = async (circleId: string, updates: { name?: string; emoji?: string; description?: string }): Promise<boolean> => {
+    if (!user) return false;
+    try {
+      const callerRole = await getUserRole(circleId);
+      if (callerRole !== 'owner') {
+        console.warn('[useCircles] updateCircle: caller is not owner');
+        return false;
+      }
+      const { error } = await supabase.from('circles').update(updates).eq('id', circleId);
+      if (error) throw error;
+      fetchCircles();
+      return true;
+    } catch (err) {
+      console.error('[useCircles] updateCircle error:', err);
+      return false;
+    }
+  };
+
+  const deleteCircle = async (circleId: string): Promise<boolean> => {
+    if (!user) return false;
+    try {
+      const callerRole = await getUserRole(circleId);
+      if (callerRole !== 'owner') {
+        console.warn('[useCircles] deleteCircle: caller is not owner');
+        return false;
+      }
+      const { error } = await supabase.from('circles').delete().eq('id', circleId);
+      if (error) throw error;
+      eventLogger.log('circle_deleted', { circle_id: circleId });
+      fetchCircles();
+      return true;
+    } catch (err) {
+      console.error('[useCircles] deleteCircle error:', err);
       return false;
     }
   };
@@ -380,7 +423,7 @@ export function useCircles(): UseCirclesReturn {
     circles, loading, error,
     createCircle, joinCircleByCode, leaveCircle,
     getCircle, getCircleMembers, getCircleActivity,
-    getUserRole, updateMemberRole, removeMember, transferOwnership,
+    getUserRole, updateMemberRole, removeMember, transferOwnership, deleteCircle, updateCircle,
     refresh: fetchCircles,
   };
 }
