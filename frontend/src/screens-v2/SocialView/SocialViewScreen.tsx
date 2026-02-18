@@ -36,6 +36,7 @@ import { useCirclesHome, CircleHomeItem } from '../../hooks/supabase/useCirclesH
 import { useCircleCheckinStatus } from '../../hooks/supabase/useCircleCheckinStatus';
 import { useNewPosts } from '../../hooks/supabase/useNewPosts';
 import { useSupabaseAuth } from '../../contexts/SupabaseAuthContext';
+import { supabase } from '../../lib/supabase';
 import { MiniVoiceButton } from '../../components/MiniVoiceButton';
 import { CircleHomeModal } from '../modals/CircleHomeModal';
 import { ChallengeDetailModal } from '../modals/ChallengeDetailModal';
@@ -119,6 +120,10 @@ export function SocialViewScreen() {
   const [createChallengeCircleId, setCreateChallengeCircleId] = useState<string | null>(null);
   const [showPaywall, setShowPaywall] = useState(false);
   const [showActiveChallenges, setShowActiveChallenges] = useState(false);
+  const [showAllCircles, setShowAllCircles] = useState(false);
+  const [showAllMembers, setShowAllMembers] = useState(false);
+  const [allMembers, setAllMembers] = useState<any[]>([]);
+  const [membersLoading, setMembersLoading] = useState(false);
 
   // Search
   const [searchQuery, setSearchQuery] = useState('');
@@ -264,8 +269,17 @@ export function SocialViewScreen() {
   const renderSummaryTabs = () => {
     if (circlesHome.length === 0) return null;
     const tabs = [
-      { value: counts.circles_count, label: 'Circles', icon: 'people', color: brand.primary, onPress: undefined },
-      { value: counts.unique_members_count, label: 'Members', icon: 'person', color: brand.secondary, onPress: undefined },
+      { value: counts.circles_count, label: 'Circles', icon: 'people', color: brand.primary, onPress: () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowAllCircles(true); } },
+      { value: counts.unique_members_count, label: 'Members', icon: 'person', color: brand.secondary, onPress: async () => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        setShowAllMembers(true);
+        setMembersLoading(true);
+        try {
+          const { data, error } = await supabase.rpc('circles_all_members');
+          if (!error && data) setAllMembers(data);
+        } catch (e) { console.error('[Members] fetch error:', e); }
+        finally { setMembersLoading(false); }
+      } },
       { value: counts.active_challenges_count, label: 'Active', icon: 'trophy', color: semantic.warning, onPress: () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowActiveChallenges(true); } },
     ];
     return (
@@ -278,10 +292,9 @@ export function SocialViewScreen() {
               idx > 0 && s.summaryTabBorder,
             ]}
             onPress={tab.onPress}
-            activeOpacity={tab.onPress ? 0.6 : 1}
-            disabled={!tab.onPress}
-            accessibilityRole={tab.onPress ? 'button' : 'text'}
-            accessibilityLabel={`${tab.value} ${tab.label}${tab.onPress ? ', tap to view' : ''}`}
+            activeOpacity={0.6}
+            accessibilityRole="button"
+            accessibilityLabel={`${tab.value} ${tab.label}, tap to view`}
           >
             <Ionicons name={tab.icon as any} size={16} color={tab.color} style={s.summaryTabIcon} />
             <Text style={s.summaryTabValue}>{tab.value}</Text>
@@ -770,6 +783,175 @@ export function SocialViewScreen() {
         trigger="circle_limit"
       />
 
+      {/* ── All Circles Bottom Sheet Modal ── */}
+      <Modal
+        visible={showAllCircles}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowAllCircles(false)}
+      >
+        <View style={s.modalOverlay}>
+          <Pressable style={s.modalBackdrop} onPress={() => setShowAllCircles(false)} />
+          <View style={s.modalSheet}>
+            <View style={s.dragHandleContainer}>
+              <View style={s.dragHandle} />
+            </View>
+            <View style={s.modalHeaderRow}>
+              <View>
+                <Text style={s.modalHeaderTitle}>Your Circles</Text>
+                <Text style={s.modalHeaderSubtitle}>{counts.circles_count} circle{counts.circles_count !== 1 ? 's' : ''}</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowAllCircles(false)}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                style={s.modalCloseBtn}
+              >
+                <Ionicons name="close" size={16} color={textTokens.tertiary} />
+              </TouchableOpacity>
+            </View>
+            {circlesHome.length === 0 ? (
+              <View style={s.emptyModalContainer}>
+                <View style={[s.emptyModalIcon, { backgroundColor: brand.muted }]}> 
+                  <Ionicons name="people-outline" size={26} color={brand.primary} />
+                </View>
+                <Text style={s.emptyModalTitle}>No circles yet</Text>
+                <Text style={s.emptyModalSubtitle}>Create or join a circle to get started.</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={circlesHome}
+                keyExtractor={(item) => item.circle_id}
+                contentContainerStyle={s.flatListContent}
+                showsVerticalScrollIndicator={false}
+                renderItem={({ item: circle }) => {
+                  const roleBadge = circle.role === 'owner' ? 'Owner' : circle.role === 'admin' ? 'Admin' : 'Member';
+                  const roleColor = circle.role === 'owner' ? semantic.warning : circle.role === 'admin' ? brand.primary : textTokens.tertiary;
+                  return (
+                    <TouchableOpacity
+                      style={s.modalListCard}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setShowAllCircles(false);
+                        setTimeout(() => openCircle(circle.circle_id), 300);
+                      }}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${circle.circle_name}, ${roleBadge}`}
+                    >
+                      <View style={s.modalListEmoji}>
+                        <Text style={s.modalListEmojiText}>{circle.circle_emoji || '👥'}</Text>
+                      </View>
+                      <View style={s.flex1}>
+                        <View style={s.modalListNameRow}>
+                          <Text numberOfLines={1} style={s.modalListName}>{circle.circle_name}</Text>
+                          <View style={[s.modalRoleBadge, { backgroundColor: `${roleColor}14` }]}>
+                            <Text style={[s.modalRoleBadgeText, { color: roleColor }]}>{roleBadge}</Text>
+                          </View>
+                        </View>
+                        <View style={s.modalListSubRow}>
+                          <Ionicons name="people" size={11} color={textTokens.disabled} />
+                          <Text style={s.modalListSubText}>{circle.member_count} member{circle.member_count !== 1 ? 's' : ''}</Text>
+                          {circle.active_challenges_count > 0 && (
+                            <>
+                              <Text style={s.modalListDot}>·</Text>
+                              <Ionicons name="trophy" size={11} color={semantic.warning} />
+                              <Text style={s.modalListSubText}>{circle.active_challenges_count} active</Text>
+                            </>
+                          )}
+                        </View>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color={textTokens.disabled} style={s.chevronSmall} />
+                    </TouchableOpacity>
+                  );
+                }}
+              />
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── All Members Bottom Sheet Modal ── */}
+      <Modal
+        visible={showAllMembers}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowAllMembers(false)}
+      >
+        <View style={s.modalOverlay}>
+          <Pressable style={s.modalBackdrop} onPress={() => setShowAllMembers(false)} />
+          <View style={s.modalSheet}>
+            <View style={s.dragHandleContainer}>
+              <View style={s.dragHandle} />
+            </View>
+            <View style={s.modalHeaderRow}>
+              <View>
+                <Text style={s.modalHeaderTitle}>All Members</Text>
+                <Text style={s.modalHeaderSubtitle}>{counts.unique_members_count} across your circles</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowAllMembers(false)}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                style={s.modalCloseBtn}
+              >
+                <Ionicons name="close" size={16} color={textTokens.tertiary} />
+              </TouchableOpacity>
+            </View>
+            {membersLoading ? (
+              <View style={s.emptyModalContainer}>
+                <Text style={s.modalListSubText}>Loading members…</Text>
+              </View>
+            ) : allMembers.length === 0 ? (
+              <View style={s.emptyModalContainer}>
+                <View style={[s.emptyModalIcon, { backgroundColor: brand.muted }]}>
+                  <Ionicons name="person-outline" size={26} color={brand.secondary} />
+                </View>
+                <Text style={s.emptyModalTitle}>No members yet</Text>
+                <Text style={s.emptyModalSubtitle}>Members will appear when you join or create circles.</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={allMembers}
+                keyExtractor={(item) => item.user_id}
+                contentContainerStyle={s.flatListContent}
+                showsVerticalScrollIndicator={false}
+                renderItem={({ item: member }) => {
+                  const name = member.display_name || member.username || 'Unknown';
+                  const initials = name.slice(0, 1).toUpperCase();
+                  const circleList = (member.circle_names || []).join(', ');
+                  return (
+                    <View style={s.modalMemberCard}>
+                      {member.avatar_url ? (
+                        <View style={s.modalMemberAvatar}>
+                          <Text style={s.modalMemberAvatarText}>{initials}</Text>
+                        </View>
+                      ) : (
+                        <View style={[s.modalMemberAvatar, member.is_self && { backgroundColor: brand.primary }]}>
+                          <Text style={s.modalMemberAvatarText}>{initials}</Text>
+                        </View>
+                      )}
+                      <View style={s.flex1}>
+                        <View style={s.modalListNameRow}>
+                          <Text numberOfLines={1} style={s.modalListName}>{name}</Text>
+                          {member.is_self && (
+                            <View style={[s.modalRoleBadge, { backgroundColor: `${brand.primary}14` }]}>
+                              <Text style={[s.modalRoleBadgeText, { color: brand.primary }]}>You</Text>
+                            </View>
+                          )}
+                        </View>
+                        <View style={s.modalListSubRow}>
+                          <Ionicons name="people" size={11} color={textTokens.disabled} />
+                          <Text numberOfLines={1} style={[s.modalListSubText, { flex: 1 }]}>{member.circle_count} circle{member.circle_count !== 1 ? 's' : ''} · {circleList}</Text>
+                        </View>
+                      </View>
+                    </View>
+                  );
+                }}
+              />
+            )}
+          </View>
+        </View>
+      </Modal>
+
       {/* ── Active Challenges Bottom Sheet Modal ── */}
       <Modal
         visible={showActiveChallenges}
@@ -1235,6 +1417,45 @@ const s = StyleSheet.create({
 
   /* FlatList */
   flatListContent: { paddingTop: 8, paddingBottom: 40 },
+
+  /* Shared modal list card */
+  modalListCard: {
+    marginHorizontal: 16, marginBottom: 10,
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: bg.card, borderRadius: radius.lg, padding: 16,
+    ...shadows.sm,
+    borderLeftWidth: 4,
+    borderLeftColor: brand.primary,
+  },
+  modalListEmoji: {
+    width: 46, height: 46, borderRadius: 14,
+    backgroundColor: brand.muted,
+    alignItems: 'center', justifyContent: 'center', marginRight: 14,
+    borderWidth: 1,
+    borderColor: brand.tertiary,
+  },
+  modalListEmojiText: { fontSize: 22 },
+  modalListName: { fontSize: 15, fontWeight: '700', color: textTokens.primary, flexShrink: 1 },
+  modalListNameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  modalListSubRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 5 },
+  modalListSubText: { fontSize: 12.5, color: textTokens.secondary, fontWeight: '600' },
+  modalListDot: { fontSize: 12, color: textTokens.disabled, fontWeight: '700' },
+  modalRoleBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  modalRoleBadgeText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.4, textTransform: 'uppercase' },
+
+  /* Member card */
+  modalMemberCard: {
+    marginHorizontal: 16, marginBottom: 10,
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: bg.card, borderRadius: radius.lg, padding: 16,
+    ...shadows.sm,
+  },
+  modalMemberAvatar: {
+    width: 46, height: 46, borderRadius: 23,
+    backgroundColor: brand.secondary,
+    alignItems: 'center', justifyContent: 'center', marginRight: 14,
+  },
+  modalMemberAvatarText: { fontSize: 18, fontWeight: '800', color: '#FFFFFF' },
 
   /* Modal challenge card */
   modalChallengeCard: {
