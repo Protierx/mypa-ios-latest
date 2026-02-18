@@ -51,6 +51,7 @@ interface CircleHomeModalProps {
   onOpenChallenge?: (challengeId: string) => void;
   onCreateChallenge?: () => void;
   initialTab?: TabType;
+  initialFocus?: 'checkin';
 }
 type TabType = 'feed' | 'challenges' | 'overview';
 type SettingsTab = 'invite' | 'members' | 'admin';
@@ -73,7 +74,7 @@ const TABS: { key: TabType; label: string }[] = [
 ];
 
 /* ═══ Component ══════════════════════════════════════════ */
-export function CircleHomeModal({ visible, circleId, onClose, onOpenChallenge, onCreateChallenge, initialTab }: CircleHomeModalProps) {
+export function CircleHomeModal({ visible, circleId, onClose, onOpenChallenge, onCreateChallenge, initialTab, initialFocus }: CircleHomeModalProps) {
   const { user } = useSupabaseAuth();
   const { getCircle, getCircleMembers, getUserRole, updateMemberRole, removeMember, leaveCircle, transferOwnership, deleteCircle, updateCircle } = useCircles();
   const { challenges: allChallenges, refresh: refreshChallenges } = useChallenges();
@@ -120,6 +121,13 @@ export function CircleHomeModal({ visible, circleId, onClose, onOpenChallenge, o
   useEffect(() => {
     if (visible && circleId) { setIsLoading(true); setActiveTab(initialTab || 'feed'); loadCircleData(); refreshChallenges(); }
   }, [visible, circleId]);
+
+  // Auto-open CheckInSheet when navigated with initialFocus='checkin'
+  useEffect(() => {
+    if (visible && initialFocus === 'checkin' && !isLoading && accountability.status === 'idle') {
+      setShowCheckIn(true);
+    }
+  }, [visible, initialFocus, isLoading, accountability.status]);
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
