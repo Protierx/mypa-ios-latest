@@ -1,10 +1,11 @@
 /**
  * Login Screen — Opal-inspired dark immersive welcome
  *
- * Deep dark aurora background, ambient glow orbs,
- * glassmorphic cards, gradient CTAs, staggered entrance animations.
+ * Two-section layout: hero with breathing orb + rotating value props,
+ * CTA section with Apple Sign In + email text link.
+ * Email form enters as a bottom sheet with SlideInDown animation.
  */
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -33,6 +34,9 @@ import Animated, {
   FadeIn,
   FadeInUp,
   FadeInDown,
+  FadeOut,
+  SlideInDown,
+  runOnJS,
 } from 'react-native-reanimated';
 import { useSupabaseAuth } from '../../contexts/SupabaseAuthContext';
 
@@ -71,6 +75,12 @@ const O = {
 
 const { width: SW, height: SH } = Dimensions.get('window');
 
+const VALUE_PROPS = [
+  'Your voice-first AI assistant',
+  'Manage tasks by just speaking',
+  'Stay focused, stay productive',
+];
+
 export function LoginScreenV2() {
   const { signIn, signUp, signInWithApple, isLoading: authLoading } = useSupabaseAuth();
 
@@ -83,11 +93,53 @@ export function LoginScreenV2() {
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string; name?: string }>({});
 
-  // ── Ambient glow animation ────────────────────────────────
+  // ── Rotating value props ────────────────────────────────
+  const [valuePropIndex, setValuePropIndex] = useState(0);
+  const valuePropOpacity = useSharedValue(1);
+  const valuePropTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (showEmailForm) {
+      if (valuePropTimer.current) clearInterval(valuePropTimer.current);
+      return;
+    }
+
+    valuePropTimer.current = setInterval(() => {
+      // Fade out
+      valuePropOpacity.value = withTiming(0, { duration: 300 }, (finished) => {
+        if (finished) {
+          runOnJS(setValuePropIndex)((prev: number) => (prev + 1) % VALUE_PROPS.length);
+          // Fade in after swap
+          valuePropOpacity.value = withTiming(1, { duration: 300 });
+        }
+      });
+    }, 3000);
+
+    return () => {
+      if (valuePropTimer.current) clearInterval(valuePropTimer.current);
+    };
+  }, [showEmailForm]);
+
+  const valuePropAnimStyle = useAnimatedStyle(() => ({
+    opacity: valuePropOpacity.value,
+  }));
+
+  // ── Breathing orb animation ─────────────────────────────
+  const orbScale = useSharedValue(1);
   const glowOpacity = useSharedValue(0.3);
   const ambientRotate = useSharedValue(0);
 
   useEffect(() => {
+    // Orb breathing pulse
+    orbScale.value = withRepeat(
+      withSequence(
+        withTiming(1.08, { duration: 2500, easing: Easing.inOut(Easing.ease) }),
+        withTiming(1, { duration: 2500, easing: Easing.inOut(Easing.ease) })
+      ),
+      -1,
+      true
+    );
+
     ambientRotate.value = withRepeat(
       withTiming(360, { duration: 40000, easing: Easing.linear }),
       -1,
@@ -102,6 +154,10 @@ export function LoginScreenV2() {
       true
     );
   }, []);
+
+  const orbBreathStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: orbScale.value }],
+  }));
 
   const ambientStyle = useAnimatedStyle(() => ({
     transform: [{ rotate: `${ambientRotate.value}deg` }],
@@ -165,9 +221,15 @@ export function LoginScreenV2() {
     }
   }, [signInWithApple]);
 
-  const toggleEmailForm = () => {
+  const openEmailForm = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setShowEmailForm(!showEmailForm);
+    setShowEmailForm(true);
+    setErrors({});
+  };
+
+  const closeEmailForm = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setShowEmailForm(false);
     setErrors({});
   };
 
@@ -198,33 +260,43 @@ export function LoginScreenV2() {
       </Animated.View>
 
       <SafeAreaView style={s.safe} edges={['top', 'bottom']}>
-        <ScrollView
-          contentContainerStyle={s.scroll}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          {/* ── Logo & Brand ─────────────────────────── */}
-          <Animated.View entering={FadeInDown.delay(100).duration(600)} style={s.brand}>
-            {/* Glowing logo ring */}
-            <View style={s.logoOuter}>
-              <LinearGradient
-                colors={[O.ringStart, O.ringMid, O.ringEnd]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={s.logoGradientRing}
-              >
-                <View style={s.logoInner}>
-                  <Text style={s.logoLetter}>M</Text>
+        {!showEmailForm ? (
+          /* ── Hero + CTA welcome view ─────────────────── */
+          <View style={s.welcomeContainer}>
+            {/* Hero section (top 60%) */}
+            <Animated.View entering={FadeIn.duration(800)} style={s.heroSection}>
+              {/* Breathing orb */}
+              <Animated.View style={[s.orbContainer, orbBreathStyle]}>
+                <View style={s.logoOuter}>
+                  <LinearGradient
+                    colors={[O.ringStart, O.ringMid, O.ringEnd]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={s.logoGradientRing}
+                  >
+                    <View style={s.logoInner}>
+                      <Text style={s.logoLetter}>M</Text>
+                    </View>
+                  </LinearGradient>
                 </View>
-              </LinearGradient>
-            </View>
-            <Text style={s.brandName}>MYPA</Text>
-            <Text style={s.brandTagline}>My Personal AI</Text>
-          </Animated.View>
+              </Animated.View>
 
-          {!showEmailForm ? (
-            /* ── Welcome view ──────────────────────────── */
-            <Animated.View entering={FadeInUp.delay(350).duration(500)} style={s.welcomeActions}>
+              {/* Brand name */}
+              <Animated.Text
+                entering={FadeInDown.delay(200).duration(500)}
+                style={s.brandName}
+              >
+                MYPA
+              </Animated.Text>
+
+              {/* Rotating value prop */}
+              <Animated.Text style={[s.valueProp, valuePropAnimStyle]}>
+                {VALUE_PROPS[valuePropIndex]}
+              </Animated.Text>
+            </Animated.View>
+
+            {/* CTA section (bottom 40%) */}
+            <Animated.View entering={FadeInUp.delay(400).duration(600)} style={s.ctaSection}>
               {/* Continue with Apple — primary CTA */}
               <AppleAuthentication.AppleAuthenticationButton
                 buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
@@ -242,19 +314,40 @@ export function LoginScreenV2() {
                 <View style={s.dividerLine} />
               </View>
 
-              {/* Email sign-in */}
+              {/* Email text link */}
               <TouchableOpacity
-                style={s.emailToggle}
-                onPress={toggleEmailForm}
-                activeOpacity={0.7}
+                onPress={openEmailForm}
+                activeOpacity={0.6}
+                hitSlop={12}
               >
-                <Ionicons name="mail-outline" size={18} color={O.textAccent} />
-                <Text style={s.emailToggleText}>Continue with Email</Text>
+                <Text style={s.emailTextLink}>Continue with Email</Text>
               </TouchableOpacity>
+
+              {/* Legal */}
+              <Text style={s.legal}>
+                By continuing, you agree to our{' '}
+                <Text style={s.legalLink}>Terms of Service</Text>
+                {' '}and{' '}
+                <Text style={s.legalLink}>Privacy Policy</Text>
+              </Text>
             </Animated.View>
-          ) : (
-            /* ── Email / Password form ──────────────────── */
-            <Animated.View entering={FadeInUp.duration(400)} style={s.formCard}>
+          </View>
+        ) : (
+          /* ── Email form bottom sheet ─────────────────── */
+          <ScrollView
+            contentContainerStyle={s.formScrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <Animated.View
+              entering={SlideInDown.springify().damping(18).stiffness(140)}
+              style={s.formSheet}
+            >
+              {/* Back / dismiss chevron */}
+              <TouchableOpacity style={s.backBtn} onPress={closeEmailForm}>
+                <Ionicons name="chevron-down" size={24} color={O.textMuted} />
+              </TouchableOpacity>
+
               <Text style={s.formTitle}>
                 {isLogin ? 'Welcome Back' : 'Create Account'}
               </Text>
@@ -364,7 +457,7 @@ export function LoginScreenV2() {
                 disabled={loading}
               />
 
-              {/* Toggle login ↔ signup */}
+              {/* Toggle login / signup */}
               <TouchableOpacity style={s.toggleRow} onPress={toggleMode}>
                 <Text style={s.toggleText}>
                   {isLogin ? "Don't have an account? " : 'Already have an account? '}
@@ -373,26 +466,9 @@ export function LoginScreenV2() {
                   </Text>
                 </Text>
               </TouchableOpacity>
-
-              {/* Back */}
-              <TouchableOpacity style={s.backBtn} onPress={toggleEmailForm}>
-                <Ionicons name="arrow-back" size={16} color={O.textMuted} />
-                <Text style={s.backText}>Back</Text>
-              </TouchableOpacity>
             </Animated.View>
-          )}
-
-          {/* ── Legal ────────────────────────────────── */}
-          <Animated.Text
-            entering={FadeIn.delay(600).duration(500)}
-            style={s.legal}
-          >
-            By continuing, you agree to our{' '}
-            <Text style={s.legalLink}>Terms of Service</Text>
-            {' '}and{' '}
-            <Text style={s.legalLink}>Privacy Policy</Text>
-          </Animated.Text>
-        </ScrollView>
+          </ScrollView>
+        )}
       </SafeAreaView>
     </KeyboardAvoidingView>
   );
@@ -406,12 +482,6 @@ const s = StyleSheet.create({
   },
   safe: {
     flex: 1,
-  },
-  scroll: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 28,
-    paddingVertical: 36,
   },
 
   // ── Ambient glow ────────────────────────────────
@@ -439,13 +509,28 @@ const s = StyleSheet.create({
     right: -SW * 0.15,
   },
 
-  // ── Brand ───────────────────────────────────────
-  brand: {
+  // ── Welcome two-section layout ──────────────────
+  welcomeContainer: {
+    flex: 1,
+    paddingHorizontal: 28,
+  },
+  heroSection: {
+    flex: 0.6,
     alignItems: 'center',
-    marginBottom: 48,
+    justifyContent: 'center',
+  },
+  ctaSection: {
+    flex: 0.4,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    paddingTop: 8,
+  },
+
+  // ── Breathing orb ───────────────────────────────
+  orbContainer: {
+    marginBottom: 24,
   },
   logoOuter: {
-    marginBottom: 20,
     shadowColor: O.ringMid,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.5,
@@ -453,45 +538,42 @@ const s = StyleSheet.create({
     elevation: 10,
   },
   logoGradientRing: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
+    width: 140,
+    height: 140,
+    borderRadius: 70,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 3,
+    padding: 4,
   },
   logoInner: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
+    width: 132,
+    height: 132,
+    borderRadius: 66,
     backgroundColor: O.bgDeep,
     alignItems: 'center',
     justifyContent: 'center',
   },
   logoLetter: {
-    fontSize: 40,
+    fontSize: 56,
     fontWeight: '700',
     color: O.textAccent,
     marginTop: -2,
   },
   brandName: {
-    fontSize: 32,
-    fontWeight: '700',
+    fontSize: 36,
+    fontWeight: '800',
     color: O.textPrimary,
     letterSpacing: 1,
+    marginBottom: 12,
   },
-  brandTagline: {
+  valueProp: {
     fontSize: 16,
-    color: O.textMuted,
-    marginTop: 4,
+    color: O.textSecondary,
     letterSpacing: 0.3,
+    textAlign: 'center',
   },
 
-  // ── Welcome (no form) ──────────────────────────
-  welcomeActions: {
-    alignItems: 'center',
-    gap: 4,
-  },
+  // ── CTA section ─────────────────────────────────
   appleButton: {
     width: '100%',
     height: 54,
@@ -514,33 +596,33 @@ const s = StyleSheet.create({
     marginHorizontal: 14,
     fontWeight: '500',
   },
-  emailToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: O.cardBg,
-    borderWidth: 1,
-    borderColor: O.cardBorder,
-    borderRadius: 16,
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    width: '100%',
-    justifyContent: 'center',
-  },
-  emailToggleText: {
-    color: O.textSecondary,
+  emailTextLink: {
+    color: O.textAccent,
     fontSize: 16,
     fontWeight: '600',
+    textAlign: 'center',
   },
 
-  // ── Form card ───────────────────────────────────
-  formCard: {
+  // ── Form bottom sheet ───────────────────────────
+  formScrollContent: {
+    flexGrow: 1,
+    justifyContent: 'flex-end',
+  },
+  formSheet: {
     backgroundColor: O.cardBg,
     borderWidth: 1,
     borderColor: O.cardBorder,
-    borderRadius: 24,
-    paddingHorizontal: 22,
-    paddingVertical: 28,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    paddingBottom: 36,
+  },
+  backBtn: {
+    alignSelf: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 24,
+    marginBottom: 8,
   },
   formTitle: {
     fontSize: 24,
@@ -619,7 +701,7 @@ const s = StyleSheet.create({
     marginBottom: 4,
   },
 
-  // ── Toggle & back ──────────────────────────────
+  // ── Toggle ──────────────────────────────────────
   toggleRow: {
     marginTop: 16,
     alignItems: 'center',
@@ -633,26 +715,13 @@ const s = StyleSheet.create({
     color: O.textAccent,
     fontWeight: '700',
   },
-  backBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    marginTop: 14,
-    paddingVertical: 8,
-  },
-  backText: {
-    color: O.textMuted,
-    fontSize: 14,
-    fontWeight: '500',
-  },
 
   // ── Legal ───────────────────────────────────────
   legal: {
     fontSize: 11,
     color: O.textMuted,
     textAlign: 'center',
-    marginTop: 32,
+    marginTop: 24,
     lineHeight: 15,
     paddingHorizontal: 8,
   },
