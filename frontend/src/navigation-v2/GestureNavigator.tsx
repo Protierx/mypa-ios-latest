@@ -55,9 +55,13 @@ function GestureNavigatorContent() {
   // Animated values for screen positions
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
-  
+
   // Track if we're currently transitioning
   const isTransitioning = useSharedValue(false);
+
+  // Axis lock: 0=undecided, 1=horizontal, 2=vertical
+  // Determined on first significant movement, held for the entire gesture
+  const lockedAxis = useSharedValue(0);
 
   // Haptic feedback helper
   const triggerHaptic = useCallback(() => {
@@ -125,54 +129,84 @@ function GestureNavigatorContent() {
     clearNavigationRequest();
   }, [requestedNavigation, currentScreen, animateToScreen, openFocusModal, clearNavigationRequest]);
 
-  // Pan gesture handler
+  // Pan gesture handler — axis-locked grid navigation
   const panGesture = useMemo(() => Gesture.Pan()
     .activeOffsetX([-15, 15])
     .activeOffsetY([-15, 15])
+    .onBegin(() => {
+      lockedAxis.value = 0; // reset for each new gesture
+    })
     .onUpdate((event) => {
       if (isTransitioning.value) return;
-      
-      // Allow drag preview — higher ratio for seamless peek-through
+
+      // ── Axis lock: determine dominant direction on first significant movement ──
+      if (lockedAxis.value === 0) {
+        const absX = Math.abs(event.translationX);
+        const absY = Math.abs(event.translationY);
+        if (absX > 10 || absY > 10) {
+          lockedAxis.value = absX >= absY ? 1 : 2;
+        }
+        return; // don't translate until axis is determined
+      }
+
+      // ── Drag preview (only on the locked axis) ──
       if (currentScreen === 'ai_hub') {
-        translateX.value = event.translationX * 0.7;
-        translateY.value = event.translationY * 0.7;
+        if (lockedAxis.value === 1) {
+          // Horizontal: peek left/right screens
+          translateX.value = event.translationX * 0.7;
+        } else {
+          // Vertical: only preview downward for Profile peek
+          // Upward swipe opens Focus Modal (overlay, no grid position to preview)
+          // Negate Y: swipe down (positive translationY) → container shifts up (negative translateY)
+          if (event.translationY > 0) {
+            translateY.value = -event.translationY * 0.7;
+          }
+        }
       } else if (currentScreen === 'tasks') {
-        // Tasks is on the right: base translateX = -SCREEN_WIDTH, swipe right to return
+        // Only allow rightward swipe to return (translationX > 0)
         translateX.value = -SCREEN_WIDTH + Math.max(0, event.translationX * 0.5);
       } else if (currentScreen === 'social') {
-        // Social is on the left: base translateX = SCREEN_WIDTH, swipe left to return
+        // Only allow leftward swipe to return (translationX < 0)
         translateX.value = SCREEN_WIDTH + Math.min(0, event.translationX * 0.5);
       } else if (currentScreen === 'profile') {
-        // Swipe up to return — higher drag ratio for easier feel
-        translateY.value = -SCREEN_HEIGHT + event.translationY * 0.7;
+        // Swipe up to return: negate translationY so preview moves toward AI Hub
+        // translationY < 0 (finger up) → -translationY is positive → closer to 0
+        const returnProgress = Math.max(0, -event.translationY * 0.7);
+        translateY.value = -SCREEN_HEIGHT + returnProgress;
       }
     })
     .onEnd((event) => {
       if (isTransitioning.value) return;
-      
+
       const { translationX, translationY, velocityX, velocityY } = event;
-      
-      // From AI Hub - can go any direction
+
+      // From AI Hub — locked axis determines which thresholds to check
       if (currentScreen === 'ai_hub') {
-        if (translationX < -HORIZONTAL_THRESHOLD || velocityX < -500) {
-          // Swipe left → Tasks
-          animateToScreen('tasks');
-        } else if (translationX > HORIZONTAL_THRESHOLD || velocityX > 500) {
-          // Swipe right → Social
-          animateToScreen('social');
-        } else if (translationY < -VERTICAL_THRESHOLD || velocityY < -200) {
-          // Swipe up → Focus Modal (overlay)
-          animateToScreen('ai_hub'); // Snap back to center
-          runOnJS(openFocusModal)();
-        } else if (translationY > VERTICAL_THRESHOLD || velocityY > 200) {
-          // Swipe down → Profile
-          animateToScreen('profile');
+        if (lockedAxis.value === 1) {
+          // Horizontal axis locked → only left/right navigation
+          if (translationX < -HORIZONTAL_THRESHOLD || velocityX < -500) {
+            animateToScreen('tasks');
+          } else if (translationX > HORIZONTAL_THRESHOLD || velocityX > 500) {
+            animateToScreen('social');
+          } else {
+            animateToScreen('ai_hub');
+          }
+        } else if (lockedAxis.value === 2) {
+          // Vertical axis locked → only up (Focus) / down (Profile)
+          if (translationY < -VERTICAL_THRESHOLD || velocityY < -200) {
+            animateToScreen('ai_hub'); // snap back, Focus is a modal overlay
+            runOnJS(openFocusModal)();
+          } else if (translationY > VERTICAL_THRESHOLD || velocityY > 200) {
+            animateToScreen('profile');
+          } else {
+            animateToScreen('ai_hub');
+          }
         } else {
-          // Snap back
+          // Axis never determined (tiny gesture) → snap back
           animateToScreen('ai_hub');
         }
       }
-      // From Tasks (on the right) - swipe right to return
+      // From Tasks — swipe right to return
       else if (currentScreen === 'tasks') {
         if (translationX > HORIZONTAL_THRESHOLD || velocityX > 500) {
           animateToScreen('ai_hub');
@@ -180,7 +214,7 @@ function GestureNavigatorContent() {
           animateToScreen('tasks');
         }
       }
-      // From Social (on the left) - swipe left to return
+      // From Social — swipe left to return
       else if (currentScreen === 'social') {
         if (translationX < -HORIZONTAL_THRESHOLD || velocityX < -500) {
           animateToScreen('ai_hub');
@@ -188,7 +222,7 @@ function GestureNavigatorContent() {
           animateToScreen('social');
         }
       }
-      // From Profile - swipe up to return (easier threshold)
+      // From Profile — swipe up to return
       else if (currentScreen === 'profile') {
         if (translationY < -VERTICAL_THRESHOLD || velocityY < -200) {
           animateToScreen('ai_hub');
@@ -196,6 +230,8 @@ function GestureNavigatorContent() {
           animateToScreen('profile');
         }
       }
+
+      lockedAxis.value = 0;
     }), [currentScreen, animateToScreen, SCREEN_WIDTH, SCREEN_HEIGHT]);
 
   // Animated styles for the screen container
