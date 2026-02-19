@@ -4,7 +4,7 @@
  * The entire screen IS the AI — centered mic icon, full-screen tap to talk,
  * voice-reactive breathing animation. Minimal decoration.
  *
- * Layout: Top greeting → Center mic + hint → Bottom stats
+ * Layout: Top greeting → Center avatar + hint → Text input (when needed)
  * Skia scene renders behind when voice is active.
  * All colors from design tokens. Animations via Reanimated.
  */
@@ -49,8 +49,7 @@ import { useTasks } from '../../hooks/supabase/useTasks';
 import { useDailyBriefing } from '../../hooks/useDailyBriefing';
 import { eventLogger } from '../../services/eventLogger';
 import { bg, brand, text as textTokens, border as borderTokens, semantic } from '../../styles/colors';
-import { spacing, radius, shadows, typography, fontWeights } from '../../styles/theme';
-import supabaseApi from '../../services/supabaseApi';
+import { spacing, radius, typography, fontWeights } from '../../styles/theme';
 
 interface AIHubScreenProps {
   voiceState?: VoiceState;
@@ -71,7 +70,7 @@ function getTimeGreeting(): string {
 
 export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: externalAudioLevel }: AIHubScreenProps) {
   const { user } = useSupabaseAuth();
-  const { stats } = useUserModel();
+  useUserModel();
   const { tasks } = useTasks('today');
   useWindowDimensions(); // keep hook registered for layout reactivity
 
@@ -93,8 +92,6 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
   const amplitude = useVoiceAmplitude();
   const sceneState = useAssistantSceneState(voiceState);
   
-  const [greeting, setGreeting] = useState('');
-  const [isLoadingGreeting, setIsLoadingGreeting] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const { unreadCounts } = useNotifications();
   const [showPaywall, setShowPaywall] = useState(false);
@@ -129,35 +126,6 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
   // ---- State Icon Pulse Animation ----
   const iconScale = useSharedValue(1);
   const iconOpacity = useSharedValue(0.7);
-
-  // Get today's date
-  const today = new Date();
-  const dateString = today.toLocaleDateString('en-US', {
-    weekday: 'long',
-    month: 'short',
-    day: 'numeric',
-  });
-
-  // Fetch AI greeting on mount
-  useEffect(() => {
-    const fetchGreeting = async () => {
-      if (!user) return;
-      
-      setIsLoadingGreeting(true);
-      try {
-        const result = await supabaseApi.getGreeting();
-        if (result?.greeting) {
-          setGreeting(result.greeting);
-        }
-      } catch (error) {
-        console.log('Using default greeting');
-      } finally {
-        setIsLoadingGreeting(false);
-      }
-    };
-
-    fetchGreeting();
-  }, [user]);
 
   // ---- State Icon Breathing Animation ----
   useEffect(() => {
@@ -378,10 +346,6 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
 
   // Calculate task stats
   const pendingTasks = tasks.filter(t => t.status === 'pending').length;
-  const completedTasks = tasks.filter(t => t.status === 'completed').length;
-
-  const displayName = user?.name || user?.profile?.display_name || 'there';
-  const displayGreeting = greeting || `${getTimeGreeting()}, ${displayName}`;
 
   // Get state-specific hint text
   const getHintText = () => {
@@ -394,7 +358,7 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
     if (voiceState === 'error') return 'Something went wrong. Tap to retry.';
     if (voiceState === 'offline') return 'No connection. Type below.';
     if (isBriefingLoading) return 'Preparing briefing... tap to talk';
-    return 'Tap to talk to MYPA';
+    return 'Tap to talk';
   };
 
   // Get icon based on state
@@ -443,13 +407,16 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
                   entering={FadeInDown.duration(600).delay(100)}
                   style={styles.greetingText}
                 >
-                  {displayGreeting}
+                  {getTimeGreeting()}
                 </Animated.Text>
                 <Animated.Text
                   entering={FadeInDown.duration(600).delay(200)}
-                  style={styles.dateText}
+                  style={styles.subtitleText}
                 >
-                  {dateString}
+                  {pendingTasks > 0
+                    ? `${pendingTasks} task${pendingTasks !== 1 ? 's' : ''} today`
+                    : 'All clear today'}
+                  {(user?.currentStreak ?? 0) > 0 ? ` \u00B7 ${user?.currentStreak}-day streak` : ''}
                 </Animated.Text>
               </View>
               
@@ -549,6 +516,7 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
                   }
                   energy={audioLevel}
                   isActive={true}
+                  voiceState={voiceState === 'listening' || voiceState === 'processing' || voiceState === 'speaking' ? voiceState : 'idle'}
                 />
 
                 {/* Listening waveform */}
@@ -593,6 +561,7 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
                   expressionIndex={0}
                   energy={0}
                   isActive={false}
+                  voiceState="idle"
                 />
 
                 <Animated.Text
@@ -605,30 +574,8 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
             )}
           </View>
 
-          {/* ──── Bottom Section: Stats ──── */}
-          <View style={styles.bottomSection}>
-            {/* Stats */}
-            <Animated.View 
-              entering={FadeInUp.duration(500).delay(600)}
-              style={styles.statsContainer}
-            >
-              <View style={styles.statsRow}>
-                {pendingTasks > 0 && (
-                  <View style={styles.statItem}>
-                    <Text style={styles.statsText}>📋 {pendingTasks} task{pendingTasks !== 1 ? 's' : ''}</Text>
-                  </View>
-                )}
-                {(user?.currentStreak ?? 0) > 0 && (
-                  <View style={styles.statItem}>
-                    <Text style={styles.statsText}>🔥 {user?.currentStreak}-day streak</Text>
-                  </View>
-                )}
-                <View style={styles.statItem}>
-                  <Text style={styles.statsText}>⭐ Level {user?.level || 1}</Text>
-                </View>
-              </View>
-            </Animated.View>
-          </View>
+          {/* ──── Bottom Section ──── */}
+          <View style={styles.bottomSection} />
 
           {/* ──── Text Input (discreet / offline fallback) ──── */}
           {showTextInput && (
@@ -752,10 +699,11 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
     marginBottom: 2,
   },
-  dateText: {
+  subtitleText: {
     fontSize: typography.textSm,
     color: textTokens.tertiary,
     fontWeight: fontWeights.normal,
+    marginTop: 2,
   },
   notificationButton: {
     marginTop: spacing.xs,
@@ -819,31 +767,6 @@ const styles = StyleSheet.create({
   // ── Idle state — floating mic icon + hint ──
   idleCenterContainer: {
     alignItems: 'center',
-  },
-  stateIconContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.lg,
-  },
-  idleMicRing: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: brand.surface,
-    borderWidth: 2,
-    borderColor: brand.muted,
-  },
-  iconRing: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: brand.surface,
-    borderWidth: 2,
-    borderColor: brand.muted,
   },
   hintText: {
     fontSize: typography.textSm,
@@ -939,25 +862,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingBottom: spacing.sm,
   },
-  statsContainer: {
-    alignItems: 'center',
-    paddingBottom: spacing.xs,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-  },
-  statItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-  },
-  statsText: {
-    fontSize: typography.textXs,
-    color: textTokens.tertiary,
-  },
-
   // ──── Text Input Bar ────
   textInputContainer: {
     paddingHorizontal: spacing.md,

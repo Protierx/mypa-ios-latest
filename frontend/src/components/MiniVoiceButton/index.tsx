@@ -126,6 +126,7 @@ export function MiniVoiceButton({
         energy={voice.audioLevel || 0}
         isActive={isActive}
         onPress={handlePress}
+        voiceState={voice.voiceState === 'listening' || voice.voiceState === 'processing' || voice.voiceState === 'speaking' ? voice.voiceState : 'idle'}
       />
     </View>
   );
