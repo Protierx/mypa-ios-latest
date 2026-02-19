@@ -1,9 +1,9 @@
 /**
- * Circles — Premium iOS Social Screen v2
+ * Circles — Premium iOS Social Screen
  *
- * Design: Apple Health / Fitness+ inspired. Spacious, content-first.
- * Glassmorphic stat cards, immersive circle cards, native iOS feel.
- * Every function from v1 preserved — zero deletions.
+ * Design philosophy: Apple Fitness-inspired. Content-first layout.
+ * Circles are the hero. Actions are contextual, not front-and-centre.
+ * Swipe RIGHT from AI Hub to access.
  */
 
 import React, { useState, useCallback, useMemo } from 'react';
@@ -29,7 +29,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import Animated from 'react-native-reanimated';
-import { LinearGradient } from 'expo-linear-gradient';
 
 import { useCircles } from '../../hooks/supabase/useCircles';
 import { useChallenges } from '../../hooks/supabase/useChallenges';
@@ -51,14 +50,13 @@ import { useEnterAnimation, usePressFeedback, useStaggerIn } from '../../styles/
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const FREE_TIER_CIRCLE_LIMIT = 3;
-const CARD_WIDTH = SCREEN_WIDTH - 40;
 
 /* ────────────── Helpers ────────────── */
 
 /** Stacked avatar row — shows up to N initials, +overflow badge */
-function AvatarStack({ count, size = 24 }: { count: number; size?: number }) {
+function AvatarStack({ count, size = 22 }: { count: number; size?: number }) {
   const show = Math.min(count, 4);
-  const colours = ['#7C3AED', '#A78BFA', '#C4B5FD', '#6D28D9'];
+  const colours = [brand.primary, brand.secondary, brand.muted, brand.primary];
   return (
     <View style={s.avatarStackRow}>
       {Array.from({ length: show }).map((_, i) => (
@@ -69,11 +67,11 @@ function AvatarStack({ count, size = 24 }: { count: number; size?: number }) {
             {
               width: size, height: size, borderRadius: size / 2,
               backgroundColor: colours[i % colours.length],
-              marginLeft: i === 0 ? 0 : -(size * 0.3),
+              marginLeft: i === 0 ? 0 : -(size * 0.35),
             },
           ]}
         >
-          <Ionicons name="person" size={size * 0.45} color="#FFFFFF" />
+          <Ionicons name="person" size={size * 0.45} color={bg.primary} />
         </View>
       ))}
       {count > 4 && (
@@ -81,7 +79,7 @@ function AvatarStack({ count, size = 24 }: { count: number; size?: number }) {
           s.avatarOverflowBadge,
           {
             height: size, borderRadius: size / 2,
-            marginLeft: -(size * 0.2),
+            marginLeft: -(size * 0.25),
           },
         ]}>
           <Text style={[s.avatarOverflowText, { fontSize: size * 0.4 }]}>+{count - 4}</Text>
@@ -267,12 +265,12 @@ export function SocialViewScreen() {
    * RENDER HELPERS
    * ══════════════════════════════════════════════════════════════ */
 
-  /* ── Summary Stats (glassmorphic cards) ── */
+  /* ── Summary Tabs (backed by circles_home_counts RPC) ── */
   const renderSummaryTabs = () => {
     if (circlesHome.length === 0) return null;
     const tabs = [
-      { value: counts.circles_count, label: 'Circles', icon: 'people', gradient: ['#7C3AED', '#A78BFA'] as const, onPress: () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowAllCircles(true); } },
-      { value: counts.unique_members_count, label: 'Members', icon: 'person-circle', gradient: ['#6D28D9', '#8B5CF6'] as const, onPress: async () => {
+      { value: counts.circles_count, label: 'Circles', icon: 'people', color: brand.primary, onPress: () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowAllCircles(true); } },
+      { value: counts.unique_members_count, label: 'Members', icon: 'person', color: brand.secondary, onPress: async () => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         setShowAllMembers(true);
         setMembersLoading(true);
@@ -282,49 +280,44 @@ export function SocialViewScreen() {
         } catch (e) { console.error('[Members] fetch error:', e); }
         finally { setMembersLoading(false); }
       } },
-      { value: counts.active_challenges_count, label: 'Active', icon: 'flame', gradient: ['#F59E0B', '#F97316'] as const, onPress: () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowActiveChallenges(true); } },
+      { value: counts.active_challenges_count, label: 'Active', icon: 'trophy', color: semantic.warning, onPress: () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowActiveChallenges(true); } },
     ];
     return (
-      <Animated.View style={[s.summaryCardsRow, tabsAnim]}>
-        {tabs.map((tab) => (
+      <Animated.View style={[s.summaryTabsContainer, tabsAnim]}>
+        {tabs.map((tab, idx) => (
           <TouchableOpacity
             key={tab.label}
-            style={s.summaryCard}
+            style={[
+              s.summaryTab,
+              idx > 0 && s.summaryTabBorder,
+            ]}
             onPress={tab.onPress}
-            activeOpacity={0.7}
+            activeOpacity={0.6}
             accessibilityRole="button"
             accessibilityLabel={`${tab.value} ${tab.label}, tap to view`}
           >
-            <View style={s.summaryCardGradientWrap}>
-              <LinearGradient
-                colors={tab.gradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={s.summaryCardGradient}
-              >
-                <Ionicons name={tab.icon as any} size={18} color="rgba(255,255,255,0.9)" />
-              </LinearGradient>
-            </View>
-            <Text style={s.summaryCardValue}>{tab.value}</Text>
-            <Text style={s.summaryCardLabel}>{tab.label}</Text>
+            <Ionicons name={tab.icon as any} size={16} color={tab.color} style={s.summaryTabIcon} />
+            <Text style={s.summaryTabValue}>{tab.value}</Text>
+            <Text style={[s.summaryTabLabel, { color: tab.color }]}>{tab.label}</Text>
+            <Ionicons name="chevron-down" size={10} color={tab.color} style={s.summaryTabChevron} />
           </TouchableOpacity>
         ))}
       </Animated.View>
     );
   };
 
-  /* ── Search Bar (Apple-native style) ── */
+  /* ── Search Bar (iOS WhatsApp-style) ── */
   const renderSearchBar = () => {
     if (circlesHome.length === 0) return null;
     return (
       <View style={s.searchBarContainer}>
         <View style={s.searchBarInner}>
-          <Ionicons name="search" size={17} color={textTokens.tertiary} style={s.searchIcon} />
+          <Ionicons name="search" size={16} color={textTokens.tertiary} style={s.searchIcon} />
           <TextInput
             value={searchQuery}
             onChangeText={setSearchQuery}
-            placeholder="Search circles..."
-            placeholderTextColor={textTokens.disabled}
+            placeholder="Search circles"
+            placeholderTextColor={textTokens.tertiary}
             style={s.searchInput}
             returnKeyType="search"
             autoCorrect={false}
@@ -343,99 +336,95 @@ export function SocialViewScreen() {
     );
   };
 
-  /* ── Circle Card (premium immersive design) ── */
+  /* ── Circle Card (rich, immersive — backed by circles_home_all RPC) ── */
   const renderCircleCard = (circle: CircleHomeItem, index: number) => {
     const roleBadge = circle.role === 'owner' ? 'Owner' : circle.role === 'admin' ? 'Admin' : 'Member';
-    const roleColor = circle.role === 'owner' ? '#F59E0B' : circle.role === 'admin' ? brand.primary : textTokens.tertiary;
-    const roleIcon = circle.role === 'owner' ? 'shield-checkmark' : circle.role === 'admin' ? 'star' : 'person';
-    const showRoleBadge = true;
-    const isCheckin = activeFilter === 'checkin' && needsCheckIn(circle.circle_id);
-    const isNewPosts = activeFilter === 'newposts' && hasNewPosts(circle.circle_id);
+    const roleColor = circle.role === 'owner' ? semantic.warning : circle.role === 'admin' ? brand.primary : textTokens.tertiary;
+    const showRoleBadge = true; // always show role per PRD
 
     return (
       <TouchableOpacity
         key={circle.circle_id}
         style={s.circleCard}
         onPress={() => openCircle(circle.circle_id)}
-        activeOpacity={0.65}
+        activeOpacity={0.7}
         accessibilityRole="button"
         accessibilityLabel={`${circle.circle_name}, ${roleBadge}, ${circle.member_count} members`}
       >
+        {/* Top colour accent bar */}
+        <View style={s.circleAccentBar} />
+
         <View style={s.circleCardInner}>
-          {/* Row 1: Large Emoji + Title block */}
-          <View style={s.circleTopRow}>
-            <View style={s.circleEmojiWrap}>
+          {/* Row 1: Emoji + Name + Role + Chevron */}
+          <View style={s.circleRow}>
+            <View style={s.circleEmoji}>
               <Text style={s.circleEmojiText}>{circle.circle_emoji || '👥'}</Text>
             </View>
-            <View style={s.circleInfoBlock}>
-              <Text style={s.circleName} numberOfLines={1}>{circle.circle_name}</Text>
-              <View style={s.circleMetaRow}>
+            <View style={s.circleNameContainer}>
+              <View style={s.circleNameRow}>
+                <Text style={s.circleName} numberOfLines={1}>{circle.circle_name}</Text>
+                {showRoleBadge && (
+                  <View style={[s.roleBadge, { backgroundColor: `${roleColor}14` }]}>
+                    <Text style={[s.roleBadgeText, { color: roleColor }]}>{roleBadge}</Text>
+                  </View>
+                )}
+              </View>
+              <View style={s.circleMemberRow}>
                 <AvatarStack count={circle.member_count} size={20} />
-                <Text style={s.circleMemberCount}>
+                <Text style={s.circleMemberText}>
                   {circle.member_count} member{circle.member_count !== 1 ? 's' : ''}
                 </Text>
               </View>
             </View>
-            <View style={s.circleChevronWrap}>
-              <Ionicons name="chevron-forward" size={16} color={textTokens.disabled} />
-            </View>
+            <Ionicons name="chevron-forward" size={18} color={textTokens.disabled} />
           </View>
 
-          {/* Description */}
+          {/* Description if exists */}
           {circle.circle_description ? (
             <Text numberOfLines={2} style={s.circleDescription}>
               {circle.circle_description}
             </Text>
           ) : null}
 
-          {/* Bottom row: badges */}
-          <View style={s.circleBottomRow}>
-            {/* Role badge */}
-            {showRoleBadge && (
-              <View style={[s.roleBadge, { backgroundColor: `${roleColor}12` }]}>
-                <Ionicons name={roleIcon as any} size={10} color={roleColor} />
-                <Text style={[s.roleBadgeText, { color: roleColor }]}>{roleBadge}</Text>
-              </View>
-            )}
-
-            {/* Active challenges */}
-            {circle.active_challenges_count > 0 && (
+          {/* Active challenges pill (hide if 0) */}
+          {circle.active_challenges_count > 0 && (
+            <View style={s.challengePillContainer}>
               <View style={s.challengePill}>
-                <Ionicons name="flame" size={11} color="#F59E0B" />
+                <Ionicons name="trophy" size={12} color={semantic.warning} />
                 <Text style={s.challengePillText}>
-                  {circle.active_challenges_count} challenge{circle.active_challenges_count !== 1 ? 's' : ''}
+                  {circle.active_challenges_count} active challenge{circle.active_challenges_count !== 1 ? 's' : ''}
                 </Text>
               </View>
-            )}
+            </View>
+          )}
 
-            {/* New posts indicator */}
-            {isNewPosts && (
-              <View style={s.newPostsPill}>
-                <View style={s.newPostsDot} />
-                <Text style={s.newPostsPillText}>
-                  {newPostsCount(circle.circle_id)} new
-                </Text>
-              </View>
-            )}
-          </View>
+          {/* New posts indicator */}
+          {activeFilter === 'newposts' && hasNewPosts(circle.circle_id) && (
+            <View style={s.newPostsPromptRow}>
+              <Ionicons name="chatbubble" size={13} color={brand.primary} />
+              <Text style={s.newPostsPromptText}>
+                {newPostsCount(circle.circle_id)} new post{newPostsCount(circle.circle_id) !== 1 ? 's' : ''}
+              </Text>
+            </View>
+          )}
 
-          {/* Needs check-in CTA */}
-          {isCheckin && (
-            <View style={s.checkinCtaRow}>
-              <View style={s.checkinCtaLeft}>
-                <View style={s.checkinPulse} />
-                <Text style={s.checkinCtaText}>You haven't checked in today</Text>
+          {/* Needs check-in status + CTA */}
+          {activeFilter === 'checkin' && needsCheckIn(circle.circle_id) && (
+            <View style={s.checkinPromptRow}>
+              <View style={s.checkinPromptLeft}>
+                <Ionicons name="time-outline" size={13} color={semantic.warning} />
+                <Text style={s.checkinPromptText}>You haven't checked in today</Text>
               </View>
               <TouchableOpacity
-                style={s.checkinCtaBtn}
+                style={s.checkinPillCta}
                 onPress={(e) => { e.stopPropagation?.(); openCircleToCheckin(circle.circle_id); }}
                 activeOpacity={0.75}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 accessibilityRole="button"
                 accessibilityLabel={`Check in to ${circle.circle_name}`}
               >
-                <Ionicons name="hand-left" size={12} color="#FFFFFF" />
-                <Text style={s.checkinCtaBtnText}>Check In</Text>
+                <Ionicons name="hand-left" size={11} color="#FFFFFF" />
+                <Text style={s.checkinPillCtaText}>Check In</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -451,30 +440,25 @@ export function SocialViewScreen() {
   /* ── Premium Empty State ── */
   const renderEmptyState = () => (
     <View style={s.emptyStateContainer}>
-      {/* Decorative illustration */}
-      <View style={s.emptyIllustration}>
-        <LinearGradient
-          colors={['#F5F0FF', '#EDE5FF', '#F5F0FF']}
-          style={s.emptyGradientOrb}
-        >
-          <View style={s.emptyIconRing}>
-            <Ionicons name="people" size={36} color={brand.primary} />
-          </View>
-        </LinearGradient>
-        <View style={s.emptyFloatingBadge1}>
-          <Ionicons name="trophy" size={16} color="#F59E0B" />
+      {/* Decorative circle cluster */}
+      <View style={s.decorativeCluster}>
+        <View style={s.decorativeLargeCircle} />
+        <View style={s.decorativePeopleCircle}>
+          <Ionicons name="people" size={26} color={brand.primary} />
         </View>
-        <View style={s.emptyFloatingBadge2}>
-          <Ionicons name="checkmark-circle" size={16} color={semantic.success} />
+        <View style={s.decorativeTrophyCircle}>
+          <Ionicons name="trophy" size={18} color={semantic.warning} />
         </View>
-        <View style={s.emptyFloatingBadge3}>
-          <Ionicons name="chatbubbles" size={14} color={brand.secondary} />
+        <View style={s.decorativeCheckCircle}>
+          <Ionicons name="checkmark" size={14} color={semantic.success} />
         </View>
       </View>
 
-      <Text style={s.emptyTitle}>Better together</Text>
+      <Text style={s.emptyTitle}>
+        Better together
+      </Text>
       <Text style={s.emptySubtitle}>
-        Create a circle to stay accountable with{'\n'}friends, family, or teammates.
+        Create a circle to stay accountable with friends, family, or teammates. Challenge each other and grow.
       </Text>
 
       <TouchableOpacity
@@ -482,15 +466,7 @@ export function SocialViewScreen() {
         onPress={handleCreateCircle}
         activeOpacity={0.85}
       >
-        <LinearGradient
-          colors={['#7C3AED', '#6D28D9']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={s.createBtnGradient}
-        >
-          <Ionicons name="add-circle" size={20} color="#FFFFFF" />
-          <Text style={s.createFirstCircleBtnText}>Create Your First Circle</Text>
-        </LinearGradient>
+        <Text style={s.createFirstCircleBtnText}>Create Your First Circle</Text>
       </TouchableOpacity>
 
       <TouchableOpacity
@@ -498,7 +474,6 @@ export function SocialViewScreen() {
         onPress={handlePlusButton}
         activeOpacity={0.7}
       >
-        <Ionicons name="key-outline" size={16} color={brand.primary} />
         <Text style={s.inviteCodeBtnText}>I have an invite code</Text>
       </TouchableOpacity>
     </View>
@@ -516,59 +491,54 @@ export function SocialViewScreen() {
       <StatusBar barStyle="dark-content" />
       <SafeAreaView style={s.flex1} edges={['top']}>
 
-        {/* ── Hero Header ── */}
+        {/* ── Header ── */}
         <Animated.View style={[s.headerContainer, headerAnim]}>
-          <View style={s.headerTopRow}>
-            <View>
-              <Text style={s.headerTitle}>Circles</Text>
-              <Text style={s.headerSubtitle}>
-                {circlesHome.length > 0
-                  ? new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
-                  : 'Accountability with your people'}
-              </Text>
-            </View>
+          <View style={s.headerRow}>
+            <Text style={s.headerTitle}>Circles</Text>
             <View style={s.headerActions}>
+              {/* + button — Create or Join */}
               <TouchableWithoutFeedback
                 onPressIn={plusPressHandlers.onPressIn}
                 onPressOut={plusPressHandlers.onPressOut}
                 onPress={handlePlusButton}
               >
                 <Animated.View style={[s.plusButton, plusPressStyle]}>
-                  <LinearGradient
-                    colors={['#7C3AED', '#6D28D9']}
-                    style={s.plusButtonGradient}
-                  >
-                    <Ionicons name="add" size={26} color="#FFFFFF" />
-                  </LinearGradient>
+                  <Ionicons name="add" size={28} color="#FFFFFF" />
                 </Animated.View>
               </TouchableWithoutFeedback>
-              <MiniVoiceButton position="top-right" screenContext="social" size={46} style={s.voiceButtonInline} />
+              <MiniVoiceButton position="top-right" screenContext="social" size={50} style={s.voiceButtonInline} />
             </View>
           </View>
+          <Text style={s.headerSubtitle}>
+            {circlesHome.length > 0
+              ? new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+              : 'Accountability with your people'}
+          </Text>
         </Animated.View>
 
         {/* ── Body ── */}
         {loading && !refreshing ? (
           <ScrollView style={s.flex1} contentContainerStyle={s.contentScrollContainer}>
             {/* Skeleton stat cards */}
-            <View style={[s.summaryCardsRow, { opacity: 0.4 }]}>
+            <View style={[s.summaryTabsContainer, { opacity: 0.5 }]}>
               {[1, 2, 3].map((i) => (
-                <View key={i} style={s.summaryCard}>
-                  <View style={{ width: 40, height: 40, borderRadius: 14, backgroundColor: borderTokens.primary, marginBottom: 10 }} />
-                  <View style={{ width: 28, height: 22, borderRadius: 6, backgroundColor: borderTokens.primary, marginBottom: 6 }} />
-                  <View style={{ width: 48, height: 10, borderRadius: 4, backgroundColor: borderTokens.primary }} />
+                <View key={i} style={[s.summaryTab, i > 1 && s.summaryTabBorder]}>
+                  <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: borderTokens.primary, marginBottom: 5 }} />
+                  <View style={{ width: 28, height: 20, borderRadius: 4, backgroundColor: borderTokens.primary, marginBottom: 3 }} />
+                  <View style={{ width: 44, height: 10, borderRadius: 3, backgroundColor: borderTokens.primary }} />
                 </View>
               ))}
             </View>
             {/* Skeleton circle cards */}
             {[1, 2, 3].map((i) => (
-              <View key={i} style={[s.circleCard, { opacity: 0.35 }]}>
+              <View key={i} style={[s.circleCard, { opacity: 0.45 }]}>
+                <View style={s.circleAccentBar} />
                 <View style={s.circleCardInner}>
-                  <View style={s.circleTopRow}>
-                    <View style={[s.circleEmojiWrap, { backgroundColor: borderTokens.primary }]} />
-                    <View style={[s.circleInfoBlock, { gap: 10 }]}>
-                      <View style={{ width: 130, height: 16, borderRadius: 6, backgroundColor: borderTokens.primary }} />
-                      <View style={{ width: 90, height: 12, borderRadius: 4, backgroundColor: borderTokens.primary }} />
+                  <View style={s.circleRow}>
+                    <View style={[s.circleEmoji, { backgroundColor: borderTokens.primary }]} />
+                    <View style={[s.circleNameContainer, { gap: 8 }]}>
+                      <View style={{ width: 120, height: 14, borderRadius: 4, backgroundColor: borderTokens.primary }} />
+                      <View style={{ width: 80, height: 10, borderRadius: 3, backgroundColor: borderTokens.primary }} />
                     </View>
                   </View>
                 </View>
@@ -577,13 +547,15 @@ export function SocialViewScreen() {
           </ScrollView>
         ) : hasError ? (
           <View style={s.errorContainer}>
-            <View style={s.errorIconWrap}>
-              <Ionicons name="cloud-offline-outline" size={36} color={textTokens.disabled} />
-            </View>
+            <Ionicons name="cloud-offline-outline" size={48} color={textTokens.disabled} />
             <Text style={s.errorTitle}>Couldn't load circles</Text>
             <Text style={s.errorSubtitle}>Check your connection and try again.</Text>
-            <TouchableOpacity style={s.retryBtn} onPress={handleRefresh} activeOpacity={0.7}>
-              <Ionicons name="refresh" size={16} color="#FFFFFF" />
+            <TouchableOpacity
+              style={s.retryBtn}
+              onPress={handleRefresh}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="refresh" size={18} color={brand.primary} />
               <Text style={s.retryBtnText}>Retry</Text>
             </TouchableOpacity>
           </View>
@@ -604,90 +576,146 @@ export function SocialViewScreen() {
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            {/* Summary Stats */}
+            {/* Summary Tabs */}
             {renderSummaryTabs()}
 
-            {/* Search */}
+            {/* Search Bar */}
             {renderSearchBar()}
 
-            {/* Filter Bar — iOS segmented style */}
+            {/* Filter Tabs — All (default) | Needs Check-in | New Posts */}
             {circlesHome.length > 0 && (
-              <View style={s.filterBarWrap}>
-                <View style={s.filterBar}>
-                  {/* All */}
-                  <TouchableOpacity
-                    style={[s.filterSegment, activeFilter === 'all' && s.filterSegmentActive]}
-                    onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setActiveFilter('all'); }}
-                    activeOpacity={0.7}
-                    accessibilityRole="tab"
-                    accessibilityLabel="All circles"
-                    accessibilityState={{ selected: activeFilter === 'all' }}
-                  >
-                    <Text style={[s.filterSegmentText, activeFilter === 'all' && s.filterSegmentTextActive]}>All</Text>
-                  </TouchableOpacity>
+              <View style={s.filterChipRow}>
+                {/* All tab */}
+                <TouchableOpacity
+                  style={[
+                    s.filterChip,
+                    activeFilter === 'all' && s.filterChipActive,
+                  ]}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setActiveFilter('all');
+                  }}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+                  accessibilityRole="tab"
+                  accessibilityLabel="All circles"
+                  accessibilityState={{ selected: activeFilter === 'all' }}
+                >
+                  <Ionicons
+                    name="people"
+                    size={14}
+                    color={activeFilter === 'all' ? '#FFFFFF' : brand.primary}
+                  />
+                  <Text style={[
+                    s.filterChipText,
+                    activeFilter === 'all' && s.filterChipTextActive,
+                  ]}>
+                    All
+                  </Text>
+                </TouchableOpacity>
 
-                  {/* Needs Check-in */}
-                  <TouchableOpacity
-                    style={[s.filterSegment, activeFilter === 'checkin' && s.filterSegmentActive]}
-                    onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setActiveFilter('checkin'); }}
-                    activeOpacity={0.7}
-                    accessibilityRole="tab"
-                    accessibilityLabel="Needs Check-in"
-                    accessibilityState={{ selected: activeFilter === 'checkin' }}
-                  >
-                    <Text style={[s.filterSegmentText, activeFilter === 'checkin' && s.filterSegmentTextActive]}>Check-in</Text>
-                  </TouchableOpacity>
+                {/* Needs Check-in tab */}
+                <TouchableOpacity
+                  style={[
+                    s.filterChip,
+                    activeFilter === 'checkin' && s.filterChipActive,
+                  ]}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setActiveFilter('checkin');
+                  }}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+                  accessibilityRole="tab"
+                  accessibilityLabel="Needs Check-in"
+                  accessibilityState={{ selected: activeFilter === 'checkin' }}
+                >
+                  <Ionicons
+                    name={activeFilter === 'checkin' ? 'checkmark-circle' : 'hand-left-outline'}
+                    size={14}
+                    color={activeFilter === 'checkin' ? '#FFFFFF' : brand.primary}
+                  />
+                  <Text style={[
+                    s.filterChipText,
+                    activeFilter === 'checkin' && s.filterChipTextActive,
+                  ]}>
+                    Needs Check-in
+                  </Text>
+                </TouchableOpacity>
 
-                  {/* New Posts */}
-                  <TouchableOpacity
-                    style={[s.filterSegment, activeFilter === 'newposts' && s.filterSegmentActive]}
-                    onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setActiveFilter('newposts'); refreshNewPosts(); }}
-                    activeOpacity={0.7}
-                    accessibilityRole="tab"
-                    accessibilityLabel={`New Posts${newPostsTotalCount > 0 ? `, ${newPostsTotalCount} circles` : ''}`}
-                    accessibilityState={{ selected: activeFilter === 'newposts' }}
-                  >
-                    <Text style={[s.filterSegmentText, activeFilter === 'newposts' && s.filterSegmentTextActive]}>New Posts</Text>
-                    {newPostsTotalCount > 0 && activeFilter !== 'newposts' && (
-                      <View style={s.filterBadge}>
-                        <Text style={s.filterBadgeText}>{newPostsTotalCount > 9 ? '9+' : newPostsTotalCount}</Text>
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                </View>
+                {/* New Posts tab */}
+                <TouchableOpacity
+                  style={[
+                    s.filterChip,
+                    activeFilter === 'newposts' && s.filterChipActive,
+                  ]}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setActiveFilter('newposts');
+                    refreshNewPosts();
+                  }}
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+                  accessibilityRole="tab"
+                  accessibilityLabel={`New Posts${newPostsTotalCount > 0 ? `, ${newPostsTotalCount} circles` : ''}`}
+                  accessibilityState={{ selected: activeFilter === 'newposts' }}
+                >
+                  <Ionicons
+                    name={activeFilter === 'newposts' ? 'chatbubbles' : 'chatbubbles-outline'}
+                    size={14}
+                    color={activeFilter === 'newposts' ? '#FFFFFF' : brand.primary}
+                  />
+                  <Text style={[
+                    s.filterChipText,
+                    activeFilter === 'newposts' && s.filterChipTextActive,
+                  ]}>
+                    New Posts
+                  </Text>
+                  {newPostsTotalCount > 0 && activeFilter !== 'newposts' && (
+                    <View style={s.newPostsBadge}>
+                      <Text style={s.newPostsBadgeText}>{newPostsTotalCount > 9 ? '9+' : newPostsTotalCount}</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
               </View>
             )}
 
-            {/* Circle Cards */}
+            {/* Circles */}
             {circlesHome.length > 0 && (
-              <View style={s.circlesSectionWrap}>
+              <View style={s.circlesSectionMargin}>
+                <View style={s.sectionHeaderRow}>
+                  <Text style={s.sectionHeaderText}>
+                    Your Circles
+                  </Text>
+                </View>
                 {filteredCircles.length > 0 ? (
                   filteredCircles.map((c, i) => renderCircleCard(c, i))
                 ) : activeFilter === 'checkin' ? (
-                  <View style={s.filterEmptyContainer}>
-                    <View style={[s.filterEmptyIcon, { backgroundColor: semantic.successLight }]}>
-                      <Ionicons name="checkmark-circle" size={32} color={semantic.success} />
+                  <View style={s.checkinEmptyContainer}>
+                    <View style={s.checkinEmptyIcon}>
+                      <Ionicons name="checkmark-circle" size={36} color={semantic.success} />
                     </View>
-                    <Text style={s.filterEmptyTitle}>All checked in</Text>
-                    <Text style={s.filterEmptySubtitle}>You're done for today — great job!</Text>
+                    <Text style={s.checkinEmptyTitle}>All checked in</Text>
+                    <Text style={s.checkinEmptySubtitle}>You're done for today.</Text>
                   </View>
                 ) : activeFilter === 'newposts' ? (
-                  <View style={s.filterEmptyContainer}>
-                    <View style={[s.filterEmptyIcon, { backgroundColor: brand.muted }]}>
-                      <Ionicons name="chatbubbles" size={32} color={brand.primary} />
+                  <View style={s.checkinEmptyContainer}>
+                    <View style={s.checkinEmptyIcon}>
+                      <Ionicons name="chatbubbles" size={36} color={brand.primary} />
                     </View>
-                    <Text style={s.filterEmptyTitle}>No new posts</Text>
-                    <Text style={s.filterEmptySubtitle}>You're all caught up.</Text>
+                    <Text style={s.checkinEmptyTitle}>No new posts</Text>
+                    <Text style={s.checkinEmptySubtitle}>You're all caught up.</Text>
                   </View>
                 ) : (
-                  <View style={s.filterEmptyContainer}>
-                    <Ionicons name="search-outline" size={28} color={textTokens.disabled} />
-                    <Text style={s.filterEmptyTitle}>No circles found</Text>
-                    <Text style={s.filterEmptySubtitle}>Try a different search</Text>
+                  <View style={s.noResultsContainer}>
+                    <Ionicons name="search-outline" size={28} color={textTokens.disabled} style={s.noResultsIcon} />
+                    <Text style={s.noResultsTitle}>No circles found</Text>
+                    <Text style={s.noResultsSubtitle}>Try a different search</Text>
                   </View>
                 )}
               </View>
             )}
+
           </ScrollView>
         )}
       </SafeAreaView>
@@ -1041,14 +1069,14 @@ export function SocialViewScreen() {
   );
 }
 
-/* ────────────── Styles — Premium iOS v2 ────────────── */
+/* ────────────── Styles ────────────── */
 const s = StyleSheet.create({
-  /* ── Layout helpers ── */
+  /* Layout helpers */
   flex1: { flex: 1 },
   scrollGrow: { flexGrow: 1 },
   root: { flex: 1, backgroundColor: bg.primary },
 
-  /* ── AvatarStack ── */
+  /* AvatarStack */
   avatarStackRow: { flexDirection: 'row', alignItems: 'center' },
   avatarCircle: {
     borderWidth: 2,
@@ -1066,147 +1094,264 @@ const s = StyleSheet.create({
   },
   avatarOverflowText: { fontWeight: '700', color: textTokens.tertiary },
 
-  /* ── Hero Header ── */
-  headerContainer: {
-    paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 14,
-  },
-  headerTopRow: {
+  /* Summary Tabs */
+  summaryTabsContainer: {
+    marginHorizontal: 16,
+    marginBottom: 18,
+    backgroundColor: brand.muted,
+    borderRadius: 20,
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-  },
-  headerTitle: {
-    fontSize: 34,
-    fontWeight: '800',
-    color: textTokens.primary,
-    letterSpacing: -0.7,
-  },
-  headerSubtitle: {
-    fontSize: 13,
-    color: textTokens.secondary,
-    marginTop: 2,
-    fontWeight: '500',
-    letterSpacing: 0.1,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginTop: 2,
-  },
-  plusButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    overflow: 'hidden',
-  },
-  plusButtonGradient: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  voiceButtonInline: { position: 'relative', top: 0, right: 0 },
-
-  /* ── Summary Stat Cards (glassmorphic) ── */
-  summaryCardsRow: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    marginBottom: 20,
-    gap: 10,
-  },
-  summaryCard: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 8,
-    backgroundColor: bg.card,
-    borderRadius: 18,
     ...shadows.sm,
-    borderWidth: 1,
-    borderColor: borderTokens.secondary,
+    overflow: 'hidden',
+    paddingVertical: 2,
+    paddingHorizontal: 2,
   },
-  summaryCardGradientWrap: { marginBottom: 10 },
-  summaryCardGradient: {
-    width: 40,
-    height: 40,
-    borderRadius: 14,
+  summaryTab: { flex: 1, alignItems: 'center', paddingVertical: 14, borderRadius: 18, backgroundColor: bg.card, marginHorizontal: 2 },
+  summaryTabBorder: { borderLeftWidth: 0 },
+  summaryTabIcon: { marginBottom: 5, opacity: 0.9 },
+  summaryTabValue: { fontSize: 20, fontWeight: '800', color: textTokens.primary, letterSpacing: -0.4 },
+  summaryTabLabel: { fontSize: 10, fontWeight: '700', marginTop: 3, letterSpacing: 0.4, textTransform: 'uppercase' },
+  summaryTabChevron: { marginTop: 3, opacity: 0.5 },
+
+  /* Filter Chips */
+  filterChipRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    marginBottom: 14,
+    gap: 8,
+  },
+  filterChip: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: brand.muted,
+    borderWidth: 1.5,
+    borderColor: brand.tertiary,
   },
-  summaryCardValue: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: textTokens.primary,
-    letterSpacing: -0.4,
+  filterChipActive: {
+    backgroundColor: brand.primary,
+    borderColor: brand.primary,
   },
-  summaryCardLabel: {
-    fontSize: 11,
+  filterChipText: {
+    fontSize: 13,
     fontWeight: '600',
-    color: textTokens.tertiary,
-    marginTop: 2,
-    letterSpacing: 0.3,
-    textTransform: 'uppercase',
+    color: brand.primary,
+  },
+  filterChipTextActive: {
+    color: '#FFFFFF',
   },
 
-  /* ── Search Bar (Apple-native) ── */
-  searchBarContainer: { marginHorizontal: 20, marginBottom: 16 },
+  /* Search Bar */
+  searchBarContainer: { marginHorizontal: 16, marginBottom: 20 },
   searchBarInner: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: bg.secondary,
-    borderRadius: 12,
+    borderRadius: radius.md,
     paddingHorizontal: 14,
     height: 42,
     borderWidth: 1,
     borderColor: borderTokens.secondary,
   },
-  searchIcon: { marginRight: 8, opacity: 0.55 },
-  searchInput: {
-    flex: 1,
-    fontSize: 15,
-    fontWeight: '500',
-    color: textTokens.primary,
-    paddingVertical: 0,
-  },
+  searchIcon: { marginRight: 8, opacity: 0.6 },
+  searchInput: { flex: 1, fontSize: 15, fontWeight: '500', color: textTokens.primary, paddingVertical: 0 },
 
-  /* ── Filter Bar (iOS segmented control) ── */
-  filterBarWrap: {
-    paddingHorizontal: 20,
-    marginBottom: 18,
+  /* Circle Card */
+  circleCard: {
+    marginHorizontal: 16,
+    marginBottom: 14,
+    backgroundColor: bg.card,
+    borderRadius: radius.lg,
+    ...shadows.sm,
+    overflow: 'hidden',
+    borderLeftWidth: 4,
+    borderLeftColor: brand.primary,
   },
-  filterBar: {
-    flexDirection: 'row',
-    backgroundColor: bg.secondary,
-    borderRadius: 12,
-    padding: 3,
-  },
-  filterSegment: {
-    flex: 1,
-    flexDirection: 'row',
+  circleAccentBar: { height: 0, backgroundColor: 'transparent', opacity: 0 },
+  circleCardInner: { padding: 18 },
+  circleRow: { flexDirection: 'row', alignItems: 'center' },
+  circleEmoji: {
+    width: 50,
+    height: 50,
+    borderRadius: radius.lg,
+    backgroundColor: brand.muted,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
-    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: brand.tertiary,
+  },
+  circleEmojiText: { fontSize: 24 },
+  circleNameContainer: { flex: 1, marginLeft: 14 },
+  circleNameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  circleName: { fontSize: 17, fontWeight: '700', color: textTokens.primary, flexShrink: 1 },
+  roleBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: brand.muted, borderWidth: 1, borderColor: brand.tertiary },
+  roleBadgeText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.4, textTransform: 'uppercase', color: brand.primary },
+  circleMemberRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6, gap: 10 },
+  circleMemberText: { fontSize: 12.5, color: textTokens.secondary, fontWeight: '600' },
+  circleDescription: { fontSize: 13.5, color: textTokens.tertiary, lineHeight: 19, marginTop: 12, marginLeft: 64 },
+
+  /* Challenge pill on circle card */
+  challengePillContainer: { flexDirection: 'row', alignItems: 'center', marginTop: 8, marginLeft: 64 },
+  challengePill: { flexDirection: 'row', alignItems: 'center', backgroundColor: `${semantic.warning}14`, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 10, gap: 4 },
+  challengePillText: { fontSize: 11.5, fontWeight: '600', color: semantic.warning },
+
+  /* Progress bars (Active Challenges modal) */
+  progressBarTrack: { height: 4, backgroundColor: borderTokens.primary, borderRadius: 2, marginTop: 5, overflow: 'hidden' },
+  progressBarFill: { height: '100%', borderRadius: 2 },
+
+  /* Empty State */
+  emptyStateContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 40, paddingBottom: 60 },
+  decorativeCluster: { width: 120, height: 120, marginBottom: 28, position: 'relative' },
+  decorativeLargeCircle: {
+    position: 'absolute', top: 10, left: 10,
+    width: 100, height: 100, borderRadius: 50,
+    backgroundColor: brand.muted,
+  },
+  decorativePeopleCircle: {
+    position: 'absolute', top: 0, left: 30,
+    width: 60, height: 60, borderRadius: 30,
+    backgroundColor: brand.surface, alignItems: 'center', justifyContent: 'center',
+  },
+  decorativeTrophyCircle: {
+    position: 'absolute', bottom: 8, right: 5,
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: semantic.warningLight, alignItems: 'center', justifyContent: 'center',
+  },
+  decorativeCheckCircle: {
+    position: 'absolute', bottom: 25, left: 0,
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: semantic.successLight, alignItems: 'center', justifyContent: 'center',
+  },
+  emptyTitle: { fontSize: 24, fontWeight: '800', color: textTokens.primary, textAlign: 'center', letterSpacing: -0.4 },
+  emptySubtitle: { fontSize: 15, color: textTokens.tertiary, marginTop: 10, textAlign: 'center', lineHeight: 22 },
+  createFirstCircleBtn: {
+    marginTop: 28, width: '100%',
+    backgroundColor: brand.primary, paddingVertical: 16, borderRadius: radius.lg,
+    alignItems: 'center',
+    ...shadows.purple,
+  },
+  createFirstCircleBtnText: { fontSize: 16, fontWeight: '700', color: textTokens.inverse },
+  inviteCodeBtn: { marginTop: 16, paddingVertical: 12 },
+  inviteCodeBtnText: { fontSize: 14, fontWeight: '600', color: brand.primary },
+
+  /* Header */
+  headerContainer: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 18 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44 },
+  headerTitle: { fontSize: 36, fontWeight: '800', color: textTokens.primary, letterSpacing: -0.7 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  plusButton: {
+    width: 48, height: 48, borderRadius: 24,
+    backgroundColor: brand.primary,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  voiceButtonInline: { position: 'relative', top: 0, right: 0 },
+  headerSubtitle: { fontSize: 13, color: textTokens.secondary, marginTop: 3, fontWeight: '600', letterSpacing: 0.2 },
+
+  /* Loading */
+  loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+
+  /* Error State */
+  errorContainer: {
+    flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40,
+  },
+  errorTitle: {
+    fontSize: 18, fontWeight: '700', color: textTokens.primary, marginTop: 16,
+  },
+  errorSubtitle: {
+    fontSize: 14, color: textTokens.tertiary, textAlign: 'center', marginTop: 6, lineHeight: 20,
+  },
+  retryBtn: {
+    flexDirection: 'row', alignItems: 'center', marginTop: 20,
+    paddingHorizontal: 24, paddingVertical: 12, borderRadius: 9999,
+    backgroundColor: brand.muted,
+  },
+  retryBtnText: {
+    fontSize: 15, fontWeight: '600', color: brand.primary, marginLeft: 6,
+  },
+
+  /* Content Scroll */
+  contentScrollContainer: { paddingTop: 8, paddingBottom: 100 },
+
+  /* Section headers */
+  circlesSectionMargin: { marginBottom: 12 },
+  sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, marginBottom: 12 },
+  sectionHeaderText: { fontSize: 11, fontWeight: '800', color: brand.primary, letterSpacing: 0.6, textTransform: 'uppercase', flex: 1, opacity: 0.8 },
+
+  /* No results */
+  noResultsContainer: { alignItems: 'center', paddingVertical: 32, paddingHorizontal: 40 },
+  noResultsIcon: { marginBottom: 10 },
+  noResultsTitle: { fontSize: 15, fontWeight: '600', color: textTokens.tertiary, textAlign: 'center' },
+  noResultsSubtitle: { fontSize: 13, color: textTokens.disabled, marginTop: 4, textAlign: 'center' },
+
+  /* Needs Check-in Prompt */
+  checkinPromptRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 10,
+    marginLeft: 64,
+    paddingRight: 2,
+  },
+  checkinPromptLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    flex: 1,
+  },
+  checkinPromptText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: semantic.warning,
+  },
+  checkinPillCta: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 4,
+    backgroundColor: brand.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    marginLeft: 8,
   },
-  filterSegmentActive: {
-    backgroundColor: bg.card,
-    ...shadows.sm,
-  },
-  filterSegmentText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: textTokens.tertiary,
-  },
-  filterSegmentTextActive: {
-    color: brand.primary,
+  checkinPillCtaText: {
+    fontSize: 12,
     fontWeight: '700',
+    color: '#FFFFFF',
   },
-  filterBadge: {
+
+  /* Needs Check-in Empty State */
+  checkinEmptyContainer: {
+    alignItems: 'center',
+    paddingVertical: 48,
+    paddingHorizontal: 40,
+  },
+  checkinEmptyIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: semantic.successLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  checkinEmptyTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: textTokens.primary,
+    textAlign: 'center',
+  },
+  checkinEmptySubtitle: {
+    fontSize: 14,
+    color: textTokens.tertiary,
+    marginTop: 6,
+    textAlign: 'center',
+  },
+
+  /* New Posts badge on chip */
+  newPostsBadge: {
     minWidth: 18,
     height: 18,
     borderRadius: 9,
@@ -1216,495 +1361,83 @@ const s = StyleSheet.create({
     paddingHorizontal: 4,
     marginLeft: 2,
   },
-  filterBadgeText: {
+  newPostsBadgeText: {
     fontSize: 10,
     fontWeight: '800',
     color: '#FFFFFF',
   },
 
-  /* ── Circle Card (premium immersive) ── */
-  circleCard: {
-    marginHorizontal: 20,
-    marginBottom: 12,
-    backgroundColor: bg.card,
-    borderRadius: 16,
-    ...shadows.sm,
-    borderWidth: 1,
-    borderColor: borderTokens.secondary,
-  },
-  circleCardInner: { padding: 16 },
-  circleTopRow: {
+  /* New Posts indicator on circle card */
+  newPostsPromptRow: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  circleEmojiWrap: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    backgroundColor: brand.muted,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: brand.tertiary,
-  },
-  circleEmojiText: { fontSize: 26 },
-  circleInfoBlock: {
-    flex: 1,
-    marginLeft: 14,
-  },
-  circleName: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: textTokens.primary,
-    letterSpacing: -0.2,
-  },
-  circleMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 5,
-    gap: 8,
-  },
-  circleMemberCount: {
-    fontSize: 12.5,
-    color: textTokens.secondary,
-    fontWeight: '600',
-  },
-  circleChevronWrap: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: bg.secondary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 8,
-  },
-  circleDescription: {
-    fontSize: 13,
-    color: textTokens.tertiary,
-    lineHeight: 19,
-    marginTop: 10,
-    paddingLeft: 66,
-  },
-  circleBottomRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 12,
-    paddingLeft: 66,
-    gap: 8,
-    flexWrap: 'wrap',
-  },
-
-  /* Role badge */
-  roleBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  roleBadgeText: {
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.3,
-    textTransform: 'uppercase',
-  },
-
-  /* Challenge pill on circle card */
-  challengePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-    gap: 4,
-  },
-  challengePillText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#D97706',
-  },
-
-  /* New posts pill on circle card */
-  newPostsPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: brand.muted,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
     gap: 5,
-  },
-  newPostsDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: brand.primary,
-  },
-  newPostsPillText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: brand.primary,
-  },
-
-  /* Check-in CTA row on circle card */
-  checkinCtaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 12,
-    paddingTop: 12,
-    paddingHorizontal: 2,
-    borderTopWidth: 1,
-    borderTopColor: borderTokens.secondary,
-  },
-  checkinCtaLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    flex: 1,
-  },
-  checkinPulse: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#F59E0B',
-  },
-  checkinCtaText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: textTokens.tertiary,
-    flex: 1,
-  },
-  checkinCtaBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: brand.primary,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 12,
-  },
-  checkinCtaBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-
-  /* ── Circles Section ── */
-  circlesSectionWrap: { marginBottom: 12 },
-
-  /* ── Filter Empty States ── */
-  filterEmptyContainer: {
-    alignItems: 'center',
-    paddingVertical: 48,
-    paddingHorizontal: 40,
-  },
-  filterEmptyIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  filterEmptyTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: textTokens.primary,
-    textAlign: 'center',
-    marginTop: 8,
-  },
-  filterEmptySubtitle: {
-    fontSize: 14,
-    color: textTokens.tertiary,
-    marginTop: 6,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-
-  /* ── Premium Empty State ── */
-  emptyStateContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 40,
-    paddingBottom: 60,
-  },
-  emptyIllustration: {
-    width: 140,
-    height: 140,
-    marginBottom: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyGradientOrb: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyIconRing: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: 'rgba(255,255,255,0.85)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...shadows.sm,
-  },
-  emptyFloatingBadge1: {
-    position: 'absolute',
-    top: 4,
-    right: 10,
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    backgroundColor: '#FEF3C7',
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...shadows.sm,
-  },
-  emptyFloatingBadge2: {
-    position: 'absolute',
-    bottom: 8,
-    left: 4,
-    width: 34,
-    height: 34,
-    borderRadius: 11,
-    backgroundColor: '#D1FAE5',
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...shadows.sm,
-  },
-  emptyFloatingBadge3: {
-    position: 'absolute',
-    bottom: 20,
-    right: 2,
-    width: 30,
-    height: 30,
-    borderRadius: 10,
-    backgroundColor: brand.muted,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...shadows.sm,
-  },
-  emptyTitle: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: textTokens.primary,
-    textAlign: 'center',
-    letterSpacing: -0.4,
-  },
-  emptySubtitle: {
-    fontSize: 15,
-    color: textTokens.tertiary,
     marginTop: 10,
-    textAlign: 'center',
-    lineHeight: 22,
+    marginLeft: 64,
   },
-  createFirstCircleBtn: {
-    marginTop: 28,
-    width: '100%',
-    borderRadius: 14,
-    overflow: 'hidden',
-  },
-  createBtnGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 16,
-    borderRadius: 14,
-  },
-  createFirstCircleBtnText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  inviteCodeBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 18,
-    paddingVertical: 12,
-  },
-  inviteCodeBtnText: {
-    fontSize: 14,
+  newPostsPromptText: {
+    fontSize: 12,
     fontWeight: '600',
     color: brand.primary,
   },
 
-  /* ── Loading ── */
-  loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-
-  /* ── Error State ── */
-  errorContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 40,
-  },
-  errorIconWrap: {
-    width: 64,
-    height: 64,
-    borderRadius: 20,
-    backgroundColor: bg.secondary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  errorTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: textTokens.primary,
-  },
-  errorSubtitle: {
-    fontSize: 14,
-    color: textTokens.tertiary,
-    textAlign: 'center',
-    marginTop: 6,
-    lineHeight: 20,
-  },
-  retryBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 24,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 12,
-    backgroundColor: brand.primary,
-  },
-  retryBtnText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-
-  /* ── Content Scroll ── */
-  contentScrollContainer: { paddingTop: 6, paddingBottom: 100 },
-
-  /* ── Progress bars ── */
-  progressBarFill: { height: '100%', borderRadius: 2.5 },
-
-  /* ── Bottom Sheet Modals (shared) ── */
+  /* Active Challenges Modal */
   modalOverlay: { flex: 1, justifyContent: 'flex-end' },
-  modalBackdrop: {
-    position: 'absolute',
-    top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
-  },
+  modalBackdrop: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0, 0, 0, 0.35)' },
   modalSheet: {
     height: SCREEN_HEIGHT * 0.75,
     backgroundColor: bg.primary,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: 20, borderTopRightRadius: 20,
     ...shadows.lg,
     elevation: 10,
   },
   dragHandleContainer: { alignItems: 'center', paddingTop: 10, paddingBottom: 4 },
-  dragHandle: {
-    width: 36,
-    height: 5,
-    borderRadius: 2.5,
-    backgroundColor: borderTokens.primary,
-  },
+  dragHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: textTokens.disabled },
+
   modalHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: borderTokens.primary,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 20, paddingTop: 8, paddingBottom: 14,
+    borderBottomWidth: 0.5, borderBottomColor: borderTokens.primary,
   },
-  modalHeaderTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: textTokens.primary,
-    letterSpacing: -0.3,
-  },
-  modalHeaderSubtitle: {
-    fontSize: 13,
-    color: textTokens.tertiary,
-    marginTop: 2,
-    fontWeight: '500',
-  },
+  modalHeaderTitle: { fontSize: 22, fontWeight: '700', color: textTokens.primary },
+  modalHeaderSubtitle: { fontSize: 13, color: textTokens.tertiary, marginTop: 2, fontWeight: '500' },
   modalCloseBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 30, height: 30, borderRadius: 15,
     backgroundColor: bg.secondary,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: 'center', justifyContent: 'center',
   },
 
   /* Empty modal */
-  emptyModalContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 40,
-    paddingBottom: 40,
-  },
+  emptyModalContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40, paddingBottom: 40 },
   emptyModalIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 18,
+    width: 56, height: 56, borderRadius: 18,
     backgroundColor: semantic.warningLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 16,
   },
-  emptyModalTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: textTokens.primary,
-    textAlign: 'center',
-  },
-  emptyModalSubtitle: {
-    fontSize: 14,
-    color: textTokens.tertiary,
-    marginTop: 6,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
+  emptyModalTitle: { fontSize: 17, fontWeight: '600', color: textTokens.primary, textAlign: 'center' },
+  emptyModalSubtitle: { fontSize: 14, color: textTokens.tertiary, marginTop: 6, textAlign: 'center', lineHeight: 20 },
 
   /* FlatList */
   flatListContent: { paddingTop: 8, paddingBottom: 40 },
 
-  /* Modal list card (Circles list) */
+  /* Shared modal list card */
   modalListCard: {
-    marginHorizontal: 16,
-    marginBottom: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: bg.card,
-    borderRadius: 14,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: borderTokens.secondary,
+    marginHorizontal: 16, marginBottom: 10,
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: bg.card, borderRadius: radius.lg, padding: 16,
+    ...shadows.sm,
+    borderLeftWidth: 4,
+    borderLeftColor: brand.primary,
   },
   modalListEmoji: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
+    width: 46, height: 46, borderRadius: 14,
     backgroundColor: brand.muted,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
+    alignItems: 'center', justifyContent: 'center', marginRight: 14,
+    borderWidth: 1,
+    borderColor: brand.tertiary,
   },
   modalListEmojiText: { fontSize: 22 },
-  modalListName: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: textTokens.primary,
-    flexShrink: 1,
-  },
+  modalListName: { fontSize: 15, fontWeight: '700', color: textTokens.primary, flexShrink: 1 },
   modalListNameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   modalListSubRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 5 },
   modalListSubText: { fontSize: 12.5, color: textTokens.secondary, fontWeight: '600' },
@@ -1714,64 +1447,40 @@ const s = StyleSheet.create({
 
   /* Member card */
   modalMemberCard: {
-    marginHorizontal: 16,
-    marginBottom: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: bg.card,
-    borderRadius: 14,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: borderTokens.secondary,
+    marginHorizontal: 16, marginBottom: 10,
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: bg.card, borderRadius: radius.lg, padding: 16,
+    ...shadows.sm,
   },
   modalMemberAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 46, height: 46, borderRadius: 23,
     backgroundColor: brand.secondary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
+    alignItems: 'center', justifyContent: 'center', marginRight: 14,
   },
-  modalMemberAvatarText: { fontSize: 17, fontWeight: '800', color: '#FFFFFF' },
+  modalMemberAvatarText: { fontSize: 18, fontWeight: '800', color: '#FFFFFF' },
 
   /* Modal challenge card */
   modalChallengeCard: {
-    marginHorizontal: 16,
-    marginBottom: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: bg.card,
-    borderRadius: 14,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: borderTokens.secondary,
+    marginHorizontal: 16, marginBottom: 10,
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: bg.card, borderRadius: radius.lg, padding: 16,
+    ...shadows.sm,
+    borderLeftWidth: 4,
+    borderLeftColor: semantic.warning,
   },
   modalChallengeEmoji: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: '#FEF3C7',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
+    width: 46, height: 46, borderRadius: 14,
+    backgroundColor: semantic.warningLight,
+    alignItems: 'center', justifyContent: 'center', marginRight: 14,
+    borderWidth: 1,
+    borderColor: semantic.warning,
   },
   modalChallengeEmojiText: { fontSize: 22 },
-  modalChallengeName: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: textTokens.primary,
-  },
+  modalChallengeName: { fontSize: 15, fontWeight: '700', color: textTokens.primary },
   modalCircleNameRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 6 },
   modalCircleNameText: { fontSize: 12.5, color: textTokens.secondary, fontWeight: '600' },
   modalProgressRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 8 },
-  modalProgressTrack: {
-    flex: 1,
-    height: 5,
-    backgroundColor: borderTokens.primary,
-    borderRadius: 2.5,
-    overflow: 'hidden',
-  },
+  modalProgressTrack: { flex: 1, height: 5, backgroundColor: borderTokens.primary, borderRadius: 2.5, overflow: 'hidden' },
   modalProgressPct: { fontSize: 11, fontWeight: '700', color: textTokens.secondary, minWidth: 32, textAlign: 'right' },
 
   /* Days left badge */

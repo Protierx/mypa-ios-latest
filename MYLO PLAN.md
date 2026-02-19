@@ -1,4 +1,4 @@
-# MYPA Step-by-Step Execution Plan (Self-Contained)
+
 ## Every step has everything you need — no scrolling back and forth
 ### For a 2-Person Team — From ~65% Complete to App Store Launch
 
@@ -10,7 +10,7 @@
 - **Never jump ahead.** Complete a step, pass its validation, sign off, then move on.
 - **Partner A = Frontend/Voice Lead (FE).** Screens, modals, voice, event wiring, UI.
 - **Partner B = Platform/Backend Lead (BE).** Supabase migrations, edge functions, RLS, cron, RevenueCat, legal.
-- **Both share:** Testing, code review, architecture decisions.
+- **Both share:**  expo start# MYPA Step-by-Step Execution Plan (Self-Contained)iTesting, code review, architecture decisions.
 - **If something breaks:** Fix it before moving forward. If stuck > 1 hour, ask for help (paste error + context).
 - **After each step passes:** Commit to git. Pull latest before starting the next step.
 
