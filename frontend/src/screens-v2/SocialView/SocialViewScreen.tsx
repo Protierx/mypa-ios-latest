@@ -298,7 +298,8 @@ export function SocialViewScreen() {
           >
             <Ionicons name={tab.icon as any} size={16} color={tab.color} style={s.summaryTabIcon} />
             <Text style={s.summaryTabValue}>{tab.value}</Text>
-            <Text style={s.summaryTabLabel}>{tab.label}</Text>
+            <Text style={[s.summaryTabLabel, { color: tab.color }]}>{tab.label}</Text>
+            <Ionicons name="chevron-down" size={10} color={tab.color} style={s.summaryTabChevron} />
           </TouchableOpacity>
         ))}
       </Animated.View>
@@ -1105,11 +1106,12 @@ const s = StyleSheet.create({
     paddingVertical: 2,
     paddingHorizontal: 2,
   },
-  summaryTab: { flex: 1, alignItems: 'center', paddingVertical: 14, borderRadius: 18, backgroundColor: 'transparent' },
+  summaryTab: { flex: 1, alignItems: 'center', paddingVertical: 14, borderRadius: 18, backgroundColor: bg.card, marginHorizontal: 2 },
   summaryTabBorder: { borderLeftWidth: 0 },
   summaryTabIcon: { marginBottom: 5, opacity: 0.9 },
   summaryTabValue: { fontSize: 20, fontWeight: '800', color: textTokens.primary, letterSpacing: -0.4 },
-  summaryTabLabel: { fontSize: 10, fontWeight: '700', color: textTokens.secondary, marginTop: 3, letterSpacing: 0.4, textTransform: 'uppercase' },
+  summaryTabLabel: { fontSize: 10, fontWeight: '700', marginTop: 3, letterSpacing: 0.4, textTransform: 'uppercase' },
+  summaryTabChevron: { marginTop: 3, opacity: 0.5 },
 
   /* Filter Chips */
   filterChipRow: {
