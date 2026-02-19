@@ -310,15 +310,22 @@ const ACTION_HANDLERS: Record<string, ActionHandler> = {
     const date = params.date as string | undefined;
     const priority = (params.priority as string) || 'medium';
     const durationMin = params.duration_min as number | undefined;
+    const mode = (params.mode as string) || 'quick';
 
     // Parse natural language date
     const dueDate = parseNaturalDate(date);
 
-    // Always ensure duration — if user didn't specify, AI estimates from title
-    let estimatedDuration = durationMin;
-    if (!estimatedDuration) {
+    // Duration logic based on mode:
+    // - focus tasks: use specified duration or default 25 min
+    // - quick tasks: use specified duration, or infer from title, or null (simple tick)
+    let estimatedDuration: number | null = null;
+    if (mode === 'focus') {
+      estimatedDuration = durationMin || 25;
+    } else if (durationMin) {
+      estimatedDuration = durationMin;
+    } else {
       const suggestion = suggestFromTitle(title);
-      estimatedDuration = suggestion?.duration ?? 30; // fallback 30 min
+      estimatedDuration = suggestion?.duration ?? null;
     }
 
     const insertData: Record<string, unknown> = {
@@ -327,8 +334,8 @@ const ACTION_HANDLERS: Record<string, ActionHandler> = {
       due_date: dueDate,
       priority,
       estimated_duration: estimatedDuration,
+      task_mode: mode, // Requires migration 036_task_mode_column.sql
     };
-    // Note: 'category' column does not exist in tasks table — omitted
 
     // Two-step insert: avoid .insert().select().single() which can hang
     // with PostgREST + RLS policies (same pattern as useTasks hook)
@@ -350,10 +357,14 @@ const ACTION_HANDLERS: Record<string, ActionHandler> = {
       .limit(1)
       .single();
 
+    const focusMsg = mode === 'focus'
+      ? `Got it! Added "${title}" as a focus task — ${estimatedDuration} minutes when you're ready.`
+      : `Got it! Added "${title}" to your list.`;
+
     return {
       success: true,
-      message: `Got it! Added "${title}" to your list.`,
-      data: { task: task || { title } },
+      message: focusMsg,
+      data: { task: task || { title }, mode },
     };
   },
 
@@ -487,7 +498,7 @@ const ACTION_HANDLERS: Record<string, ActionHandler> = {
   },
 
   batch_create_tasks: async (params, userId) => {
-    const tasks = params.tasks as Array<{ title: string; date?: string; priority?: string; category?: string }>;
+    const tasks = params.tasks as Array<{ title: string; date?: string; priority?: string; category?: string; mode?: string; duration_min?: number }>;
     if (!tasks || tasks.length === 0) {
       return { success: false, message: "No tasks to create." };
     }
@@ -496,8 +507,18 @@ const ACTION_HANDLERS: Record<string, ActionHandler> = {
     // "every week", spread them across consecutive days starting from
     // the next relevant day.
     const inserts = tasks.map((t, index) => {
-      // AI-estimate duration from title for each task
-      const suggestion = suggestFromTitle(t.title);
+      const mode = t.mode || 'quick';
+
+      // Duration based on mode
+      let estimatedDuration: number | null = null;
+      if (mode === 'focus') {
+        estimatedDuration = t.duration_min || 25;
+      } else if (t.duration_min) {
+        estimatedDuration = t.duration_min;
+      } else {
+        const suggestion = suggestFromTitle(t.title);
+        estimatedDuration = suggestion?.duration ?? null;
+      }
 
       let dueDate: string;
       if (t.date) {
@@ -524,7 +545,8 @@ const ACTION_HANDLERS: Record<string, ActionHandler> = {
         title: t.title,
         due_date: dueDate,
         priority: t.priority || 'medium',
-        estimated_duration: suggestion?.duration ?? 30, // always set duration
+        estimated_duration: estimatedDuration,
+        task_mode: mode,
       };
     });
 
@@ -939,6 +961,28 @@ const ACTION_HANDLERS: Record<string, ActionHandler> = {
     };
   },
 
+  remember_preference: async (params, userId) => {
+    const key = params.key as string;
+    const value = params.value as string;
+    const context = (params.context as string) || '';
+
+    // Store as event_log entry with type 'preference_stored'.
+    // The nightly compute-user-model job and voice-command context builder
+    // query these to personalize the AI.
+    eventLogger.log('preference_stored', {
+      action: 'remember_preference',
+      preference_key: key,
+      preference_value: value,
+      context,
+    });
+
+    return {
+      success: true,
+      message: `Noted — I'll remember that for next time.`,
+      data: { key, value, context },
+    };
+  },
+
   set_preference: async (params, userId) => {
     const key = params.key as string;
     const value = params.value as string;
@@ -963,6 +1007,25 @@ const ACTION_HANDLERS: Record<string, ActionHandler> = {
       success: true,
       message: `Updated ${key.replace('_', ' ')} to ${value}.`,
       data: { key, value },
+    };
+  },
+
+  navigate_to_screen: async (params) => {
+    const screen = params.screen as string;
+    const screenMap: Record<string, string> = {
+      tasks: 'tasks',
+      social: 'social',
+      profile: 'profile',
+      focus: 'focus',
+      ai_hub: 'ai_hub',
+    };
+
+    const target = screenMap[screen] || screen;
+
+    return {
+      success: true,
+      message: '',
+      data: { navigate_to: target },
     };
   },
 };

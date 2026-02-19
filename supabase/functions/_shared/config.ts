@@ -105,6 +105,26 @@ VOICE PERSONALITY (for your text responses after tool calls):
 - Keep responses SHORT — 1-2 sentences max (spoken aloud)
 - Use contractions: I'm, you're, let's, don't, can't
 
+TASK INTELLIGENCE — FOCUS vs QUICK:
+When creating tasks, ALWAYS set the mode parameter:
+- "focus" for deep work: studying, writing, coding, reading, designing, planning, research, practice, workouts, meditation, brainstorming. These need a timer. Set duration_min (default 25).
+- "quick" for simple actions: buy groceries, call someone, reply to email, take out trash, pay a bill, book appointment, pick up dry cleaning, send a message. These are just checkboxes.
+Examples:
+- "Add study for the exam" → mode: "focus", duration_min: 45
+- "Add buy milk" → mode: "quick"
+- "Remind me to write the blog post" → mode: "focus", duration_min: 30
+- "I need to call the dentist" → mode: "quick"
+- "Add 30 minutes of reading" → mode: "focus", duration_min: 30
+- "Add pick up the package" → mode: "quick"
+
+CHALLENGE INTELLIGENCE:
+When creating challenges, be smart about inferring parameters from natural language:
+- Infer tracking_method from the activity: workout/meditate/read → "proof_checkin", complete X tasks → "tasks_completed", focus for X minutes → "focus_minutes", be active X days → "active_days"
+- Infer duration: "for a week" → 7, "two weeks" → 14, "this month"/"a month" → 30. Default to 7 if unspecified.
+- Infer target: "every day for a week" → target = 7 (days), "50 tasks" → target = 50, "500 minutes of focus" → target = 500
+- Always write clear rules in the description field explaining what counts as completion.
+- Pick a relevant emoji based on the challenge theme.
+
 ADAPTIVE BEHAVIOR:
 - If the user appears overwhelmed: Be extra gentle. Suggest breaks. Don't add pressure.
 - If the user is in a great flow: Be upbeat, celebrate momentum.
@@ -239,6 +259,7 @@ export const ACTION_MODEL_TIER: Record<string, ModelTier> = {
   brain_dump: 'smart',
   set_preference: 'fast',
   remember_preference: 'fast',
+  navigate_to_screen: 'fast',
   unknown: 'smart',
 };
 
@@ -282,15 +303,21 @@ export const ACTION_TOOLS: Array<{
     type: 'function',
     function: {
       name: 'create_task',
-      description:
-        'Create a new task for the user. Use when they say things like "add", "remind me to", "I need to", "create a task".',
+      description: `Create a new task for the user. Use when they say things like "add", "remind me to", "I need to", "create a task".
+
+IMPORTANT — Decide the task mode based on the task nature:
+- mode "focus": Deep work that needs uninterrupted time. Examples: study, write report, code, read, design, plan, research, practice, workout, meditate. Set duration_min (default 25).
+- mode "quick": Simple actions that just need a checkbox. Examples: buy groceries, call mom, reply to email, take out trash, pay bill, book appointment, pick up kids.
+
+If unsure, lean toward "quick" for errands/chores and "focus" for anything requiring concentration.`,
       parameters: {
         type: 'object',
         properties: {
           title: { type: 'string', description: 'The task title, extracted from user speech' },
+          mode: { type: 'string', enum: ['focus', 'quick'], description: 'Task mode: "focus" for deep work needing a timer, "quick" for simple checkbox tasks' },
           date: { type: 'string', description: 'Due date in ISO 8601 format or natural language (today, tomorrow, next monday, etc.)' },
           time: { type: 'string', description: 'Due time (e.g. "3pm", "15:00")' },
-          duration_min: { type: 'number', description: 'Estimated duration in minutes' },
+          duration_min: { type: 'number', description: 'Estimated duration in minutes. Required for focus tasks (default 25). Omit for quick tasks.' },
           category: { type: 'string', enum: TASK_CATEGORIES, description: 'Task category' },
           priority: { type: 'string', enum: TASK_PRIORITIES, description: 'Task priority level' },
         },
@@ -366,7 +393,7 @@ export const ACTION_TOOLS: Array<{
     type: 'function',
     function: {
       name: 'batch_create_tasks',
-      description: 'Create multiple tasks at once. Use when user lists several things to do.',
+      description: 'Create multiple tasks at once. Use when user lists several things to do. Set mode per task (focus vs quick).',
       parameters: {
         type: 'object',
         properties: {
@@ -376,7 +403,9 @@ export const ACTION_TOOLS: Array<{
               type: 'object',
               properties: {
                 title: { type: 'string' },
+                mode: { type: 'string', enum: ['focus', 'quick'], description: 'focus for deep work, quick for simple checkbox' },
                 date: { type: 'string' },
+                duration_min: { type: 'number', description: 'Duration in minutes (for focus tasks)' },
                 priority: { type: 'string', enum: TASK_PRIORITIES },
                 category: { type: 'string' },
               },
@@ -395,7 +424,7 @@ export const ACTION_TOOLS: Array<{
     type: 'function',
     function: {
       name: 'start_focus_session',
-      description: 'Start a focus/pomodoro session. Use when user says "start focus", "focus mode".',
+      description: 'Start a focus/pomodoro session NOW. Use when user wants to begin focusing immediately: "start focus", "focus mode", "let me focus on X for 30 minutes". NOT for creating tasks to do later — use create_task with mode "focus" for that.',
       parameters: {
         type: 'object',
         properties: {
@@ -627,6 +656,26 @@ Always provide a description with rules. If duration not specified, default to 7
           context: { type: 'string', description: 'Brief context for why this was stored' },
         },
         required: ['key', 'value'],
+      },
+    },
+  },
+
+  // -- Navigation -------------------------------------------------------------
+  {
+    type: 'function',
+    function: {
+      name: 'navigate_to_screen',
+      description: 'Navigate the user to a specific screen. Use when user says "show me my tasks", "go to profile", "open circles", "take me to focus".',
+      parameters: {
+        type: 'object',
+        properties: {
+          screen: {
+            type: 'string',
+            enum: ['tasks', 'social', 'profile', 'focus', 'ai_hub'],
+            description: 'Screen to navigate to. tasks = task list, social = circles & challenges, profile = user profile, focus = focus mode, ai_hub = home/AI hub.',
+          },
+        },
+        required: ['screen'],
       },
     },
   },
