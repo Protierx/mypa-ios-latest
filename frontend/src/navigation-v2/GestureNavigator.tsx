@@ -33,9 +33,12 @@ import { ProfileViewScreen } from '../screens-v2/ProfileView';
 import { FocusModal } from '../screens-v2/FocusModal/FocusModal';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 
-// Swipe thresholds (lowered for easier gesture activation)
+// Swipe thresholds
 const HORIZONTAL_THRESHOLD = 80;
 const VERTICAL_THRESHOLD = 30;
+// Profile return is intentionally easier — shorter swipe needed to go back
+const PROFILE_RETURN_THRESHOLD = 25;
+const PROFILE_RETURN_VELOCITY = -150;
 
 // Spring config for smooth animations
 const SPRING_CONFIG = {
@@ -131,8 +134,8 @@ function GestureNavigatorContent() {
 
   // Pan gesture handler — axis-locked grid navigation
   const panGesture = useMemo(() => Gesture.Pan()
-    .activeOffsetX([-15, 15])
-    .activeOffsetY([-15, 15])
+    .activeOffsetX([-12, 12])
+    .activeOffsetY([-10, 10])
     .onBegin(() => {
       lockedAxis.value = 0; // reset for each new gesture
     })
@@ -171,7 +174,8 @@ function GestureNavigatorContent() {
       } else if (currentScreen === 'profile') {
         // Swipe up to return: negate translationY so preview moves toward AI Hub
         // translationY < 0 (finger up) → -translationY is positive → closer to 0
-        const returnProgress = Math.max(0, -event.translationY * 0.7);
+        // Use 0.9 multiplier (less dampening) so the drag feels responsive
+        const returnProgress = Math.max(0, -event.translationY * 0.9);
         translateY.value = -SCREEN_HEIGHT + returnProgress;
       }
     })
@@ -222,9 +226,9 @@ function GestureNavigatorContent() {
           animateToScreen('social');
         }
       }
-      // From Profile — swipe up to return
+      // From Profile — swipe up to return (intentionally forgiving)
       else if (currentScreen === 'profile') {
-        if (translationY < -VERTICAL_THRESHOLD || velocityY < -200) {
+        if (translationY < -PROFILE_RETURN_THRESHOLD || velocityY < PROFILE_RETURN_VELOCITY) {
           animateToScreen('ai_hub');
         } else {
           animateToScreen('profile');
