@@ -54,7 +54,6 @@ interface CircleHomeModalProps {
   initialFocus?: 'checkin';
 }
 type TabType = 'feed' | 'challenges' | 'overview';
-type SettingsTab = 'invite' | 'members' | 'admin';
 
 /* Helpers */
 function formatTimeAgo(dateString: string): string {
@@ -92,7 +91,6 @@ export function CircleHomeModal({ visible, circleId, onClose, onOpenChallenge, o
   const [showCheckIn, setShowCheckIn] = useState(false);
   const [showCheckOut, setShowCheckOut] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [settingsTab, setSettingsTab] = useState<SettingsTab>('invite');
   const [showMemberPreview, setShowMemberPreview] = useState(false);
   const [previewMember, setPreviewMember] = useState<CircleMemberProfile | null>(null);
 
@@ -262,7 +260,7 @@ export function CircleHomeModal({ visible, circleId, onClose, onOpenChallenge, o
           </Text>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          <TouchableOpacity onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowSettings(true); setSettingsTab('invite'); }}
+          <TouchableOpacity onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowSettings(true); }}
             style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: brand.muted, alignItems: 'center', justifyContent: 'center' }} activeOpacity={0.7}>
             <Ionicons name="settings-outline" size={20} color={brand.primary} />
           </TouchableOpacity>
@@ -679,16 +677,12 @@ export function CircleHomeModal({ visible, circleId, onClose, onOpenChallenge, o
     );
   };
 
-  /* ══ SETTINGS MODAL ═════════════════════════════════ */
+  /* ══ SETTINGS MODAL (unified) ═════════════════════════ */
   const renderSettingsModal = () => {
     const { membersCheckedIn: mcList } = accountability;
     const checkinMap = new Map(mcList.map(m => [m.user_id, m]));
     const isOwner = myRole === 'owner';
     const code = circle?.invite_code || circle?.id?.substring(0, 8) || '';
-    const visTabs: { key: SettingsTab; label: string }[] = [
-      { key: 'invite', label: 'Invite' }, { key: 'members', label: 'Members' },
-      ...(isOwner ? [{ key: 'admin' as SettingsTab, label: 'Admin' }] : []),
-    ];
     const sorted = [...members].sort((a, b) => {
       const ro: Record<string, number> = { owner: 0, admin: 1, member: 2 };
       return (ro[a.role] ?? 3) - (ro[b.role] ?? 3);
@@ -698,246 +692,239 @@ export function CircleHomeModal({ visible, circleId, onClose, onOpenChallenge, o
       <Modal visible={showSettings} transparent animationType="slide" onRequestClose={() => { setShowSettings(false); setIsEditingCircle(false); }}>
         <View style={{ flex: 1, justifyContent: 'flex-end' }}>
           <Pressable style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.35)' }} onPress={() => { setShowSettings(false); setIsEditingCircle(false); }} />
-          <View style={{ height: SH * 0.75, backgroundColor: bg.primary, borderTopLeftRadius: 20, borderTopRightRadius: 20, shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.1, shadowRadius: 16 }}>
+          <View style={{ height: SH * 0.82, backgroundColor: bg.primary, borderTopLeftRadius: 20, borderTopRightRadius: 20, shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.1, shadowRadius: 16 }}>
             <View style={{ alignItems: 'center', paddingTop: 10, paddingBottom: 4 }}>
               <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: '#D1D1D6' }} />
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 8, paddingBottom: 14, borderBottomWidth: 0.5, borderBottomColor: borderTokens.primary }}>
               <Text style={{ fontSize: 20, fontWeight: '700', color: textTokens.primary }}>Circle Settings</Text>
-              <TouchableOpacity onPress={() => setShowSettings(false)} style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: bg.secondary, alignItems: 'center', justifyContent: 'center' }} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+              <TouchableOpacity onPress={() => { setShowSettings(false); setIsEditingCircle(false); }} style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: bg.secondary, alignItems: 'center', justifyContent: 'center' }} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
                 <Ionicons name="close" size={16} color={textTokens.tertiary} />
               </TouchableOpacity>
             </View>
 
-            {/* Tabs */}
-            <View style={{ flexDirection: 'row', marginHorizontal: 20, marginTop: 14, marginBottom: 14, backgroundColor: bg.secondary, borderRadius: 10, padding: 2 }}>
-              {visTabs.map(t => {
-                const a = settingsTab === t.key;
-                return (
-                  <TouchableOpacity key={t.key} style={{ flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: 8, backgroundColor: a ? bg.card : 'transparent', shadowColor: a ? '#000' : 'transparent', shadowOffset: { width: 0, height: 1 }, shadowOpacity: a ? 0.08 : 0, shadowRadius: 3 }}
-                    onPress={() => { Haptics.selectionAsync(); setSettingsTab(t.key); }} activeOpacity={0.7}>
-                    <Text style={{ fontSize: 13, fontWeight: a ? '600' : '500', color: a ? textTokens.primary : textTokens.tertiary }}>{t.label}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 50 }} showsVerticalScrollIndicator={false}>
 
-            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-              {/* Invite */}
-              {settingsTab === 'invite' && (
-                <View>
-                  <Text style={{ fontSize: 14, fontWeight: '600', color: textTokens.primary, marginBottom: 12 }}>Invite Code</Text>
-                  <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: bg.card, borderRadius: 16, padding: 18, borderWidth: 1, borderColor: copiedCode ? `${semantic.success}40` : borderTokens.primary, marginBottom: 16 }}
-                    onPress={handleCopyCode} activeOpacity={0.7}>
-                    <Text style={{ fontSize: 22, fontWeight: '800', color: textTokens.primary, letterSpacing: 2, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' }}>{code.toUpperCase()}</Text>
-                    <View style={{ marginLeft: 12 }}><Ionicons name={copiedCode ? "checkmark-circle" : "copy-outline"} size={22} color={copiedCode ? semantic.success : brand.primary} /></View>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={{ backgroundColor: brand.primary, paddingVertical: 14, borderRadius: 14, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 10 }}
-                    onPress={handleCopyCode} activeOpacity={0.85}>
-                    <Ionicons name="copy" size={16} color="#fff" />
-                    <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff' }}>{copiedCode ? 'Copied!' : 'Copy Code'}</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={{ backgroundColor: bg.card, paddingVertical: 14, borderRadius: 14, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8, borderWidth: 1, borderColor: borderTokens.primary }}
-                    onPress={handleShare} activeOpacity={0.85}>
-                    <Ionicons name="share-outline" size={16} color={brand.primary} />
-                    <Text style={{ fontSize: 15, fontWeight: '700', color: brand.primary }}>Share Invite</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              {/* Members */}
-              {settingsTab === 'members' && (
-                <View>
-                  <Text style={{ fontSize: 13, fontWeight: '600', color: textTokens.tertiary, marginBottom: 12 }}>{members.length} member{members.length !== 1 ? 's' : ''} · {accountability.todayCheckinCount} checked in</Text>
-                  {sorted.map(item => {
-                    const isMe = item.id === user?.id;
-                    const canManage = (myRole === 'owner') || (myRole === 'admin' && item.role === 'member');
-                    const showAct = canManage && !isMe;
-                    const ms = checkinMap.get(item.id);
-                    const isIn = ms?.checked_in || false;
-                    const isOut = ms?.checked_out || false;
-                    return (
-                      <TouchableOpacity key={item.id} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: bg.card, borderRadius: 16, padding: 14, marginBottom: 8, borderWidth: 0.5, borderColor: isMe ? `${brand.primary}20` : borderTokens.primary }}
-                        onPress={() => showAct && handleMemberAction(item)} activeOpacity={showAct ? 0.7 : 1} disabled={!showAct}>
-                        <View style={{ position: 'relative' }}>
-                          {item.avatar_url ? (
-                            <Image source={{ uri: item.avatar_url }} style={{ width: 44, height: 44, borderRadius: 22, marginRight: 12 }} />
-                          ) : (
-                            <View style={{ width: 44, height: 44, borderRadius: 22, marginRight: 12, backgroundColor: item.role === 'owner' ? semantic.warningLight : item.role === 'admin' ? brand.muted : bg.primary, alignItems: 'center', justifyContent: 'center' }}>
-                              <Text style={{ fontSize: 16, fontWeight: '700', color: item.role === 'owner' ? semantic.warning : item.role === 'admin' ? brand.primary : textTokens.tertiary }}>{item.display_name?.[0]?.toUpperCase() || '?'}</Text>
-                            </View>
-                          )}
-                          {isIn && (
-                            <View style={{ position: 'absolute', bottom: -2, right: 8, width: 16, height: 16, borderRadius: 8, backgroundColor: isOut ? semantic.success : semantic.warning, borderWidth: 2, borderColor: bg.card, alignItems: 'center', justifyContent: 'center' }}>
-                              <Ionicons name={isOut ? "checkmark" : "time"} size={8} color="#fff" />
-                            </View>
-                          )}
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                            <Text style={{ fontSize: 15, fontWeight: '600', color: textTokens.primary }}>{item.display_name || 'User'}</Text>
-                            {isMe && <View style={{ backgroundColor: brand.muted, paddingHorizontal: 6, paddingVertical: 1.5, borderRadius: 6 }}><Text style={{ fontSize: 10, fontWeight: '700', color: brand.primary }}>YOU</Text></View>}
-                          </View>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 6 }}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: item.role === 'owner' ? semantic.warningLight : item.role === 'admin' ? brand.muted : bg.primary, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 }}>
-                              {ROLE_ICONS[item.role] ? <Text style={{ fontSize: 9 }}>{ROLE_ICONS[item.role]}</Text> : null}
-                              <Text style={{ fontSize: 11, fontWeight: '700', textTransform: 'capitalize', color: ROLE_COLORS[item.role] || textTokens.tertiary }}>{item.role}</Text>
-                            </View>
-                            {isIn ? (
-                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: isOut ? semantic.successLight : semantic.warningLight, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 }}>
-                                <Text style={{ fontSize: 9 }}>{isOut ? '✅' : '🟡'}</Text>
-                                <Text style={{ fontSize: 10, fontWeight: '700', color: isOut ? semantic.success : semantic.warning }}>{isOut ? 'Done' : 'Checked in'}</Text>
-                              </View>
-                            ) : (
-                              <View style={{ backgroundColor: `${textTokens.disabled}20`, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 }}>
-                                <Text style={{ fontSize: 10, fontWeight: '600', color: textTokens.disabled }}>Not yet</Text>
-                              </View>
-                            )}
-                          </View>
-                        </View>
-                        {showAct && (
-                          <TouchableOpacity style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: bg.primary, alignItems: 'center', justifyContent: 'center' }}
-                            onPress={() => handleMemberAction(item)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                            <Ionicons name="ellipsis-horizontal" size={16} color={textTokens.tertiary} />
-                          </TouchableOpacity>
-                        )}
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              )}
-
-              {/* Admin */}
-              {settingsTab === 'admin' && isOwner && (
-                <View>
-                  <Text style={{ fontSize: 14, fontWeight: '600', color: textTokens.primary, marginBottom: 8 }}>Circle Details</Text>
-                  {!isEditingCircle ? (
-                    <TouchableOpacity
-                      style={{ backgroundColor: bg.card, borderRadius: 14, padding: 16, marginBottom: 24, borderWidth: 0.5, borderColor: borderTokens.primary }}
-                      onPress={() => {
-                        setEditName(circle?.name || '');
-                        setEditEmoji(circle?.emoji || '👥');
-                        setEditDescription(circle?.description || '');
-                        setIsEditingCircle(true);
-                      }}
-                      activeOpacity={0.7}
-                    >
-                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
-                          <Text style={{ fontSize: 22 }}>{circle?.emoji || '👥'}</Text>
-                          <View style={{ flex: 1 }}>
-                            <Text style={{ fontSize: 16, fontWeight: '600', color: textTokens.primary }}>{circle?.name}</Text>
-                            {circle?.description ? (
-                              <Text numberOfLines={1} style={{ fontSize: 12, color: textTokens.tertiary, marginTop: 2 }}>{circle.description}</Text>
-                            ) : null}
-                          </View>
-                        </View>
-                        <Ionicons name="pencil" size={16} color={brand.primary} />
+              {/* ── Section 1: Circle Details ───────────────────── */}
+              <View style={{ marginTop: 18 }}>
+                {!isEditingCircle ? (
+                  <View style={{ backgroundColor: bg.card, borderRadius: 18, padding: 18, borderWidth: 0.5, borderColor: borderTokens.primary }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <View style={{ width: 52, height: 52, borderRadius: 18, backgroundColor: brand.muted, alignItems: 'center', justifyContent: 'center', marginRight: 14 }}>
+                        <Text style={{ fontSize: 26 }}>{circle?.emoji || '👥'}</Text>
                       </View>
-                    </TouchableOpacity>
-                  ) : (
-                    <View style={{ backgroundColor: bg.card, borderRadius: 14, padding: 16, marginBottom: 24, borderWidth: 0.5, borderColor: brand.primary }}>
-                      {/* Emoji picker row */}
-                      <Text style={{ fontSize: 12, fontWeight: '600', color: textTokens.secondary, marginBottom: 6 }}>Emoji</Text>
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }} contentContainerStyle={{ gap: 8 }}>
-                        {['👥', '🏋️', '📚', '💻', '🎯', '🧘', '🏃', '🎨', '🎵', '💰', '🌱', '❤️'].map((em) => (
-                          <TouchableOpacity
-                            key={em}
-                            onPress={() => setEditEmoji(em)}
-                            style={{
-                              width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
-                              backgroundColor: editEmoji === em ? brand.muted : bg.secondary,
-                              borderWidth: editEmoji === em ? 1.5 : 0.5,
-                              borderColor: editEmoji === em ? brand.primary : borderTokens.primary,
-                            }}
-                          >
-                            <Text style={{ fontSize: 20 }}>{em}</Text>
-                          </TouchableOpacity>
-                        ))}
-                      </ScrollView>
-                      {/* Name input */}
-                      <Text style={{ fontSize: 12, fontWeight: '600', color: textTokens.secondary, marginBottom: 6 }}>Name</Text>
-                      <TextInput
-                        value={editName}
-                        onChangeText={(t) => setEditName(t.slice(0, 30))}
-                        placeholder="Circle name"
-                        placeholderTextColor={textTokens.disabled}
-                        style={{
-                          fontSize: 16, fontWeight: '600', color: textTokens.primary,
-                          backgroundColor: bg.secondary, borderRadius: 10, padding: 12,
-                          borderWidth: 0.5, borderColor: borderTokens.primary, marginBottom: 14,
-                        }}
-                        autoFocus
-                        returnKeyType="done"
-                        maxLength={30}
-                      />
-                      {/* Description input */}
-                      <Text style={{ fontSize: 12, fontWeight: '600', color: textTokens.secondary, marginBottom: 6 }}>Description</Text>
-                      <TextInput
-                        value={editDescription}
-                        onChangeText={(t) => setEditDescription(t.slice(0, 100))}
-                        placeholder="Optional description"
-                        placeholderTextColor={textTokens.disabled}
-                        multiline
-                        style={{
-                          fontSize: 14, color: textTokens.primary,
-                          backgroundColor: bg.secondary, borderRadius: 10, padding: 12,
-                          borderWidth: 0.5, borderColor: borderTokens.primary, marginBottom: 16,
-                          minHeight: 60, textAlignVertical: 'top',
-                        }}
-                        maxLength={100}
-                      />
-                      {/* Save / Cancel buttons */}
-                      <View style={{ flexDirection: 'row', gap: 10 }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 18, fontWeight: '700', color: textTokens.primary }}>{circle?.name}</Text>
+                        {circle?.description ? (
+                          <Text numberOfLines={2} style={{ fontSize: 13, color: textTokens.tertiary, marginTop: 3, lineHeight: 18 }}>{circle.description}</Text>
+                        ) : (
+                          <Text style={{ fontSize: 13, color: textTokens.disabled, marginTop: 3, fontStyle: 'italic' }}>No description</Text>
+                        )}
+                      </View>
+                      {isOwner && (
                         <TouchableOpacity
-                          style={{ flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center', backgroundColor: bg.secondary, borderWidth: 0.5, borderColor: borderTokens.primary }}
-                          onPress={() => setIsEditingCircle(false)}
-                          activeOpacity={0.7}
+                          onPress={() => { setEditName(circle?.name || ''); setEditEmoji(circle?.emoji || '👥'); setEditDescription(circle?.description || ''); setIsEditingCircle(true); }}
+                          style={{ width: 34, height: 34, borderRadius: 12, backgroundColor: brand.muted, alignItems: 'center', justifyContent: 'center' }}
+                          activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                         >
-                          <Text style={{ fontSize: 14, fontWeight: '600', color: textTokens.secondary }}>Cancel</Text>
+                          <Ionicons name="pencil" size={15} color={brand.primary} />
                         </TouchableOpacity>
-                        <TouchableOpacity
-                          style={{ flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center', backgroundColor: brand.primary, opacity: editName.trim().length < 2 || isSavingEdit ? 0.5 : 1 }}
-                          disabled={editName.trim().length < 2 || isSavingEdit}
-                          onPress={async () => {
-                            if (!circleId || editName.trim().length < 2) return;
-                            setIsSavingEdit(true);
-                            const ok = await updateCircle(circleId, {
-                              name: editName.trim(),
-                              emoji: editEmoji,
-                              description: editDescription.trim() || null as any,
-                            });
-                            setIsSavingEdit(false);
-                            if (ok) {
-                              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                              setIsEditingCircle(false);
-                              loadCircleData();
-                            } else {
-                              Alert.alert('Error', 'Could not update circle.');
-                            }
-                          }}
-                          activeOpacity={0.7}
-                        >
-                          <Text style={{ fontSize: 14, fontWeight: '700', color: '#fff' }}>{isSavingEdit ? 'Saving…' : 'Save'}</Text>
+                      )}
+                    </View>
+
+                    {/* Invite code row */}
+                    <View style={{ marginTop: 16, paddingTop: 14, borderTopWidth: 0.5, borderTopColor: borderTokens.primary }}>
+                      <Text style={{ fontSize: 12, fontWeight: '600', color: textTokens.tertiary, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.4 }}>Invite Code</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: bg.secondary, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 14, borderWidth: 0.5, borderColor: copiedCode ? `${semantic.success}40` : borderTokens.primary }}>
+                          <Text style={{ fontSize: 18, fontWeight: '800', color: textTokens.primary, letterSpacing: 2, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' }}>{code.toUpperCase()}</Text>
+                        </View>
+                        <TouchableOpacity onPress={handleCopyCode} style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: brand.primary, alignItems: 'center', justifyContent: 'center' }} activeOpacity={0.85}>
+                          <Ionicons name={copiedCode ? "checkmark" : "copy"} size={18} color="#fff" />
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={handleShare} style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: bg.secondary, alignItems: 'center', justifyContent: 'center', borderWidth: 0.5, borderColor: borderTokens.primary }} activeOpacity={0.85}>
+                          <Ionicons name="share-outline" size={18} color={brand.primary} />
                         </TouchableOpacity>
                       </View>
                     </View>
-                  )}
-                  <Text style={{ fontSize: 14, fontWeight: '600', color: semantic.error, marginBottom: 12 }}>Danger Zone</Text>
-                  <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: bg.card, borderRadius: 14, padding: 16, marginBottom: 10, borderWidth: 0.5, borderColor: borderTokens.primary }}
-                    onPress={handleLeaveCircle} activeOpacity={0.7}>
-                    <Ionicons name="log-out-outline" size={20} color={semantic.warning} />
-                    <View style={{ flex: 1 }}><Text style={{ fontSize: 15, fontWeight: '600', color: textTokens.primary }}>Transfer & Leave</Text><Text style={{ fontSize: 12, color: textTokens.tertiary, marginTop: 2 }}>Transfer ownership before leaving</Text></View>
-                    <Ionicons name="chevron-forward" size={16} color={textTokens.disabled} />
-                  </TouchableOpacity>
+                  </View>
+                ) : (
+                  /* Edit mode */
+                  <View style={{ backgroundColor: bg.card, borderRadius: 18, padding: 18, borderWidth: 1, borderColor: brand.primary }}>
+                    <Text style={{ fontSize: 15, fontWeight: '700', color: textTokens.primary, marginBottom: 14 }}>Edit Circle</Text>
+                    {/* Emoji picker row */}
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: textTokens.secondary, marginBottom: 6 }}>Emoji</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }} contentContainerStyle={{ gap: 8 }}>
+                      {['👥', '🏋️', '📚', '💻', '🎯', '🧘', '🏃', '🎨', '🎵', '💰', '🌱', '❤️'].map((em) => (
+                        <TouchableOpacity
+                          key={em}
+                          onPress={() => setEditEmoji(em)}
+                          style={{
+                            width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
+                            backgroundColor: editEmoji === em ? brand.muted : bg.secondary,
+                            borderWidth: editEmoji === em ? 1.5 : 0.5,
+                            borderColor: editEmoji === em ? brand.primary : borderTokens.primary,
+                          }}
+                        >
+                          <Text style={{ fontSize: 20 }}>{em}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                    {/* Name input */}
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: textTokens.secondary, marginBottom: 6 }}>Name</Text>
+                    <TextInput
+                      value={editName}
+                      onChangeText={(t) => setEditName(t.slice(0, 30))}
+                      placeholder="Circle name"
+                      placeholderTextColor={textTokens.disabled}
+                      style={{
+                        fontSize: 16, fontWeight: '600', color: textTokens.primary,
+                        backgroundColor: bg.secondary, borderRadius: 10, padding: 12,
+                        borderWidth: 0.5, borderColor: borderTokens.primary, marginBottom: 14,
+                      }}
+                      autoFocus
+                      returnKeyType="done"
+                      maxLength={30}
+                    />
+                    {/* Description input */}
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: textTokens.secondary, marginBottom: 6 }}>Description</Text>
+                    <TextInput
+                      value={editDescription}
+                      onChangeText={(t) => setEditDescription(t.slice(0, 100))}
+                      placeholder="Optional description"
+                      placeholderTextColor={textTokens.disabled}
+                      multiline
+                      style={{
+                        fontSize: 14, color: textTokens.primary,
+                        backgroundColor: bg.secondary, borderRadius: 10, padding: 12,
+                        borderWidth: 0.5, borderColor: borderTokens.primary, marginBottom: 16,
+                        minHeight: 60, textAlignVertical: 'top',
+                      }}
+                      maxLength={100}
+                    />
+                    {/* Save / Cancel buttons */}
+                    <View style={{ flexDirection: 'row', gap: 10 }}>
+                      <TouchableOpacity
+                        style={{ flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center', backgroundColor: bg.secondary, borderWidth: 0.5, borderColor: borderTokens.primary }}
+                        onPress={() => setIsEditingCircle(false)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={{ fontSize: 14, fontWeight: '600', color: textTokens.secondary }}>Cancel</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={{ flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center', backgroundColor: brand.primary, opacity: editName.trim().length < 2 || isSavingEdit ? 0.5 : 1 }}
+                        disabled={editName.trim().length < 2 || isSavingEdit}
+                        onPress={async () => {
+                          if (!circleId || editName.trim().length < 2) return;
+                          setIsSavingEdit(true);
+                          const ok = await updateCircle(circleId, {
+                            name: editName.trim(),
+                            emoji: editEmoji,
+                            description: editDescription.trim() || null as any,
+                          });
+                          setIsSavingEdit(false);
+                          if (ok) {
+                            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                            setIsEditingCircle(false);
+                            loadCircleData();
+                          } else {
+                            Alert.alert('Error', 'Could not update circle.');
+                          }
+                        }}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={{ fontSize: 14, fontWeight: '700', color: '#fff' }}>{isSavingEdit ? 'Saving…' : 'Save'}</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+              </View>
+
+              {/* ── Section 2: Members ──────────────────────────── */}
+              <View style={{ marginTop: 24 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <Text style={{ fontSize: 16, fontWeight: '700', color: textTokens.primary }}>Members</Text>
+                  <Text style={{ fontSize: 13, fontWeight: '500', color: textTokens.tertiary }}>{members.length} member{members.length !== 1 ? 's' : ''} · {accountability.todayCheckinCount} in</Text>
+                </View>
+                {sorted.map(item => {
+                  const isMe = item.id === user?.id;
+                  const canManage = (myRole === 'owner') || (myRole === 'admin' && item.role === 'member');
+                  const showAct = canManage && !isMe;
+                  const ms = checkinMap.get(item.id);
+                  const isIn = ms?.checked_in || false;
+                  const isOut = ms?.checked_out || false;
+                  return (
+                    <TouchableOpacity key={item.id} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: bg.card, borderRadius: 16, padding: 14, marginBottom: 8, borderWidth: 0.5, borderColor: isMe ? `${brand.primary}20` : borderTokens.primary }}
+                      onPress={() => showAct && handleMemberAction(item)} activeOpacity={showAct ? 0.7 : 1} disabled={!showAct}>
+                      <View style={{ position: 'relative' }}>
+                        {item.avatar_url ? (
+                          <Image source={{ uri: item.avatar_url }} style={{ width: 44, height: 44, borderRadius: 22, marginRight: 12 }} />
+                        ) : (
+                          <View style={{ width: 44, height: 44, borderRadius: 22, marginRight: 12, backgroundColor: item.role === 'owner' ? semantic.warningLight : item.role === 'admin' ? brand.muted : bg.primary, alignItems: 'center', justifyContent: 'center' }}>
+                            <Text style={{ fontSize: 16, fontWeight: '700', color: item.role === 'owner' ? semantic.warning : item.role === 'admin' ? brand.primary : textTokens.tertiary }}>{item.display_name?.[0]?.toUpperCase() || '?'}</Text>
+                          </View>
+                        )}
+                        {isIn && (
+                          <View style={{ position: 'absolute', bottom: -2, right: 8, width: 16, height: 16, borderRadius: 8, backgroundColor: isOut ? semantic.success : semantic.warning, borderWidth: 2, borderColor: bg.card, alignItems: 'center', justifyContent: 'center' }}>
+                            <Ionicons name={isOut ? "checkmark" : "time"} size={8} color="#fff" />
+                          </View>
+                        )}
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <Text style={{ fontSize: 15, fontWeight: '600', color: textTokens.primary }}>{item.display_name || 'User'}</Text>
+                          {isMe && <View style={{ backgroundColor: brand.muted, paddingHorizontal: 6, paddingVertical: 1.5, borderRadius: 6 }}><Text style={{ fontSize: 10, fontWeight: '700', color: brand.primary }}>YOU</Text></View>}
+                        </View>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 6 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: item.role === 'owner' ? semantic.warningLight : item.role === 'admin' ? brand.muted : bg.primary, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 }}>
+                            {ROLE_ICONS[item.role] ? <Text style={{ fontSize: 9 }}>{ROLE_ICONS[item.role]}</Text> : null}
+                            <Text style={{ fontSize: 11, fontWeight: '700', textTransform: 'capitalize', color: ROLE_COLORS[item.role] || textTokens.tertiary }}>{item.role}</Text>
+                          </View>
+                          {isIn ? (
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: isOut ? semantic.successLight : semantic.warningLight, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 }}>
+                              <Text style={{ fontSize: 9 }}>{isOut ? '✅' : '🟡'}</Text>
+                              <Text style={{ fontSize: 10, fontWeight: '700', color: isOut ? semantic.success : semantic.warning }}>{isOut ? 'Done' : 'Checked in'}</Text>
+                            </View>
+                          ) : (
+                            <View style={{ backgroundColor: `${textTokens.disabled}20`, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 }}>
+                              <Text style={{ fontSize: 10, fontWeight: '600', color: textTokens.disabled }}>Not yet</Text>
+                            </View>
+                          )}
+                        </View>
+                      </View>
+                      {showAct && (
+                        <TouchableOpacity style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: bg.primary, alignItems: 'center', justifyContent: 'center' }}
+                          onPress={() => handleMemberAction(item)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                          <Ionicons name="ellipsis-horizontal" size={16} color={textTokens.tertiary} />
+                        </TouchableOpacity>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* ── Section 3: Danger Zone ─────────────────────── */}
+              <View style={{ marginTop: 28 }}>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: semantic.error, marginBottom: 12 }}>Danger Zone</Text>
+                <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: bg.card, borderRadius: 14, padding: 16, marginBottom: 10, borderWidth: 0.5, borderColor: borderTokens.primary }}
+                  onPress={handleLeaveCircle} activeOpacity={0.7}>
+                  <Ionicons name="log-out-outline" size={20} color={semantic.warning} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 15, fontWeight: '600', color: textTokens.primary }}>{isOwner ? 'Transfer & Leave' : 'Leave Circle'}</Text>
+                    <Text style={{ fontSize: 12, color: textTokens.tertiary, marginTop: 2 }}>{isOwner ? 'Transfer ownership before leaving' : 'You can rejoin with the invite code'}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={textTokens.disabled} />
+                </TouchableOpacity>
+                {isOwner && (
                   <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: semantic.errorLight, borderRadius: 14, padding: 16, borderWidth: 0.5, borderColor: `${semantic.error}20` }}
                     onPress={handleDeleteCircle} activeOpacity={0.7}>
                     <Ionicons name="trash-outline" size={20} color={semantic.error} />
                     <View style={{ flex: 1 }}><Text style={{ fontSize: 15, fontWeight: '600', color: semantic.error }}>Delete Circle</Text><Text style={{ fontSize: 12, color: textTokens.tertiary, marginTop: 2 }}>Cannot be undone</Text></View>
                     <Ionicons name="chevron-forward" size={16} color={textTokens.disabled} />
                   </TouchableOpacity>
-                </View>
-              )}
+                )}
+              </View>
+
             </ScrollView>
           </View>
         </View>
