@@ -65,25 +65,25 @@ const OPAL = {
   gradientD:    '#0A0A0F',
 
   // Accent ring
-  ringStart:    '#A78BFA',   // violet-400
-  ringMid:      '#7C3AED',   // violet-600
-  ringEnd:      '#4F46E5',   // indigo-600
+  ringStart:    '#8ED8CE',   // teal-light
+  ringMid:      '#4AADA1',   // teal-primary
+  ringEnd:      '#2D8A7E',   // teal-dark
 
   // Glow
-  glowViolet:   'rgba(124, 58, 237, 0.35)',
-  glowIndigo:   'rgba(79, 70, 229, 0.25)',
-  glowSoft:     'rgba(167, 139, 250, 0.12)',
+  glowViolet:   'rgba(74, 173, 161, 0.35)',
+  glowIndigo:   'rgba(45, 138, 126, 0.25)',
+  glowSoft:     'rgba(91, 196, 183, 0.12)',
 
   // Text
   textPrimary:  '#F8F8FF',
   textSecondary:'#A0A0B8',
   textMuted:    '#6B6B80',
-  textAccent:   '#C4B5FD',
+  textAccent:   '#8ED8CE',
 
   // Controls
   ctrlBg:       'rgba(255, 255, 255, 0.08)',
   ctrlBorder:   'rgba(255, 255, 255, 0.12)',
-  ctrlActive:   'rgba(124, 58, 237, 0.4)',
+  ctrlActive:   'rgba(74, 173, 161, 0.4)',
 
   // Semantic
   success:      '#34D399',
@@ -1099,9 +1099,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 20,
-    backgroundColor: 'rgba(167, 139, 250, 0.12)',
+    backgroundColor: 'rgba(91, 196, 183, 0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(167, 139, 250, 0.2)',
+    borderColor: 'rgba(91, 196, 183, 0.2)',
     marginBottom: 16,
   },
   dndText: {
@@ -1175,7 +1175,7 @@ const styles = StyleSheet.create({
   controlBtnPrimary: {
     backgroundColor: OPAL.ctrlActive,
     borderWidth: 1.5,
-    borderColor: 'rgba(167, 139, 250, 0.3)',
+    borderColor: 'rgba(91, 196, 183, 0.3)',
     shadowColor: OPAL.ringMid,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,

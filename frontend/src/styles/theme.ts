@@ -60,6 +60,14 @@ export const shadows = {
     shadowRadius: 24,
     elevation: 5,
   } as ViewStyle,
+  accent: {
+    shadowColor: brand.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 14,
+    elevation: 4,
+  } as ViewStyle,
+  /** @deprecated use `accent` */
   purple: {
     shadowColor: brand.primary,
     shadowOffset: { width: 0, height: 4 },
@@ -67,7 +75,6 @@ export const shadows = {
     shadowRadius: 14,
     elevation: 4,
   } as ViewStyle,
-  /** @deprecated use `purple` */
   glow: {
     shadowColor: brand.primary,
     shadowOffset: { width: 0, height: 0 },
@@ -75,7 +82,6 @@ export const shadows = {
     shadowRadius: 20,
     elevation: 6,
   } as ViewStyle,
-  /** @deprecated use `purple` */
   glowStrong: {
     shadowColor: brand.primary,
     shadowOffset: { width: 0, height: 0 },

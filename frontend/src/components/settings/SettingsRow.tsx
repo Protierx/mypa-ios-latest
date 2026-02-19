@@ -50,7 +50,7 @@ export function SettingsRow({
   onPress,
   destructive,
   accessLabel,
-  accentColor = '#7C3AED',
+  accentColor = '#4AADA1',
 }: Props) {
   const textColor = destructive ? '#FF3B30' : '#1C1C1E';
 

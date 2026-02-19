@@ -170,7 +170,7 @@ export function VoicePermissions({
                   width: 100,
                   height: 100,
                   borderRadius: 50,
-                  backgroundColor: '#7C3AED',
+                  backgroundColor: '#4AADA1',
                   top: -10,
                   left: -10,
                 },
@@ -183,7 +183,7 @@ export function VoicePermissions({
                   width: 80,
                   height: 80,
                   borderRadius: 40,
-                  backgroundColor: '#7C3AED',
+                  backgroundColor: '#4AADA1',
                   justifyContent: 'center',
                   alignItems: 'center',
                 },
@@ -241,14 +241,14 @@ export function VoicePermissions({
             style={{
               flexDirection: 'row',
               alignItems: 'center',
-              backgroundColor: 'rgba(124, 58, 237, 0.1)',
+              backgroundColor: 'rgba(74, 173, 161, 0.1)',
               paddingVertical: 10,
               paddingHorizontal: 14,
               borderRadius: 12,
               marginBottom: 24,
             }}
           >
-            <Ionicons name="shield-checkmark" size={18} color="#7C3AED" />
+            <Ionicons name="shield-checkmark" size={18} color="#4AADA1" />
             <Text
               style={{
                 fontSize: 13,
@@ -267,7 +267,7 @@ export function VoicePermissions({
               onPress={requestPermission}
               style={{
                 width: '100%',
-                backgroundColor: '#7C3AED',
+                backgroundColor: '#4AADA1',
                 paddingVertical: 16,
                 borderRadius: 14,
                 alignItems: 'center',
@@ -290,7 +290,7 @@ export function VoicePermissions({
               onPress={openSettings}
               style={{
                 width: '100%',
-                backgroundColor: '#7C3AED',
+                backgroundColor: '#4AADA1',
                 paddingVertical: 16,
                 borderRadius: 14,
                 alignItems: 'center',

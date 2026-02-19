@@ -33,15 +33,15 @@ export interface AITaskAssistantStripProps {
 
 const COLORS = {
   bg: '#FFFFFF',
-  bgSubtle: '#F8F7FF',
-  border: 'rgba(124, 58, 237, 0.12)',
-  purple: '#7C3AED',
-  purpleLight: '#F3EEFF',
+  bgSubtle: '#F0FAF9',
+  border: 'rgba(74, 173, 161, 0.12)',
+  purple: '#4AADA1',
+  purpleLight: '#E0F4F1',
   textPrimary: '#1C1C1E',
   textSecondary: '#636366',
   textTertiary: '#AEAEB2',
   chipBg: '#F2F2F7',
-  chipBgActive: '#EDE5FF',
+  chipBgActive: '#D0EDE9',
   error: '#FF3B30',
   errorBg: '#FFF1F0',
 };

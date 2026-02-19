@@ -55,7 +55,7 @@ export const TYPE_TO_CATEGORY: Record<string, NotificationCategory> = {
 // ── Icon map ───────────────────────────────────────────────────────
 
 export const NOTIFICATION_ICON_MAP: Record<string, { icon: string; color: string }> = {
-  [NotificationType.CIRCLE_INVITE]: { icon: 'person-add-outline', color: '#7C3AED' },
+  [NotificationType.CIRCLE_INVITE]: { icon: 'person-add-outline', color: '#4AADA1' },
   [NotificationType.CIRCLE_JOINED]: { icon: 'people-outline', color: '#30D158' },
   [NotificationType.CHALLENGE_CREATED]: { icon: 'trophy-outline', color: '#FF9F0A' },
   [NotificationType.CHALLENGE_ENDING_SOON]: { icon: 'time-outline', color: '#FF453A' },
@@ -70,7 +70,7 @@ export const NOTIFICATION_ICON_MAP: Record<string, { icon: string; color: string
   [NotificationType.SYNC_FAILED]: { icon: 'cloud-offline-outline', color: '#FF453A' },
 
   // Fallback
-  default: { icon: 'notifications-outline', color: '#7C3AED' },
+  default: { icon: 'notifications-outline', color: '#4AADA1' },
 };
 
 export function getNotificationIcon(type: string) {

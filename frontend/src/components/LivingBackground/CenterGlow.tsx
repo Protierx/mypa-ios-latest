@@ -103,15 +103,15 @@ export function CenterGlow({ voiceState, energy = 0 }: CenterGlowProps) {
     switch (voiceState) {
       case 'listening':
         return [
-          'rgba(167, 139, 250, 0.3)',
+          'rgba(91, 196, 183, 0.3)',
           'rgba(139, 92, 246, 0.15)',
-          'rgba(124, 58, 237, 0.05)',
+          'rgba(74, 173, 161, 0.05)',
           'transparent',
         ];
       case 'processing':
         return [
           'rgba(99, 102, 241, 0.25)',
-          'rgba(79, 70, 229, 0.12)',
+          'rgba(45, 138, 126, 0.12)',
           'rgba(67, 56, 202, 0.04)',
           'transparent',
         ];
@@ -125,9 +125,9 @@ export function CenterGlow({ voiceState, energy = 0 }: CenterGlowProps) {
         ];
       default:
         return [
-          'rgba(124, 58, 237, 0.15)',
-          'rgba(124, 58, 237, 0.08)',
-          'rgba(124, 58, 237, 0.02)',
+          'rgba(74, 173, 161, 0.15)',
+          'rgba(74, 173, 161, 0.08)',
+          'rgba(74, 173, 161, 0.02)',
           'transparent',
         ];
     }
@@ -147,7 +147,7 @@ export function CenterGlow({ voiceState, energy = 0 }: CenterGlowProps) {
         return [
           'rgba(255, 255, 255, 0.4)',
           'rgba(200, 180, 255, 0.25)',
-          'rgba(167, 139, 250, 0.1)',
+          'rgba(91, 196, 183, 0.1)',
           'transparent',
         ];
     }
@@ -170,9 +170,9 @@ export function CenterGlow({ voiceState, energy = 0 }: CenterGlowProps) {
           c={vec(CENTER_X, CENTER_Y)}
           r={100}
           colors={[
-            'rgba(167, 139, 250, 0.25)',
+            'rgba(91, 196, 183, 0.25)',
             'rgba(139, 92, 246, 0.15)',
-            'rgba(124, 58, 237, 0.05)',
+            'rgba(74, 173, 161, 0.05)',
             'transparent',
           ]}
         />

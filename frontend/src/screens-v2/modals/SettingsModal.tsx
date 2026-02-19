@@ -96,6 +96,8 @@ export function SettingsModal({ visible, onClose, onShowPaywall }: SettingsModal
   const setLiveCaptionsEnabled = voice.setLiveCaptionsEnabled;
   const preferredLanguage = voice.preferredLanguage;
   const setPreferredLanguage = voice.setPreferredLanguage;
+  const tonePreference = voice.tonePreference;
+  const setTonePreference = voice.setTonePreference;
 
   // Non-voice settings (would normally be persisted)
   const [pushEnabled, setPushEnabled] = useState(true);
@@ -274,6 +276,41 @@ export function SettingsModal({ visible, onClose, onShowPaywall }: SettingsModal
               >
                 <Text style={{ color: brand.primary, fontWeight: '500' }}>Test Voice</Text>
               </TouchableOpacity>
+            </View>
+            <View style={{ height: 1, backgroundColor: borderTokens.primary, marginHorizontal: 20 }} />
+            {/* MYPA Tone */}
+            <View style={{ paddingHorizontal: 20, paddingVertical: 16 }}>
+              <Text style={{ color: textTokens.primary, marginBottom: 4 }}>MYPA Tone</Text>
+              <Text style={{ color: textTokens.tertiary, fontSize: 13, marginBottom: 12 }}>How MYPA speaks to you</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {([
+                  { id: 'warm', label: 'Warm', desc: 'Like a reliable friend' },
+                  { id: 'gentle', label: 'Gentle', desc: 'Treads lightly' },
+                  { id: 'energetic', label: 'Energetic', desc: 'Caffeinated & upbeat' },
+                  { id: 'direct', label: 'Direct', desc: 'No wasted words' },
+                ] as const).map((opt) => (
+                  <TouchableOpacity
+                    key={opt.id}
+                    style={{
+                      paddingHorizontal: 16,
+                      paddingVertical: 8,
+                      borderRadius: radius.sm,
+                      borderWidth: 1,
+                      backgroundColor: tonePreference === opt.id ? brand.muted : bg.secondary,
+                      borderColor: tonePreference === opt.id ? brand.primary : borderTokens.primary,
+                    }}
+                    onPress={() => {
+                      Haptics.selectionAsync();
+                      setTonePreference(opt.id);
+                    }}
+                  >
+                    <Text style={{ color: tonePreference === opt.id ? brand.primary : textTokens.primary, fontWeight: tonePreference === opt.id ? '600' : '400' }}>
+                      {opt.label}
+                    </Text>
+                    <Text style={{ color: textTokens.tertiary, fontSize: 12 }}>{opt.desc}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
             <View style={{ height: 1, backgroundColor: borderTokens.primary, marginHorizontal: 20 }} />
             {/* Discreet Mode (PRD 4.1) */}

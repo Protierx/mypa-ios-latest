@@ -100,7 +100,7 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
       name: 'Default',
       importance: Notifications.AndroidImportance.MAX,
       vibrationPattern: [0, 250, 250, 250],
-      lightColor: '#8B5CF6',
+      lightColor: '#8EAAD8',
     });
 
     Notifications.setNotificationChannelAsync('reminders', {
@@ -114,7 +114,7 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
       name: 'Circle Activity',
       importance: Notifications.AndroidImportance.DEFAULT,
       vibrationPattern: [0, 100, 100, 100],
-      lightColor: '#8B5CF6',
+      lightColor: '#8EAAD8',
     });
 
     Notifications.setNotificationChannelAsync('achievements', {

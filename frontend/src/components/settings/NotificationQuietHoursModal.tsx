@@ -52,7 +52,7 @@ export function NotificationQuietHoursModal({
   onClose,
   quietHours,
   onChange,
-  accentColor = '#7C3AED',
+  accentColor = '#4AADA1',
 }: Props) {
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);

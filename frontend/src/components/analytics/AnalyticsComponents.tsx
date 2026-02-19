@@ -56,7 +56,7 @@ const C = {
   amberBg: '#FFFBEB',
   red: '#EF4444',
   redBg: '#FEF2F2',
-  purple: '#8B5CF6',
+  purple: '#8EAAD8',
   purpleBg: '#F5F3FF',
   orange: '#F97316',
   orangeBg: '#FFF7ED',

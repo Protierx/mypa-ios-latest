@@ -437,7 +437,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
           <Animated.View entering={FadeIn.duration(600)} style={styles.stepContainer}>
             <Animated.View style={[styles.orbContainer, orbAnimatedStyle]}>
               <LinearGradient
-                colors={['#7C3AED', '#6366F1', '#8B5CF6']}
+                colors={['#4AADA1', '#6366F1', '#8EAAD8']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.orb}
@@ -455,7 +455,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
 
             <Animated.View entering={FadeInUp.duration(600).delay(600)} style={styles.timezoneCard}>
               <View style={styles.timezoneIconWrap}>
-                <Ionicons name="globe-outline" size={20} color="#A78BFA" />
+                <Ionicons name="globe-outline" size={20} color="#5BC4B7" />
               </View>
               <View style={styles.timezoneTextContainer}>
                 <Text style={styles.timezoneLabel}>Your timezone</Text>
@@ -467,7 +467,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
             <Animated.View entering={FadeInUp.duration(600).delay(800)} style={{ width: '100%' }}>
               <TouchableOpacity onPress={handleWelcomeContinue} activeOpacity={0.85}>
                 <LinearGradient
-                  colors={['#7C3AED', '#6366F1']}
+                  colors={['#4AADA1', '#6366F1']}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                   style={styles.primaryBtn}
@@ -485,7 +485,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
           <Animated.View entering={SlideInRight.duration(400)} style={styles.stepContainer}>
             <Animated.View entering={FadeIn.duration(400)} style={styles.permIconWrap}>
               <LinearGradient
-                colors={['#6366F1', '#8B5CF6']}
+                colors={['#6366F1', '#8EAAD8']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.permIconCircle}
@@ -542,7 +542,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
             <Animated.View entering={FadeInUp.duration(400).delay(500)} style={{ width: '100%' }}>
               <TouchableOpacity onPress={handleLanguageContinue} activeOpacity={0.85}>
                 <LinearGradient
-                  colors={['#7C3AED', '#6366F1']}
+                  colors={['#4AADA1', '#6366F1']}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                   style={styles.primaryBtn}
@@ -560,7 +560,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
           <Animated.View entering={SlideInRight.duration(400)} style={styles.stepContainer}>
             <Animated.View entering={FadeIn.duration(400)} style={styles.permIconWrap}>
               <LinearGradient
-                colors={['#7C3AED', '#6366F1']}
+                colors={['#4AADA1', '#6366F1']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.permIconCircle}
@@ -596,7 +596,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
                         <Ionicons
                           name={perm.granted === true ? 'checkmark' : (perm.icon as any)}
                           size={18}
-                          color={perm.granted === true ? '#34D399' : '#A78BFA'}
+                          color={perm.granted === true ? '#34D399' : '#5BC4B7'}
                         />
                       </View>
                       <View style={styles.permCardTextWrap}>
@@ -631,7 +631,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
                 <Animated.View entering={FadeInUp.duration(400).delay(700)} style={{ width: '100%' }}>
                   <TouchableOpacity onPress={handleAllowAll} activeOpacity={0.85}>
                     <LinearGradient
-                      colors={['#7C3AED', '#6366F1']}
+                      colors={['#4AADA1', '#6366F1']}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 0 }}
                       style={styles.primaryBtn}
@@ -672,7 +672,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
               <LinearGradient
                 colors={isGreetingPlaying || voiceState === 'speaking'
                   ? ['#34D399', '#10B981']
-                  : ['#7C3AED', '#6366F1', '#8B5CF6']}
+                  : ['#4AADA1', '#6366F1', '#8EAAD8']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={[styles.orb, isGreetingPlaying && { transform: [{ scale: 1 + audioLevel * 0.3 }] }]}
@@ -699,7 +699,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
             {!isGreetingPlaying && !greetingText && (
               <TouchableOpacity onPress={handleVoiceIntro} activeOpacity={0.85}>
                 <LinearGradient
-                  colors={['#7C3AED', '#6366F1']}
+                  colors={['#4AADA1', '#6366F1']}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                   style={styles.primaryBtn}
@@ -714,7 +714,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
               <Animated.View entering={FadeInUp.duration(400)}>
                 <TouchableOpacity onPress={() => setStep('first_command')} activeOpacity={0.85}>
                   <LinearGradient
-                    colors={['#7C3AED', '#6366F1']}
+                    colors={['#4AADA1', '#6366F1']}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 0 }}
                     style={styles.primaryBtn}
@@ -749,7 +749,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
                             : ['#F59E0B', '#D97706']
                           : isCreatingTask
                           ? ['#F59E0B', '#D97706']
-                          : ['#7C3AED', '#6366F1', '#8B5CF6']
+                          : ['#4AADA1', '#6366F1', '#8EAAD8']
                       }
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
@@ -802,7 +802,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
 
                 {!isConversationActive && (
                   <View style={styles.exampleCard}>
-                    <Ionicons name="chatbubble-outline" size={18} color="#A78BFA" />
+                    <Ionicons name="chatbubble-outline" size={18} color="#5BC4B7" />
                     <Text style={styles.exampleText}>"Add buy groceries tomorrow"</Text>
                   </View>
                 )}
@@ -845,7 +845,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
                     disabled={isCompleting}
                   >
                     <LinearGradient
-                      colors={['#7C3AED', '#6366F1']}
+                      colors={['#4AADA1', '#6366F1']}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 0 }}
                       style={styles.primaryBtn}
@@ -889,7 +889,7 @@ const styles = StyleSheet.create({
   ambientOrb1: {
     width: 300,
     height: 300,
-    backgroundColor: 'rgba(124, 58, 237, 0.08)',
+    backgroundColor: 'rgba(74, 173, 161, 0.08)',
     top: -60,
     right: -80,
   },
@@ -918,10 +918,10 @@ const styles = StyleSheet.create({
   progressDotActive: {
     width: 28,
     borderRadius: 4,
-    backgroundColor: '#7C3AED',
+    backgroundColor: '#4AADA1',
   },
   progressDotDone: {
-    backgroundColor: '#A78BFA',
+    backgroundColor: '#5BC4B7',
   },
 
   // Step container
@@ -942,7 +942,7 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#7C3AED',
+    shadowColor: '#4AADA1',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.4,
     shadowRadius: 20,
@@ -982,7 +982,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: 'rgba(124,58,237,0.15)',
+    backgroundColor: 'rgba(74,173,161,0.15)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1039,7 +1039,7 @@ const styles = StyleSheet.create({
     borderRadius: 36,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#7C3AED',
+    shadowColor: '#4AADA1',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.35,
     shadowRadius: 16,
@@ -1077,7 +1077,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: 'rgba(124,58,237,0.15)',
+    backgroundColor: 'rgba(74,173,161,0.15)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1100,17 +1100,17 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   permAllowBtn: {
-    backgroundColor: 'rgba(124,58,237,0.2)',
+    backgroundColor: 'rgba(74,173,161,0.2)',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: 'rgba(124,58,237,0.4)',
+    borderColor: 'rgba(74,173,161,0.4)',
   },
   permAllowBtnText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#A78BFA',
+    color: '#5BC4B7',
   },
   permDeniedText: {
     fontSize: 12,
@@ -1148,7 +1148,7 @@ const styles = StyleSheet.create({
   transcriptLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#A78BFA',
+    color: '#5BC4B7',
     marginBottom: 6,
     textAlign: 'center',
     textTransform: 'uppercase',
@@ -1159,18 +1159,18 @@ const styles = StyleSheet.create({
   exampleCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(124,58,237,0.1)',
+    backgroundColor: 'rgba(74,173,161,0.1)',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
     gap: 8,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: 'rgba(124,58,237,0.2)',
+    borderColor: 'rgba(74,173,161,0.2)',
   },
   exampleText: {
     fontSize: 15,
-    color: '#C4B5FD',
+    color: '#8ED8CE',
     fontStyle: 'italic',
   },
 
@@ -1197,8 +1197,8 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.06)',
   },
   langCardSelected: {
-    borderColor: 'rgba(124, 58, 237, 0.5)',
-    backgroundColor: 'rgba(124, 58, 237, 0.1)',
+    borderColor: 'rgba(74, 173, 161, 0.5)',
+    backgroundColor: 'rgba(74, 173, 161, 0.1)',
   },
   langFlag: {
     fontSize: 24,
@@ -1213,7 +1213,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   langNameSelected: {
-    color: '#C4B5FD',
+    color: '#8ED8CE',
   },
   langNative: {
     fontSize: 12,

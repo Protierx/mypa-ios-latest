@@ -27,7 +27,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 2,
   },
   trackActive: {
-    backgroundColor: '#8B5CF6',
+    backgroundColor: '#8EAAD8',
   },
   trackInactive: {
     backgroundColor: '#CBD5E1',

@@ -111,7 +111,7 @@ export function generateTaskInsight(
         ? `Start with "${todayTasks[0].title}" and build momentum`
         : `Just "${todayTasks[0].title}" — you've got this`,
       icon: 'sunny',
-      accent: '#7C3AED',
+      accent: '#4AADA1',
       action: { label: 'Plan My Day', type: 'plan_day' },
     };
   }
@@ -143,7 +143,7 @@ export function generateTaskInsight(
     message: `${greeting}. Your slate is clean.`,
     submessage: 'Add your first task and let me help you stay on track.',
     icon: 'sparkles',
-    accent: '#7C3AED',
+    accent: '#4AADA1',
     action: { label: 'Add Task', type: 'add_task' },
   };
 }

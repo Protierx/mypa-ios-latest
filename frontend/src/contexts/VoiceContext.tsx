@@ -133,6 +133,8 @@ interface VoiceContextType {
   setVoiceSpeed: (speed: number) => void;
   selectedVoice: string;
   setSelectedVoice: (voice: string) => void;
+  tonePreference: string;
+  setTonePreference: (tone: string) => Promise<void>;
 
   // Language
   preferredLanguage: string;
@@ -242,6 +244,15 @@ async function invokeWithAuth<T = unknown>(
   return first as { data: null; error: FunctionsHttpError | Error };
 }
 
+/** Map days active to trust tier label injected into system prompt */
+function computeTrustTier(daysActive: number): string {
+  if (daysActive >= 30) return 'confidant';
+  if (daysActive >= 14) return 'partner';
+  if (daysActive >= 7) return 'colleague';
+  if (daysActive >= 3) return 'acquaintance';
+  return 'stranger';
+}
+
 // ============================================================================
 // Provider
 // ============================================================================
@@ -279,6 +290,7 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
   // -- Settings ------------------------------------------------------------
   const [voiceSpeed, setVoiceSpeed] = useState(1.0);
   const [selectedVoice, setSelectedVoice] = useState(DEFAULT_ELEVENLABS_VOICE_ID);
+  const [tonePreference, setTonePreferenceState] = useState('warm');
   const [isDiscreetMode, setIsDiscreetMode] = useState(false);
 
   // -- Wake Word state ----------------------------------------------------
@@ -802,6 +814,12 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
         greetingContext = `Normal day, ${tasksToday} task${tasksToday !== 1 ? 's' : ''} planned today`;
       }
 
+      // Sync tonePreference from DB if not yet set locally
+      const fetchedTone = rawModel?.tone_preference || 'warm';
+      setTonePreferenceState(fetchedTone);
+
+      const daysActive = userModelData?.stats?.daysActive ?? 0;
+
       const dynamicVars: SessionDynamicVariables = {
         user_id: user.id,
         user_name: userName,
@@ -811,7 +829,7 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
         timezone: getTimezone(),
         overwhelm_score: String(overwhelm),
         completion_rate: String(rawModel?.completion_rate_7d ?? 0),
-        tone_preference: rawModel?.tone_preference || 'friendly',
+        tone_preference: fetchedTone,
         streak_days: String(streakDays),
         tasks_today_count: String(tasksToday),
         overdue_count: String(overdueTasks),
@@ -819,6 +837,7 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
         task_summary: '',
         language: preferredLanguage,
         voice_speed: String(voiceSpeed),
+        trust_level: computeTrustTier(daysActive),
       };
 
       // 3. Build session config and start (with adaptive voice settings)
@@ -1338,6 +1357,19 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
   }, []);
 
   // -----------------------------------------------------------------------
+  // Tone preference — persist to user_model in Supabase
+  // -----------------------------------------------------------------------
+  const handleSetTonePreference = useCallback(async (tone: string) => {
+    setTonePreferenceState(tone);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from('user_model').update({ tone_preference: tone }).eq('user_id', user.id);
+      }
+    } catch { /* noop */ }
+  }, []);
+
+  // -----------------------------------------------------------------------
   // retryConnection — manually re-check and flush queue (Step 20)
   // -----------------------------------------------------------------------
   const retryConnection = useCallback(async () => {
@@ -1563,6 +1595,8 @@ export function VoiceProvider({ children }: VoiceProviderProps) {
     setVoiceSpeed,
     selectedVoice,
     setSelectedVoice,
+    tonePreference,
+    setTonePreference: handleSetTonePreference,
 
     preferredLanguage,
     setPreferredLanguage: handleSetPreferredLanguage,

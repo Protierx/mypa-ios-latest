@@ -118,7 +118,7 @@ export const DEFAULT_PREFERENCES: SettingsPreferences = {
 // ── Accent Palette Map ───────────────────────────────────────
 
 export const ACCENT_COLORS: Record<AccentPreset, { primary: string; light: string; label: string }> = {
-  purple: { primary: '#7C3AED', light: '#F5F0FF', label: 'Purple' },
+  purple: { primary: '#4AADA1', light: '#E0F4F1', label: 'Purple' },
   blue:   { primary: '#2563EB', light: '#EFF6FF', label: 'Blue' },
   teal:   { primary: '#0D9488', light: '#F0FDFA', label: 'Teal' },
   rose:   { primary: '#E11D48', light: '#FFF1F2', label: 'Rose' },

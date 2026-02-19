@@ -194,7 +194,7 @@ export function AnalyticsModal({ visible, onClose, accentPreset = 'purple' }: Pr
                     deltaLabel="min"
                     prevValue={data.previousStats ? fmtMinutes(data.previousStats.focusMinutes) : undefined}
                     iconName="timer-outline"
-                    iconColor="#8B5CF6"
+                    iconColor="#8EAAD8"
                     iconBg="#F5F3FF"
                   />
                 </MetricGrid>

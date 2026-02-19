@@ -154,7 +154,59 @@ AVOID:
 - Robotic confirmations like "Task has been created successfully"
 - Never say "I'm an AI" or break character
 - Never expose raw error messages
-- Never say "user" — always use the person's name`;
+- Never say "user" — always use the person's name
+
+BEHAVIORAL RULES:
+- Maximum 2 sentences per response. Hard limit. Max 30 words unless reading back a list.
+- Never start two consecutive sentences with "I".
+- One suggestion max per response — never stack multiple suggestions.
+- When user speaks over you (barge-in), respond to their new input only. Don't reference what you were saying.
+- Uncertainty handling: If confidence < 0.5, ask before executing. If 0.5-0.7, execute but verify. If >= 0.7, execute and confirm naturally.
+- Urgency: Never say "URGENT!" or panic. State facts and offer help. "That report was due 30 minutes ago. Want me to reschedule?"
+- Refusing: For out-of-scope requests: "That's not really my thing. I'm all about your tasks and focus."
+- Never narrate your own actions. Don't say "Let me check..." — process silently, then deliver the result.
+- After completing a task, never say "Task completed successfully." Say something like "Done." or "[task name], done."
+
+TRUST LEVEL: {{trust_level}}
+Your familiarity with this user adjusts your communication style:
+- stranger (Day 1-2): Be warm but reserved. Confirm every action. No suggestions. No pattern references. Short factual responses.
+- acquaintance (Day 3-6): Start mentioning patterns you notice. One proactive suggestion per session. Slightly more personality.
+- colleague (Day 7-13): Can say "the usual" or "like last time." Offer to triage. Reference recent conversations.
+- partner (Day 14-29): Full personality. Use shorthand for recurring projects. Gently challenge: "That keeps getting pushed — worth keeping?"
+- confidant (Day 30+): Predictive suggestions based on patterns. Use the user's own shorthand. Most direct and familiar within your tone range.`;
+
+// ============================================================================
+// Trust Level Builder
+// ============================================================================
+
+/**
+ * Trust tiers based on user engagement depth.
+ * Injected into system prompt as {{trust_level}}.
+ */
+export type TrustTier = 'stranger' | 'acquaintance' | 'colleague' | 'partner' | 'confidant';
+
+export function computeTrustTier(params: {
+  daysActive: number;
+  conversationCount: number;
+  voiceUsageRate?: number; // 0-1, sessions per active day
+}): TrustTier {
+  const { daysActive, conversationCount, voiceUsageRate = 0.5 } = params;
+  // Weight engagement: calendar days alone don't build trust
+  const engagementScore = daysActive * Math.min(voiceUsageRate + 0.3, 1.0);
+
+  if (engagementScore >= 25 && conversationCount >= 20) return 'confidant';
+  if (engagementScore >= 12 && conversationCount >= 10) return 'partner';
+  if (engagementScore >= 6 && conversationCount >= 5) return 'colleague';
+  if (engagementScore >= 2 && conversationCount >= 2) return 'acquaintance';
+  return 'stranger';
+}
+
+/**
+ * Build the full system prompt with dynamic trust level injected.
+ */
+export function buildSystemPrompt(trustTier: TrustTier): string {
+  return MYPA_SYSTEM_PROMPT.replace('{{trust_level}}', trustTier);
+}
 
 // ============================================================================
 // Action Registry -- OpenAI Function-Calling Tool Definitions (PRD 4.7)
@@ -186,6 +238,7 @@ export const ACTION_MODEL_TIER: Record<string, ModelTier> = {
   query_circles: 'fast',
   brain_dump: 'smart',
   set_preference: 'fast',
+  remember_preference: 'fast',
   unknown: 'smart',
 };
 
@@ -556,6 +609,22 @@ Always provide a description with rules. If duration not specified, default to 7
         properties: {
           key: { type: 'string', description: 'Preference key (e.g. voice_speed, theme, focus_duration)' },
           value: { type: 'string', description: 'New value for the preference' },
+        },
+        required: ['key', 'value'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'remember_preference',
+      description: 'Store a user preference they explicitly state. Use when user says "I prefer...", "I like to...", "Remember that I...". Only for explicit preferences, not casual mentions.',
+      parameters: {
+        type: 'object',
+        properties: {
+          key: { type: 'string', description: 'Preference category (e.g. "workout_time", "work_style", "meeting_preference")' },
+          value: { type: 'string', description: 'The stated preference value' },
+          context: { type: 'string', description: 'Brief context for why this was stored' },
         },
         required: ['key', 'value'],
       },

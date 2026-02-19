@@ -257,7 +257,11 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
+  - ExpoSensors (15.0.8):
+    - ExpoModulesCore
   - ExpoSpeech (14.0.8):
+    - ExpoModulesCore
+  - ExpoTrackingTransparency (6.0.8):
     - ExpoModulesCore
   - ExpoWebBrowser (15.0.10):
     - ExpoModulesCore
@@ -302,6 +306,8 @@ PODS:
   - porcupine-react-native (4.0.0):
     - Porcupine-iOS (~> 4.0.0)
     - React
+  - PurchasesHybridCommon (17.37.0):
+    - RevenueCat (= 5.58.0)
   - RCTDeprecation (0.81.5)
   - RCTRequired (0.81.5)
   - RCTTypeSafety (0.81.5):
@@ -2034,6 +2040,7 @@ PODS:
     - React-utils (= 0.81.5)
     - ReactNativeDependencies
   - ReactNativeDependencies (0.81.5)
+  - RevenueCat (5.58.0)
   - RNCAsyncStorage (2.2.0):
     - hermes-engine
     - RCTRequired
@@ -2100,6 +2107,9 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
+  - RNPurchases (9.9.0):
+    - PurchasesHybridCommon (= 17.37.0)
+    - React-Core
   - RNReanimated (4.1.6):
     - hermes-engine
     - RCTRequired
@@ -2221,6 +2231,30 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
+  - RNSentry (8.0.0):
+    - hermes-engine
+    - RCTRequired
+    - RCTTypeSafety
+    - React-Core
+    - React-Core-prebuilt
+    - React-debug
+    - React-Fabric
+    - React-featureflags
+    - React-graphics
+    - React-hermes
+    - React-ImageManager
+    - React-jsi
+    - React-NativeModulesApple
+    - React-RCTFabric
+    - React-renderercss
+    - React-rendererdebug
+    - React-utils
+    - ReactCodegen
+    - ReactCommon/turbomodule/bridging
+    - ReactCommon/turbomodule/core
+    - ReactNativeDependencies
+    - Sentry (= 9.4.1)
+    - Yoga
   - RNSVG (15.12.1):
     - hermes-engine
     - RCTRequired
@@ -2337,6 +2371,9 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
+  - Sentry (9.4.1):
+    - Sentry/Core (= 9.4.1)
+  - Sentry/Core (9.4.1)
   - WebRTC-SDK (137.7151.04)
   - Yoga (0.0.0)
 
@@ -2367,7 +2404,9 @@ DEPENDENCIES:
   - ExpoLinearGradient (from `../node_modules/expo-linear-gradient/ios`)
   - ExpoLinking (from `../node_modules/expo-linking/ios`)
   - ExpoModulesCore (from `../node_modules/expo-modules-core`)
+  - ExpoSensors (from `../node_modules/expo-sensors/ios`)
   - ExpoSpeech (from `../node_modules/expo-speech/ios`)
+  - ExpoTrackingTransparency (from `../node_modules/expo-tracking-transparency/ios`)
   - ExpoWebBrowser (from `../node_modules/expo-web-browser/ios`)
   - EXUpdatesInterface (from `../node_modules/expo-updates-interface/ios`)
   - FBLazyVector (from `../node_modules/react-native/Libraries/FBLazyVector`)
@@ -2448,8 +2487,10 @@ DEPENDENCIES:
   - "RNCAsyncStorage (from `../node_modules/@react-native-async-storage/async-storage`)"
   - "RNDateTimePicker (from `../node_modules/@react-native-community/datetimepicker`)"
   - RNGestureHandler (from `../node_modules/react-native-gesture-handler`)
+  - RNPurchases (from `../node_modules/react-native-purchases`)
   - RNReanimated (from `../node_modules/react-native-reanimated`)
   - RNScreens (from `../node_modules/react-native-screens`)
+  - "RNSentry (from `../node_modules/@sentry/react-native`)"
   - RNSVG (from `../node_modules/react-native-svg`)
   - RNWorklets (from `../node_modules/react-native-worklets`)
   - Yoga (from `../node_modules/react-native/ReactCommon/yoga`)
@@ -2458,7 +2499,10 @@ SPEC REPOS:
   trunk:
     - ios-voice-processor
     - Porcupine-iOS
+    - PurchasesHybridCommon
     - React-Codegen
+    - RevenueCat
+    - Sentry
     - WebRTC-SDK
 
 EXTERNAL SOURCES:
@@ -2514,8 +2558,12 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-linking/ios"
   ExpoModulesCore:
     :path: "../node_modules/expo-modules-core"
+  ExpoSensors:
+    :path: "../node_modules/expo-sensors/ios"
   ExpoSpeech:
     :path: "../node_modules/expo-speech/ios"
+  ExpoTrackingTransparency:
+    :path: "../node_modules/expo-tracking-transparency/ios"
   ExpoWebBrowser:
     :path: "../node_modules/expo-web-browser/ios"
   EXUpdatesInterface:
@@ -2675,10 +2723,14 @@ EXTERNAL SOURCES:
     :path: "../node_modules/@react-native-community/datetimepicker"
   RNGestureHandler:
     :path: "../node_modules/react-native-gesture-handler"
+  RNPurchases:
+    :path: "../node_modules/react-native-purchases"
   RNReanimated:
     :path: "../node_modules/react-native-reanimated"
   RNScreens:
     :path: "../node_modules/react-native-screens"
+  RNSentry:
+    :path: "../node_modules/@sentry/react-native"
   RNSVG:
     :path: "../node_modules/react-native-svg"
   RNWorklets:
@@ -2713,7 +2765,9 @@ SPEC CHECKSUMS:
   ExpoLinearGradient: 809102bdb979f590083af49f7fa4805cd931bd58
   ExpoLinking: 8f0aaf69aa56f832913030503b6263dc6f647f37
   ExpoModulesCore: f3da4f1ab5a8375d0beafab763739dbee8446583
+  ExpoSensors: 8f9fe9a9ffd36ca9c2f0fe40dafc0a063f844420
   ExpoSpeech: d22b56570ccfab5a27112dc9691f1ac83537de26
+  ExpoTrackingTransparency: 4f823a38ff7c0efea4cac722ecbc0589278ff548
   ExpoWebBrowser: 17b064c621789e41d4816c95c93f429b84971f52
   EXUpdatesInterface: 5adf50cb41e079c861da6d9b4b954c3db9a50734
   FBLazyVector: e95a291ad2dadb88e42b06e0c5fb8262de53ec12
@@ -2724,6 +2778,7 @@ SPEC CHECKSUMS:
   LiveKitExpoPlugin: 8e0f4bdffa921c27c13e1504ea0e668b6f859278
   Porcupine-iOS: 9e4b42239d780532760c073f48740d36c7211674
   porcupine-react-native: d6890ad8b9b7119413b84c328f3c55d76bdc3c9e
+  PurchasesHybridCommon: 5e012ecbd932092af743a8cec6bf55b605f2d89d
   RCTDeprecation: 943572d4be82d480a48f4884f670135ae30bf990
   RCTRequired: 8f3cfc90cc25cf6e420ddb3e7caaaabc57df6043
   RCTTypeSafety: 16a4144ca3f959583ab019b57d5633df10b5e97c
@@ -2793,13 +2848,17 @@ SPEC CHECKSUMS:
   ReactCodegen: 7d4593f7591f002d137fe40cef3f6c11f13c88cc
   ReactCommon: 08810150b1206cc44aecf5f6ae19af32f29151a8
   ReactNativeDependencies: 71ce9c28beb282aa720ea7b46980fff9669f428a
+  RevenueCat: 88bb4229115b2badcce0e5a97f3dd8cc952b38c8
   RNCAsyncStorage: 3a4f5e2777dae1688b781a487923a08569e27fe4
   RNDateTimePicker: 9c0a849bbe1c256f0854fea255734b715f5ea876
   RNGestureHandler: 2914750df066d89bf9d8f48a10ad5f0051108ac3
+  RNPurchases: 16d7bcf8f51f76e74fd553fc056770344fc4a2b5
   RNReanimated: e5c702a3e24cc1c68b2de67671713f35461678f4
   RNScreens: d8d6f1792f6e7ac12b0190d33d8d390efc0c1845
+  RNSentry: 1e1ac789648ea1be530dd810c24893c8234baabf
   RNSVG: 31d6639663c249b7d5abc9728dde2041eb2a3c34
   RNWorklets: 2fb11aebe21ea76d0c5456e92d2f23e0cad91a68
+  Sentry: 990a381d8592207a52e7be654b31a27738c3a6a8
   WebRTC-SDK: 40d4f5ba05cadff14e4db5614aec402a633f007e
   Yoga: 5934998fbeaef7845dbf698f698518695ab4cd1a
 

@@ -1,88 +1,88 @@
 /**
- * MYPA Unified Light-Mode Design Tokens
+ * MYPA Cloud Design Tokens
  *
  * Single source of truth for all colours in the app.
- * Every screen (except Login, which keeps dark branding) uses these tokens.
- * Mirrors the Tailwind config — keep both in sync.
+ * "Cloud" palette: calming, structured, professional.
+ * Soft teal accent. Adaptive day/night modes.
+ *
+ * Day mode is the primary identity. Night mode is the same palette, dimmed.
  */
 
-// ── Backgrounds ──────────────────────────────────────────────
+// ── Backgrounds (Day) ──────────────────────────────────────────
 export const bg = {
-  primary:   '#F8F8FA',  // Main screen background
-  secondary: '#F2F2F7',  // Grouped section background
+  primary:   '#F5F5F0',  // Warm off-white — main screen background
+  secondary: '#EEEEE8',  // Grouped section background
   card:      '#FFFFFF',  // Card surfaces
   elevated:  '#FFFFFF',  // Modals, sheets
-  input:     '#F2F2F7',  // Text inputs
-  hover:     '#E8E8ED',  // Pressed states
+  input:     '#EEEEE8',  // Text inputs
+  hover:     '#E5E4DF',  // Pressed states
 } as const;
 
-// ── Brand ────────────────────────────────────────────────────
+// ── Brand / Accent ─────────────────────────────────────────────
 export const brand = {
-  primary:   '#7C3AED',  // CTAs, active states, accent
-  secondary: '#A78BFA',  // Secondary accent
-  tertiary:  '#C4B5FD',  // Subtle accent
-  muted:     '#F5F0FF',  // Light purple background
-  surface:   '#EDE5FF',  // Purple tinted surface
+  primary:   '#4AADA1',  // Soft teal — CTAs, active states, accent
+  secondary: '#5BC4B7',  // Lighter teal
+  tertiary:  '#8ED8CE',  // Subtle teal
+  muted:     '#E0F4F1',  // Light teal background
+  surface:   '#D0EDE9',  // Teal tinted surface
 } as const;
 
 // ── Text ─────────────────────────────────────────────────────
 export const text = {
-  primary:   '#1C1C1E',  // Primary text
-  secondary: '#48484A',  // Secondary text
-  tertiary:  '#8E8E93',  // Hints, captions
+  primary:   '#1A1A1A',  // Primary text
+  secondary: '#5A5A5A',  // Secondary text
+  tertiary:  '#9A9A9A',  // Hints, captions, timestamps
   disabled:  '#C7C7CC',  // Disabled text
   inverse:   '#FFFFFF',  // Text on dark/brand bg
 } as const;
 
 // ── Borders & Dividers ───────────────────────────────────────
 export const border = {
-  primary:   '#E5E5EA',  // Card borders
-  secondary: '#F2F2F7',  // Subtle dividers
-  focus:     '#7C3AED',  // Focus ring
+  primary:   '#E5E4DF',  // Card borders
+  secondary: '#EEEEE8',  // Subtle dividers
+  focus:     '#4AADA1',  // Focus ring — teal
 } as const;
 
 // ── Semantic ─────────────────────────────────────────────────
 export const semantic = {
-  success:      '#34C759',
+  success:      '#4AAD7A',
   successLight: '#ECFDF5',
   successSoft:  '#D1FAE5',
-  warning:      '#FF9F0A',
-  warningLight: '#FFFBEB',
-  error:        '#FF3B30',
-  errorLight:   '#FEF2F2',
-  info:         '#007AFF',
+  warning:      '#D4A24E',  // Warm amber — not alarming
+  warningLight: '#FDF8EE',
+  error:        '#D46A5E',  // Soft red
+  errorLight:   '#FEF2F0',
+  info:         '#5A9ECF',  // Muted blue
 } as const;
 
 // ── Category Colours ─────────────────────────────────────────
 export const category = {
-  work:     '#3B82F6',
-  health:   '#10B981',
-  fitness:  '#F43F5E',
-  wellness: '#8B5CF6',
-  creative: '#F59E0B',
-  personal: '#EC4899',
+  work:     '#5A9ECF',
+  health:   '#4AAD7A',
+  fitness:  '#E06B7A',
+  wellness: '#8EAAD8',
+  creative: '#D4A24E',
+  personal: '#C08BBF',
 } as const;
 
 // ── Status Backgrounds ───────────────────────────────────────
 export const status = {
   completedBg: '#dcfce7',
   acceptedBg:  '#fef3c7',
-  assignedBg:  '#ede9fe',
+  assignedBg:  '#E0F4F1',  // Teal tinted (was purple)
   errorBg:     '#fee2e2',
 } as const;
 
-// ── Light Living-Background (glassmorphic aurora) ────────────
+// ── Cloud Living-Background ──────────────────────────────────
 export const lightAurora = {
   white:    '#FFFFFF',
-  lavender: '#F5F0FF',
-  blue:     '#EFF6FF',
-  peach:    '#FFF7ED',
+  mist:     '#F0F5F4',  // Very subtle teal-tinted white
+  cloud:    '#EDF2F1',  // Soft cloud
+  warmth:   '#F5F3EE',  // Warm off-white
 } as const;
 
 /**
  * specColors — backward-compatible alias used by AIHubScreen & Skia code.
- * Now points to the light-mode palette so existing `specColors.brandSecondary`
- * references keep working while screens are migrated.
  */
 export const specColors = {
   background:    bg.primary,
@@ -102,16 +102,15 @@ export const specColors = {
   warning:       semantic.warning,
   error:         semantic.error,
   info:          semantic.info,
-  /** Light-mode living-background anchors */
+  /** Cloud living-background anchors */
   spaceDeep:     lightAurora.white,
-  spaceViolet:   lightAurora.lavender,
-  spaceMidnight: lightAurora.blue,
-  spaceRich:     lightAurora.peach,
+  spaceViolet:   lightAurora.mist,
+  spaceMidnight: lightAurora.cloud,
+  spaceRich:     lightAurora.warmth,
 } as const;
 
 /**
  * colors — legacy flat map consumed by ErrorBoundary, AnimatedCard, LoadingOverlay, etc.
- * Maps old keys → new tokens so existing `colors.foreground` etc. keep compiling.
  */
 export const colors = {
   primary:            brand.primary,
@@ -144,20 +143,22 @@ export const colors = {
   switchBackground:   '#C7C7CC',
   ring:               brand.primary,
 
-  gradientPurple:     brand.primary,
+  gradientTeal:       brand.primary,
   gradientBlue:       semantic.info,
+  /** @deprecated Use gradientTeal */
+  gradientPurple:     brand.primary,
 
   orbGradientStart:   brand.primary,
   orbGradientMiddle:  brand.secondary,
   orbGradientEnd:     brand.tertiary,
 
-  darkCardStart:      '#1a1a2e',
-  darkCardMiddle:     '#16213e',
-  darkCardEnd:        '#0f3460',
+  darkCardStart:      '#1A1B1E',
+  darkCardMiddle:     '#242528',
+  darkCardEnd:        '#2A2B2F',
 
-  successGradientStart:  '#059669',
-  successGradientMiddle: '#10b981',
-  successGradientEnd:    '#34d399',
+  successGradientStart:  '#3A9468',
+  successGradientMiddle: '#4AAD7A',
+  successGradientEnd:    '#6EC49A',
 
   statusCompletedBg: status.completedBg,
   statusAcceptedBg:  status.acceptedBg,
@@ -175,43 +176,77 @@ export const colors = {
 } as const;
 
 /**
- * darkColors — kept for the Login screen (dark branded first-impression).
+ * darkColors — Night mode (Cloud palette, dimmed).
+ * Same personality as day mode, lower brightness.
+ * Used by adaptive theme system and Login screen.
  */
 export const darkColors = {
-  primary:            brand.primary,
+  primary:            '#5BC4B7',   // Teal brightens for dark bg visibility
   primaryForeground:  '#FFFFFF',
-  secondary:          brand.secondary,
+  secondary:          '#4AADA1',
   secondaryForeground: '#FFFFFF',
 
-  success:            semantic.success,
+  success:            '#4AAD7A',
   successForeground:  '#FFFFFF',
-  warning:            semantic.warning,
+  warning:            '#D4A24E',
   warningForeground:  '#FFFFFF',
-  destructive:        semantic.error,
+  destructive:        '#D46A5E',
   destructiveForeground: '#FFFFFF',
 
-  background:         '#0B0F14',
-  foreground:         '#F6F7FA',
-  card:               '#161B22',
-  cardForeground:     '#F6F7FA',
-  popover:            '#161B22',
-  popoverForeground:  '#F6F7FA',
+  background:         '#1A1B1E',   // Deep warm dark — not pure black
+  foreground:         '#ECECEC',
+  card:               '#242528',
+  cardForeground:     '#ECECEC',
+  popover:            '#242528',
+  popoverForeground:  '#ECECEC',
 
-  muted:              '#1F2937',
-  mutedForeground:    '#9CA3AF',
-  accent:             '#1F2937',
-  accentForeground:   '#F6F7FA',
+  muted:              '#2A2B2F',
+  mutedForeground:    '#666666',
+  accent:             'rgba(91, 196, 183, 0.12)',
+  accentForeground:   '#ECECEC',
 
   border:             'rgba(255, 255, 255, 0.08)',
   input:              'rgba(255, 255, 255, 0.08)',
-  inputBackground:    '#1F2937',
+  inputBackground:    '#2A2B2F',
   switchBackground:   '#374151',
-  ring:               brand.primary,
+  ring:               '#5BC4B7',
 
-  iosBg:              '#0B0F14',
-  iosBgSecondary:     '#161B22',
-  iosRed:             '#FF453A',
+  iosBg:              '#1A1B1E',
+  iosBgSecondary:     '#242528',
+  iosRed:             '#D46A5E',
 
   white: '#FFFFFF',
   black: '#000000',
+} as const;
+
+// ── Night mode base tokens (for adaptive theme context) ──────
+export const bgNight = {
+  primary:   '#1A1B1E',
+  secondary: '#242528',
+  card:      '#242528',
+  elevated:  '#2A2B2F',
+  input:     '#2A2B2F',
+  hover:     '#333438',
+} as const;
+
+export const brandNight = {
+  primary:   '#5BC4B7',
+  secondary: '#4AADA1',
+  tertiary:  '#3A8E83',
+  muted:     'rgba(91, 196, 183, 0.12)',
+  surface:   'rgba(91, 196, 183, 0.08)',
+} as const;
+
+export const textNight = {
+  primary:   '#ECECEC',
+  secondary: '#9A9A9A',
+  tertiary:  '#666666',
+  disabled:  '#444444',
+  inverse:   '#1A1A1A',
+} as const;
+
+export const borderNight = {
+  primary:   'rgba(255, 255, 255, 0.08)',
+  secondary: 'rgba(255, 255, 255, 0.05)',
+  focus:     '#5BC4B7',
 } as const;

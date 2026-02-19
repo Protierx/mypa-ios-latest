@@ -577,7 +577,7 @@ export function SettingsScreen({ visible, onClose, onShowPaywall }: Props) {
             />
             <SettingsRow
               icon="time-outline"
-              iconColor="#8B5CF6"
+              iconColor="#8EAAD8"
               title="Time Format"
               value={prefs.timeFormat === '12h' ? '12-hour' : '24-hour'}
               onPress={() => {
@@ -691,7 +691,7 @@ export function SettingsScreen({ visible, onClose, onShowPaywall }: Props) {
             />
             <SettingsRow
               icon="timer-outline"
-              iconColor="#8B5CF6"
+              iconColor="#8EAAD8"
               title="Share Focus Minutes"
               subtitle="Show your focus session time"
               toggle

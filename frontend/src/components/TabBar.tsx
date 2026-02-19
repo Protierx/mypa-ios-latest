@@ -12,7 +12,7 @@ interface TabBarProps {
 }
 
 const tabs = [
-  { id: 'home', label: 'Home', icon: 'home', iconOutline: 'home-outline', color: '#8B5CF6' },
+  { id: 'home', label: 'Home', icon: 'home', iconOutline: 'home-outline', color: '#4AADA1' },
   { id: 'plan', label: 'Plan', icon: 'calendar', iconOutline: 'calendar-outline', color: '#3B82F6' },
   { id: 'circles', label: 'Circles', icon: 'people', iconOutline: 'people-outline', color: '#EC4899' },
   { id: 'profile', label: 'Me', icon: 'person', iconOutline: 'person-outline', color: '#10B981' },
@@ -181,7 +181,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: 'rgba(139, 92, 246, 0.15)',
+    backgroundColor: 'rgba(74, 173, 161, 0.15)',
   },
   voiceOrbContainer: {
     width: 56,
@@ -193,6 +193,6 @@ const styles = StyleSheet.create({
   voiceLabel: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#7C3AED',
+    color: '#4AADA1',
   },
 });

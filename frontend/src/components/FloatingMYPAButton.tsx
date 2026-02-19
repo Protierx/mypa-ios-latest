@@ -56,14 +56,14 @@ const styles = StyleSheet.create({
   },
   glow: {
     position: 'absolute',
-    backgroundColor: 'rgba(139, 92, 246, 0.2)',
+    backgroundColor: 'rgba(74, 173, 161, 0.2)',
     borderRadius: 50,
   },
   button: {
-    backgroundColor: '#8B5CF6',
+    backgroundColor: '#4AADA1',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#8B5CF6',
+    shadowColor: '#4AADA1',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
     shadowRadius: 8,

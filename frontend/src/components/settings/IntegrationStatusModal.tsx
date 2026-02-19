@@ -55,7 +55,7 @@ export function IntegrationStatusModal({
   onClose,
   integrations,
   onToggle,
-  accentColor = '#7C3AED',
+  accentColor = '#4AADA1',
 }: Props) {
   const handleToggle = (integ: Integration) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);

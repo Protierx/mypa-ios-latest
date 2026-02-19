@@ -34,6 +34,7 @@ import { AIHubScene } from './AIHubScene';
 import { TranscriptOverlay } from './TranscriptOverlay';
 import { useVoiceAmplitude } from './useVoiceAmplitude';
 import { useAssistantSceneState } from './useAssistantSceneState';
+import { MYPAAvatar } from '../../components/MYPAAvatar';
 import { VoiceState } from '../../components/LivingBackground';
 import { VoicePermissions, useVoicePermissions } from '../../components/VoicePermissions';
 import { NotificationsModal } from '../modals/NotificationsModal';
@@ -541,18 +542,14 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
                 exiting={FadeOut.duration(200)}
                 style={styles.voiceActiveContainer}
               >
-                <Animated.View style={[styles.stateIconContainer, iconAnimStyle]}>
-                  <View style={[
-                    styles.iconRing,
-                    voiceState === 'error' && { borderColor: semantic.errorLight },
-                  ]}>
-                    <Ionicons
-                      name={getStateIcon()}
-                      size={32}
-                      color={voiceState === 'error' ? semantic.error : brand.primary}
-                    />
-                  </View>
-                </Animated.View>
+                <MYPAAvatar
+                  size="full"
+                  expressionIndex={
+                    voiceState === 'error' ? 0 : voiceState === 'speaking' ? 3 : 0
+                  }
+                  energy={audioLevel}
+                  isActive={true}
+                />
 
                 {/* Listening waveform */}
                 {voiceState === 'listening' && (
@@ -586,20 +583,17 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
                 )}
               </Animated.View>
             ) : (
-              /* ── Idle: mic icon with breathing animation ── */
+              /* ── Idle: MYPA Avatar with breathing animation ── */
               <Animated.View
                 entering={FadeIn.duration(800).delay(300)}
                 style={styles.idleCenterContainer}
               >
-                <Animated.View style={[styles.stateIconContainer, iconAnimStyle]}>
-                  <View style={styles.idleMicRing}>
-                    <Ionicons
-                      name={isBriefingLoading ? 'sparkles-outline' : getStateIcon()}
-                      size={48}
-                      color={brand.primary}
-                    />
-                  </View>
-                </Animated.View>
+                <MYPAAvatar
+                  size="full"
+                  expressionIndex={0}
+                  energy={0}
+                  isActive={false}
+                />
 
                 <Animated.Text
                   entering={FadeInUp.duration(600).delay(500)}

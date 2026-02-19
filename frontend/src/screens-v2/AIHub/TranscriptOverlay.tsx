@@ -61,7 +61,7 @@ export function TranscriptOverlay({ voiceState }: TranscriptOverlayProps) {
       case 'processing':
         return (
           <View style={s.row}>
-            <Ionicons name="sparkles" size={18} color="rgba(180, 160, 255, 0.9)" />
+            <Ionicons name="sparkles" size={18} color="rgba(74, 173, 161, 0.9)" />
             <Text style={s.processingText}>Thinking…</Text>
             {voice.transcript ? (
               <Text style={s.quotedText} numberOfLines={2}>
@@ -75,7 +75,7 @@ export function TranscriptOverlay({ voiceState }: TranscriptOverlayProps) {
         return (
           <View style={s.column}>
             <View style={s.speakingHeader}>
-              <Ionicons name="volume-high" size={16} color="rgba(160, 140, 255, 0.8)" />
+              <Ionicons name="volume-high" size={16} color="rgba(74, 173, 161, 0.8)" />
               <Text style={s.speakingLabel}>MYPA</Text>
             </View>
             {voice.aiResponse ? (
@@ -171,12 +171,12 @@ const s = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#7C3AED',
+    backgroundColor: '#4AADA1',
   },
   liveLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: 'rgba(160, 140, 255, 0.8)',
+    color: 'rgba(74, 173, 161, 0.8)',
     textTransform: 'uppercase',
     letterSpacing: 1,
   },
@@ -193,7 +193,7 @@ const s = StyleSheet.create({
   processingText: {
     fontSize: 16,
     fontWeight: '600',
-    color: 'rgba(180, 160, 255, 0.9)',
+    color: 'rgba(74, 173, 161, 0.9)',
   },
   quotedText: {
     fontSize: 14,
@@ -208,7 +208,7 @@ const s = StyleSheet.create({
   speakingLabel: {
     fontSize: 12,
     fontWeight: '700',
-    color: 'rgba(160, 140, 255, 0.8)',
+    color: 'rgba(74, 173, 161, 0.8)',
     textTransform: 'uppercase',
     letterSpacing: 1,
   },

@@ -42,7 +42,7 @@ const FEATURE_INFO: Record<string, FeatureInfo> = {
     icon: 'bulb-outline',
     title: 'Task Insights',
     description: 'MYPA now shows you patterns in your task completion to help you stay productive.',
-    color: '#7C3AED',
+    color: '#4AADA1',
   },
   [AI_FEATURES.FOCUS_STATS]: {
     icon: 'timer-outline',
@@ -78,7 +78,7 @@ const FEATURE_INFO: Record<string, FeatureInfo> = {
     icon: 'mic-outline',
     title: 'Custom AI Voice',
     description: 'Choose from different AI voices to personalize your MYPA experience.',
-    color: '#8B5CF6',
+    color: '#8EAAD8',
   },
   [AI_FEATURES.PREDICTIVE_TASKS]: {
     icon: 'sparkles-outline',
@@ -205,11 +205,11 @@ export function UnlockCelebrationModal({
     icon: 'star-outline' as keyof typeof Ionicons.glyphMap,
     title: 'New Feature Unlocked!',
     description: 'You\'ve unlocked a new AI ability!',
-    color: '#7C3AED',
+    color: '#4AADA1',
   };
 
   // Confetti colors
-  const confettiColors = ['#7C3AED', '#EC4899', '#10B981', '#F59E0B', '#6366F1', '#EF4444'];
+  const confettiColors = ['#4AADA1', '#EC4899', '#10B981', '#F59E0B', '#6366F1', '#EF4444'];
 
   useEffect(() => {
     if (visible) {

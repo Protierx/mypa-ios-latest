@@ -63,7 +63,7 @@ const TOUR_STEPS: TourStep[] = [
     title: 'Welcome to MYPA',
     description: 'Let me show you around.\nNavigate with simple swipe gestures.',
     gesture: { type: 'info' },
-    color: '#7C3AED',
+    color: '#4AADA1',
   },
   {
     id: 'swipe_left',
@@ -79,7 +79,7 @@ const TOUR_STEPS: TourStep[] = [
     title: 'Swipe Right → Social',
     description: 'Join circles, share goals,\nand challenge your friends.',
     gesture: { type: 'swipe', direction: 'right' },
-    color: '#8B5CF6',
+    color: '#8EAAD8',
   },
   {
     id: 'swipe_up',
@@ -103,7 +103,7 @@ const TOUR_STEPS: TourStep[] = [
     title: 'The Voice Orb',
     description: 'Tap the center orb to talk to MYPA.\nCreate tasks, ask questions, anything.',
     gesture: { type: 'tap' },
-    color: '#7C3AED',
+    color: '#4AADA1',
   },
   {
     id: 'quick_actions',
@@ -429,7 +429,7 @@ const styles = StyleSheet.create({
     borderRadius: 45,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#7C3AED',
+    shadowColor: '#4AADA1',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.35,
     shadowRadius: 16,

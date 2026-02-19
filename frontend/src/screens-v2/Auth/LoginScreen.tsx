@@ -48,23 +48,23 @@ const O = {
   gradientC:   '#0F1B3D',
   gradientD:   '#0A0A0F',
 
-  glowViolet:  'rgba(124, 58, 237, 0.30)',
-  glowIndigo:  'rgba(79, 70, 229, 0.22)',
+  glowViolet:  'rgba(74, 173, 161, 0.30)',
+  glowIndigo:  'rgba(45, 138, 126, 0.22)',
 
   cardBg:      'rgba(255, 255, 255, 0.05)',
   cardBorder:  'rgba(255, 255, 255, 0.10)',
   inputBg:     'rgba(255, 255, 255, 0.07)',
   inputBorder: 'rgba(255, 255, 255, 0.12)',
-  inputFocus:  'rgba(167, 139, 250, 0.40)',
+  inputFocus:  'rgba(74, 173, 161, 0.40)',
 
-  ringStart:   '#A78BFA',
-  ringMid:     '#7C3AED',
-  ringEnd:     '#4F46E5',
+  ringStart:   '#8ED8CE',
+  ringMid:     '#4AADA1',
+  ringEnd:     '#2D8A7E',
 
   textPrimary:   '#F8F8FF',
   textSecondary: '#A0A0B8',
   textMuted:     '#6B6B80',
-  textAccent:    '#C4B5FD',
+  textAccent:    '#8ED8CE',
   textPlaceholder: '#55556A',
 
   error:       '#F87171',

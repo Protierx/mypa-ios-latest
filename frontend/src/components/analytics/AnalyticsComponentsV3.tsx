@@ -68,7 +68,7 @@ const C = {
   amberBg: '#FFFBEB',
   red: '#EF4444',        // critical
   redBg: '#FEF2F2',
-  purple: '#8B5CF6',     // XP
+  purple: '#8EAAD8',     // XP
   purpleBg: '#F5F3FF',
   orange: '#F97316',     // streak
   orangeBg: '#FFF7ED',

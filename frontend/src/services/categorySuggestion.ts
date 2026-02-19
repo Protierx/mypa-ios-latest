@@ -190,7 +190,7 @@ const CATEGORY_RULES: CategoryRule[] = [
   {
     category: 'Learning',
     icon: 'school-outline',
-    color: '#8B5CF6',
+    color: '#8EAAD8',
     defaultPriority: 'medium',
     defaultDuration: 45,
     keywords: [

@@ -102,6 +102,7 @@ export interface SessionDynamicVariables {
   task_summary: string;
   language: string;
   voice_speed: string;
+  trust_level: string;
 }
 
 // ============================================================================

@@ -415,7 +415,7 @@ export function AnalyticsModal({ visible, onClose, accentPreset = 'purple' }: Pr
                   </StatCard>
 
                   {/* 5. Priority Breakdown */}
-                  <StatCard title="Priority Breakdown" icon="grid-outline" iconColor="#8B5CF6">
+                  <StatCard title="Priority Breakdown" icon="grid-outline" iconColor="#8EAAD8">
                     {stats.categoryEntries.length === 0 ? (
                       <Text style={{ fontSize: 14, color: '#8E8E93' }}>
                         Complete tasks to see breakdown.

@@ -112,7 +112,7 @@ export const getDeviceCalendars = async (): Promise<CalendarSource[]> => {
       id: cal.id,
       name: cal.title,
       type: getCalendarType(cal.source?.type || ''),
-      color: cal.color || '#7C3AED',
+      color: cal.color || '#4AADA1',
       isSelected: selectedIds.length === 0 ? cal.isPrimary || false : selectedIds.includes(cal.id),
       accountName: cal.source?.name,
     }));
@@ -260,7 +260,7 @@ export const getOrCreateMYPACalendar = async (): Promise<string | null> => {
 
     const newCalendarId = await Calendar.createCalendarAsync({
       title: 'MYPA Tasks',
-      color: '#7C3AED',
+      color: '#4AADA1',
       entityType: Calendar.EntityTypes.EVENT,
       sourceId: defaultCalendarSource.id,
       source: defaultCalendarSource,
