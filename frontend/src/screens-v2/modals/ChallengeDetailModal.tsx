@@ -132,11 +132,15 @@ export function ChallengeDetailModal({ visible, challengeId, onClose }: Challeng
       }
     } catch (err: any) {
       console.error('[ChallengeCheckIn] error:', err);
-      const errMsg = err?.message || '';
-      if (errMsg.toLowerCase().includes('already')) {
-        Alert.alert('Already Done', "You've already checked in today! Come back tomorrow.");
+      // The edge function returns 409 for duplicate check-ins.
+      // Note: err.context is a Response whose body stream is already consumed
+      // by logFunctionsError in invokeWithRetry, so we check the status code instead.
+      const status = err?.context?.status;
+      if (status === 409) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        Alert.alert('Already Checked In ✅', "You've already checked in today! Come back tomorrow to keep your streak going. 💪");
       } else {
-        Alert.alert('Error', errMsg || 'Something went wrong. Please try again.');
+        Alert.alert('Error', 'Something went wrong. Please try again.');
       }
     } finally {
       setIsSubmitting(false);
