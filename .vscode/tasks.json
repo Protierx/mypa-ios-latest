@@ -1,72 +1,17 @@
-cd /Users/apple/mypa-ios-latest/frontend && npx expo start --ios{
+{
 	"version": "2.0.0",
 	"tasks": [
 		{
 			"label": "Expo Dev Server",
 			"type": "shell",
-			"command": "cd /Users/apple/mypa-ios-latest/frontend && npx expo start",
-			"isBackground": true,
-			"problemMatcher": []
-		},
-		{
-			"label": "Supabase Edge Functions",
-			"type": "shell",
-			"command": "cd /Users/apple/mypa-ios-latest/supabase && npx supabase functions serve",
-			"isBackground": true,
-			"problemMatcher": []
-		},
-		{
-			"label": "Expo Dev Server",
-			"type": "shell",
-			"command": "cd /Users/apple/mypa-ios-latest/frontend && npx expo start",
-			"isBackground": true,
-			"problemMatcher": []
-		},
-		{
-			"label": "Supabase Edge Functions",
-			"type": "shell",
-			"command": "cd /Users/apple/mypa-ios-latest/supabase && npx supabase functions serve",
-			"isBackground": true,
-			"problemMatcher": []
-		},
-		{
-			"label": "expo-start",
-			"type": "shell",
-			"command": "cd /Users/apple/mypa-ios-latest/frontend && npx expo start",
-			"isBackground": true,
-			"problemMatcher": []
-		},
-		{
-			"label": "Expo Dev Server",
-			"type": "shell",
-			"command": "cd /Users/apple/mypa-ios-latest/frontend && npx expo start",
-			"isBackground": true,
-			"problemMatcher": []
-		},
-		{
-			"label": "Supabase Edge Functions",
-			"type": "shell",
-			"command": "cd /Users/apple/mypa-ios-latest/supabase && npx supabase functions serve",
-			"isBackground": true,
-			"problemMatcher": []
-		},
-		{
-			"label": "iOS Simulator",
-			"type": "shell",
-			"command": "open -a Simulator && cd /Users/apple/mypa-ios-latest/frontend && npx expo run:ios --simulator",
-			"isBackground": true
-		},
-		{
-			"label": "Expo Dev Server",
-			"type": "shell",
 			"command": "cd /Users/apple/mypa-ios-latest/frontend && npx expo start --ios",
 			"isBackground": true,
 			"problemMatcher": []
 		},
 		{
-			"label": "expo-dev-server",
+			"label": "Supabase Edge Functions",
 			"type": "shell",
-			"command": "cd /Users/apple/mypa-ios-latest/frontend && npx expo start --ios",
+			"command": "cd /Users/apple/mypa-ios-latest/supabase && npx supabase functions serve",
 			"isBackground": true,
 			"problemMatcher": []
 		}

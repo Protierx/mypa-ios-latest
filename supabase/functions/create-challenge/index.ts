@@ -208,6 +208,56 @@ serve(async (req: Request) => {
             duration_days: duration,
           },
         });
+
+      // ---------- Notification fanout to circle members ----------
+      // Use service-role client to insert notifications for other members
+      const adminClient = createClient(
+        Deno.env.get('SUPABASE_URL')!,
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+      );
+
+      // Fetch circle name for notification text
+      const { data: circleData } = await adminClient
+        .from('circles')
+        .select('name')
+        .eq('id', circleId)
+        .single();
+      const circleName = circleData?.name || 'your circle';
+
+      // Fetch all circle members except the creator
+      const { data: members } = await adminClient
+        .from('circle_members')
+        .select('user_id')
+        .eq('circle_id', circleId)
+        .neq('user_id', userId);
+
+      if (members && members.length > 0) {
+        const notificationRows = members.map((m: { user_id: string }) => ({
+          user_id: m.user_id,
+          type: 'challenge_created',
+          title: `${emoji || '🏆'} New Challenge in ${circleName}`,
+          body: `"${trimmedTitle}" — tap to preview & join!`,
+          data: {
+            challenge_id: challenge.id,
+            circle_id: circleId,
+            circle_name: circleName,
+            challenge_title: trimmedTitle,
+            emoji: emoji || '🏆',
+          },
+          read: false,
+        }));
+
+        const { error: notifError } = await adminClient
+          .from('notifications')
+          .insert(notificationRows);
+
+        if (notifError) {
+          console.error('Notification fanout error:', notifError);
+          // Non-fatal — challenge is already created
+        } else {
+          console.log(`[create-challenge] Notified ${members.length} circle members`);
+        }
+      }
     }
 
     // ---------- Log event ----------

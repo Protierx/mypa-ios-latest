@@ -36,6 +36,7 @@ import { useCircles, CircleMemberProfile, CircleWithMembers } from '../../hooks/
 import { useChallenges } from '../../hooks/supabase/useChallenges';
 import { useCircleAccountability, FeedPost } from '../../hooks/supabase/useCircleAccountability';
 import { useSupabaseAuth } from '../../contexts/SupabaseAuthContext';
+import { supabase } from '../../lib/supabase';
 import { MiniVoiceButton } from '../../components/MiniVoiceButton';
 import { CheckInSheet } from './CheckInSheet';
 import { CheckOutSheet } from './CheckOutSheet';
@@ -101,8 +102,38 @@ export function CircleHomeModal({ visible, circleId, onClose, onOpenChallenge, o
   const [editDescription, setEditDescription] = useState('');
   const [isSavingEdit, setIsSavingEdit] = useState(false);
 
-  const circleChallenges = useMemo(() => allChallenges.filter((c: any) => c.circle_id === circleId), [allChallenges, circleId]);
-  const activeChallenges = useMemo(() => circleChallenges.filter((c: any) => c.status === 'active'), [circleChallenges]);
+  // Challenges the user has joined in this circle (from useChallenges hook)
+  const myCircleChallenges = useMemo(() => allChallenges.filter((c: any) => c.circle_id === circleId), [allChallenges, circleId]);
+  const activeChallenges = useMemo(() => myCircleChallenges.filter((c: any) => c.status === 'active'), [myCircleChallenges]);
+
+  // ALL challenges for this circle (including ones user hasn't joined)
+  const [allCircleChallenges, setAllCircleChallenges] = useState<any[]>([]);
+  const joinedIds = useMemo(() => new Set(myCircleChallenges.map((c: any) => c.id)), [myCircleChallenges]);
+  // Merge: use enriched data for joined challenges, raw data for non-joined
+  const circleChallenges = useMemo(() => {
+    const merged = [...myCircleChallenges];
+    allCircleChallenges.forEach((c: any) => {
+      if (!joinedIds.has(c.id)) merged.push(c);
+    });
+    // Sort: active first, then by created_at desc
+    return merged.sort((a: any, b: any) => {
+      if (a.status === 'active' && b.status !== 'active') return -1;
+      if (a.status !== 'active' && b.status === 'active') return 1;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+  }, [myCircleChallenges, allCircleChallenges, joinedIds]);
+
+  const fetchAllCircleChallenges = useCallback(async () => {
+    if (!circleId) return;
+    try {
+      const { data } = await supabase
+        .from('challenges')
+        .select('*')
+        .eq('circle_id', circleId)
+        .order('created_at', { ascending: false });
+      setAllCircleChallenges(data || []);
+    } catch (e) { console.error('[CircleHome] fetch all challenges error:', e); }
+  }, [circleId]);
 
   /* Data Loading */
   const loadCircleData = useCallback(async () => {
@@ -117,7 +148,7 @@ export function CircleHomeModal({ visible, circleId, onClose, onOpenChallenge, o
   }, [circleId, getCircle, getCircleMembers, getUserRole]);
 
   useEffect(() => {
-    if (visible && circleId) { setIsLoading(true); setActiveTab(initialTab || 'feed'); loadCircleData(); refreshChallenges(); }
+    if (visible && circleId) { setIsLoading(true); setActiveTab(initialTab || 'feed'); loadCircleData(); refreshChallenges(); fetchAllCircleChallenges(); }
   }, [visible, circleId]);
 
   // Auto-open CheckInSheet when navigated with initialFocus='checkin'
@@ -129,9 +160,9 @@ export function CircleHomeModal({ visible, circleId, onClose, onOpenChallenge, o
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    await Promise.all([loadCircleData(), accountability.refresh(), refreshChallenges()]);
+    await Promise.all([loadCircleData(), accountability.refresh(), refreshChallenges(), fetchAllCircleChallenges()]);
     setIsRefreshing(false);
-  }, [loadCircleData, accountability, refreshChallenges]);
+  }, [loadCircleData, accountability, refreshChallenges, fetchAllCircleChallenges]);
 
   /* Actions */
   const handleCopyCode = useCallback(async () => {
@@ -469,26 +500,36 @@ export function CircleHomeModal({ visible, circleId, onClose, onOpenChallenge, o
           )}
 
           {post.type === 'challenge_created' && post.payload?.challenge_title && (
-            <View style={{ marginTop: 12, backgroundColor: bg.primary, borderRadius: 12, padding: 12, borderLeftWidth: 3, borderLeftColor: semantic.warning }}>
+            <TouchableOpacity
+              style={{ marginTop: 12, backgroundColor: bg.primary, borderRadius: 12, padding: 12, borderLeftWidth: 3, borderLeftColor: semantic.warning }}
+              onPress={() => { if (post.payload?.challenge_id) { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onOpenChallenge?.(post.payload.challenge_id); } }}
+              activeOpacity={0.7}
+            >
               <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
                 <Text style={{ fontSize: 20, marginRight: 8 }}>{post.payload.challenge_emoji || '🏆'}</Text>
                 <Text style={{ fontSize: 15, fontWeight: '700', color: textTokens.primary, flex: 1 }}>{post.payload.challenge_title}</Text>
+                <Ionicons name="chevron-forward" size={16} color={textTokens.disabled} />
               </View>
-              <View style={{ flexDirection: 'row', gap: 10 }}>
-                {post.payload.duration_days && (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                    <Ionicons name="calendar" size={11} color={textTokens.tertiary} />
-                    <Text style={{ fontSize: 11, color: textTokens.tertiary, fontWeight: '500' }}>{post.payload.duration_days} days</Text>
-                  </View>
-                )}
-                {post.payload.tracking_method && (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                    <Ionicons name={post.payload.tracking_method === 'focus_minutes' ? 'timer' : post.payload.tracking_method === 'proof_checkin' ? 'camera' : 'checkbox'} size={11} color={textTokens.tertiary} />
-                    <Text style={{ fontSize: 11, color: textTokens.tertiary, fontWeight: '500' }}>{post.payload.tracking_method.replace(/_/g, ' ')}</Text>
-                  </View>
-                )}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+                  {post.payload.duration_days && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                      <Ionicons name="calendar" size={11} color={textTokens.tertiary} />
+                      <Text style={{ fontSize: 11, color: textTokens.tertiary, fontWeight: '500' }}>{post.payload.duration_days} days</Text>
+                    </View>
+                  )}
+                  {post.payload.tracking_method && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                      <Ionicons name={post.payload.tracking_method === 'focus_minutes' ? 'timer' : post.payload.tracking_method === 'proof_checkin' ? 'camera' : 'checkbox'} size={11} color={textTokens.tertiary} />
+                      <Text style={{ fontSize: 11, color: textTokens.tertiary, fontWeight: '500' }}>{post.payload.tracking_method.replace(/_/g, ' ')}</Text>
+                    </View>
+                  )}
+                </View>
+                <View style={{ backgroundColor: '#10B98114', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 }}>
+                  <Text style={{ fontSize: 11, fontWeight: '700', color: '#10B981' }}>View & Join</Text>
+                </View>
               </View>
-            </View>
+            </TouchableOpacity>
           )}
 
           {isCheckout && (
@@ -557,9 +598,10 @@ export function CircleHomeModal({ visible, circleId, onClose, onOpenChallenge, o
         </TouchableOpacity>
 
         {circleChallenges.length > 0 ? circleChallenges.map((challenge: any) => {
+          const isJoined = joinedIds.has(challenge.id);
           const progress = challenge.userProgress || 0;
           const goal = challenge.goal_value || 1;
-          const pct = Math.min((progress / goal) * 100, 100);
+          const pct = isJoined ? Math.min((progress / goal) * 100, 100) : 0;
           const isActive = challenge.status === 'active';
           const daysLeft = challenge.ends_at ? Math.max(0, Math.ceil((new Date(challenge.ends_at).getTime() - Date.now()) / 86400000)) : null;
           return (
@@ -567,7 +609,7 @@ export function CircleHomeModal({ visible, circleId, onClose, onOpenChallenge, o
               backgroundColor: bg.card, borderRadius: 20, marginBottom: 12, overflow: 'hidden', borderWidth: 0.5, borderColor: borderTokens.primary,
               shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 10, opacity: isActive ? 1 : 0.55,
             }} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onOpenChallenge?.(challenge.id); }} activeOpacity={0.7}>
-              <View style={{ height: 3, backgroundColor: isActive ? (pct >= 100 ? semantic.success : brand.primary) : textTokens.disabled }} />
+              <View style={{ height: 3, backgroundColor: isActive ? (isJoined && pct >= 100 ? semantic.success : isJoined ? brand.primary : '#10B981') : textTokens.disabled }} />
               <View style={{ padding: 16 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
                   <View style={{ width: 48, height: 48, borderRadius: 16, backgroundColor: semantic.warningLight, alignItems: 'center', justifyContent: 'center' }}>
@@ -589,19 +631,34 @@ export function CircleHomeModal({ visible, circleId, onClose, onOpenChallenge, o
                       )}
                     </View>
                   </View>
-                  <View style={{ backgroundColor: isActive ? semantic.successLight : `${textTokens.disabled}20`, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 }}>
-                    <Text style={{ fontSize: 11, fontWeight: '700', color: isActive ? semantic.success : textTokens.tertiary, textTransform: 'capitalize' }}>{challenge.status}</Text>
+                  {isJoined ? (
+                    <View style={{ backgroundColor: isActive ? semantic.successLight : `${textTokens.disabled}20`, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 }}>
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: isActive ? semantic.success : textTokens.tertiary, textTransform: 'capitalize' }}>{challenge.status}</Text>
+                    </View>
+                  ) : (
+                    <View style={{ backgroundColor: '#10B98114', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 }}>
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: '#10B981' }}>Join</Text>
+                    </View>
+                  )}
+                </View>
+                {isJoined ? (
+                  <>
+                    <View style={{ height: 6, backgroundColor: borderTokens.primary, borderRadius: 3, overflow: 'hidden' }}>
+                      <View style={{ height: '100%', width: `${pct}%`, backgroundColor: pct >= 100 ? semantic.success : brand.primary, borderRadius: 3 }} />
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 }}>
+                      <Text style={{ fontSize: 11, color: textTokens.tertiary, fontWeight: '500' }}>
+                        {progress}/{goal} {challenge.type === 'focus_time' ? 'min' : challenge.type === 'tasks_completed' ? 'tasks' : ''}
+                      </Text>
+                      <Text style={{ fontSize: 12, fontWeight: '800', color: pct >= 100 ? semantic.success : brand.primary }}>{Math.round(pct)}%</Text>
+                    </View>
+                  </>
+                ) : (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                    <Ionicons name="arrow-forward-circle" size={14} color={'#10B981'} />
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: '#10B981' }}>Tap to view details & join</Text>
                   </View>
-                </View>
-                <View style={{ height: 6, backgroundColor: borderTokens.primary, borderRadius: 3, overflow: 'hidden' }}>
-                  <View style={{ height: '100%', width: `${pct}%`, backgroundColor: pct >= 100 ? semantic.success : brand.primary, borderRadius: 3 }} />
-                </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 }}>
-                  <Text style={{ fontSize: 11, color: textTokens.tertiary, fontWeight: '500' }}>
-                    {progress}/{goal} {challenge.type === 'focus_time' ? 'min' : challenge.type === 'tasks_completed' ? 'tasks' : ''}
-                  </Text>
-                  <Text style={{ fontSize: 12, fontWeight: '800', color: pct >= 100 ? semantic.success : brand.primary }}>{Math.round(pct)}%</Text>
-                </View>
+                )}
               </View>
             </TouchableOpacity>
           );

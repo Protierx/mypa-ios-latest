@@ -120,7 +120,7 @@ serve(async (req: Request) => {
       .eq('challenge_id', challenge_id)
       .eq('user_id', userId)
       .gte('occurred_at', `${todayStr}T00:00:00`)
-      .lt('occurred_at', `${toDateString(shiftDate(todayStr, 1))}T00:00:00`)
+      .lt('occurred_at', `${shiftDate(todayStr, 1)}T00:00:00`)
       .maybeSingle();
 
     if (todayCheckin) {

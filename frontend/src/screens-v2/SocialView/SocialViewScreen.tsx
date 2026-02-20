@@ -991,7 +991,7 @@ export function SocialViewScreen() {
                       onPress={() => {
                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                         setShowActiveChallenges(false);
-                        setTimeout(() => openCircle(ch.circle_id), 300);
+                        setTimeout(() => openChallenge(ch.id), 300);
                       }}
                       activeOpacity={0.7}
                       accessibilityRole="button"
