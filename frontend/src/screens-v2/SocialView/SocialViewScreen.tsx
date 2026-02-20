@@ -46,6 +46,7 @@ import { CreateChallengeSheet } from '../modals/CreateChallengeSheet';
 import { PaywallSheet } from '../modals/PaywallSheet';
 
 import { navigationBus } from '../../services/navigationBus';
+import { getGoalSentence, getProgressUnit } from '../../types/challenge';
 import { bg, brand, text as textTokens, border as borderTokens, semantic } from '../../styles/colors';
 import { shadows, radius, spacing } from '../../styles/theme';
 import { useEnterAnimation, usePressFeedback, useStaggerIn } from '../../styles/motion';
@@ -1019,6 +1020,10 @@ export function SocialViewScreen() {
                           <Ionicons name="people" size={11} color={textTokens.disabled} />
                           <Text numberOfLines={1} style={s.modalCircleNameText}>{circleName}</Text>
                         </View>
+                        {/* Goal sentence */}
+                        <Text numberOfLines={1} style={{ fontSize: 11, color: brand.primary, fontWeight: '600', marginTop: 2 }}>
+                          {getGoalSentence(ch.tracking_method || ch.type, ch.goal_value || 1, ch.duration_days || 7)}
+                        </Text>
                         {/* Progress bar */}
                         <View style={s.modalProgressRow}>
                           <View style={s.modalProgressTrack}>

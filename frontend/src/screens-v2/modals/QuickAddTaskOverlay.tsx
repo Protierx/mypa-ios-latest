@@ -53,6 +53,9 @@ interface QuickAddTaskOverlayProps {
   brainDumpSource?: { id: string; text: string } | null;
   /** Called after a brain dump item is successfully converted to a task */
   onBrainDumpConverted?: (brainDumpId: string, taskId: string) => void;
+  /** Challenge mode: link this task to a challenge */
+  challengeId?: string;
+  challengeTitle?: string;
 }
 
 type PriorityOption = Task['priority'];
@@ -78,6 +81,8 @@ export function QuickAddTaskOverlay({
   initialDate,
   brainDumpSource,
   onBrainDumpConverted,
+  challengeId,
+  challengeTitle,
 }: QuickAddTaskOverlayProps) {
   const { createTask } = useTasks();
   const { createItem: createBrainDumpItem } = useBrainDump();
@@ -86,6 +91,7 @@ export function QuickAddTaskOverlay({
 
   // Whether we are converting from a brain dump item
   const isConversion = !!brainDumpSource;
+  const isChallengeMode = !!challengeId;
 
   // Form state
   const [title, setTitle] = useState('');
@@ -174,7 +180,7 @@ export function QuickAddTaskOverlay({
    *
    * During conversion mode, always create a task (user must schedule).
    */
-  const hasExplicitSchedule = !!dueTime || dateExplicitlySet || isConversion;
+  const hasExplicitSchedule = !!dueTime || dateExplicitlySet || isConversion || isChallengeMode;
 
   const isValid = title.trim().length >= 1;
 
@@ -187,6 +193,10 @@ export function QuickAddTaskOverlay({
       const cat = manualCategory || aiSuggestion?.category;
       let desc = notes.trim();
       if (cat) desc = desc ? `[${cat}] ${desc}` : `[${cat}]`;
+      if (challengeId && challengeTitle) {
+        const safeTitle = challengeTitle.replace(/[\[\]|]/g, '');
+        desc = `[challenge:${challengeId}|${safeTitle}]${desc ? ' ' + desc : ''}`;
+      }
 
       if (hasExplicitSchedule) {
         // ── Route to tasks table ──
@@ -280,13 +290,16 @@ export function QuickAddTaskOverlay({
               {/* Header */}
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 4, paddingBottom: 8 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  {isChallengeMode && <Ionicons name="trophy" size={20} color={semantic.warning} style={{ marginRight: 8 }} />}
                   <Text style={{ fontSize: 22, fontWeight: '700', color: textTokens.primary }}>
-                    {isConversion ? 'Move to Tasks' : 'New Task'}
+                    {isConversion ? 'Move to Tasks' : isChallengeMode ? 'Challenge Task' : 'New Task'}
                   </Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 10, backgroundColor: brand.surface, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8 }}>
-                    <Ionicons name="sparkles" size={11} color={brand.primary} />
-                    <Text style={{ fontSize: 11, fontWeight: '600', color: brand.primary, marginLeft: 3 }}>AI Assist</Text>
-                  </View>
+                  {!isChallengeMode && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 10, backgroundColor: brand.surface, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8 }}>
+                      <Ionicons name="sparkles" size={11} color={brand.primary} />
+                      <Text style={{ fontSize: 11, fontWeight: '600', color: brand.primary, marginLeft: 3 }}>AI Assist</Text>
+                    </View>
+                  )}
                 </View>
 
                 {activeCategory && activeCategoryMeta && (
@@ -326,7 +339,7 @@ export function QuickAddTaskOverlay({
                     autoCapitalize="sentences"
                   />
                   {/* Smart routing hint */}
-                  {!isConversion && title.trim().length > 0 && (
+                  {!isConversion && !isChallengeMode && title.trim().length > 0 && (
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
                       <Ionicons
                         name={hasExplicitSchedule ? 'calendar-outline' : 'bulb-outline'}
@@ -341,6 +354,14 @@ export function QuickAddTaskOverlay({
                     </View>
                   )}
                 </View>
+
+                {/* Challenge badge */}
+                {isChallengeMode && challengeTitle && (
+                  <View style={{ marginHorizontal: 20, marginTop: 12, flexDirection: 'row', alignItems: 'center', backgroundColor: `${semantic.warning}12`, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: `${semantic.warning}30` }}>
+                    <Ionicons name="trophy" size={14} color={semantic.warning} />
+                    <Text style={{ fontSize: 13, fontWeight: '600', color: semantic.warning, marginLeft: 6 }}>Counts toward: {challengeTitle}</Text>
+                  </View>
+                )}
 
                 {/* AI Suggestion Banner */}
                 {aiSuggestion && aiSuggestion.confidence >= 0.25 && (
@@ -614,10 +635,12 @@ export function QuickAddTaskOverlay({
                     <ActivityIndicator size="small" color={textTokens.inverse} />
                   ) : (
                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      {isValid && <Ionicons name={hasExplicitSchedule ? 'sparkles' : 'bulb-outline'} size={15} color={isValid ? textTokens.inverse : textTokens.tertiary} style={{ marginRight: 6 }} />}
+                      {isValid && <Ionicons name={isChallengeMode ? 'trophy' : hasExplicitSchedule ? 'sparkles' : 'bulb-outline'} size={15} color={isValid ? textTokens.inverse : textTokens.tertiary} style={{ marginRight: 6 }} />}
                       <Text style={{ fontSize: 16.5, fontWeight: '700', color: isValid ? textTokens.inverse : textTokens.tertiary }}>
                         {isConversion
                           ? 'Schedule Task'
+                          : isChallengeMode
+                          ? 'Add Challenge Task'
                           : hasExplicitSchedule
                           ? 'Create Task'
                           : 'Save to Brain Dump'}

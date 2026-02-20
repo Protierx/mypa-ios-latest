@@ -37,6 +37,7 @@ import { useChallenges } from '../../hooks/supabase/useChallenges';
 import { useCircleAccountability, FeedPost } from '../../hooks/supabase/useCircleAccountability';
 import { useSupabaseAuth } from '../../contexts/SupabaseAuthContext';
 import { supabase } from '../../lib/supabase';
+import { getGoalSentence, getProgressUnit } from '../../types/challenge';
 import { MiniVoiceButton } from '../../components/MiniVoiceButton';
 import { CheckInSheet } from './CheckInSheet';
 import { CheckOutSheet } from './CheckOutSheet';
@@ -524,6 +525,14 @@ export function CircleHomeModal({ visible, circleId, onClose, onOpenChallenge, o
                       <Text style={{ fontSize: 11, color: textTokens.tertiary, fontWeight: '500' }}>{post.payload.tracking_method.replace(/_/g, ' ')}</Text>
                     </View>
                   )}
+                  {post.payload.goal_value && post.payload.tracking_method && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                      <Ionicons name="flag-outline" size={11} color={brand.primary} />
+                      <Text numberOfLines={1} style={{ fontSize: 11, color: brand.primary, fontWeight: '600' }}>
+                        {getGoalSentence(post.payload.tracking_method, post.payload.goal_value, post.payload.duration_days || 7)}
+                      </Text>
+                    </View>
+                  )}
                 </View>
                 <View style={{ backgroundColor: '#10B98114', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 }}>
                   <Text style={{ fontSize: 11, fontWeight: '700', color: '#10B981' }}>View & Join</Text>
@@ -630,6 +639,13 @@ export function CircleHomeModal({ visible, circleId, onClose, onOpenChallenge, o
                         </View>
                       )}
                     </View>
+                    {/* Goal sentence */}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                      <Ionicons name="flag-outline" size={11} color={brand.primary} />
+                      <Text numberOfLines={1} style={{ fontSize: 11, color: brand.primary, fontWeight: '600', flex: 1 }}>
+                        {getGoalSentence(challenge.tracking_method || challenge.type, challenge.goal_value || 1, challenge.duration_days || 7)}
+                      </Text>
+                    </View>
                   </View>
                   {isJoined ? (
                     <View style={{ backgroundColor: isActive ? semantic.successLight : `${textTokens.disabled}20`, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 10 }}>
@@ -648,7 +664,7 @@ export function CircleHomeModal({ visible, circleId, onClose, onOpenChallenge, o
                     </View>
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6 }}>
                       <Text style={{ fontSize: 11, color: textTokens.tertiary, fontWeight: '500' }}>
-                        {progress}/{goal} {challenge.type === 'focus_time' ? 'min' : challenge.type === 'tasks_completed' ? 'tasks' : ''}
+                        {progress}/{goal} {getProgressUnit(challenge.tracking_method || challenge.type)}
                       </Text>
                       <Text style={{ fontSize: 12, fontWeight: '800', color: pct >= 100 ? semantic.success : brand.primary }}>{Math.round(pct)}%</Text>
                     </View>

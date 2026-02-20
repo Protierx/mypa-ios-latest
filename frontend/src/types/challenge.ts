@@ -15,7 +15,7 @@ export type TrackingMethod =
 
 export type VerificationMode = 'auto_accept' | 'creator_approval';
 
-export type DurationDays = 7 | 14 | 30;
+export type DurationDays = number; // 1–365; 7 | 14 | 30 are the common presets
 
 // ── Tracking method display metadata ─────────────────────────
 
@@ -145,4 +145,49 @@ export function validateChallengeForm(form: {
   }
 
   return { valid: Object.keys(errors).length === 0, errors };
+}
+
+// ── Goal sentence helpers ────────────────────────────
+
+/** Plain-English goal sentence: "Check in 4 times within 7 days" */
+export function getGoalSentence(
+  trackingMethod: string | null | undefined,
+  goalValue: number,
+  durationDays: number,
+): string {
+  switch (trackingMethod) {
+    case 'proof_checkin':
+      return `Check in ${goalValue} time${goalValue !== 1 ? 's' : ''} within ${durationDays} days`;
+    case 'focus_minutes':
+    case 'focus_time':
+      return `Focus ${goalValue} minutes within ${durationDays} days`;
+    case 'tasks_completed':
+      return `Complete ${goalValue} challenge task${goalValue !== 1 ? 's' : ''} within ${durationDays} days`;
+    case 'active_days':
+    case 'daily_checkin':
+      return `Be active for ${goalValue} day${goalValue !== 1 ? 's' : ''} within ${durationDays} days`;
+    default:
+      return `Reach ${goalValue} within ${durationDays} days`;
+  }
+}
+
+/** Short unit label for progress: "check-ins", "minutes", "tasks", "days" */
+export function getProgressUnit(trackingMethod: string | null | undefined): string {
+  switch (trackingMethod) {
+    case 'proof_checkin': return 'check-ins';
+    case 'focus_minutes':
+    case 'focus_time': return 'minutes';
+    case 'tasks_completed': return 'tasks';
+    case 'active_days':
+    case 'daily_checkin': return 'days';
+    default: return '';
+  }
+}
+
+/** Parse challenge link from task description: [challenge:UUID|Title] */
+export const CHALLENGE_LINK_RE = /\[challenge:([a-f0-9-]+)\|([^\]]+)\]/;
+export function parseChallengeLink(description: string | null | undefined): { challengeId: string; challengeTitle: string } | null {
+  if (!description) return null;
+  const match = description.match(CHALLENGE_LINK_RE);
+  return match ? { challengeId: match[1], challengeTitle: match[2] } : null;
 }

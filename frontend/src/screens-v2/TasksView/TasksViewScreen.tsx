@@ -28,6 +28,7 @@ import { RectButton } from 'react-native-gesture-handler';
 import { useTasks } from '../../hooks/supabase/useTasks';
 import { useBrainDump } from '../../hooks/supabase/useBrainDump';
 import { Task, BrainDumpItem } from '../../lib/supabase';
+import { parseChallengeLink } from '../../types/challenge';
 import { SortedTask } from '../../services/aiTaskSorting';
 import { DateFilterBar, DateFilter } from '../../components/DateFilterBar';
 import { TaskDetailModal } from '../modals/TaskDetailModal';
@@ -576,6 +577,7 @@ export function TasksViewScreen() {
     const sortedTask = task as SortedTask;
     const aiReason = sortedTask.sortReason && sortedTask.isOptimalTime ? sortedTask.sortReason : null;
     const hasNotes = !!(task.description && task.description.trim().length > 0 && !task.description.startsWith('['));
+    const challengeLink = parseChallengeLink(task.description);
 
     return (
       <Swipeable
@@ -665,6 +667,12 @@ export function TasksViewScreen() {
                 {hasNotes && (
                   <View style={s.pill}>
                     <Ionicons name="document-text-outline" size={12} color={textTokens.tertiary} />
+                  </View>
+                )}
+                {challengeLink && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F59E0B14', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6, borderWidth: 0.5, borderColor: '#F59E0B30' }}>
+                    <Ionicons name="trophy" size={10} color="#F59E0B" />
+                    <Text style={{ fontSize: 11, fontWeight: '600', color: '#F59E0B', marginLeft: 3 }}>Challenge: {challengeLink.challengeTitle}</Text>
                   </View>
                 )}
                 {aiReason && (

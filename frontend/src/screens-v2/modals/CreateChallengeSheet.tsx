@@ -27,8 +27,10 @@ import Animated, {
   withSpring,
 } from 'react-native-reanimated';
 
-import { useChallenges } from '../../hooks/supabase/useChallenges';
+import { createChallenge as createChallengeApi } from '../../services/supabaseApi';
 import { Challenge } from '../../lib/supabase';
+import type { DurationDays } from '../../types/challenge';
+import { getGoalSentence } from '../../types/challenge';
 import { bg, brand, text as textTokens, border as borderTokens, semantic } from '../../styles/colors';
 import { shadows, radius } from '../../styles/theme';
 
@@ -45,16 +47,15 @@ const EMOJI_OPTIONS = ['🏆', '💪', '🎯', '⚡', '🔥', '🌟', '📚', '�
 
 type TrackingMethod = 'tasks_completed' | 'focus_minutes' | 'proof_checkin';
 
-const TRACKING_METHODS: { value: TrackingMethod; label: string; icon: string; description: string; targetUnit: string }[] = [
-  { value: 'tasks_completed', label: 'Tasks Completed', icon: 'checkbox-outline', description: 'Track by completing tasks', targetUnit: 'tasks' },
-  { value: 'focus_minutes', label: 'Focus Minutes', icon: 'timer-outline', description: 'Track total minutes focused', targetUnit: 'minutes' },
-  { value: 'proof_checkin', label: 'Proof Check-in', icon: 'camera-outline', description: 'Submit proof each time', targetUnit: 'check-ins' },
+const TRACKING_METHODS: { value: TrackingMethod; label: string; icon: string; description: string; goalLabel: string; goalHelper: string; goalUnit: string; defaultGoal: number }[] = [
+  { value: 'tasks_completed', label: 'Challenge Tasks', icon: 'checkbox-outline', description: 'Only tasks created inside this challenge count', goalLabel: 'Tasks required', goalHelper: 'How many challenge tasks must be completed?', goalUnit: 'tasks', defaultGoal: 5 },
+  { value: 'focus_minutes', label: 'Focus Minutes', icon: 'timer-outline', description: 'Accumulate focused work time', goalLabel: 'Target minutes', goalHelper: 'Total minutes needed within the challenge window', goalUnit: 'minutes', defaultGoal: 120 },
+  { value: 'proof_checkin', label: 'Proof Check-in', icon: 'camera-outline', description: 'Submit proof each day to count', goalLabel: 'Required check-ins', goalHelper: 'How many proof check-ins are needed to complete?', goalUnit: 'check-ins', defaultGoal: 7 },
 ];
 
 /* ────────────── Component ────────────── */
 
 export function CreateChallengeSheet({ visible, onClose, circleId, onChallengeCreated }: CreateChallengeSheetProps) {
-  const { createChallenge } = useChallenges();
   const titleInputRef = useRef<TextInput>(null);
 
   const [emoji, setEmoji] = useState('🏆');
@@ -62,6 +63,7 @@ export function CreateChallengeSheet({ visible, onClose, circleId, onChallengeCr
   const [description, setDescription] = useState('');
   const [trackingMethod, setTrackingMethod] = useState<TrackingMethod>('proof_checkin');
   const [durationDays, setDurationDays] = useState('');
+  const [goalValue, setGoalValue] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
@@ -74,7 +76,7 @@ export function CreateChallengeSheet({ visible, onClose, circleId, onChallengeCr
     } else {
       translateY.value = withSpring(600);
       setEmoji('🏆'); setTitle(''); setDescription(''); setTrackingMethod('proof_checkin');
-      setDurationDays(''); setShowEmojiPicker(false);
+      setDurationDays(''); setGoalValue(''); setShowEmojiPicker(false);
     }
   }, [visible]);
 
@@ -90,35 +92,34 @@ export function CreateChallengeSheet({ visible, onClose, circleId, onChallengeCr
     setIsCreating(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    const startDate = new Date();
-    const endDate = new Date(startDate);
-    endDate.setDate(endDate.getDate() + days);
+    const goal = parseInt(goalValue) || currentMethod.defaultGoal;
+    try {
+      // Call the edge function which handles challenge creation,
+      // circle feed posts, AND notification fanout to circle members
+      const response = await createChallengeApi({
+        title: title.trim(),
+        emoji,
+        description: description.trim() || undefined,
+        trackingMethod,
+        targetValue: goal,
+        durationDays: days as DurationDays,
+        circleId: circleId || undefined,
+      });
 
-    // Map tracking method to the legacy type field for compatibility
-    const legacyType = trackingMethod === 'proof_checkin' ? 'daily_checkin'
-      : trackingMethod === 'focus_minutes' ? 'focus_time'
-      : 'tasks_completed';
-
-    const challenge = await createChallenge({
-      title: title.trim(),
-      emoji,
-      description: description.trim() || null,
-      type: legacyType,
-      tracking_method: trackingMethod,
-      goal_value: days,
-      duration_days: days,
-      circle_id: circleId || null,
-      starts_at: startDate.toISOString(),
-      ends_at: endDate.toISOString(),
-    });
-
-    setIsCreating(false);
-    if (challenge) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      onChallengeCreated?.(challenge);
-      onClose();
+      setIsCreating(false);
+      if (response.ok && response.challenge) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        onChallengeCreated?.(response.challenge as unknown as Challenge);
+        onClose();
+      } else {
+        Alert.alert('Error', 'Failed to create challenge. Please try again.');
+      }
+    } catch (err) {
+      console.error('[CreateChallengeSheet] Error creating challenge:', err);
+      setIsCreating(false);
+      Alert.alert('Error', 'Failed to create challenge. Please try again.');
     }
-  }, [title, emoji, description, trackingMethod, durationDays, circleId, createChallenge, onChallengeCreated, onClose]);
+  }, [title, emoji, description, trackingMethod, durationDays, goalValue, circleId, onChallengeCreated, onClose]);
 
   const handleClose = useCallback(() => {
     if (title.trim() || description.trim()) {
@@ -150,9 +151,9 @@ export function CreateChallengeSheet({ visible, onClose, circleId, onChallengeCr
                   <Text style={{ fontSize: 15, color: textTokens.tertiary }}>Cancel</Text>
                 </TouchableOpacity>
                 <Text style={{ fontSize: 17, fontWeight: '700', color: textTokens.primary }}>New Challenge</Text>
-                <TouchableOpacity onPress={handleCreate} disabled={isCreating || !title.trim()} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <TouchableOpacity onPress={handleCreate} disabled={isCreating || !title.trim() || !durationDays || !goalValue} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                   {isCreating ? <ActivityIndicator size="small" color={brand.primary} /> : (
-                    <Text style={{ fontSize: 15, fontWeight: '700', color: title.trim() ? brand.primary : textTokens.disabled }}>Create</Text>
+                    <Text style={{ fontSize: 15, fontWeight: '700', color: (title.trim() && durationDays && goalValue) ? brand.primary : textTokens.disabled }}>Create</Text>
                   )}
                 </TouchableOpacity>
               </View>
@@ -259,7 +260,31 @@ export function CreateChallengeSheet({ visible, onClose, circleId, onChallengeCr
                   </View>
                 </View>
 
-                {/* ── 4. Duration ── */}
+                {/* ── 4. Goal ── */}
+                <View style={{
+                  backgroundColor: bg.primary, borderRadius: 14, padding: 14, marginBottom: 20,
+                  borderWidth: 0.5, borderColor: borderTokens.primary,
+                }}>
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: textTokens.tertiary, marginBottom: 4, letterSpacing: 0.3 }}>{currentMethod.goalLabel.toUpperCase()}</Text>
+                  <Text style={{ fontSize: 11, color: textTokens.disabled, marginBottom: 10 }}>
+                    {currentMethod.goalHelper}
+                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <TextInput
+                      value={goalValue}
+                      onChangeText={(text) => setGoalValue(text.replace(/[^0-9]/g, ''))}
+                      placeholder={String(currentMethod.defaultGoal)}
+                      placeholderTextColor={textTokens.disabled}
+                      keyboardType="number-pad"
+                      style={{ fontSize: 28, color: textTokens.primary, fontWeight: '700', flex: 1 }}
+                    />
+                    <View style={{ backgroundColor: `${brand.primary}14`, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 }}>
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: brand.primary }}>{currentMethod.goalUnit}</Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* ── 5. Duration ── */}
                 <View style={{
                   backgroundColor: bg.primary, borderRadius: 14, padding: 14, marginBottom: 20,
                   borderWidth: 0.5, borderColor: borderTokens.primary,
@@ -298,20 +323,40 @@ export function CreateChallengeSheet({ visible, onClose, circleId, onChallengeCr
                       ) : null}
                     </View>
                   </View>
-                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                  {/* Goal sentence */}
+                  <View style={{
+                    backgroundColor: `${semantic.success}08`, borderRadius: 12, padding: 12, marginTop: 2,
+                    borderWidth: 0.5, borderColor: `${semantic.success}20`,
+                  }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <Ionicons name="flag" size={16} color={semantic.success} />
+                      <Text style={{ fontSize: 14, fontWeight: '700', color: textTokens.primary, flex: 1 }}>
+                        {getGoalSentence(trackingMethod, parseInt(goalValue) || currentMethod.defaultGoal, days)}
+                      </Text>
+                    </View>
+                  </View>
+                  {/* Stats */}
+                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
                     <View style={{
-                      flex: 1, backgroundColor: `${brand.primary}08`, borderRadius: 10, paddingVertical: 10, alignItems: 'center',
+                      flex: 1, backgroundColor: `${brand.primary}08`, borderRadius: 10, paddingVertical: 8, alignItems: 'center',
                       borderWidth: 0.5, borderColor: `${brand.primary}20`,
                     }}>
-                      <Text style={{ fontSize: 18, fontWeight: '800', color: brand.primary }}>{days}</Text>
-                      <Text style={{ fontSize: 10, fontWeight: '600', color: textTokens.tertiary, marginTop: 2 }}>days</Text>
+                      <Text style={{ fontSize: 16, fontWeight: '800', color: brand.primary }}>{days}d</Text>
+                      <Text style={{ fontSize: 10, fontWeight: '600', color: textTokens.tertiary, marginTop: 1 }}>duration</Text>
                     </View>
                     <View style={{
-                      flex: 1, backgroundColor: `${semantic.success}08`, borderRadius: 10, paddingVertical: 10, alignItems: 'center',
-                      borderWidth: 0.5, borderColor: `${semantic.success}20`,
+                      flex: 1, backgroundColor: `${brand.primary}08`, borderRadius: 10, paddingVertical: 8, alignItems: 'center',
+                      borderWidth: 0.5, borderColor: `${brand.primary}20`,
                     }}>
-                      <Ionicons name={currentMethod.icon as any} size={18} color={semantic.success} />
-                      <Text numberOfLines={1} style={{ fontSize: 10, fontWeight: '600', color: textTokens.tertiary, marginTop: 2 }}>{currentMethod.label}</Text>
+                      <Text style={{ fontSize: 16, fontWeight: '800', color: brand.primary }}>{parseInt(goalValue) || currentMethod.defaultGoal}</Text>
+                      <Text style={{ fontSize: 10, fontWeight: '600', color: textTokens.tertiary, marginTop: 1 }}>{currentMethod.goalUnit}</Text>
+                    </View>
+                    <View style={{
+                      flex: 1, backgroundColor: `${brand.primary}08`, borderRadius: 10, paddingVertical: 8, alignItems: 'center',
+                      borderWidth: 0.5, borderColor: `${brand.primary}20`,
+                    }}>
+                      <Ionicons name={currentMethod.icon as any} size={16} color={brand.primary} />
+                      <Text numberOfLines={1} style={{ fontSize: 10, fontWeight: '600', color: textTokens.tertiary, marginTop: 1 }}>{currentMethod.label}</Text>
                     </View>
                   </View>
                 </View>

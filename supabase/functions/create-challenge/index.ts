@@ -93,8 +93,8 @@ serve(async (req: Request) => {
 
     // Duration validation
     const duration = Number(durationDays);
-    if (!durationDays || !VALID_DURATIONS.includes(duration as any)) {
-      errors.push(`durationDays must be one of: ${VALID_DURATIONS.join(', ')}`);
+    if (!durationDays || isNaN(duration) || duration < 1 || duration > 365 || !Number.isInteger(duration)) {
+      errors.push('durationDays must be an integer between 1 and 365');
     }
 
     // Active days constraint: target <= duration

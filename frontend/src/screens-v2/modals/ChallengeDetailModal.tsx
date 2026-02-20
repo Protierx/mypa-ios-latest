@@ -21,10 +21,12 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
 import { useChallenges } from '../../hooks/supabase/useChallenges';
-import { Challenge } from '../../lib/supabase';
+import { supabase, Challenge, Task } from '../../lib/supabase';
 import { useSupabaseAuth } from '../../contexts/SupabaseAuthContext';
 import { api } from '../../services/supabaseApi';
 import { analyticsInvalidationBus } from '../../services/analyticsInvalidationBus';
+import { getGoalSentence, getProgressUnit } from '../../types/challenge';
+import { QuickAddTaskOverlay } from './QuickAddTaskOverlay';
 
 import { bg, brand, text as textTokens, border as borderTokens, semantic } from '../../styles/colors';
 import { shadows, radius, spacing } from '../../styles/theme';
@@ -60,6 +62,8 @@ export function ChallengeDetailModal({ visible, challengeId, onClose }: Challeng
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isParticipant, setIsParticipant] = useState(true);
   const [isJoining, setIsJoining] = useState(false);
+  const [showAddTask, setShowAddTask] = useState(false);
+  const [challengeTasks, setChallengeTasks] = useState<Task[]>([]);
 
   const loadChallengeData = useCallback(async () => {
     if (!challengeId) return;
@@ -70,9 +74,24 @@ export function ChallengeDetailModal({ visible, challengeId, onClose }: Challeng
       ]);
       setChallenge(challengeData);
       setLeaderboard(leaderboardData || []);
+
+      // Determine participation from multiple sources for robustness:
+      // 1. Leaderboard (profiles join may fail)
       const myEntry = leaderboardData?.find((e: LeaderboardEntry) => e.userId === user?.id);
-      if (myEntry) { setMyProgress(myEntry.progress); setMyRank(myEntry.rank); setIsParticipant(true); }
-      else { setMyProgress(0); setMyRank(0); setIsParticipant(false); }
+      // 2. getChallenge already queries challenge_participants separately
+      const inParticipants = challengeData?.participants?.some((p: any) => p.user_id === user?.id);
+      // 3. Creator is always a participant (edge function auto-joins)
+      const isCreator = challengeData?.creator_id === user?.id;
+
+      const joined = !!(myEntry || inParticipants || isCreator);
+      setIsParticipant(joined);
+      if (myEntry) { setMyProgress(myEntry.progress); setMyRank(myEntry.rank); }
+      else if (inParticipants) {
+        const part = challengeData?.participants?.find((p: any) => p.user_id === user?.id);
+        setMyProgress(part?.progress || 0);
+        setMyRank(0);
+      }
+      else { setMyProgress(0); setMyRank(0); }
     } catch (error) {
       console.error('Error loading challenge data:', error);
     } finally {
@@ -80,8 +99,22 @@ export function ChallengeDetailModal({ visible, challengeId, onClose }: Challeng
     }
   }, [challengeId, user?.id]);
 
+  // Fetch tasks linked to this challenge (via description metadata)
+  const fetchChallengeTasks = useCallback(async () => {
+    if (!challengeId || !user) return;
+    try {
+      const { data } = await supabase
+        .from('tasks')
+        .select('*')
+        .eq('user_id', user.id)
+        .like('description', `%[challenge:${challengeId}%`)
+        .order('created_at', { ascending: false });
+      setChallengeTasks(data || []);
+    } catch (e) { console.error('[ChallengeDetail] fetchTasks error:', e); }
+  }, [challengeId, user]);
+
   useEffect(() => {
-    if (visible && challengeId) { setIsLoading(true); loadChallengeData(); }
+    if (visible && challengeId) { setIsLoading(true); loadChallengeData(); fetchChallengeTasks(); }
   }, [visible, challengeId]);
 
   const handleLeaveChallenge = useCallback(() => {
@@ -190,10 +223,12 @@ export function ChallengeDetailModal({ visible, challengeId, onClose }: Challeng
     return Math.min((myProgress / challenge.goal_value) * 100, 100);
   };
 
+  /** Canonical tracking method — prefers new field, falls back to legacy type */
+  const trackingMethod = challenge?.tracking_method || challenge?.type || 'proof_checkin';
+
   const getTypeLabel = (): string => {
     if (!challenge) return 'progress';
-    const method = (challenge as any).tracking_method || challenge.type;
-    switch (method) {
+    switch (trackingMethod) {
       case 'focus_time':
       case 'focus_minutes': return 'minutes focused';
       case 'tasks_completed': return 'tasks completed';
@@ -206,8 +241,7 @@ export function ChallengeDetailModal({ visible, challengeId, onClose }: Challeng
 
   const getTrackingInfo = (): { icon: string; label: string; description: string; buttonLabel: string } => {
     if (!challenge) return { icon: 'checkbox', label: 'Track Progress', description: '', buttonLabel: 'Check In' };
-    const method = (challenge as any).tracking_method || challenge.type;
-    switch (method) {
+    switch (trackingMethod) {
       case 'tasks_completed':
         return {
           icon: 'checkbox',
@@ -235,7 +269,7 @@ export function ChallengeDetailModal({ visible, challengeId, onClose }: Challeng
         return {
           icon: 'camera',
           label: 'Proof Check-in',
-          description: `Submit ${challenge.goal_value} check-ins with proof. ${(challenge as any).verification_mode === 'creator_approval' ? 'Each submission is reviewed by the challenge creator.' : 'Check-ins are accepted automatically.'}`,
+          description: `Submit ${challenge.goal_value} check-ins with proof. ${challenge.verification_mode === 'creator_approval' ? 'Each submission is reviewed by the challenge creator.' : 'Check-ins are accepted automatically.'}`,
           buttonLabel: 'Submit Check-in',
         };
       default:
@@ -284,6 +318,10 @@ export function ChallengeDetailModal({ visible, challengeId, onClose }: Challeng
                 <Ionicons name="time-outline" size={14} color={semantic.warning} />
                 <Text style={{ fontSize: 13, fontWeight: '600', color: semantic.warning, marginLeft: 5 }}>{getTimeRemaining()}</Text>
               </View>
+              {/* Goal sentence */}
+              <Text style={{ fontSize: 14, fontWeight: '600', color: textTokens.secondary, textAlign: 'center', marginTop: 10, paddingHorizontal: 20 }}>
+                {getGoalSentence(trackingMethod, challenge.goal_value, challenge.duration_days || 7)}
+              </Text>
             </View>
 
             {/* Challenge Description + How It Works */}
@@ -315,11 +353,11 @@ export function ChallengeDetailModal({ visible, challengeId, onClose }: Challeng
                 <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
                   <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: bg.primary, borderRadius: 10, padding: 10 }}>
                     <Ionicons name="flag" size={14} color={semantic.warning} />
-                    <Text style={{ fontSize: 12, fontWeight: '600', color: textTokens.secondary }}>Goal: {challenge.goal_value} {getTypeLabel()}</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: textTokens.secondary }}>Goal: {challenge.goal_value} {getProgressUnit(trackingMethod)}</Text>
                   </View>
                   <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: bg.primary, borderRadius: 10, padding: 10 }}>
                     <Ionicons name="calendar" size={14} color={brand.primary} />
-                    <Text style={{ fontSize: 12, fontWeight: '600', color: textTokens.secondary }}>{(challenge as any).duration_days || '—'} days</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '600', color: textTokens.secondary }}>{challenge.duration_days || '—'} days</Text>
                   </View>
                 </View>
               </View>
@@ -343,12 +381,82 @@ export function ChallengeDetailModal({ visible, challengeId, onClose }: Challeng
                 <View style={{ height: 10, backgroundColor: borderTokens.primary, borderRadius: 5, overflow: 'hidden' }}>
                   <View style={{ height: '100%', width: `${getProgressPercentage()}%`, backgroundColor: getProgressPercentage() >= 100 ? semantic.success : brand.primary, borderRadius: 5 }} />
                 </View>
-                <Text style={{ fontSize: 12, color: textTokens.tertiary, marginTop: 6, fontWeight: '500' }}>{getTypeLabel()}</Text>
+                <Text style={{ fontSize: 12, color: textTokens.tertiary, marginTop: 6, fontWeight: '500' }}>{getProgressUnit(trackingMethod)}</Text>
               </View>
             )}
 
-            {/* Check-in / Submit Button (all tracking types, only if participant) */}
-            {isParticipant && challenge.status === 'active' && getProgressPercentage() < 100 && (
+            {/* ── Tracking-Specific Action Area ── */}
+            {isParticipant && challenge.status === 'active' && getProgressPercentage() < 100 &&
+              trackingMethod === 'tasks_completed' && (
+              <View style={{ paddingHorizontal: 16, marginBottom: 16 }}>
+                <TouchableOpacity
+                  style={{
+                    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+                    backgroundColor: brand.primary, paddingVertical: 16, borderRadius: 14, gap: 8,
+                    ...shadows.purple,
+                  }}
+                  onPress={() => setShowAddTask(true)}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="add-circle" size={20} color={textTokens.inverse} />
+                  <Text style={{ fontSize: 16, fontWeight: '700', color: textTokens.inverse }}>Add Challenge Task</Text>
+                </TouchableOpacity>
+                {/* Challenge tasks list */}
+                <View style={{ marginTop: 14 }}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: textTokens.tertiary, letterSpacing: 0.5, marginBottom: 8 }}>CHALLENGE TASKS</Text>
+                  {challengeTasks.length > 0 ? (
+                    <View style={{ backgroundColor: bg.card, borderRadius: 14, overflow: 'hidden', borderWidth: 0.5, borderColor: borderTokens.primary }}>
+                      {challengeTasks.map((task, idx) => (
+                        <View key={task.id}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 14 }}>
+                            <View style={{
+                              width: 22, height: 22, borderRadius: 11, marginRight: 12,
+                              borderWidth: task.status === 'completed' ? 0 : 2,
+                              borderColor: borderTokens.primary,
+                              backgroundColor: task.status === 'completed' ? semantic.success : 'transparent',
+                              alignItems: 'center', justifyContent: 'center',
+                            }}>
+                              {task.status === 'completed' && <Ionicons name="checkmark" size={14} color="#fff" />}
+                            </View>
+                            <Text style={{
+                              flex: 1, fontSize: 14, fontWeight: '500', color: textTokens.primary,
+                              textDecorationLine: task.status === 'completed' ? 'line-through' : 'none',
+                              opacity: task.status === 'completed' ? 0.6 : 1,
+                            }}>{task.title}</Text>
+                          </View>
+                          {idx < challengeTasks.length - 1 && <View style={{ height: 0.5, backgroundColor: borderTokens.primary, marginHorizontal: 14 }} />}
+                        </View>
+                      ))}
+                    </View>
+                  ) : (
+                    <View style={{ alignItems: 'center', paddingVertical: 20, backgroundColor: bg.card, borderRadius: 14, borderWidth: 0.5, borderColor: borderTokens.primary }}>
+                      <Ionicons name="list-outline" size={24} color={textTokens.disabled} />
+                      <Text style={{ fontSize: 13, color: textTokens.tertiary, marginTop: 6 }}>No challenge tasks yet</Text>
+                      <Text style={{ fontSize: 11, color: textTokens.disabled, marginTop: 2 }}>Tap the button above to add one</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+            )}
+
+            {isParticipant && challenge.status === 'active' && getProgressPercentage() < 100 &&
+              ['focus_minutes', 'focus_time'].includes(trackingMethod) && (
+              <View style={{ paddingHorizontal: 16, marginBottom: 16 }}>
+                <View style={{
+                  backgroundColor: bg.card, borderRadius: 14, padding: 16,
+                  borderWidth: 0.5, borderColor: borderTokens.primary, alignItems: 'center',
+                }}>
+                  <Ionicons name="timer-outline" size={32} color={brand.primary} style={{ marginBottom: 8 }} />
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: textTokens.primary, marginBottom: 4 }}>Start a Focus Session</Text>
+                  <Text style={{ fontSize: 12, color: textTokens.tertiary, textAlign: 'center', lineHeight: 18 }}>
+                    Go to the Focus tab and start a session.{`\n`}Your focused minutes count toward this challenge.
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {isParticipant && challenge.status === 'active' && getProgressPercentage() < 100 &&
+              !['tasks_completed', 'focus_minutes', 'focus_time'].includes(trackingMethod) && (
               <View style={{ paddingHorizontal: 16, marginBottom: 16 }}>
                 <TouchableOpacity
                   style={{
@@ -365,8 +473,8 @@ export function ChallengeDetailModal({ visible, challengeId, onClose }: Challeng
                     <ActivityIndicator size="small" color={textTokens.inverse} />
                   ) : (
                     <>
-                      <Ionicons name="checkmark-circle" size={20} color={textTokens.inverse} />
-                      <Text style={{ fontSize: 16, fontWeight: '700', color: textTokens.inverse }}>{getTrackingInfo().buttonLabel}</Text>
+                      <Ionicons name="camera" size={20} color={textTokens.inverse} />
+                      <Text style={{ fontSize: 16, fontWeight: '700', color: textTokens.inverse }}>Submit Check-in</Text>
                     </>
                   )}
                 </TouchableOpacity>
@@ -493,6 +601,16 @@ export function ChallengeDetailModal({ visible, challengeId, onClose }: Challeng
             <Ionicons name="trophy-outline" size={40} color={textTokens.disabled} />
             <Text style={{ fontSize: 14, color: textTokens.tertiary, marginTop: 8 }}>Challenge not found</Text>
           </View>
+        )}
+        {/* QuickAddTaskOverlay must be INSIDE this Modal to present on iOS */}
+        {showAddTask && (
+          <QuickAddTaskOverlay
+            visible={showAddTask}
+            onClose={() => setShowAddTask(false)}
+            onTaskCreated={() => { setShowAddTask(false); fetchChallengeTasks(); }}
+            challengeId={challengeId || undefined}
+            challengeTitle={challenge?.title || undefined}
+          />
         )}
       </SafeAreaView>
     </Modal>
