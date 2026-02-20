@@ -390,7 +390,7 @@ export function AIHubScreen({ voiceState: externalVoiceState, audioLevel: extern
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="light-content" />
 
       {/* ── Immersive dark Skia background scene ── */}
       <AIHubScene sceneState={sceneState} amplitude={amplitude} />

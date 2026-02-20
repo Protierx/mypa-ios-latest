@@ -7,6 +7,7 @@
 
 import React, { ReactNode, Children } from 'react';
 import { View, Text } from 'react-native';
+import { bg, text as textTokens, border as borderTokens } from '../../styles/colors';
 
 interface Props {
   title: string;
@@ -25,7 +26,7 @@ export function SettingsSectionCard({ title, children, footer }: Props) {
         style={{
           fontSize: 13,
           fontWeight: '600',
-          color: '#8E8E93',
+          color: textTokens.tertiary,
           textTransform: 'uppercase',
           letterSpacing: 0.6,
           paddingHorizontal: 20,
@@ -40,10 +41,10 @@ export function SettingsSectionCard({ title, children, footer }: Props) {
       <View
         style={{
           marginHorizontal: 16,
-          backgroundColor: '#FFFFFF',
+          backgroundColor: bg.card,
           borderRadius: 12,
           borderWidth: 1,
-          borderColor: '#E5E5EA',
+          borderColor: borderTokens.primary,
           overflow: 'hidden',
         }}
       >
@@ -54,7 +55,7 @@ export function SettingsSectionCard({ title, children, footer }: Props) {
               <View
                 style={{
                   height: 1,
-                  backgroundColor: '#E5E5EA',
+                  backgroundColor: borderTokens.primary,
                   marginLeft: 56,
                 }}
               />
@@ -68,7 +69,7 @@ export function SettingsSectionCard({ title, children, footer }: Props) {
         <Text
           style={{
             fontSize: 12,
-            color: '#8E8E93',
+            color: textTokens.tertiary,
             paddingHorizontal: 32,
             marginTop: 6,
             lineHeight: 16,

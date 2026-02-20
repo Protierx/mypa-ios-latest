@@ -13,6 +13,7 @@ import React, { ReactNode } from 'react';
 import { View, Text, TouchableOpacity, Switch } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { bg, text as textTokens, border as borderTokens, semantic } from '../../styles/colors';
 
 interface Props {
   icon: keyof typeof Ionicons.glyphMap;
@@ -39,7 +40,7 @@ interface Props {
 
 export function SettingsRow({
   icon,
-  iconColor = '#8E8E93',
+  iconColor = textTokens.tertiary,
   title,
   subtitle,
   toggle,
@@ -50,9 +51,9 @@ export function SettingsRow({
   onPress,
   destructive,
   accessLabel,
-  accentColor = '#4AADA1',
+  accentColor = '#B958FF',
 }: Props) {
-  const textColor = destructive ? '#FF3B30' : '#1C1C1E';
+  const textColor = destructive ? semantic.error : textTokens.primary;
 
   const handlePress = () => {
     if (onPress) {
@@ -82,7 +83,7 @@ export function SettingsRow({
           width: 32,
           height: 32,
           borderRadius: 8,
-          backgroundColor: destructive ? '#FFF1F0' : '#F2F2F7',
+          backgroundColor: destructive ? semantic.errorLight : bg.input,
           alignItems: 'center',
           justifyContent: 'center',
           marginRight: 12,
@@ -91,7 +92,7 @@ export function SettingsRow({
         <Ionicons
           name={icon}
           size={18}
-          color={destructive ? '#FF3B30' : iconColor}
+          color={destructive ? semantic.error : iconColor}
         />
       </View>
 
@@ -105,7 +106,7 @@ export function SettingsRow({
         </Text>
         {subtitle ? (
           <Text
-            style={{ fontSize: 13, color: '#8E8E93', marginTop: 2 }}
+            style={{ fontSize: 13, color: textTokens.tertiary, marginTop: 2 }}
             numberOfLines={2}
           >
             {subtitle}
@@ -120,20 +121,20 @@ export function SettingsRow({
         <Switch
           value={toggleValue}
           onValueChange={handleToggle}
-          trackColor={{ false: '#E5E5EA', true: accentColor }}
+          trackColor={{ false: textTokens.disabled, true: accentColor }}
           thumbColor="#FFFFFF"
-          ios_backgroundColor="#E5E5EA"
+          ios_backgroundColor={textTokens.disabled}
           accessibilityLabel={accessLabel || title}
         />
       ) : value ? (
-        <Text style={{ fontSize: 15, color: '#8E8E93', marginRight: 4 }}>
+        <Text style={{ fontSize: 15, color: textTokens.tertiary, marginRight: 4 }}>
           {value}
         </Text>
       ) : null}
 
       {/* Chevron for navigation rows */}
       {onPress && !toggle && (
-        <Ionicons name="chevron-forward" size={18} color="#C7C7CC" />
+        <Ionicons name="chevron-forward" size={18} color={textTokens.disabled} />
       )}
     </View>
   );

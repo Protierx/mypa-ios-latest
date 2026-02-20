@@ -10,6 +10,7 @@ import { useUserModel, AI_FEATURES } from '@/contexts/UserModelContext';
 import { sortTasksWithAI, SortedTask } from '@/services/aiTaskSorting';
 import { suggestFromTitle } from '@/services/categorySuggestion';
 import { eventLogger } from '@/services/eventLogger';
+import { devLog, devWarn } from '@/utils/logger';
 
 // ============================================================================
 // Error Normalization — never expose raw SQL/Supabase errors to the user

@@ -20,6 +20,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import type { QuietHours } from '../../state/settingsPreferences';
+import { bg, text as textTokens, border as borderTokens } from '../../styles/colors';
 
 interface Props {
   visible: boolean;
@@ -52,7 +53,7 @@ export function NotificationQuietHoursModal({
   onClose,
   quietHours,
   onChange,
-  accentColor = '#4AADA1',
+  accentColor = '#B958FF',
 }: Props) {
   const [showStartPicker, setShowStartPicker] = useState(false);
   const [showEndPicker, setShowEndPicker] = useState(false);
@@ -60,24 +61,24 @@ export function NotificationQuietHoursModal({
   return (
     <Modal visible={visible} transparent animationType="slide">
       <Pressable
-        style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' }}
+        style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.60)' }}
         onPress={onClose}
       >
         <View style={{ flex: 1, justifyContent: 'flex-end' }}>
           <Pressable
             style={{
-              backgroundColor: '#F8F8FA',
+              backgroundColor: bg.elevated,
               borderTopLeftRadius: 20,
               borderTopRightRadius: 20,
               maxHeight: '75%',
               borderTopWidth: 1,
-              borderColor: '#E5E5EA',
+              borderColor: borderTokens.primary,
             }}
             onPress={(e) => e.stopPropagation()}
           >
             {/* Handle */}
             <View style={{ alignItems: 'center', paddingTop: 10, paddingBottom: 4 }}>
-              <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: '#C7C7CC' }} />
+              <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: textTokens.disabled }} />
             </View>
 
             {/* Header */}
@@ -91,7 +92,7 @@ export function NotificationQuietHoursModal({
                 paddingBottom: 16,
               }}
             >
-              <Text style={{ fontSize: 22, fontWeight: '700', color: '#1C1C1E' }}>
+              <Text style={{ fontSize: 22, fontWeight: '700', color: textTokens.primary }}>
                 Quiet Hours
               </Text>
               <TouchableOpacity
@@ -105,19 +106,19 @@ export function NotificationQuietHoursModal({
                     width: 30,
                     height: 30,
                     borderRadius: 15,
-                    backgroundColor: '#E5E5EA',
+                    backgroundColor: bg.hover,
                     alignItems: 'center',
                     justifyContent: 'center',
                   }}
                 >
-                  <Ionicons name="close" size={18} color="#8E8E93" />
+                  <Ionicons name="close" size={18} color={textTokens.tertiary} />
                 </View>
               </TouchableOpacity>
             </View>
 
             {/* Content */}
             <View style={{ paddingHorizontal: 20, paddingBottom: 40 }}>
-              <Text style={{ fontSize: 14, color: '#8E8E93', marginBottom: 20, lineHeight: 20 }}>
+              <Text style={{ fontSize: 14, color: textTokens.tertiary, marginBottom: 20, lineHeight: 20 }}>
                 Notifications will be silenced during quiet hours. You won't receive planning
                 reminders, nudges, or circle alerts in this window.
               </Text>
@@ -125,10 +126,10 @@ export function NotificationQuietHoursModal({
               {/* Enable toggle */}
               <View
                 style={{
-                  backgroundColor: '#FFFFFF',
+                  backgroundColor: bg.card,
                   borderRadius: 12,
                   borderWidth: 1,
-                  borderColor: '#E5E5EA',
+                  borderColor: borderTokens.primary,
                   padding: 16,
                   flexDirection: 'row',
                   alignItems: 'center',
@@ -138,7 +139,7 @@ export function NotificationQuietHoursModal({
               >
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                   <Ionicons name="moon-outline" size={20} color={accentColor} />
-                  <Text style={{ fontSize: 16, color: '#1C1C1E', marginLeft: 10, fontWeight: '500' }}>
+                  <Text style={{ fontSize: 16, color: textTokens.primary, marginLeft: 10, fontWeight: '500' }}>
                     Enable Quiet Hours
                   </Text>
                 </View>
@@ -148,9 +149,9 @@ export function NotificationQuietHoursModal({
                     Haptics.selectionAsync();
                     onChange({ ...quietHours, enabled: v });
                   }}
-                  trackColor={{ false: '#E5E5EA', true: accentColor }}
+                  trackColor={{ false: textTokens.disabled, true: accentColor }}
                   thumbColor="#FFFFFF"
-                  ios_backgroundColor="#E5E5EA"
+                  ios_backgroundColor={textTokens.disabled}
                   accessibilityLabel="Enable quiet hours"
                 />
               </View>
@@ -158,10 +159,10 @@ export function NotificationQuietHoursModal({
               {quietHours.enabled && (
                 <View
                   style={{
-                    backgroundColor: '#FFFFFF',
+                    backgroundColor: bg.card,
                     borderRadius: 12,
                     borderWidth: 1,
-                    borderColor: '#E5E5EA',
+                    borderColor: borderTokens.primary,
                     overflow: 'hidden',
                   }}
                 >
@@ -181,7 +182,7 @@ export function NotificationQuietHoursModal({
                     accessibilityLabel="Set quiet hours start time"
                     accessibilityRole="button"
                   >
-                    <Text style={{ fontSize: 16, color: '#1C1C1E' }}>Start</Text>
+                    <Text style={{ fontSize: 16, color: textTokens.primary }}>Start</Text>
                     <Text style={{ fontSize: 16, color: accentColor, fontWeight: '500' }}>
                       {formatTime12(quietHours.start)}
                     </Text>
@@ -201,7 +202,7 @@ export function NotificationQuietHoursModal({
                     </View>
                   )}
 
-                  <View style={{ height: 1, backgroundColor: '#E5E5EA', marginLeft: 16 }} />
+                  <View style={{ height: 1, backgroundColor: borderTokens.primary, marginLeft: 16 }} />
 
                   {/* End time */}
                   <TouchableOpacity
@@ -219,7 +220,7 @@ export function NotificationQuietHoursModal({
                     accessibilityLabel="Set quiet hours end time"
                     accessibilityRole="button"
                   >
-                    <Text style={{ fontSize: 16, color: '#1C1C1E' }}>End</Text>
+                    <Text style={{ fontSize: 16, color: textTokens.primary }}>End</Text>
                     <Text style={{ fontSize: 16, color: accentColor, fontWeight: '500' }}>
                       {formatTime12(quietHours.end)}
                     </Text>

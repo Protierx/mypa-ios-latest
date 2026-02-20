@@ -62,8 +62,8 @@ const STATE_PALETTES: Record<
   idle: {
     gradient: ['#06060F', '#0D0A1F', '#0A0F1A', '#100820'],
     blobs: [
-      'rgba(74, 173, 161, 0.18)',
-      'rgba(45, 138, 126, 0.14)',
+      'rgba(185, 88, 255, 0.18)',
+      'rgba(147, 51, 234, 0.14)',
       'rgba(59, 130, 246, 0.10)',
       'rgba(147, 51, 234, 0.12)',
       'rgba(99, 102, 241, 0.08)',
@@ -85,7 +85,7 @@ const STATE_PALETTES: Record<
       'rgba(59, 130, 246, 0.25)',
       'rgba(99, 102, 241, 0.22)',
       'rgba(14, 165, 233, 0.18)',
-      'rgba(74, 173, 161, 0.15)',
+      'rgba(185, 88, 255, 0.15)',
       'rgba(56, 189, 248, 0.12)',
     ],
   },
@@ -94,7 +94,7 @@ const STATE_PALETTES: Record<
     blobs: [
       'rgba(168, 85, 247, 0.35)',
       'rgba(147, 51, 234, 0.30)',
-      'rgba(74, 173, 161, 0.25)',
+      'rgba(185, 88, 255, 0.25)',
       'rgba(192, 132, 252, 0.20)',
       'rgba(139, 92, 246, 0.15)',
     ],
@@ -102,8 +102,8 @@ const STATE_PALETTES: Record<
   timeout: {
     gradient: ['#06060F', '#0D0A15', '#0A0D14', '#0F0A18'],
     blobs: [
-      'rgba(74, 173, 161, 0.10)',
-      'rgba(45, 138, 126, 0.08)',
+      'rgba(185, 88, 255, 0.10)',
+      'rgba(147, 51, 234, 0.08)',
       'rgba(59, 130, 246, 0.06)',
       'rgba(147, 51, 234, 0.07)',
       'rgba(99, 102, 241, 0.05)',
@@ -162,7 +162,7 @@ const PARTICLE_COUNT = 80;
 const PARTICLE_COLORS = [
   'rgba(255, 255, 255, 0.35)',
   'rgba(196, 181, 253, 0.30)',
-  'rgba(91, 196, 183, 0.25)',
+  'rgba(199, 125, 255, 0.25)',
   'rgba(165, 243, 252, 0.20)',
   'rgba(129, 140, 248, 0.22)',
 ];
@@ -324,13 +324,13 @@ export function LivingBackground({ voiceState, audioLevel }: LivingBackgroundPro
       case 'offline':
         return ['rgba(113,113,122,0.20)', 'rgba(82,82,91,0.10)', 'rgba(63,63,70,0.03)', 'transparent'];
       case 'speaking':
-        return ['rgba(192,132,252,0.45)', 'rgba(147,51,234,0.25)', 'rgba(74,173,161,0.08)', 'transparent'];
+        return ['rgba(192,132,252,0.45)', 'rgba(147,51,234,0.25)', 'rgba(185,88,255,0.08)', 'transparent'];
       case 'listening':
         return ['rgba(139,92,246,0.50)', 'rgba(99,102,241,0.30)', 'rgba(59,130,246,0.10)', 'transparent'];
       case 'processing':
         return ['rgba(59,130,246,0.35)', 'rgba(99,102,241,0.20)', 'rgba(14,165,233,0.08)', 'transparent'];
       default:
-        return ['rgba(74,173,161,0.30)', 'rgba(99,102,241,0.15)', 'rgba(45,138,126,0.05)', 'transparent'];
+        return ['rgba(185,88,255,0.30)', 'rgba(99,102,241,0.15)', 'rgba(147,51,234,0.05)', 'transparent'];
     }
   };
 
@@ -402,7 +402,7 @@ export function LivingBackground({ voiceState, audioLevel }: LivingBackgroundPro
               colors={[
                 'rgba(255,255,255,0.18)',
                 'rgba(200,180,255,0.10)',
-                'rgba(91,196,183,0.03)',
+                'rgba(199,125,255,0.03)',
                 'transparent',
               ]}
             />

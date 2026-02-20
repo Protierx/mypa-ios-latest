@@ -42,6 +42,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 import { ACCENT_COLORS, AccentPreset } from '../../state/settingsPreferences';
+import { bg, text as textTokens, border as borderTokens } from '../../styles/colors';
 import { useAnalytics } from '../../hooks/useAnalytics';
 
 import {
@@ -118,7 +119,7 @@ export function AnalyticsModal({ visible, onClose, accentPreset = 'purple' }: Pr
               accessibilityRole="button"
             >
               <View style={styles.closeBtn}>
-                <Ionicons name="close" size={18} color="#8E8E93" />
+                <Ionicons name="close" size={18} color={textTokens.tertiary} />
               </View>
             </TouchableOpacity>
           </View>
@@ -273,19 +274,19 @@ function fmtMinutes(mins: number): string {
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    backgroundColor: 'rgba(0,0,0,0.60)',
     justifyContent: 'flex-end',
   },
   overlayTap: {
     flex: 1,
   },
   sheet: {
-    backgroundColor: '#F8F8FA',
+    backgroundColor: bg.primary,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     height: '78%',
     borderTopWidth: 1,
-    borderColor: '#EEEEF0',
+    borderColor: borderTokens.primary,
   },
   handleRow: {
     alignItems: 'center',
@@ -296,7 +297,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#C7C7CC',
+    backgroundColor: textTokens.disabled,
   },
   header: {
     flexDirection: 'row',
@@ -314,14 +315,14 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#1C1C1E',
+    color: textTokens.primary,
     letterSpacing: -0.3,
   },
   closeBtn: {
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: '#E5E5EA',
+    backgroundColor: borderTokens.primary,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -339,6 +340,6 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 15,
-    color: '#8E8E93',
+    color: textTokens.tertiary,
   },
 });

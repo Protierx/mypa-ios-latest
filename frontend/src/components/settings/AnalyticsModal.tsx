@@ -17,6 +17,7 @@ import { useSupabaseAuth } from '../../contexts/SupabaseAuthContext';
 import { useFocusSessions } from '../../hooks/supabase/useFocusSessions';
 import { useTasks } from '../../hooks/supabase/useTasks';
 import { ACCENT_COLORS, AccentPreset } from '../../state/settingsPreferences';
+import { bg, text as textTokens, border as borderTokens, semantic } from '../../styles/colors';
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -63,17 +64,17 @@ function StatCard({ title, icon, iconColor, children }: {
   return (
     <View
       style={{
-        backgroundColor: '#FFFFFF',
+        backgroundColor: bg.card,
         borderRadius: 14,
         padding: 16,
         marginBottom: 12,
         borderWidth: 1,
-        borderColor: '#E5E5EA',
+        borderColor: borderTokens.primary,
       }}
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
         <Ionicons name={icon} size={18} color={iconColor} />
-        <Text style={{ fontSize: 15, fontWeight: '600', color: '#1C1C1E', marginLeft: 8 }}>
+        <Text style={{ fontSize: 15, fontWeight: '600', color: textTokens.primary, marginLeft: 8 }}>
           {title}
         </Text>
       </View>
@@ -85,10 +86,10 @@ function StatCard({ title, icon, iconColor, children }: {
 function StatRow({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
-      <Text style={{ fontSize: 14, color: '#48484A' }}>{label}</Text>
+      <Text style={{ fontSize: 14, color: textTokens.secondary }}>{label}</Text>
       <View style={{ alignItems: 'flex-end' }}>
-        <Text style={{ fontSize: 16, fontWeight: '600', color: '#1C1C1E' }}>{value}</Text>
-        {sub ? <Text style={{ fontSize: 11, color: '#8E8E93' }}>{sub}</Text> : null}
+        <Text style={{ fontSize: 16, fontWeight: '600', color: textTokens.primary }}>{value}</Text>
+        {sub ? <Text style={{ fontSize: 11, color: textTokens.tertiary }}>{sub}</Text> : null}
       </View>
     </View>
   );
@@ -198,18 +199,18 @@ export function AnalyticsModal({ visible, onClose, accentPreset = 'purple' }: Pr
   return (
     <Modal visible={visible} transparent animationType="slide">
       <Pressable
-        style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' }}
+        style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.60)' }}
         onPress={onClose}
       >
         <View style={{ flex: 1, justifyContent: 'flex-end' }}>
           <Pressable
             style={{
-              backgroundColor: '#F8F8FA',
+              backgroundColor: bg.elevated,
               borderTopLeftRadius: 20,
               borderTopRightRadius: 20,
               maxHeight: '78%',
               borderTopWidth: 1,
-              borderColor: '#E5E5EA',
+              borderColor: borderTokens.primary,
             }}
             onPress={(e) => e.stopPropagation()}
           >
@@ -220,7 +221,7 @@ export function AnalyticsModal({ visible, onClose, accentPreset = 'purple' }: Pr
                   width: 40,
                   height: 4,
                   borderRadius: 2,
-                  backgroundColor: '#C7C7CC',
+                  backgroundColor: textTokens.disabled,
                 }}
               />
             </View>
@@ -236,7 +237,7 @@ export function AnalyticsModal({ visible, onClose, accentPreset = 'purple' }: Pr
                 paddingBottom: 12,
               }}
             >
-              <Text style={{ fontSize: 22, fontWeight: '700', color: '#1C1C1E' }}>
+              <Text style={{ fontSize: 22, fontWeight: '700', color: textTokens.primary }}>
                 Analytics
               </Text>
               <TouchableOpacity
@@ -250,12 +251,12 @@ export function AnalyticsModal({ visible, onClose, accentPreset = 'purple' }: Pr
                     width: 30,
                     height: 30,
                     borderRadius: 15,
-                    backgroundColor: '#E5E5EA',
+                    backgroundColor: bg.hover,
                     alignItems: 'center',
                     justifyContent: 'center',
                   }}
                 >
-                  <Ionicons name="close" size={18} color="#8E8E93" />
+                  <Ionicons name="close" size={18} color={textTokens.tertiary} />
                 </View>
               </TouchableOpacity>
             </View>
@@ -285,16 +286,16 @@ export function AnalyticsModal({ visible, onClose, accentPreset = 'purple' }: Pr
                       paddingHorizontal: 16,
                       paddingVertical: 7,
                       borderRadius: 20,
-                      backgroundColor: active ? accent : '#F2F2F7',
+                      backgroundColor: active ? accent : bg.input,
                       borderWidth: active ? 0 : 1,
-                      borderColor: '#E5E5EA',
+                      borderColor: borderTokens.primary,
                     }}
                   >
                     <Text
                       style={{
                         fontSize: 14,
                         fontWeight: active ? '600' : '400',
-                        color: active ? '#FFFFFF' : '#48484A',
+                        color: active ? '#FFFFFF' : textTokens.secondary,
                       }}
                     >
                       {r.label}
@@ -312,11 +313,11 @@ export function AnalyticsModal({ visible, onClose, accentPreset = 'purple' }: Pr
             >
               {!hasData ? (
                 <View style={{ alignItems: 'center', paddingVertical: 60 }}>
-                  <Ionicons name="bar-chart-outline" size={48} color="#C7C7CC" />
-                  <Text style={{ fontSize: 17, fontWeight: '600', color: '#1C1C1E', marginTop: 16 }}>
+                  <Ionicons name="bar-chart-outline" size={48} color={textTokens.disabled} />
+                  <Text style={{ fontSize: 17, fontWeight: '600', color: textTokens.primary, marginTop: 16 }}>
                     No data yet
                   </Text>
-                  <Text style={{ fontSize: 14, color: '#8E8E93', marginTop: 6, textAlign: 'center' }}>
+                  <Text style={{ fontSize: 14, color: textTokens.tertiary, marginTop: 6, textAlign: 'center' }}>
                     Start completing tasks to{'\n'}populate your analytics.
                   </Text>
                 </View>
@@ -337,10 +338,10 @@ export function AnalyticsModal({ visible, onClose, accentPreset = 'purple' }: Pr
                   {/* 2. Level & XP */}
                   <StatCard title="Level & XP" icon="star-outline" iconColor="#EAB308">
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-                      <Text style={{ fontSize: 28, fontWeight: '700', color: '#1C1C1E' }}>
+                      <Text style={{ fontSize: 28, fontWeight: '700', color: textTokens.primary }}>
                         Level {level}
                       </Text>
-                      <Text style={{ fontSize: 15, color: '#8E8E93', alignSelf: 'flex-end' }}>
+                      <Text style={{ fontSize: 15, color: textTokens.tertiary, alignSelf: 'flex-end' }}>
                         {xp} / {xpForNext} XP
                       </Text>
                     </View>
@@ -348,7 +349,7 @@ export function AnalyticsModal({ visible, onClose, accentPreset = 'purple' }: Pr
                       style={{
                         height: 8,
                         borderRadius: 4,
-                        backgroundColor: '#F2F2F7',
+                        backgroundColor: bg.input,
                         overflow: 'hidden',
                       }}
                     >
@@ -361,7 +362,7 @@ export function AnalyticsModal({ visible, onClose, accentPreset = 'purple' }: Pr
                         }}
                       />
                     </View>
-                    <Text style={{ fontSize: 12, color: '#8E8E93', marginTop: 4 }}>
+                    <Text style={{ fontSize: 12, color: textTokens.tertiary, marginTop: 4 }}>
                       {Math.round(xpProgress * 100)}% to Level {level + 1}
                     </Text>
                   </StatCard>
@@ -384,7 +385,7 @@ export function AnalyticsModal({ visible, onClose, accentPreset = 'purple' }: Pr
                         marginTop: 10,
                         paddingTop: 10,
                         borderTopWidth: 1,
-                        borderTopColor: '#F2F2F7',
+                        borderTopColor: borderTokens.primary,
                       }}
                     >
                       {streakDays.map((active, i) => (
@@ -394,14 +395,14 @@ export function AnalyticsModal({ visible, onClose, accentPreset = 'purple' }: Pr
                               width: 28,
                               height: 28,
                               borderRadius: 6,
-                              backgroundColor: active ? '#F97316' : '#F2F2F7',
+                              backgroundColor: active ? '#F97316' : bg.input,
                               alignItems: 'center',
                               justifyContent: 'center',
                             }}
                           >
                             {active && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
                           </View>
-                          <Text style={{ fontSize: 10, color: '#8E8E93' }}>{dayLabels[i]}</Text>
+                          <Text style={{ fontSize: 10, color: textTokens.tertiary }}>{dayLabels[i]}</Text>
                         </View>
                       ))}
                     </View>
@@ -417,23 +418,23 @@ export function AnalyticsModal({ visible, onClose, accentPreset = 'purple' }: Pr
                   {/* 5. Priority Breakdown */}
                   <StatCard title="Priority Breakdown" icon="grid-outline" iconColor="#8EAAD8">
                     {stats.categoryEntries.length === 0 ? (
-                      <Text style={{ fontSize: 14, color: '#8E8E93' }}>
+                      <Text style={{ fontSize: 14, color: textTokens.tertiary }}>
                         Complete tasks to see breakdown.
                       </Text>
                     ) : (
                       stats.categoryEntries.map(([cat, count]) => (
                         <View key={cat} style={{ marginBottom: 10 }}>
                           <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                            <Text style={{ fontSize: 14, color: '#1C1C1E', textTransform: 'capitalize' }}>
+                            <Text style={{ fontSize: 14, color: textTokens.primary, textTransform: 'capitalize' }}>
                               {cat}
                             </Text>
-                            <Text style={{ fontSize: 13, color: '#8E8E93' }}>{count}</Text>
+                            <Text style={{ fontSize: 13, color: textTokens.tertiary }}>{count}</Text>
                           </View>
                           <View
                             style={{
                               height: 6,
                               borderRadius: 3,
-                              backgroundColor: '#F2F2F7',
+                              backgroundColor: bg.input,
                               overflow: 'hidden',
                             }}
                           >

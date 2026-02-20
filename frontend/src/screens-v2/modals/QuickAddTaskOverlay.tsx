@@ -259,7 +259,7 @@ export function QuickAddTaskOverlay({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-        <View style={{ flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.35)' }}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.60)' }}>
           {/* Scrim — only this area dismisses */}
           <Pressable style={{ flex: 1 }} onPress={() => { Keyboard.dismiss(); onClose(); }} />
 
@@ -316,7 +316,7 @@ export function QuickAddTaskOverlay({
                     value={title}
                     onChangeText={handleTitleChange}
                     placeholder="What needs to be done?"
-                    placeholderTextColor="#C7C7CC"
+                    placeholderTextColor={textTokens.disabled}
                     style={{
                       fontSize: 18, lineHeight: 24, fontWeight: '500',
                       color: textTokens.primary, paddingVertical: 8,
@@ -510,7 +510,7 @@ export function QuickAddTaskOverlay({
                       minimumDate={new Date()}
                       onChange={(_, date) => { if (Platform.OS !== 'ios') setShowDatePicker(false); if (date) { setDueDate(date); setDateExplicitlySet(true); } }}
                       textColor={textTokens.primary}
-                      themeVariant="light"
+                      themeVariant="dark"
                       style={{ height: 200 }}
                     />
                   </View>
@@ -523,7 +523,7 @@ export function QuickAddTaskOverlay({
                       value={dueTime || new Date()} mode="time" display="spinner"
                       onChange={(_, date) => { if (Platform.OS !== 'ios') setShowTimePicker(false); if (date) setDueTime(date); }}
                       textColor={textTokens.primary}
-                      themeVariant="light"
+                      themeVariant="dark"
                       style={{ height: 200 }}
                     />
                     {dueTime && (

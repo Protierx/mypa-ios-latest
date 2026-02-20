@@ -28,7 +28,7 @@ export function ScreenContainer({
 
   return (
     <>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="light-content" />
       <SafeAreaView style={[styles.container, { backgroundColor }, style]} edges={edges}>
         {children}
       </SafeAreaView>

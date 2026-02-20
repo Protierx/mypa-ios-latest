@@ -48,37 +48,37 @@ import type {
 // ── Design Tokens ────────────────────────────────────────────
 
 const C = {
-  // backgrounds
-  bg: '#F8F8FA',
-  card: '#FFFFFF',
-  border: '#EEEEF0',
-  pill: '#F2F2F7',
+  // backgrounds (dark-first)
+  bg: '#0A0A0F',
+  card: '#1A1A24',
+  border: 'rgba(255,255,255,0.08)',
+  pill: '#222230',
 
   // text
-  text: '#1C1C1E',
-  textSecondary: '#636366',
-  textTertiary: '#AEAEB2',
+  text: '#FFFFFF',
+  textSecondary: '#A0A0B0',
+  textTertiary: '#6B6B7B',
 
-  // semantic colours (PRD mapping)
-  blue: '#3B82F6',       // productivity
-  blueBg: '#EFF6FF',
-  green: '#22C55E',      // success
-  greenBg: '#F0FDF4',
-  amber: '#F59E0B',      // warnings
-  amberBg: '#FFFBEB',
-  red: '#EF4444',        // critical
-  redBg: '#FEF2F2',
-  purple: '#8EAAD8',     // XP
-  purpleBg: '#F5F3FF',
-  orange: '#F97316',     // streak
-  orangeBg: '#FFF7ED',
+  // semantic colours (PRD mapping — vibrant on dark)
+  blue: '#00B4FF',       // productivity
+  blueBg: 'rgba(0,180,255,0.12)',
+  green: '#00E676',      // success
+  greenBg: 'rgba(0,230,118,0.12)',
+  amber: '#FFB800',      // warnings
+  amberBg: 'rgba(255,184,0,0.12)',
+  red: '#FF3B5C',        // critical
+  redBg: 'rgba(255,59,92,0.12)',
+  purple: '#B958FF',     // XP
+  purpleBg: 'rgba(185,88,255,0.12)',
+  orange: '#FF6B35',     // streak
+  orangeBg: 'rgba(255,107,53,0.12)',
 
   shadow: {
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 4,
   } as ViewStyle,
 };
 
@@ -272,7 +272,7 @@ const heroStyles = StyleSheet.create({
     borderWidth: 4,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FAFAFA',
+    backgroundColor: C.bg,
   },
   scoreValue: { fontSize: 28, fontWeight: '800', letterSpacing: -1 },
   scoreLabel: { fontSize: 13, fontWeight: '600', color: C.textSecondary, lineHeight: 18 },
@@ -295,7 +295,7 @@ const heroStyles = StyleSheet.create({
     borderRadius: 10,
     padding: 12,
   },
-  insightText: { fontSize: 13, color: '#92400E', flex: 1, lineHeight: 18 },
+  insightText: { fontSize: 13, color: C.amber, flex: 1, lineHeight: 18 },
 });
 
 // ═══════════════════════════════════════════════════════════════
@@ -430,7 +430,7 @@ export function MiniBarChart({
                         ? accent
                         : d.tasks_completed > 0
                           ? `${accent}66`
-                          : '#EEEEF0',
+                          : C.border,
                       borderRadius: barWidth > 16 ? 6 : 4,
                     },
                   ]}
@@ -644,7 +644,7 @@ const streakStyles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 8,
   },
-  riskText: { fontSize: 12, fontWeight: '600', color: '#92400E' },
+  riskText: { fontSize: 12, fontWeight: '600', color: C.amber },
   statsRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
   statItem: { flex: 1, alignItems: 'center' },
   statValue: { fontSize: 28, fontWeight: '800', color: C.orange, letterSpacing: -1 },
@@ -755,7 +755,7 @@ const xpStyles = StyleSheet.create({
   levelNumber: { fontSize: 24, fontWeight: '800', color: '#FFFFFF' },
   xpInfo: { flex: 1 },
   xpText: { fontSize: 14, fontWeight: '600', color: C.text, marginBottom: 6 },
-  progressTrack: { height: 8, borderRadius: 4, backgroundColor: '#F2F2F7', overflow: 'hidden' },
+  progressTrack: { height: 8, borderRadius: 4, backgroundColor: C.pill, overflow: 'hidden' },
   progressFill: { height: 8, borderRadius: 4 },
   xpRemaining: { fontSize: 12, color: C.textTertiary, marginTop: 4 },
   totalRow: {
@@ -844,7 +844,7 @@ const execStyles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#F8F8FA',
+    borderBottomColor: C.border,
   },
   rowLabel: { fontSize: 14, color: C.textSecondary },
   rowValue: { fontSize: 16, fontWeight: '700' },
@@ -939,7 +939,7 @@ const emptyStyles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: C.pill,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,

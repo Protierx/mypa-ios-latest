@@ -52,6 +52,7 @@ import {
   type SessionDynamicVariables,
 } from '../services/voice/ElevenLabsVoiceService';
 import { useUserModel } from './UserModelContext';
+import { devLog, devWarn, devError } from '@/utils/logger';
 import { wakeWordService } from '../services/voice/WakeWordService';
 import {
   buildScreenContext,

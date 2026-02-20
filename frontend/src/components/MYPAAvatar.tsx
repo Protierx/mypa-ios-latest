@@ -75,7 +75,7 @@ function voiceStateToIndex(s: AvatarVoiceState): number {
   }
 }
 
-// ── SkSL Fragment Shader ──────────────────────────────────────────────
+// ── SkSL Fragment Shader (Electric Purple) ──────────────────────────
 const SPHERE_SHADER_SOURCE = `
 uniform float2 iResolution;
 uniform float  iTime;
@@ -109,12 +109,12 @@ half4 main(float2 fragCoord) {
   float discriminant = b * b - c;
 
   if (discriminant < 0.0) {
-    // Outside sphere: outer aura
+    // Outside sphere: outer aura — electric purple
     float dist = length(uv);
     float auraBase = 0.14 + iActive * 0.18 + iEnergy * 0.3;
     float aura = auraBase * smoothstep(1.2, 0.65, dist);
     aura *= (1.0 + 0.08 * sin(iTime * 2.5));
-    float3 auraCol = float3(0.29, 0.68, 0.63);
+    float3 auraCol = float3(0.72, 0.35, 1.0);
     return half4(half3(auraCol * aura), half(aura * 0.6));
   }
 
@@ -142,33 +142,31 @@ half4 main(float2 fragCoord) {
   float specular = pow(NdotH, 64.0) * 0.9;
   float specularSoft = pow(NdotH, 16.0) * 0.25;
 
-  // Step 9: Fresnel rim
+  // Step 9: Fresnel rim — purple glow
   float NdotV = max(dot(normal, viewDir), 0.0);
   float fresnel = pow(1.0 - NdotV, 3.5);
-  float3 rimColor = float3(0.45, 0.85, 0.78);
+  float3 rimColor = float3(0.80, 0.50, 1.0);
 
   // Step 10: Subsurface scattering (voice-reactive inner glow)
   float sss = pow(max(dot(viewDir, -lightDir + normal * 0.5), 0.0), 3.0);
   float sssIntensity = 0.18 + iEnergy * 0.5;
-  float3 sssColor = float3(0.76, 0.95, 0.92) * sss * sssIntensity;
+  float3 sssColor = float3(0.88, 0.70, 1.0) * sss * sssIntensity;
 
-  // Step 11: Teal color palette
-  float3 baseColor = float3(0.29, 0.68, 0.63);
-  float3 lightColor = float3(0.80, 0.94, 0.92);
-  float3 shadowColor = float3(0.08, 0.28, 0.25);
+  // Step 11: Electric purple color palette
+  float3 baseColor = float3(0.72, 0.35, 1.0);
+  float3 lightColor = float3(0.91, 0.78, 1.0);
+  float3 shadowColor = float3(0.20, 0.08, 0.40);
   float3 surfaceColor = mix(shadowColor, lightColor, diffuse);
   surfaceColor = mix(surfaceColor, baseColor, 0.4);
 
   // Step 12: Combine lighting
   float3 color = surfaceColor
                + specular * float3(1.0, 1.0, 1.0)
-               + specularSoft * float3(0.9, 0.98, 0.97)
+               + specularSoft * float3(0.95, 0.90, 1.0)
                + fresnel * rimColor * 0.45
                + sssColor;
 
   // ── Step 13: Eyes (gaze-directed) ──────────────────────────────
-  // Base eye positions (negative Y = above center in Skia coords)
-  // iGazeX/iGazeY offset both eyes together (conjugate gaze)
   float gazeScale = 0.3;
   float3 leftEyeDir  = normalize(float3(-0.22 + iGazeX * gazeScale, -0.12 + iGazeY * gazeScale, -0.97));
   float3 rightEyeDir = normalize(float3( 0.22 + iGazeX * gazeScale, -0.12 + iGazeY * gazeScale, -0.97));
@@ -195,33 +193,29 @@ half4 main(float2 fragCoord) {
   // Core white glow
   color += (leftGlow + rightGlow) * eyeIntensity * float3(1.0, 1.0, 1.0);
 
-  // Outer halo (soft teal around eyes)
+  // Outer halo (soft purple around eyes)
   float leftHalo  = smoothstep(eyeRadius * 2.8, eyeRadius * 0.4, leftEyeDist);
   float rightHalo = smoothstep(eyeRadius * 2.8, eyeRadius * 0.4, rightEyeDist);
-  color += (leftHalo + rightHalo) * eyeIntensity * 0.2 * float3(0.82, 0.97, 0.96);
+  color += (leftHalo + rightHalo) * eyeIntensity * 0.2 * float3(0.90, 0.80, 1.0);
 
   // ── Step 14: Mouth (luminance band, speaking only) ─────────────
   if (iMouthOpen > 0.01) {
-    // Mouth center (positive Y = below center in Skia coords)
     float3 mouthCenter = normalize(float3(0.0, 0.22, -0.97));
 
-    // Tangent frame at mouth center for elliptical shape
     float3 mRight = normalize(cross(mouthCenter, float3(0.0, 1.0, 0.0)));
     float3 mUp = normalize(cross(mRight, mouthCenter));
 
-    // Project pixel normal offset into mouth tangent plane
     float3 diff = normal - mouthCenter * dot(normal, mouthCenter);
     float h = dot(diff, mRight);
     float v = dot(diff, mUp);
 
-    // Ellipse dimensions scale with mouth openness
     float mw = 0.08 + 0.10 * iMouthOpen;
     float mh = 0.012 + 0.038 * iMouthOpen;
     float ed = (h * h) / (mw * mw) + (v * v) / (mh * mh);
 
     float mouthGlow = smoothstep(1.0, 0.15, ed) * iMouthOpen;
-    // Mouth brightness: ~45% of eye brightness, not affected by blink
-    color += mouthGlow * 0.45 * float3(0.92, 1.0, 0.98);
+    // Mouth: purple-white glow
+    color += mouthGlow * 0.45 * float3(0.95, 0.88, 1.0);
   }
 
   // ── Step 15: Alpha (edge antialiasing) ─────────────────────────
@@ -232,7 +226,7 @@ half4 main(float2 fragCoord) {
 }
 `;
 
-// ── Fallback Avatar (RadialGradient layers) ───────────────────────────
+// ── Fallback Avatar (RadialGradient layers — Purple) ────────────────
 function FallbackAvatar({
   size = 'full',
   expressionIndex = 0,
@@ -272,8 +266,8 @@ function FallbackAvatar({
         <RadialGradient
           c={vec(cx, cy)} r={B * 1.72}
           colors={[
-            `rgba(74, 173, 161, ${(auraIntensity * 0.28).toFixed(3)})`,
-            `rgba(74, 173, 161, ${(auraIntensity * 0.10).toFixed(3)})`,
+            `rgba(185, 88, 255, ${(auraIntensity * 0.28).toFixed(3)})`,
+            `rgba(185, 88, 255, ${(auraIntensity * 0.10).toFixed(3)})`,
             'transparent',
           ]}
           positions={[0, 0.55, 1.0]}
@@ -284,7 +278,7 @@ function FallbackAvatar({
         <Circle cx={cx + B * 0.05} cy={cy + B * 0.82} r={B * 0.60}>
           <RadialGradient
             c={vec(cx + B * 0.05, cy + B * 0.82)} r={B * 0.60}
-            colors={['rgba(12, 52, 48, 0.42)', 'rgba(12, 52, 48, 0.14)', 'transparent']}
+            colors={['rgba(30, 10, 60, 0.42)', 'rgba(30, 10, 60, 0.14)', 'transparent']}
             positions={[0, 0.5, 1.0]}
           />
         </Circle>
@@ -292,14 +286,14 @@ function FallbackAvatar({
       <Circle cx={cx} cy={cy} r={B}>
         <RadialGradient
           c={vec(lightX, lightY)} r={B * 1.85}
-          colors={['#CBF0EB', '#7DCEC8', '#4AADA1', '#2A8078', '#154740']}
+          colors={['#E8C8FF', '#C77DFF', '#B958FF', '#7C3AED', '#4C1D95']}
           positions={[0, 0.18, 0.45, 0.72, 1.0]}
         />
       </Circle>
       <Circle cx={cx} cy={cy} r={B}>
         <RadialGradient
           c={vec(cx, cy)} r={B}
-          colors={['transparent', 'transparent', 'rgba(8, 38, 35, 0.38)']}
+          colors={['transparent', 'transparent', 'rgba(20, 5, 45, 0.38)']}
           positions={[0, 0.62, 1.0]}
         />
       </Circle>
@@ -307,8 +301,8 @@ function FallbackAvatar({
         <RadialGradient
           c={vec(cx - B * 0.06, cy - B * 0.12)} r={B * 0.68}
           colors={[
-            `rgba(195, 242, 235, ${(coreGlow * 0.55).toFixed(3)})`,
-            `rgba(130, 210, 200, ${(coreGlow * 0.22).toFixed(3)})`,
+            `rgba(232, 200, 255, ${(coreGlow * 0.55).toFixed(3)})`,
+            `rgba(199, 125, 255, ${(coreGlow * 0.22).toFixed(3)})`,
             'transparent',
           ]}
           positions={[0, 0.45, 1.0]}
@@ -319,7 +313,7 @@ function FallbackAvatar({
         <Circle cx={specX} cy={specY} r={B * 0.26}>
           <RadialGradient
             c={vec(specX, specY)} r={B * 0.26}
-            colors={['rgba(255, 255, 255, 0.78)', 'rgba(230, 250, 248, 0.38)', 'transparent']}
+            colors={['rgba(255, 255, 255, 0.78)', 'rgba(240, 220, 255, 0.38)', 'transparent']}
             positions={[0, 0.40, 1.0]}
           />
         </Circle>
@@ -329,7 +323,7 @@ function FallbackAvatar({
           c={vec(leftEyeX, eyeY)} r={dim.eyeR * 3.2}
           colors={[
             `rgba(255, 255, 255, ${eyeBrightness.toFixed(2)})`,
-            `rgba(210, 248, 244, ${(eyeBrightness * 0.55).toFixed(2)})`,
+            `rgba(232, 200, 255, ${(eyeBrightness * 0.55).toFixed(2)})`,
             'transparent',
           ]}
           positions={[0, 0.28, 1.0]}
@@ -340,7 +334,7 @@ function FallbackAvatar({
           c={vec(rightEyeX, eyeY)} r={dim.eyeR * 3.2}
           colors={[
             `rgba(255, 255, 255, ${eyeBrightness.toFixed(2)})`,
-            `rgba(210, 248, 244, ${(eyeBrightness * 0.55).toFixed(2)})`,
+            `rgba(232, 200, 255, ${(eyeBrightness * 0.55).toFixed(2)})`,
             'transparent',
           ]}
           positions={[0, 0.28, 1.0]}
@@ -444,15 +438,12 @@ export function MYPAAvatar({
     let minD: number, maxD: number, closeMs: number, openMs: number;
 
     if (s === 'listening') {
-      // Reduced blink rate signals attention
       minD = 4000; maxD = 8000; closeMs = 55; openMs = 90;
     } else if (s === 'processing') {
-      // Elevated rate signals cognitive load
       minD = 2000; maxD = 4000; closeMs = 70; openMs = 100;
     } else if (s === 'speaking') {
       minD = 3000; maxD = 5000; closeMs = 60; openMs = 100;
     } else {
-      // Idle: relaxed natural rate
       minD = 3000; maxD = 6000; closeMs = 65; openMs = 110;
     }
 
@@ -480,7 +471,6 @@ export function MYPAAvatar({
     const prev = prevVoiceStateRef.current;
     prevVoiceStateRef.current = voiceState;
 
-    // "Got it" blink: listening → processing (slow, deliberate)
     if (prev === 'listening' && voiceState === 'processing') {
       blinkProgress.value = withSequence(
         withTiming(1, { duration: 100 }),
@@ -488,7 +478,6 @@ export function MYPAAvatar({
       );
     }
 
-    // Punctuation blink: speaking → idle (clean closure)
     if (prev === 'speaking' && voiceState === 'idle') {
       blinkProgress.value = withSequence(
         withTiming(1, { duration: 80 }),
@@ -522,7 +511,6 @@ export function MYPAAvatar({
 
   useFrameCallback(() => {
     'worklet';
-    // Skip behavior system for mini avatar (invisible at 52px)
     if (isMini) return;
 
     tick.value += 1;
@@ -536,64 +524,43 @@ export function MYPAAvatar({
     let sacAmp = 0;
 
     if (state < 0.5) {
-      // IDLE: Lissajous drift — irrational frequency ratios prevent visible loops
-      // Amplitude: 2-4% of eye spacing (0.02-0.04 normalized)
-      // Speed: one cycle per 4-7 seconds (~240-420 frames at 60fps)
       targetX = 0.03 * Math.sin(t * 0.0047 + 0.5)
               + 0.012 * Math.sin(t * 0.0031);
       targetY = 0.02 * Math.sin(t * 0.0067)
               + 0.008 * Math.cos(t * 0.0041);
-      sacAmp = 0; // no saccades in idle
-
+      sacAmp = 0;
     } else if (state < 1.5) {
-      // LISTENING: center-lock with micro-saccades
-      // Eyes aim straight at user (0, 0) with subtle life
       targetX = 0;
       targetY = 0;
-      sacAmp = 0.012; // 1-3 per second, 0.5-1.5% amplitude
-
+      sacAmp = 0.012;
     } else if (state < 2.5) {
-      // PROCESSING: upper-left aversion (humans look up-left when composing)
-      // Negative X = left, negative Y = up in Skia screen coords
       targetX = -0.055;
       targetY = -0.035;
-      sacAmp = 0.016; // elevated saccade rate
-
+      sacAmp = 0.016;
     } else {
-      // SPEAKING: 70% center / 30% natural aversion at ~4s boundaries
-      // Slow cycle: sin period ~12s, above 0.4 threshold ~30% of time
       const speakCycle = Math.sin(t * 0.008);
       if (speakCycle > 0.4) {
-        // Aversion phase: slight upper-left drift
         targetX = -0.035 + 0.02 * Math.sin(t * 0.005);
         targetY = -0.018;
       } else {
-        // Center phase: direct engagement
         targetX = 0;
         targetY = 0;
       }
       sacAmp = 0.008;
     }
 
-    // Micro-saccades: sin products create naturally-varying bursts
-    // Predominantly horizontal per spec (0.7x vertical scaling)
     const sacX = Math.sin(t * 0.17) * Math.sin(t * 0.31) * sacAmp;
     const sacY = Math.sin(t * 0.23) * Math.sin(t * 0.13) * sacAmp * 0.7;
 
-    // Smooth gaze follow — slower in idle (dreamy), faster when active (attentive)
     const smoothRate = state < 0.5 ? 0.025 : 0.08;
     gazeX.value += (targetX + sacX - gazeX.value) * smoothRate;
     gazeY.value += (targetY + sacY - gazeY.value) * smoothRate;
 
     // ── Mouth system ──
-    // Mouth appears ONLY during speaking, tracks voice amplitude
     if (state > 2.5 && nrg > 0.02) {
-      // Speaking: mouth opens with energy (min 15% open to signal "still talking")
       const targetMouth = 0.15 + nrg * 0.75;
-      // ~80ms lag via 0.18 smoothing factor at 60fps
       mouthOpenSV.value += (targetMouth - mouthOpenSV.value) * 0.18;
     } else {
-      // Not speaking: fade out (~200ms)
       mouthOpenSV.value *= 0.88;
       if (mouthOpenSV.value < 0.005) mouthOpenSV.value = 0;
     }

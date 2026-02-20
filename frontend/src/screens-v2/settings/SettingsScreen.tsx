@@ -47,6 +47,7 @@ import {
   SettingsRow,
   IntegrationStatusModal,
 } from '../../components/settings';
+import { bg, text as textTokens, border as borderTokens, semantic } from '../../styles/colors';
 
 // Subpages
 import { AIVoiceSettingsScreen } from './AIVoiceSettingsScreen';
@@ -88,7 +89,7 @@ export function SettingsScreen({ visible, onClose, onShowPaywall }: Props) {
   // ── Integrations data ───────────────────────────────────────
 
   const integrations = useMemo(() => [
-    { id: 'apple', label: 'Apple', icon: 'logo-apple' as const, iconColor: '#1C1C1E', connected: prefs.appleConnected },
+    { id: 'apple', label: 'Apple', icon: 'logo-apple' as const, iconColor: textTokens.primary, connected: prefs.appleConnected },
     { id: 'email', label: 'Email', icon: 'mail-outline' as const, iconColor: '#3B82F6', connected: prefs.emailConnected },
     { id: 'calendar', label: 'Calendar', icon: 'calendar-outline' as const, iconColor: '#FF9F0A', connected: prefs.calendarLinked },
   ], [prefs.appleConnected, prefs.emailConnected, prefs.calendarLinked]);
@@ -147,7 +148,7 @@ export function SettingsScreen({ visible, onClose, onShowPaywall }: Props) {
 
       {/* ── Hub ────────────────────────────────────────────── */}
       {activeSubpage === 'hub' && (
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#F8F8FA' }} edges={['top', 'bottom']}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: bg.primary }} edges={['top', 'bottom']}>
           {/* ── Header ───────────────────────────────────────── */}
           <View
             style={{
@@ -165,9 +166,9 @@ export function SettingsScreen({ visible, onClose, onShowPaywall }: Props) {
               accessibilityLabel="Close settings"
               accessibilityRole="button"
             >
-              <Ionicons name="close" size={26} color="#1C1C1E" />
+              <Ionicons name="close" size={26} color={textTokens.primary} />
             </TouchableOpacity>
-            <Text style={{ fontSize: 18, fontWeight: '600', color: '#1C1C1E' }}>
+            <Text style={{ fontSize: 18, fontWeight: '600', color: textTokens.primary }}>
               Settings
             </Text>
             <View style={{ width: 26 }} />
@@ -204,7 +205,7 @@ export function SettingsScreen({ visible, onClose, onShowPaywall }: Props) {
                     width: 56,
                     height: 56,
                     borderRadius: 28,
-                    backgroundColor: '#F2F2F7',
+                    backgroundColor: bg.input,
                     alignItems: 'center',
                     justifyContent: 'center',
                     marginRight: 14,
@@ -218,20 +219,20 @@ export function SettingsScreen({ visible, onClose, onShowPaywall }: Props) {
                       style={{ width: 52, height: 52, borderRadius: 26 }}
                     />
                   ) : (
-                    <Text style={{ fontSize: 22, fontWeight: '600', color: '#1C1C1E' }}>
+                    <Text style={{ fontSize: 22, fontWeight: '600', color: textTokens.primary }}>
                       {(user?.name || user?.username || 'U')[0].toUpperCase()}
                     </Text>
                   )}
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 16, fontWeight: '500', color: '#1C1C1E' }}>
+                  <Text style={{ fontSize: 16, fontWeight: '500', color: textTokens.primary }}>
                     {user?.name || 'Your Name'}
                   </Text>
-                  <Text style={{ fontSize: 13, color: '#8E8E93', marginTop: 2 }}>
+                  <Text style={{ fontSize: 13, color: textTokens.tertiary, marginTop: 2 }}>
                     Tap to change photo
                   </Text>
                 </View>
-                <Ionicons name="chevron-forward" size={18} color="#C7C7CC" />
+                <Ionicons name="chevron-forward" size={18} color={textTokens.disabled} />
               </TouchableOpacity>
 
               <SettingsRow
@@ -293,7 +294,7 @@ export function SettingsScreen({ visible, onClose, onShowPaywall }: Props) {
                         paddingHorizontal: 10,
                         paddingVertical: 4,
                         borderRadius: 12,
-                        backgroundColor: integ.connected ? '#DCFCE7' : '#F2F2F7',
+                        backgroundColor: integ.connected ? semantic.successLight : bg.input,
                         marginRight: 4,
                       }}
                     >
@@ -301,7 +302,7 @@ export function SettingsScreen({ visible, onClose, onShowPaywall }: Props) {
                         style={{
                           fontSize: 12,
                           fontWeight: '600',
-                          color: integ.connected ? '#16A34A' : '#8E8E93',
+                          color: integ.connected ? semantic.success : textTokens.tertiary,
                         }}
                       >
                         {integ.connected ? 'Connected' : 'Not Connected'}
@@ -382,10 +383,10 @@ export function SettingsScreen({ visible, onClose, onShowPaywall }: Props) {
             <View style={{ marginHorizontal: 16, marginTop: 8, marginBottom: 24 }}>
               <TouchableOpacity
                 style={{
-                  backgroundColor: '#FFFFFF',
+                  backgroundColor: bg.card,
                   borderRadius: 12,
                   borderWidth: 1,
-                  borderColor: '#E5E5EA',
+                  borderColor: borderTokens.primary,
                   padding: 16,
                   alignItems: 'center',
                 }}
@@ -394,7 +395,7 @@ export function SettingsScreen({ visible, onClose, onShowPaywall }: Props) {
                 accessibilityLabel="Sign out"
                 accessibilityRole="button"
               >
-                <Text style={{ fontSize: 16, fontWeight: '500', color: '#FF3B30' }}>
+                <Text style={{ fontSize: 16, fontWeight: '500', color: semantic.error }}>
                   Sign Out
                 </Text>
               </TouchableOpacity>
@@ -405,7 +406,7 @@ export function SettingsScreen({ visible, onClose, onShowPaywall }: Props) {
               style={{
                 textAlign: 'center',
                 fontSize: 12,
-                color: '#C7C7CC',
+                color: textTokens.disabled,
                 marginBottom: 20,
               }}
             >

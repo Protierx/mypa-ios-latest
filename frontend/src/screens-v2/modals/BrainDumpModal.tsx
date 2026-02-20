@@ -389,7 +389,7 @@ export function BrainDumpModal({ visible, onClose, onMoveToTasks, onOpenTask, ta
               marginTop: 8,
               paddingHorizontal: 10,
               paddingVertical: 7,
-              backgroundColor: 'rgba(255,255,255,0.7)',
+              backgroundColor: bg.hover,
               borderRadius: 8,
               borderWidth: 0.5,
               borderColor: 'rgba(52,199,89,0.12)',
@@ -599,7 +599,7 @@ export function BrainDumpModal({ visible, onClose, onMoveToTasks, onOpenTask, ta
             <SafeAreaView edges={['bottom']} style={{ flex: 1 }}>
               {/* Handle */}
               <View style={{ alignItems: 'center', paddingTop: 10, paddingBottom: 2 }}>
-                <View style={{ width: 36, height: 5, borderRadius: 2.5, backgroundColor: '#D1D1D6' }} />
+                <View style={{ width: 36, height: 5, borderRadius: 2.5, backgroundColor: textTokens.disabled }} />
               </View>
 
               {/* Header */}

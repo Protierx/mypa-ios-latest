@@ -20,6 +20,7 @@ import {
   SettingsRow,
   NotificationQuietHoursModal,
 } from '../../components/settings';
+import { bg, text as textTokens } from '../../styles/colors';
 
 interface Props {
   onBack: () => void;
@@ -31,7 +32,7 @@ export function NotificationsSettingsScreen({ onBack }: Props) {
   const [showQuietHours, setShowQuietHours] = useState(false);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#F8F8FA' }} edges={['top', 'bottom']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: bg.primary }} edges={['top', 'bottom']}>
       {/* ── Header ─────────────────────────────────────────── */}
       <View
         style={{
@@ -59,7 +60,7 @@ export function NotificationsSettingsScreen({ onBack }: Props) {
         style={{
           fontSize: 28,
           fontWeight: '700',
-          color: '#1C1C1E',
+          color: textTokens.primary,
           paddingHorizontal: 20,
           marginBottom: 20,
         }}

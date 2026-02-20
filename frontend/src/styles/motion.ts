@@ -1,9 +1,7 @@
 /**
  * MYPA Motion System — Reanimated-based shared animation utilities.
  *
- * Provides spring presets, duration constants, easing helpers, and
- * composable hooks for press feedback, screen-enter transitions,
- * stagger-in effects, and sheet animations.
+ * Snappy, energetic — bold confident motion.
  *
  * Rules:
  * - All transforms run on the UI thread via useAnimatedStyle.
@@ -27,12 +25,12 @@ import {
   type WithTimingConfig,
 } from 'react-native-reanimated';
 
-// ─── Duration tokens ─────────────────────────────────────────
+// ─── Duration tokens (snappier) ─────────────────────────────
 export const durations = {
-  fast: 150,
-  normal: 250,
-  slow: 400,
-  sheet: 350,
+  fast: 100,
+  normal: 200,
+  slow: 350,
+  sheet: 300,
 } as const;
 
 // ─── Easing presets ──────────────────────────────────────────
@@ -47,48 +45,62 @@ export const easings = {
   overshoot: Easing.bezier(0.34, 1.56, 0.64, 1),
 } as const;
 
-// ─── Spring presets ──────────────────────────────────────────
+// ─── Spring presets (higher stiffness, less damping) ────────
 export const springs = {
   /** Snappy press feedback */
   press: {
-    damping: 15,
-    stiffness: 400,
-    mass: 0.4,
+    damping: 14,
+    stiffness: 550,
+    mass: 0.3,
   } satisfies WithSpringConfig,
 
   /** Card expand / collapse */
   card: {
-    damping: 18,
-    stiffness: 200,
-    mass: 0.6,
+    damping: 16,
+    stiffness: 280,
+    mass: 0.5,
   } satisfies WithSpringConfig,
 
   /** Bottom sheet slide */
   sheet: {
-    damping: 22,
-    stiffness: 160,
-    mass: 0.8,
+    damping: 20,
+    stiffness: 220,
+    mass: 0.6,
   } satisfies WithSpringConfig,
 
   /** Gentle section reveal */
   gentle: {
-    damping: 20,
-    stiffness: 120,
-    mass: 0.8,
+    damping: 18,
+    stiffness: 160,
+    mass: 0.7,
   } satisfies WithSpringConfig,
 
   /** Bouncy celebration */
   bouncy: {
-    damping: 10,
-    stiffness: 300,
-    mass: 0.5,
+    damping: 8,
+    stiffness: 400,
+    mass: 0.4,
   } satisfies WithSpringConfig,
 
   /** Completion pop */
   pop: {
-    damping: 12,
+    damping: 10,
+    stiffness: 450,
+    mass: 0.35,
+  } satisfies WithSpringConfig,
+
+  /** Ultra-snappy micro-interaction */
+  snap: {
+    damping: 18,
+    stiffness: 700,
+    mass: 0.25,
+  } satisfies WithSpringConfig,
+
+  /** Celebration elastic bounce */
+  elastic: {
+    damping: 6,
     stiffness: 350,
-    mass: 0.4,
+    mass: 0.5,
   } satisfies WithSpringConfig,
 } as const;
 
@@ -102,7 +114,7 @@ export const springs = {
  * <Animated.View style={animatedStyle} {...pressHandlers}> … </Animated.View>
  * ```
  */
-export function usePressFeedback(scale = 0.97, opacityMin = 0.85) {
+export function usePressFeedback(scale = 0.95, opacityMin = 0.75) {
   const pressed = useSharedValue(0);
 
   const onPressIn = useCallback(() => {
@@ -142,7 +154,7 @@ export function usePressFeedback(scale = 0.97, opacityMin = 0.85) {
  * ```
  */
 export function useEnterAnimation(
-  translateY = 12,
+  translateY = 20,
   duration: number = durations.normal,
   delay: number = 0,
 ) {
@@ -177,8 +189,8 @@ export function useEnterAnimation(
  */
 export function useStaggerIn(
   count: number,
-  staggerMs = 60,
-  translateY = 16,
+  staggerMs = 45,
+  translateY = 24,
   duration = durations.normal,
 ) {
   const progresses = Array.from({ length: count }, () => useSharedValue(0));
@@ -207,12 +219,12 @@ export function useStaggerIn(
 // ─── Completion "pop" helper ─────────────────────────────────
 /**
  * Drives a shared value through a pop sequence:
- * 1 → 1.15 → 0 (scale up then collapse).
+ * 1 → 1.25 → 0 (scale up then collapse).
  */
 export function triggerCompletionPop(sv: SharedValue<number>) {
   'worklet';
   sv.value = withSequence(
-    withSpring(1.15, springs.pop),
+    withSpring(1.25, springs.pop),
     withTiming(0, { duration: durations.fast, easing: easings.easeIn }),
   );
 }

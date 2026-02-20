@@ -118,11 +118,11 @@ export const DEFAULT_PREFERENCES: SettingsPreferences = {
 // ── Accent Palette Map ───────────────────────────────────────
 
 export const ACCENT_COLORS: Record<AccentPreset, { primary: string; light: string; label: string }> = {
-  purple: { primary: '#4AADA1', light: '#E0F4F1', label: 'Purple' },
-  blue:   { primary: '#2563EB', light: '#EFF6FF', label: 'Blue' },
-  teal:   { primary: '#0D9488', light: '#F0FDFA', label: 'Teal' },
-  rose:   { primary: '#E11D48', light: '#FFF1F2', label: 'Rose' },
-  amber:  { primary: '#D97706', light: '#FFFBEB', label: 'Amber' },
+  purple: { primary: '#B958FF', light: 'rgba(185, 88, 255, 0.12)', label: 'Purple' },
+  blue:   { primary: '#00B4FF', light: 'rgba(0, 180, 255, 0.12)', label: 'Blue' },
+  teal:   { primary: '#00E676', light: 'rgba(0, 230, 118, 0.12)', label: 'Teal' },
+  rose:   { primary: '#FF2D87', light: 'rgba(255, 45, 135, 0.12)', label: 'Rose' },
+  amber:  { primary: '#FFB800', light: 'rgba(255, 184, 0, 0.12)', label: 'Amber' },
 };
 
 // ── Storage ──────────────────────────────────────────────────

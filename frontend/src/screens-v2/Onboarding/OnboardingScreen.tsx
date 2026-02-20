@@ -238,6 +238,10 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
       }
       const { status } = await requestTrackingPermissionsAsync();
       const granted = status === 'granted';
+      // Allow the iOS ATT system dialog to fully dismiss before updating state.
+      // Without this delay, the re-render can race with the system dialog's
+      // dismissal animation and crash if RedBox tries to present simultaneously.
+      await new Promise(resolve => setTimeout(resolve, 600));
       setPermissions(prev =>
         prev.map(p => (p.key === 'tracking' ? { ...p, granted } : p)),
       );
@@ -437,7 +441,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
           <Animated.View entering={FadeIn.duration(600)} style={styles.stepContainer}>
             <Animated.View style={[styles.orbContainer, orbAnimatedStyle]}>
               <LinearGradient
-                colors={['#4AADA1', '#6366F1', '#8EAAD8']}
+                colors={['#B958FF', '#B958FF', '#8EAAD8']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.orb}
@@ -455,19 +459,19 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
 
             <Animated.View entering={FadeInUp.duration(600).delay(600)} style={styles.timezoneCard}>
               <View style={styles.timezoneIconWrap}>
-                <Ionicons name="globe-outline" size={20} color="#5BC4B7" />
+                <Ionicons name="globe-outline" size={20} color="#C77DFF" />
               </View>
               <View style={styles.timezoneTextContainer}>
                 <Text style={styles.timezoneLabel}>Your timezone</Text>
                 <Text style={styles.timezoneValue}>{timezone || 'Detecting...'}</Text>
               </View>
-              <Ionicons name="checkmark-circle" size={22} color="#34D399" />
+              <Ionicons name="checkmark-circle" size={22} color="#00E676" />
             </Animated.View>
 
             <Animated.View entering={FadeInUp.duration(600).delay(800)} style={{ width: '100%' }}>
               <TouchableOpacity onPress={handleWelcomeContinue} activeOpacity={0.85}>
                 <LinearGradient
-                  colors={['#4AADA1', '#6366F1']}
+                  colors={['#B958FF', '#B958FF']}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                   style={styles.primaryBtn}
@@ -485,7 +489,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
           <Animated.View entering={SlideInRight.duration(400)} style={styles.stepContainer}>
             <Animated.View entering={FadeIn.duration(400)} style={styles.permIconWrap}>
               <LinearGradient
-                colors={['#6366F1', '#8EAAD8']}
+                colors={['#B958FF', '#8EAAD8']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.permIconCircle}
@@ -531,7 +535,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
                         <Text style={styles.langNative}>{lang.nativeName}</Text>
                       </View>
                       {isSelected && (
-                        <Ionicons name="checkmark-circle" size={22} color="#34D399" />
+                        <Ionicons name="checkmark-circle" size={22} color="#00E676" />
                       )}
                     </TouchableOpacity>
                   );
@@ -542,7 +546,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
             <Animated.View entering={FadeInUp.duration(400).delay(500)} style={{ width: '100%' }}>
               <TouchableOpacity onPress={handleLanguageContinue} activeOpacity={0.85}>
                 <LinearGradient
-                  colors={['#4AADA1', '#6366F1']}
+                  colors={['#B958FF', '#B958FF']}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                   style={styles.primaryBtn}
@@ -560,7 +564,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
           <Animated.View entering={SlideInRight.duration(400)} style={styles.stepContainer}>
             <Animated.View entering={FadeIn.duration(400)} style={styles.permIconWrap}>
               <LinearGradient
-                colors={['#4AADA1', '#6366F1']}
+                colors={['#B958FF', '#B958FF']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.permIconCircle}
@@ -596,7 +600,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
                         <Ionicons
                           name={perm.granted === true ? 'checkmark' : (perm.icon as any)}
                           size={18}
-                          color={perm.granted === true ? '#34D399' : '#5BC4B7'}
+                          color={perm.granted === true ? '#00E676' : '#C77DFF'}
                         />
                       </View>
                       <View style={styles.permCardTextWrap}>
@@ -615,7 +619,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
                       </TouchableOpacity>
                     )}
                     {perm.granted === true && (
-                      <Ionicons name="checkmark-circle" size={22} color="#34D399" />
+                      <Ionicons name="checkmark-circle" size={22} color="#00E676" />
                     )}
                     {perm.granted === false && (
                       <Text style={styles.permDeniedText}>Skipped</Text>
@@ -631,7 +635,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
                 <Animated.View entering={FadeInUp.duration(400).delay(700)} style={{ width: '100%' }}>
                   <TouchableOpacity onPress={handleAllowAll} activeOpacity={0.85}>
                     <LinearGradient
-                      colors={['#4AADA1', '#6366F1']}
+                      colors={['#B958FF', '#B958FF']}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 0 }}
                       style={styles.primaryBtn}
@@ -671,8 +675,8 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
             <Animated.View style={[styles.orbContainer, orbAnimatedStyle]}>
               <LinearGradient
                 colors={isGreetingPlaying || voiceState === 'speaking'
-                  ? ['#34D399', '#10B981']
-                  : ['#4AADA1', '#6366F1', '#8EAAD8']}
+                  ? ['#00E676', '#10B981']
+                  : ['#B958FF', '#B958FF', '#8EAAD8']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={[styles.orb, isGreetingPlaying && { transform: [{ scale: 1 + audioLevel * 0.3 }] }]}
@@ -699,7 +703,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
             {!isGreetingPlaying && !greetingText && (
               <TouchableOpacity onPress={handleVoiceIntro} activeOpacity={0.85}>
                 <LinearGradient
-                  colors={['#4AADA1', '#6366F1']}
+                  colors={['#B958FF', '#B958FF']}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                   style={styles.primaryBtn}
@@ -714,7 +718,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
               <Animated.View entering={FadeInUp.duration(400)}>
                 <TouchableOpacity onPress={() => setStep('first_command')} activeOpacity={0.85}>
                   <LinearGradient
-                    colors={['#4AADA1', '#6366F1']}
+                    colors={['#B958FF', '#B958FF']}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 0 }}
                     style={styles.primaryBtn}
@@ -743,13 +747,13 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
                       colors={
                         isConversationActive
                           ? voiceState === 'listening'
-                            ? ['#34D399', '#10B981']
+                            ? ['#00E676', '#10B981']
                             : voiceState === 'speaking'
-                            ? ['#6366F1', '#818CF8']
+                            ? ['#B958FF', '#818CF8']
                             : ['#F59E0B', '#D97706']
                           : isCreatingTask
                           ? ['#F59E0B', '#D97706']
-                          : ['#4AADA1', '#6366F1', '#8EAAD8']
+                          : ['#B958FF', '#B958FF', '#8EAAD8']
                       }
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
@@ -795,14 +799,14 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
                 {/* AI response */}
                 {isConversationActive && aiResponse ? (
                   <Animated.View entering={FadeIn.duration(300)} style={styles.transcriptCard}>
-                    <Text style={[styles.transcriptLabel, { color: '#34D399' }]}>MYPA:</Text>
+                    <Text style={[styles.transcriptLabel, { color: '#00E676' }]}>MYPA:</Text>
                     <Text style={styles.transcriptText}>{aiResponse}</Text>
                   </Animated.View>
                 ) : null}
 
                 {!isConversationActive && (
                   <View style={styles.exampleCard}>
-                    <Ionicons name="chatbubble-outline" size={18} color="#5BC4B7" />
+                    <Ionicons name="chatbubble-outline" size={18} color="#C77DFF" />
                     <Text style={styles.exampleText}>"Add buy groceries tomorrow"</Text>
                   </View>
                 )}
@@ -823,7 +827,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
               <>
                 <Animated.View entering={FadeIn.duration(400)} style={styles.successContainer}>
                   <LinearGradient
-                    colors={['#34D399', '#10B981']}
+                    colors={['#00E676', '#10B981']}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                     style={styles.successOrb}
@@ -845,7 +849,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
                     disabled={isCompleting}
                   >
                     <LinearGradient
-                      colors={['#4AADA1', '#6366F1']}
+                      colors={['#B958FF', '#B958FF']}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 0 }}
                       style={styles.primaryBtn}
@@ -889,14 +893,14 @@ const styles = StyleSheet.create({
   ambientOrb1: {
     width: 300,
     height: 300,
-    backgroundColor: 'rgba(74, 173, 161, 0.08)',
+    backgroundColor: 'rgba(185, 88, 255, 0.08)',
     top: -60,
     right: -80,
   },
   ambientOrb2: {
     width: 250,
     height: 250,
-    backgroundColor: 'rgba(99, 102, 241, 0.06)',
+    backgroundColor: 'rgba(185, 88, 255, 0.06)',
     bottom: 40,
     left: -60,
   },
@@ -918,10 +922,10 @@ const styles = StyleSheet.create({
   progressDotActive: {
     width: 28,
     borderRadius: 4,
-    backgroundColor: '#4AADA1',
+    backgroundColor: '#B958FF',
   },
   progressDotDone: {
-    backgroundColor: '#5BC4B7',
+    backgroundColor: '#C77DFF',
   },
 
   // Step container
@@ -942,7 +946,7 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#4AADA1',
+    shadowColor: '#B958FF',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.4,
     shadowRadius: 20,
@@ -982,7 +986,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: 'rgba(74,173,161,0.15)',
+    backgroundColor: 'rgba(185,88,255,0.15)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1039,7 +1043,7 @@ const styles = StyleSheet.create({
     borderRadius: 36,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#4AADA1',
+    shadowColor: '#B958FF',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.35,
     shadowRadius: 16,
@@ -1061,8 +1065,8 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.08)',
   },
   permCardGranted: {
-    borderColor: 'rgba(52, 211, 153, 0.3)',
-    backgroundColor: 'rgba(52, 211, 153, 0.06)',
+    borderColor: 'rgba(0, 230, 118, 0.3)',
+    backgroundColor: 'rgba(0, 230, 118, 0.06)',
   },
   permCardDenied: {
     borderColor: 'rgba(255,255,255,0.06)',
@@ -1077,12 +1081,12 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: 'rgba(74,173,161,0.15)',
+    backgroundColor: 'rgba(185,88,255,0.15)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   permIconSmallGranted: {
-    backgroundColor: 'rgba(52, 211, 153, 0.15)',
+    backgroundColor: 'rgba(0, 230, 118, 0.15)',
   },
   permCardTextWrap: {
     marginLeft: 12,
@@ -1100,17 +1104,17 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   permAllowBtn: {
-    backgroundColor: 'rgba(74,173,161,0.2)',
+    backgroundColor: 'rgba(185,88,255,0.2)',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: 'rgba(74,173,161,0.4)',
+    borderColor: 'rgba(185,88,255,0.4)',
   },
   permAllowBtnText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#5BC4B7',
+    color: '#C77DFF',
   },
   permDeniedText: {
     fontSize: 12,
@@ -1148,7 +1152,7 @@ const styles = StyleSheet.create({
   transcriptLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#5BC4B7',
+    color: '#C77DFF',
     marginBottom: 6,
     textAlign: 'center',
     textTransform: 'uppercase',
@@ -1159,18 +1163,18 @@ const styles = StyleSheet.create({
   exampleCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(74,173,161,0.1)',
+    backgroundColor: 'rgba(185,88,255,0.1)',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
     gap: 8,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: 'rgba(74,173,161,0.2)',
+    borderColor: 'rgba(185,88,255,0.2)',
   },
   exampleText: {
     fontSize: 15,
-    color: '#8ED8CE',
+    color: '#D8B4FE',
     fontStyle: 'italic',
   },
 
@@ -1197,8 +1201,8 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.06)',
   },
   langCardSelected: {
-    borderColor: 'rgba(74, 173, 161, 0.5)',
-    backgroundColor: 'rgba(74, 173, 161, 0.1)',
+    borderColor: 'rgba(185, 88, 255, 0.5)',
+    backgroundColor: 'rgba(185, 88, 255, 0.1)',
   },
   langFlag: {
     fontSize: 24,
@@ -1213,7 +1217,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   langNameSelected: {
-    color: '#8ED8CE',
+    color: '#D8B4FE',
   },
   langNative: {
     fontSize: 12,
@@ -1232,7 +1236,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 24,
-    shadowColor: '#34D399',
+    shadowColor: '#00E676',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.35,
     shadowRadius: 20,

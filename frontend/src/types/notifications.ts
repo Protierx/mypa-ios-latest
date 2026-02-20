@@ -55,7 +55,7 @@ export const TYPE_TO_CATEGORY: Record<string, NotificationCategory> = {
 // ── Icon map ───────────────────────────────────────────────────────
 
 export const NOTIFICATION_ICON_MAP: Record<string, { icon: string; color: string }> = {
-  [NotificationType.CIRCLE_INVITE]: { icon: 'person-add-outline', color: '#4AADA1' },
+  [NotificationType.CIRCLE_INVITE]: { icon: 'person-add-outline', color: '#B958FF' },
   [NotificationType.CIRCLE_JOINED]: { icon: 'people-outline', color: '#30D158' },
   [NotificationType.CHALLENGE_CREATED]: { icon: 'trophy-outline', color: '#FF9F0A' },
   [NotificationType.CHALLENGE_ENDING_SOON]: { icon: 'time-outline', color: '#FF453A' },
@@ -65,12 +65,12 @@ export const NOTIFICATION_ICON_MAP: Record<string, { icon: string; color: string
   [NotificationType.TASK_OVERDUE_SUMMARY]: { icon: 'alert-circle-outline', color: '#FF453A' },
   [NotificationType.DAILY_PLANNING_REMINDER]: { icon: 'calendar-outline', color: '#0A84FF' },
 
-  [NotificationType.PERMISSION_REQUIRED_MIC]: { icon: 'mic-outline', color: '#8E8E93' },
-  [NotificationType.PERMISSION_REQUIRED_CALENDAR]: { icon: 'calendar-outline', color: '#8E8E93' },
+  [NotificationType.PERMISSION_REQUIRED_MIC]: { icon: 'mic-outline', color: '#6B6B7B' },
+  [NotificationType.PERMISSION_REQUIRED_CALENDAR]: { icon: 'calendar-outline', color: '#6B6B7B' },
   [NotificationType.SYNC_FAILED]: { icon: 'cloud-offline-outline', color: '#FF453A' },
 
   // Fallback
-  default: { icon: 'notifications-outline', color: '#4AADA1' },
+  default: { icon: 'notifications-outline', color: '#B958FF' },
 };
 
 export function getNotificationIcon(type: string) {

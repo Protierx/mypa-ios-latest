@@ -1,11 +1,11 @@
 /**
- * AIHubScene — Living, breathing ambient background scene.
+ * AIHubScene — Deep space nebula ambient background scene.
  *
  * Uses a layered approach:
- *  1. Soft warm-white to light-teal gradient base
- *  2. Drifting cloud/mist shapes (useFrameCallback-driven, 60fps)
- *  3. Floating micro-particles with slow upward drift
- *  4. Central breathing glow from the avatar area
+ *  1. Deep black-to-purple gradient base
+ *  2. Drifting nebula clouds (purple-tinted, useFrameCallback-driven, 60fps)
+ *  3. Floating micro-particles (star-like) with slow drift
+ *  4. Central breathing purple glow from the avatar area
  *  5. Subtle edge vignette
  *
  * Voice-state drives subtle energy shifts via SceneState SharedValues.
@@ -32,7 +32,7 @@ import {
 import type { SceneState } from './useAssistantSceneState';
 
 // ─────────────────────────────────────────────────────────────────────
-// Cloud configs (drifting mist shapes with orbital paths)
+// Nebula cloud configs (drifting shapes with orbital paths)
 // ─────────────────────────────────────────────────────────────────────
 
 interface CloudConfig {
@@ -47,14 +47,14 @@ interface CloudConfig {
 }
 
 const CLOUD_CONFIGS: CloudConfig[] = [
-  { baseCx: 0.15, baseCy: 0.10, radius: 120, orbitX: 40, orbitY: 25, speed: 0.003, phase: 0, alpha: 0.04 },
-  { baseCx: 0.80, baseCy: 0.18, radius: 100, orbitX: 35, orbitY: 20, speed: 0.004, phase: 1.5, alpha: 0.03 },
-  { baseCx: 0.45, baseCy: 0.35, radius: 150, orbitX: 50, orbitY: 30, speed: 0.002, phase: 3.0, alpha: 0.05 },
-  { baseCx: 0.70, baseCy: 0.55, radius: 110, orbitX: 45, orbitY: 35, speed: 0.003, phase: 4.2, alpha: 0.035 },
-  { baseCx: 0.25, baseCy: 0.70, radius: 130, orbitX: 30, orbitY: 40, speed: 0.005, phase: 5.8, alpha: 0.04 },
-  { baseCx: 0.60, baseCy: 0.82, radius: 90, orbitX: 35, orbitY: 25, speed: 0.004, phase: 0.8, alpha: 0.03 },
-  { baseCx: 0.10, baseCy: 0.45, radius: 140, orbitX: 55, orbitY: 30, speed: 0.002, phase: 2.1, alpha: 0.045 },
-  { baseCx: 0.85, baseCy: 0.40, radius: 100, orbitX: 30, orbitY: 45, speed: 0.003, phase: 3.5, alpha: 0.035 },
+  { baseCx: 0.15, baseCy: 0.10, radius: 120, orbitX: 40, orbitY: 25, speed: 0.003, phase: 0, alpha: 0.06 },
+  { baseCx: 0.80, baseCy: 0.18, radius: 100, orbitX: 35, orbitY: 20, speed: 0.004, phase: 1.5, alpha: 0.04 },
+  { baseCx: 0.45, baseCy: 0.35, radius: 150, orbitX: 50, orbitY: 30, speed: 0.002, phase: 3.0, alpha: 0.07 },
+  { baseCx: 0.70, baseCy: 0.55, radius: 110, orbitX: 45, orbitY: 35, speed: 0.003, phase: 4.2, alpha: 0.05 },
+  { baseCx: 0.25, baseCy: 0.70, radius: 130, orbitX: 30, orbitY: 40, speed: 0.005, phase: 5.8, alpha: 0.06 },
+  { baseCx: 0.60, baseCy: 0.82, radius: 90, orbitX: 35, orbitY: 25, speed: 0.004, phase: 0.8, alpha: 0.04 },
+  { baseCx: 0.10, baseCy: 0.45, radius: 140, orbitX: 55, orbitY: 30, speed: 0.002, phase: 2.1, alpha: 0.065 },
+  { baseCx: 0.85, baseCy: 0.40, radius: 100, orbitX: 30, orbitY: 45, speed: 0.003, phase: 3.5, alpha: 0.05 },
 ];
 
 const PARTICLE_COUNT = 32;
@@ -76,15 +76,15 @@ export function AIHubScene({ sceneState, amplitude }: AIHubSceneProps) {
   const cy = H * 0.42;
   const glowRadius = W * 0.5;
 
-  // ── Generate particle data once ──
+  // ── Generate particle data once (star-like) ──
   const particleData = useMemo(() =>
     Array.from({ length: PARTICLE_COUNT }, () => ({
       x: Math.random() * W,
       y: Math.random() * H,
-      size: 1.0 + Math.random() * 2.0,
+      size: 0.8 + Math.random() * 1.8,
       speed: 0.1 + Math.random() * 0.3,
       phase: Math.random() * Math.PI * 2,
-      alpha: 0.08 + Math.random() * 0.07,
+      alpha: 0.12 + Math.random() * 0.18,
     })),
   [W, H]);
 
@@ -127,16 +127,16 @@ export function AIHubScene({ sceneState, amplitude }: AIHubSceneProps) {
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
       <Canvas style={StyleSheet.absoluteFill}>
-        {/* Layer 1 — Soft gradient base (warm white → light teal edges) */}
+        {/* Layer 1 — Deep space gradient base (black → deep purple tint) */}
         <Rect x={0} y={0} width={W} height={H}>
           <SkLinearGradient
             start={vec(W / 2, 0)}
             end={vec(W / 2, H)}
-            colors={['#F5F5F0', '#F0F5F4', '#EDF2F1', '#F5F5F0']}
+            colors={['#0A0A0F', '#0E0E18', '#121220', '#0A0A0F']}
           />
         </Rect>
 
-        {/* Layer 2 — Drifting cloud shapes */}
+        {/* Layer 2 — Drifting nebula clouds (purple-tinted) */}
         <Group>
           <Blur blur={25} />
           {CLOUD_CONFIGS.map((cfg, i) => (
@@ -145,62 +145,62 @@ export function AIHubScene({ sceneState, amplitude }: AIHubSceneProps) {
               cx={cloudXs[i]}
               cy={cloudYs[i]}
               r={cfg.radius}
-              color={`rgba(74, 173, 161, ${cfg.alpha.toFixed(3)})`}
+              color={`rgba(185, 88, 255, ${cfg.alpha.toFixed(3)})`}
             />
           ))}
         </Group>
 
-        {/* Layer 3 — Warm mist accents (large blur, static) */}
+        {/* Layer 3 — Deep nebula accents (large blur, static) */}
         <Group>
           <Blur blur={35} />
           <Circle cx={W * 0.2} cy={H * 0.12} r={W * 0.22}>
             <RadialGradient
               c={vec(W * 0.2, H * 0.12)}
               r={W * 0.22}
-              colors={['rgba(245, 243, 238, 0.45)', 'transparent']}
+              colors={['rgba(124, 58, 237, 0.15)', 'transparent']}
             />
           </Circle>
           <Circle cx={W * 0.82} cy={H * 0.85} r={W * 0.2}>
             <RadialGradient
               c={vec(W * 0.82, H * 0.85)}
               r={W * 0.2}
-              colors={['rgba(237, 242, 241, 0.35)', 'transparent']}
+              colors={['rgba(76, 29, 149, 0.12)', 'transparent']}
             />
           </Circle>
         </Group>
 
-        {/* Layer 4 — Floating micro-particles */}
+        {/* Layer 4 — Floating micro-particles (star-like) */}
         {particleData.map((p, i) => (
           <Circle
             key={`p-${i}`}
             cx={particleXs[i]}
             cy={particleYs[i]}
             r={p.size}
-            color={`rgba(74, 173, 161, ${p.alpha.toFixed(3)})`}
+            color={`rgba(185, 88, 255, ${p.alpha.toFixed(3)})`}
           />
         ))}
 
-        {/* Layer 5 — Central ambient glow (breathing) */}
+        {/* Layer 5 — Central ambient glow (purple breathing) */}
         <Circle cx={cx} cy={cy} r={glowRadius}>
           <RadialGradient
             c={vec(cx, cy)}
             r={glowRadius}
             colors={[
-              'rgba(74, 173, 161, 0.08)',
-              'rgba(74, 173, 161, 0.03)',
+              'rgba(185, 88, 255, 0.10)',
+              'rgba(185, 88, 255, 0.04)',
               'transparent',
             ]}
           />
         </Circle>
 
-        {/* Secondary glow — lower, warmer */}
+        {/* Secondary glow — lower, deeper purple */}
         <Circle cx={cx} cy={H * 0.7} r={W * 0.4}>
           <RadialGradient
             c={vec(cx, H * 0.7)}
             r={W * 0.4}
             colors={[
-              'rgba(91, 196, 183, 0.05)',
-              'rgba(91, 196, 183, 0.02)',
+              'rgba(124, 58, 237, 0.06)',
+              'rgba(124, 58, 237, 0.02)',
               'transparent',
             ]}
           />
@@ -211,7 +211,7 @@ export function AIHubScene({ sceneState, amplitude }: AIHubSceneProps) {
           <RadialGradient
             c={vec(cx, cy)}
             r={Math.max(W, H) * 0.7}
-            colors={['transparent', 'transparent', 'rgba(0, 0, 0, 0.03)']}
+            colors={['transparent', 'transparent', 'rgba(0, 0, 0, 0.15)']}
           />
         </Rect>
       </Canvas>

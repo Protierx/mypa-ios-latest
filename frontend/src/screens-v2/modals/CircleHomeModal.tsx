@@ -748,10 +748,10 @@ export function CircleHomeModal({ visible, circleId, onClose, onOpenChallenge, o
     return (
       <Modal visible={showSettings} transparent animationType="slide" onRequestClose={() => { setShowSettings(false); setIsEditingCircle(false); }}>
         <View style={{ flex: 1, justifyContent: 'flex-end' }}>
-          <Pressable style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.35)' }} onPress={() => { setShowSettings(false); setIsEditingCircle(false); }} />
+          <Pressable style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.60)' }} onPress={() => { setShowSettings(false); setIsEditingCircle(false); }} />
           <View style={{ height: SH * 0.82, backgroundColor: bg.primary, borderTopLeftRadius: 20, borderTopRightRadius: 20, shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.1, shadowRadius: 16 }}>
             <View style={{ alignItems: 'center', paddingTop: 10, paddingBottom: 4 }}>
-              <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: '#D1D1D6' }} />
+              <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: textTokens.disabled }} />
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 8, paddingBottom: 14, borderBottomWidth: 0.5, borderBottomColor: borderTokens.primary }}>
               <Text style={{ fontSize: 20, fontWeight: '700', color: textTokens.primary }}>Circle Settings</Text>

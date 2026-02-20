@@ -46,10 +46,10 @@ import {
 export type ThemeMode = 'light' | 'dark' | 'adaptive';
 
 export interface ThemePalette {
-  bg: typeof bg;
-  brand: typeof brand;
-  text: typeof text;
-  border: typeof border;
+  bg: { primary: string; secondary: string; card: string; elevated: string; input: string; hover: string };
+  brand: { primary: string; secondary: string; tertiary: string; muted: string; surface: string };
+  text: { primary: string; secondary: string; tertiary: string; disabled: string; inverse: string };
+  border: { primary: string; secondary: string; focus: string };
   semantic: typeof semantic;
   category: typeof category;
 }

@@ -19,6 +19,7 @@ import {
   ACCENT_COLORS,
 } from '../../state/settingsPreferences';
 import { SettingsSectionCard, SettingsRow } from '../../components/settings';
+import { bg, text as textTokens } from '../../styles/colors';
 
 interface Props {
   onBack: () => void;
@@ -78,7 +79,7 @@ export function PrivacySecuritySettingsScreen({ onBack, onClose }: Props) {
   }, [signOut, onClose]);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#F8F8FA' }} edges={['top', 'bottom']}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: bg.primary }} edges={['top', 'bottom']}>
       {/* ── Header ─────────────────────────────────────────── */}
       <View
         style={{
@@ -106,7 +107,7 @@ export function PrivacySecuritySettingsScreen({ onBack, onClose }: Props) {
         style={{
           fontSize: 28,
           fontWeight: '700',
-          color: '#1C1C1E',
+          color: textTokens.primary,
           paddingHorizontal: 20,
           marginBottom: 20,
         }}
@@ -143,7 +144,7 @@ export function PrivacySecuritySettingsScreen({ onBack, onClose }: Props) {
         >
           <SettingsRow
             icon="document-text-outline"
-            iconColor="#8E8E93"
+            iconColor={textTokens.tertiary}
             title="Terms of Service"
             onPress={() => Linking.openURL('https://mypa.app/terms')}
           />

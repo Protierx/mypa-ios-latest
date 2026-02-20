@@ -59,7 +59,7 @@ const CARD_WIDTH = SCREEN_WIDTH - 40;
 /** Stacked avatar row — shows up to N initials, +overflow badge */
 function AvatarStack({ count, size = 24 }: { count: number; size?: number }) {
   const show = Math.min(count, 4);
-  const colours = ['#7C3AED', '#A78BFA', '#C4B5FD', '#6D28D9'];
+  const colours = [brand.primary, brand.secondary, brand.tertiary, '#9333EA'];
   return (
     <View style={s.avatarStackRow}>
       {Array.from({ length: show }).map((_, i) => (
@@ -281,8 +281,8 @@ export function SocialViewScreen() {
   const renderSummaryTabs = () => {
     if (circlesHome.length === 0) return null;
     const tabs = [
-      { value: counts.circles_count, label: 'Circles', icon: 'people', gradient: ['#7C3AED', '#A78BFA'] as const, onPress: () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowAllCircles(true); } },
-      { value: counts.unique_members_count, label: 'Members', icon: 'person-circle', gradient: ['#6D28D9', '#8B5CF6'] as const, onPress: async () => {
+      { value: counts.circles_count, label: 'Circles', icon: 'people', gradient: [brand.primary, brand.secondary] as const, onPress: () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowAllCircles(true); } },
+      { value: counts.unique_members_count, label: 'Members', icon: 'person-circle', gradient: [brand.tertiary, brand.primary] as const, onPress: async () => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         setShowAllMembers(true);
         setMembersLoading(true);
@@ -292,7 +292,7 @@ export function SocialViewScreen() {
         } catch (e) { console.error('[Members] fetch error:', e); }
         finally { setMembersLoading(false); }
       } },
-      { value: counts.active_challenges_count, label: 'Active', icon: 'flame', gradient: ['#F59E0B', '#F97316'] as const, onPress: () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowActiveChallenges(true); } },
+      { value: counts.active_challenges_count, label: 'Active', icon: 'flame', gradient: ['#FF6B35', '#FF3D00'] as const, onPress: () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowActiveChallenges(true); } },
     ];
     return (
       <Animated.View style={[s.summaryCardsRow, tabsAnim]}>
@@ -356,7 +356,7 @@ export function SocialViewScreen() {
   /* ── Circle Card (premium immersive design) ── */
   const renderCircleCard = (circle: CircleHomeItem, index: number) => {
     const roleBadge = circle.role === 'owner' ? 'Owner' : circle.role === 'admin' ? 'Admin' : 'Member';
-    const roleColor = circle.role === 'owner' ? '#F59E0B' : circle.role === 'admin' ? brand.primary : textTokens.tertiary;
+    const roleColor = circle.role === 'owner' ? '#FF6B35' : circle.role === 'admin' ? brand.primary : textTokens.tertiary;
     const roleIcon = circle.role === 'owner' ? 'shield-checkmark' : circle.role === 'admin' ? 'star' : 'person';
     const showRoleBadge = true;
     const isCheckin = activeFilter === 'checkin' && needsCheckIn(circle.circle_id);
@@ -411,7 +411,7 @@ export function SocialViewScreen() {
             {/* Active challenges */}
             {circle.active_challenges_count > 0 && (
               <View style={s.challengePill}>
-                <Ionicons name="flame" size={11} color="#F59E0B" />
+                <Ionicons name="flame" size={11} color="#FF6B35" />
                 <Text style={s.challengePillText}>
                   {circle.active_challenges_count} challenge{circle.active_challenges_count !== 1 ? 's' : ''}
                 </Text>
@@ -464,7 +464,7 @@ export function SocialViewScreen() {
       {/* Decorative illustration */}
       <View style={s.emptyIllustration}>
         <LinearGradient
-          colors={['#F5F0FF', '#EDE5FF', '#F5F0FF']}
+          colors={['rgba(185, 88, 255, 0.08)', 'rgba(185, 88, 255, 0.15)', 'rgba(185, 88, 255, 0.08)']}
           style={s.emptyGradientOrb}
         >
           <View style={s.emptyIconRing}>
@@ -472,7 +472,7 @@ export function SocialViewScreen() {
           </View>
         </LinearGradient>
         <View style={s.emptyFloatingBadge1}>
-          <Ionicons name="trophy" size={16} color="#F59E0B" />
+          <Ionicons name="trophy" size={16} color="#FF6B35" />
         </View>
         <View style={s.emptyFloatingBadge2}>
           <Ionicons name="checkmark-circle" size={16} color={semantic.success} />
@@ -493,7 +493,7 @@ export function SocialViewScreen() {
         activeOpacity={0.85}
       >
         <LinearGradient
-          colors={['#7C3AED', '#6D28D9']}
+          colors={[brand.primary, brand.tertiary]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
           style={s.createBtnGradient}
@@ -545,7 +545,7 @@ export function SocialViewScreen() {
               >
                 <Animated.View style={[s.plusButton, plusPressStyle]}>
                   <LinearGradient
-                    colors={['#7C3AED', '#6D28D9']}
+                    colors={[brand.primary, brand.tertiary]}
                     style={s.plusButtonGradient}
                   >
                     <Ionicons name="add" size={26} color="#FFFFFF" />
@@ -1324,7 +1324,7 @@ const s = StyleSheet.create({
   challengePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FEF3C7',
+    backgroundColor: 'rgba(255, 107, 53, 0.12)',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 8,
@@ -1333,7 +1333,7 @@ const s = StyleSheet.create({
   challengePillText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#D97706',
+    color: '#FF6B35',
   },
 
   /* New posts pill on circle card */
@@ -1379,7 +1379,7 @@ const s = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#F59E0B',
+    backgroundColor: '#FF6B35',
   },
   checkinCtaText: {
     fontSize: 12,
@@ -1472,7 +1472,7 @@ const s = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 12,
-    backgroundColor: '#FEF3C7',
+    backgroundColor: 'rgba(255, 107, 53, 0.12)',
     alignItems: 'center',
     justifyContent: 'center',
     ...shadows.sm,
@@ -1484,7 +1484,7 @@ const s = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 11,
-    backgroundColor: '#D1FAE5',
+    backgroundColor: 'rgba(0, 230, 118, 0.12)',
     alignItems: 'center',
     justifyContent: 'center',
     ...shadows.sm,
@@ -1761,7 +1761,7 @@ const s = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 14,
-    backgroundColor: '#FEF3C7',
+    backgroundColor: 'rgba(255, 107, 53, 0.12)',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,

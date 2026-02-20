@@ -1,22 +1,22 @@
 /**
  * Screen Skins — unique visual identity per screen.
  *
- * Each skin defines a subtle accent + hero styling so every screen
- * feels distinct while staying cohesive.
- * 
+ * Each skin defines a vibrant accent + hero styling so every screen
+ * feels distinct while staying cohesive on dark backgrounds.
+ *
  * Consumed by <ScreenContainer> and hero components.
  */
 import { ViewStyle } from 'react-native';
 import { brand, bg, semantic, category } from './colors';
 
 export interface ScreenSkin {
-  /** Subtle tinted background (used as a wash behind the scroll) */
+  /** Dark background tint */
   backgroundTint: string;
   /** Primary accent for CTAs, highlights, active states */
   accent: string;
-  /** Lighter accent for badges, subtle fills */
+  /** Muted accent for badges, subtle fills */
   accentMuted: string;
-  /** Hero card gradient stops (2–3 colors, top → bottom) */
+  /** Hero card gradient stops (3 colors, top → bottom) */
   heroGradient: readonly [string, string, ...string[]];
   /** Hero card text color */
   heroText: string;
@@ -25,62 +25,57 @@ export interface ScreenSkin {
 }
 
 /**
- * Hub — "command center" feel.
- * Purple-toned accent with brand gradient hero.
+ * Hub — electric purple command center.
  */
 export const hubSkin: ScreenSkin = {
   backgroundTint: bg.primary,
   accent: brand.primary,
   accentMuted: brand.muted,
-  heroGradient: [brand.primary, '#6D28D9'] as const,
+  heroGradient: ['#B958FF', '#7C3AED', '#4C1D95'] as const,
   heroText: '#FFFFFF',
 } as const;
 
 /**
- * Tasks — productive & energetic.
- * Blue accent keeps it focused.
+ * Tasks — electric blue productivity.
  */
 export const tasksSkin: ScreenSkin = {
   backgroundTint: bg.primary,
-  accent: category.work,
-  accentMuted: '#EFF6FF',
-  heroGradient: [category.work, '#2563EB'] as const,
+  accent: '#00B4FF',
+  accentMuted: 'rgba(0, 180, 255, 0.12)',
+  heroGradient: ['#00B4FF', '#0066FF', '#003399'] as const,
   heroText: '#FFFFFF',
 } as const;
 
 /**
- * Plan — calm & temporal.
- * Teal/green accent signals "time well spent."
+ * Plan — vivid green momentum.
  */
 export const planSkin: ScreenSkin = {
   backgroundTint: bg.primary,
-  accent: semantic.success,
-  accentMuted: semantic.successLight,
-  heroGradient: [semantic.success, '#059669'] as const,
+  accent: '#00E676',
+  accentMuted: 'rgba(0, 230, 118, 0.12)',
+  heroGradient: ['#00E676', '#00C853', '#009624'] as const,
   heroText: '#FFFFFF',
 } as const;
 
 /**
- * Circles / Social — warm & social.
- * Orange/amber accent for community energy.
+ * Circles / Social — fiery orange energy.
  */
 export const circlesSkin: ScreenSkin = {
   backgroundTint: bg.primary,
-  accent: semantic.warning,
-  accentMuted: semantic.warningLight,
-  heroGradient: [semantic.warning, '#F59E0B'] as const,
+  accent: '#FF6B35',
+  accentMuted: 'rgba(255, 107, 53, 0.12)',
+  heroGradient: ['#FF6B35', '#FF3D00', '#BF360C'] as const,
   heroText: '#FFFFFF',
 } as const;
 
 /**
- * Profile — proud & personal.
- * Pink accent for celebration / progression.
+ * Profile — bold pink celebration.
  */
 export const profileSkin: ScreenSkin = {
   backgroundTint: bg.primary,
-  accent: category.personal,
-  accentMuted: '#FDF2F8',
-  heroGradient: [category.personal, '#DB2777'] as const,
+  accent: '#FF2D87',
+  accentMuted: 'rgba(255, 45, 135, 0.12)',
+  heroGradient: ['#FF2D87', '#E91E63', '#880E4F'] as const,
   heroText: '#FFFFFF',
 } as const;
 

@@ -83,7 +83,7 @@ export function VoiceWaveform({ visible, audioLevel }: VoiceWaveformProps) {
       {/* Outer waveform glow */}
       <Path
         path={createWaveformPath()}
-        color="rgba(91, 196, 183, 0.3)"
+        color="rgba(199, 125, 255, 0.3)"
         style="stroke"
         strokeWidth={8}
         strokeCap="round"
@@ -152,7 +152,7 @@ export function AudioBars({ visible, audioLevel, barCount = 12 }: AudioBarsProps
               2
             )
           )}
-          color="rgba(91, 196, 183, 0.6)"
+          color="rgba(199, 125, 255, 0.6)"
         />
       ))}
     </Group>

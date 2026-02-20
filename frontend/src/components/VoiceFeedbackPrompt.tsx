@@ -24,7 +24,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 
 import { eventLogger } from '../services/eventLogger';
-import { brand, text as textTokens, bg } from '../styles/colors';
+import { brand, text as textTokens, bg, border as borderTokens } from '../styles/colors';
 import { shadows, radius } from '../styles/theme';
 
 interface VoiceFeedbackPromptProps {
@@ -125,7 +125,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     ...shadows.lg,
     borderWidth: 1,
-    borderColor: '#E5E5EA',
+    borderColor: borderTokens.primary,
   },
   label: {
     fontSize: 15,
@@ -144,9 +144,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   buttonUp: {
-    backgroundColor: '#ECFDF5',
+    backgroundColor: 'rgba(0,230,118,0.12)',
   },
   buttonDown: {
-    backgroundColor: '#FEF2F2',
+    backgroundColor: 'rgba(255,59,92,0.12)',
   },
 });

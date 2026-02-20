@@ -14,6 +14,7 @@ import {
   AccentPreset,
   ACCENT_COLORS,
 } from '../../state/settingsPreferences';
+import { bg, text as textTokens, border as borderTokens } from '../../styles/colors';
 
 interface Props {
   themeMode: ThemeMode;
@@ -34,13 +35,13 @@ export function ThemeAccentPicker({ themeMode, accentPreset, onThemeChange, onAc
   return (
     <View style={{ paddingHorizontal: 16, paddingVertical: 14 }}>
       {/* Theme segmented control */}
-      <Text style={{ fontSize: 13, color: '#8E8E93', marginBottom: 10, fontWeight: '500' }}>
+      <Text style={{ fontSize: 13, color: textTokens.tertiary, marginBottom: 10, fontWeight: '500' }}>
         Theme
       </Text>
       <View
         style={{
           flexDirection: 'row',
-          backgroundColor: '#F2F2F7',
+          backgroundColor: bg.secondary,
           borderRadius: 10,
           padding: 3,
           marginBottom: 20,
@@ -66,12 +67,12 @@ export function ThemeAccentPicker({ themeMode, accentPreset, onThemeChange, onAc
                 justifyContent: 'center',
                 paddingVertical: 8,
                 borderRadius: 8,
-                backgroundColor: selected ? '#FFFFFF' : 'transparent',
+                backgroundColor: selected ? bg.card : 'transparent',
                 ...(selected
                   ? {
                       shadowColor: '#000',
                       shadowOffset: { width: 0, height: 1 },
-                      shadowOpacity: 0.1,
+                      shadowOpacity: 0.15,
                       shadowRadius: 2,
                       elevation: 2,
                     }
@@ -81,14 +82,14 @@ export function ThemeAccentPicker({ themeMode, accentPreset, onThemeChange, onAc
               <Ionicons
                 name={opt.icon}
                 size={15}
-                color={selected ? accent.primary : '#8E8E93'}
+                color={selected ? accent.primary : textTokens.tertiary}
                 style={{ marginRight: 4 }}
               />
               <Text
                 style={{
                   fontSize: 14,
                   fontWeight: selected ? '600' : '400',
-                  color: selected ? '#1C1C1E' : '#8E8E93',
+                  color: selected ? textTokens.primary : textTokens.tertiary,
                 }}
               >
                 {opt.label}
@@ -99,7 +100,7 @@ export function ThemeAccentPicker({ themeMode, accentPreset, onThemeChange, onAc
       </View>
 
       {/* Accent colour dots */}
-      <Text style={{ fontSize: 13, color: '#8E8E93', marginBottom: 10, fontWeight: '500' }}>
+      <Text style={{ fontSize: 13, color: textTokens.tertiary, marginBottom: 10, fontWeight: '500' }}>
         Accent colour
       </Text>
       <View style={{ flexDirection: 'row', gap: 16, alignItems: 'center' }}>
@@ -127,7 +128,7 @@ export function ThemeAccentPicker({ themeMode, accentPreset, onThemeChange, onAc
                   borderRadius: 18,
                   backgroundColor: c.primary,
                   borderWidth: selected ? 3 : 0,
-                  borderColor: '#1C1C1E',
+                  borderColor: textTokens.primary,
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
@@ -139,7 +140,7 @@ export function ThemeAccentPicker({ themeMode, accentPreset, onThemeChange, onAc
               <Text
                 style={{
                   fontSize: 11,
-                  color: selected ? '#1C1C1E' : '#8E8E93',
+                  color: selected ? textTokens.primary : textTokens.tertiary,
                   marginTop: 4,
                   fontWeight: selected ? '600' : '400',
                 }}

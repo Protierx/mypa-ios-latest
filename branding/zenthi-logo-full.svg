@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 200" width="800" height="200">
+  <defs>
+    <!-- Main orb gradient -->
+    <radialGradient id="orbGradFull" cx="45%" cy="40%" r="50%">
+      <stop offset="0%" stop-color="#D4B8FF"/>
+      <stop offset="35%" stop-color="#B58CFF"/>
+      <stop offset="70%" stop-color="#8B5CF6"/>
+      <stop offset="100%" stop-color="#64C7FF"/>
+    </radialGradient>
+
+    <!-- Inner glow -->
+    <radialGradient id="innerGlowFull" cx="40%" cy="35%" r="40%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.6"/>
+      <stop offset="50%" stop-color="#D4B8FF" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#B58CFF" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Outer glow filter -->
+    <filter id="glowFull" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="8" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="1 0 0 0 0  0 0.5 0 0 0  0 0 1 0 0  0 0 0 0.5 0"/>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Ambient glow -->
+    <filter id="ambientFull" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="15"/>
+    </filter>
+
+    <!-- Specular -->
+    <radialGradient id="specFull" cx="38%" cy="30%" r="25%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Ring gradient -->
+    <linearGradient id="ringGradFull" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#B58CFF" stop-opacity="0.7"/>
+      <stop offset="50%" stop-color="#64C7FF" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#B58CFF" stop-opacity="0.7"/>
+    </linearGradient>
+
+    <!-- Text gradient -->
+    <linearGradient id="textGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#E0D0FF"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Ambient glow behind orb -->
+  <circle cx="100" cy="100" r="50" fill="#B58CFF" opacity="0.12" filter="url(#ambientFull)"/>
+
+  <!-- Orbital ring -->
+  <ellipse cx="100" cy="100" rx="58" ry="20" fill="none" stroke="url(#ringGradFull)" stroke-width="1" opacity="0.45" transform="rotate(-15, 100, 100)"/>
+
+  <!-- Main orb -->
+  <circle cx="100" cy="100" r="42" fill="url(#orbGradFull)" filter="url(#glowFull)"/>
+
+  <!-- Inner glow -->
+  <circle cx="100" cy="100" r="42" fill="url(#innerGlowFull)"/>
+
+  <!-- Specular highlight -->
+  <ellipse cx="90" cy="88" rx="18" ry="13" fill="url(#specFull)" opacity="0.7"/>
+
+  <!-- Small specular dot -->
+  <circle cx="84" cy="83" r="4" fill="white" opacity="0.8"/>
+
+  <!-- Wordmark -->
+  <text x="185" y="118" font-family="SF Pro Display, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="68" font-weight="200" letter-spacing="10" fill="url(#textGrad)">zenthi</text>
+
+  <!-- Subtle accent line under text -->
+  <line x1="188" y1="135" x2="310" y2="135" stroke="#B58CFF" stroke-width="1" opacity="0.3"/>
+</svg>

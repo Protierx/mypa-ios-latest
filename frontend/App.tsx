@@ -45,14 +45,12 @@ Sentry.init({
 
 // Components
 import { ErrorBoundary } from './src/components/ErrorBoundary';
-import { UnlockCelebrationModal, useUnlockCelebrations } from './src/components/UnlockCelebrationModal';
 import { GamificationProvider } from './src/contexts/GamificationContext';
 import { GamificationToastOverlay } from './src/components/GamificationToastOverlay';
 
 // Navigation
 import { GestureNavigator } from './src/navigation-v2/GestureNavigator';
 import { OnboardingScreen } from './src/screens-v2/Onboarding';
-import { AppTour, shouldShowAppTour } from './src/components/AppTour';
 
 // Styles
 import { colors } from './src/styles/colors';
@@ -159,52 +157,22 @@ function AppContent() {
 
 function AuthenticatedApp() {
   const { user, refreshProfile } = useSupabaseAuth();
-  const { currentUnlock, modalVisible, handleDismiss } = useUnlockCelebrations();
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(user?.isOnboarded ?? false);
-  const [showTour, setShowTour] = useState(false);
 
-  // Check if we should show the app tour
-  useEffect(() => {
-    if (hasCompletedOnboarding) {
-      shouldShowAppTour().then(should => {
-        if (should) setShowTour(true);
-      });
-    }
-  }, [hasCompletedOnboarding]);
-
-  // If user finishes onboarding in this session, update local state + refresh profile
   const handleOnboardingComplete = useCallback(async () => {
     setHasCompletedOnboarding(true);
-    setShowTour(true); // Always show tour right after onboarding
     await refreshProfile().catch(() => {});
   }, [refreshProfile]);
 
-  const handleTourComplete = useCallback(() => {
-    setShowTour(false);
-  }, []);
-
-  // Show onboarding if not completed
   if (!hasCompletedOnboarding) {
     return <OnboardingScreen onComplete={handleOnboardingComplete} />;
   }
-  
+
   return (
     <GamificationProvider>
       <StatusBar barStyle="light-content" />
       <GestureNavigator />
-      
-      {/* App Tour Walkthrough — shown once after onboarding */}
-      {showTour && <AppTour onComplete={handleTourComplete} />}
-
-      {/* Gamification Feedback Overlays */}
       <GamificationToastOverlay />
-      
-      {/* Unlock Celebration Modal */}
-      <UnlockCelebrationModal
-        visible={modalVisible}
-        feature={currentUnlock || ''}
-        onDismiss={handleDismiss}
-      />
     </GamificationProvider>
   );
 }

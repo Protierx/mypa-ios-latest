@@ -584,7 +584,7 @@ const s = StyleSheet.create({
   // ── Help Modal ──
   helpOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    backgroundColor: 'rgba(0, 0, 0, 0.60)',
     justifyContent: 'center',
     paddingHorizontal: 20,
   },
