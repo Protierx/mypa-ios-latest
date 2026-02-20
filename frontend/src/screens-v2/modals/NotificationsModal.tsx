@@ -40,6 +40,7 @@ import {
   getNotificationIcon,
   resolveDeepLink,
 } from '../../types/notifications';
+import { navigationBus } from '../../services/navigationBus';
 import { bg, brand, text as textTokens, border as borderTokens, semantic } from '../../styles/colors';
 import { shadows, radius, spacing } from '../../styles/theme';
 
@@ -154,7 +155,15 @@ export function NotificationsModal({ visible, onClose, onNotificationPress }: No
       // Small delay to let modal dismiss
       setTimeout(() => {
         navigateTo(target.screen as any);
-        // TODO: open target.modal with target.params when modal routing is available
+        // If target has a challenge modal, emit event so SocialViewScreen opens it
+        if (target.modal === 'challengeDetail' && target.params?.challengeId) {
+          setTimeout(() => {
+            navigationBus.openChallenge(
+              target.params!.challengeId as string,
+              notification.data?.circle_id as string | undefined,
+            );
+          }, 400);
+        }
       }, 350);
     }
   }, [markAsRead, onNotificationPress, onClose, navigateTo, showToast]);

@@ -6,7 +6,7 @@
  * Every function from v1 preserved — zero deletions.
  */
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -45,6 +45,7 @@ import { CreateCircleSheet } from '../modals/CreateCircleSheet';
 import { CreateChallengeSheet } from '../modals/CreateChallengeSheet';
 import { PaywallSheet } from '../modals/PaywallSheet';
 
+import { navigationBus } from '../../services/navigationBus';
 import { bg, brand, text as textTokens, border as borderTokens, semantic } from '../../styles/colors';
 import { shadows, radius, spacing } from '../../styles/theme';
 import { useEnterAnimation, usePressFeedback, useStaggerIn } from '../../styles/motion';
@@ -261,6 +262,15 @@ export function SocialViewScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSelectedChallengeId(id);
     setShowChallengeDetail(true);
+  }, []);
+
+  // Listen for challenge-open events from notification taps
+  useEffect(() => {
+    const unsub = navigationBus.onOpenChallenge((challengeId) => {
+      setSelectedChallengeId(challengeId);
+      setShowChallengeDetail(true);
+    });
+    return unsub;
   }, []);
 
   /* ══════════════════════════════════════════════════════════════

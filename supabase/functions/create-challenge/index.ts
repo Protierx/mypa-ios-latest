@@ -234,9 +234,10 @@ serve(async (req: Request) => {
       if (members && members.length > 0) {
         const notificationRows = members.map((m: { user_id: string }) => ({
           user_id: m.user_id,
-          type: 'challenge_created',
+          type: 'CHALLENGE_CREATED',
+          category: 'social',
           title: `${emoji || '🏆'} New Challenge in ${circleName}`,
-          body: `"${trimmedTitle}" — tap to preview & join!`,
+          body: `"${trimmedTitle}" \u2014 tap to preview & join!`,
           data: {
             challenge_id: challenge.id,
             circle_id: circleId,
